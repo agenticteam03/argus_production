@@ -1,0 +1,7 @@
+# vm-095 only: no host ports; the agent reaches these services on its own internal network.
+services:
+  argus-v18-read-gateway: {networks: [argus-v18-mon, argus-v18-core]}
+  argus-v18-host-probe:   {networks: [argus-v18-mon, argus-v18-core]}
+  argus-v18-network-probe: {networks: [argus-v18-mon, argus-lab-app, argus-v18-core]}
+networks:
+  argus-v18-core: {external: true, name: argus-v18-core}

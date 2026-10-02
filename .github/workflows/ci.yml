@@ -1,0 +1,44 @@
+# CI on every push to any branch (except the lease branch) and on every pull request.
+name: ci
+on:
+  push:
+    branches-ignore: [session]
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: argus_owner
+          POSTGRES_DB: argus
+          POSTGRES_HOST_AUTH_METHOD: trust   # throwaway CI database, reachable only inside the job
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U argus_owner -d argus"
+          --health-interval 5s --health-timeout 5s --health-retries 12
+    env:
+      ARGUS_TEST_PG_OWNER_DSN: "host=localhost port=5432 dbname=argus user=argus_owner"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install
+        run: pip install -e ".[test]"
+      - name: Brain audit (forbidden files, secrets, addresses)
+        run: python brain/tools/brain.py audit
+      - name: Brain lint (structure, links, LF)
+        run: python brain/tools/brain.py lint
+      - name: Secret scan (gitleaks, full history)
+        run: |
+          curl -sSfL https://github.com/gitleaks/gitleaks/releases/download/v8.21.2/gitleaks_8.21.2_linux_x64.tar.gz | tar -xz gitleaks
+          ./gitleaks detect --source . --no-banner --redact
+      - name: Tests (offline + Postgres + brain.py)
+        run: pytest -q -rs

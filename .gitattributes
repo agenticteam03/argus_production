@@ -1,0 +1,8 @@
+# Everything is stored and checked out with LF line endings (files go to Linux VMs; CRLF breaks bash).
+* text=auto eol=lf
+*.png binary
+*.jpg binary
+*.docx binary
+*.pdf binary
+*.7z binary
+*.tgz binary

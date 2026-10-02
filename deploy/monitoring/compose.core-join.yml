@@ -1,0 +1,4 @@
+services:
+  argus-v18-prometheus: {networks: [argus-v18-mon, argus-v18-core]}
+networks:
+  argus-v18-core: {external: true, name: argus-v18-core}

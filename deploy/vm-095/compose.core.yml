@@ -1,0 +1,76 @@
+# vm-095 (VM 0.95) — Argus v1.8 core: the tunnel (Phase 3), the agent (Phase 4: API + webhook + worker) and
+# Postgres, the system of record (Phase 5; no host port, reachable only on argus-v18-core).
+# Network argus-v18-core uses an explicit subnet chosen from ranges unused on both VMs (discovery 2026-10-01).
+name: argus-v18-core
+services:
+  argus-v18-tunnel:
+    build: ./tunnel
+    image: argus-v18-tunnel:1
+    container_name: argus-v18-tunnel
+    command: ["argus-v18-tunnel@${ARGUS_VM166_PRIVATE_IP:?set it in /opt/argus-v18/hosts.env and pass --env-file}"]
+    volumes:
+      - /opt/argus-v18/secrets/tunnel:/secrets:ro
+    networks: [argus-v18-core]          # reachable ONLY by Argus containers; no host port published
+    mem_limit: 32m
+    memswap_limit: 32m
+    cpus: 0.2
+    pids_limit: 16
+    restart: unless-stopped
+  argus-v18-postgres:
+    image: postgres:16-alpine
+    container_name: argus-v18-postgres
+    environment:
+      POSTGRES_USER: argus_owner          # owner: migrations only (ops/db-migrate.sh); the agent uses argus_runtime
+      POSTGRES_DB: argus
+      POSTGRES_PASSWORD_FILE: /run/secrets/pg_owner_password
+    command: ["postgres", "-c", "shared_buffers=32MB", "-c", "max_connections=30", "-c", "work_mem=2MB"]
+    volumes:
+      - argus-v18-pgdata:/var/lib/postgresql/data
+      - /opt/argus-v18/secrets/postgres/owner_password:/run/secrets/pg_owner_password:ro
+    networks: [argus-v18-core]          # no host port
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U argus_owner -d argus"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+    mem_limit: 256m
+    memswap_limit: 256m
+    cpus: 0.4
+    pids_limit: 100
+    restart: unless-stopped
+  argus-v18-agent:
+    build: {context: ../.., dockerfile: Dockerfile}
+    image: argus-v18-agent:1
+    container_name: argus-v18-agent
+    ports:
+      - "127.0.0.1:18000:8000"          # humans / Swagger / CLI — loopback only, reached through SSH -L
+    volumes:
+      - argus-v18-agent-data:/data
+      - /opt/argus-v18/app/config:/app/config:ro
+      - /opt/argus-v18/secrets/agent:/run/argus-secrets:ro
+      - /opt/argus-runbooks/${ARGUS_RUNBOOKS_COMMIT:-056b36e}:/runbooks:ro
+    environment:
+      ARGUS_RUNBOOKS_COMMIT: ${ARGUS_RUNBOOKS_COMMIT:-056b36e}
+      ARGUS_DB_BACKEND: ${ARGUS_DB_BACKEND:-postgres}   # rollback: ARGUS_DB_BACKEND=sqlite (the SQLite file is kept)
+      ARGUS_LLM_MODEL: ${ARGUS_LLM_MODEL:-gpt-5.6-luna}
+      ARGUS_MAX_READS_PER_STEP: "2"
+      ARGUS_MAX_STEPS: "8"
+    networks: [argus-v18-core]          # reaches vm-095 executors directly and vm-166 through argus-v18-tunnel
+    depends_on:
+      argus-v18-tunnel: {condition: service_started}
+      argus-v18-postgres: {condition: service_healthy}
+    mem_limit: 384m
+    memswap_limit: 384m
+    cpus: 0.6
+    pids_limit: 200
+    restart: unless-stopped
+networks:
+  argus-v18-core:
+    name: argus-v18-core
+    ipam:
+      config: [{subnet: 172.30.0.0/24}]
+volumes:
+  argus-v18-agent-data:
+    name: argus-v18-agent-data
+  argus-v18-pgdata:
+    name: argus-v18-pgdata

@@ -1,0 +1,14 @@
+groups:
+  - name: argus-v18
+    rules:
+      - alert: ContainerRestartLoop
+        expr: (max_over_time(argus_container_restart_count[10m]) - min_over_time(argus_container_restart_count[10m])) >= 3
+        annotations: {summary: "container restarted 3+ times in 10 minutes"}
+      - alert: ContainerUnhealthy
+        expr: argus_container_health_unhealthy == 1
+        for: 1m
+        annotations: {summary: "Docker health check reports unhealthy"}
+      - alert: DependencyProbeFailed
+        expr: argus_probe_success == 0
+        for: 1m
+        annotations: {summary: "a declared dependency is not reachable"}

@@ -1,0 +1,222 @@
+"""PostgreSQL adapter for IncidentMemoryPort, AuditSinkPort, NotificationPort and principals (v1.8 §14; Phase 5).
+
+Same interface as SqliteStore. The schema lives in deploy/migrations (applied by the owner, never by the agent);
+this adapter connects as argus_runtime, which cannot UPDATE/DELETE evidence or audit. A small pool reconnects
+after a Postgres restart.
+"""
+from __future__ import annotations
+
+import json
+from typing import Any
+
+from psycopg.types.json import Jsonb
+from psycopg_pool import ConnectionPool
+
+from argus.domain.model import AuditRecord, EvidenceRecord, Incident, IncidentStatus, TargetRef, utcnow
+
+
+class PostgresStore:
+    def __init__(self, conninfo: str, min_size: int = 1, max_size: int = 4):
+        self.pool = ConnectionPool(conninfo, min_size=min_size, max_size=max_size, open=True,
+                                   kwargs={"autocommit": True}, check=ConnectionPool.check_connection,
+                                   name="argus")
+        self.pool.wait(timeout=30)
+
+    def close(self) -> None:
+        self.pool.close()
+
+    def _q(self, sql: str, params: tuple = ()) -> list[tuple]:
+        with self.pool.connection() as c:
+            cur = c.execute(sql, params)
+            return cur.fetchall() if cur.description else []
+
+    # --- incidents -------------------------------------------------------------------------------
+    def create_incident(self, incident: Incident, idempotency_key: str | None) -> tuple[Incident, bool]:
+        row = self._q("INSERT INTO incident (id, target, status, opened_at, idempotency_key, body) "
+                      "VALUES (%s, %s, %s, %s, %s, %s) ON CONFLICT (idempotency_key) DO NOTHING RETURNING id",
+                      (incident.id, str(incident.target), incident.status, incident.opened_at, idempotency_key,
+                       Jsonb(incident.model_dump(mode="json"))))
+        if row:
+            return incident, False
+        existing = self._q("SELECT body FROM incident WHERE idempotency_key = %s", (idempotency_key,))
+        return Incident.model_validate(existing[0][0]), True
+
+    def get_incident(self, incident_id: str) -> Incident | None:
+        row = self._q("SELECT body FROM incident WHERE id = %s", (incident_id,))
+        return Incident.model_validate(row[0][0]) if row else None
+
+    def update_incident(self, incident: Incident) -> None:
+        self._q("UPDATE incident SET status = %s, body = %s WHERE id = %s",
+                (incident.status, Jsonb(incident.model_dump(mode="json")), incident.id))
+
+    def list_incidents(self, limit: int = 50) -> list[Incident]:
+        rows = self._q("SELECT body FROM incident ORDER BY opened_at DESC LIMIT %s", (limit,))
+        return [Incident.model_validate(r[0]) for r in rows]
+
+    def claim_next_queued(self) -> Incident | None:
+        """Atomic claim (FOR UPDATE SKIP LOCKED): safe with several workers."""
+        row = self._q("UPDATE incident SET status = 'running', body = jsonb_set(body, '{status}', '\"running\"') "
+                      "WHERE id = (SELECT id FROM incident WHERE status = 'queued' ORDER BY opened_at "
+                      "            FOR UPDATE SKIP LOCKED LIMIT 1) RETURNING body")
+        return Incident.model_validate(row[0][0]) if row else None
+
+    def requeue_running(self) -> int:
+        """Crash recovery: runs that were in progress when the process died start again from intake."""
+        rows = self._q("UPDATE incident SET status = 'queued', body = jsonb_set(body, '{status}', '\"queued\"') "
+                       "WHERE status = 'running' RETURNING id")
+        return len(rows)
+
+    def similar_incidents(self, target: TargetRef, incident_class: str, k: int) -> list[Incident]:
+        rows = self._q("SELECT body FROM incident WHERE target = %s AND body->>'incident_class' = %s "
+                       "AND body->>'closed_at' IS NOT NULL ORDER BY opened_at DESC LIMIT %s",
+                       (str(target), incident_class, k))
+        return [Incident.model_validate(r[0]) for r in rows]
+
+    # --- evidence ----------------------------------------------------------------------------------
+    def append_evidence(self, record: EvidenceRecord) -> None:
+        self._q("INSERT INTO evidence (evidence_id, incident_id, collected_at, host, executor, sha256, body) "
+                "VALUES (%s, %s, %s, %s, %s, %s, %s)",
+                (record.evidence_id, record.incident_id, record.collected_at, record.host, record.executor,
+                 record.sha256, Jsonb(record.model_dump(mode="json"))))
+
+    def get_evidence(self, evidence_ids: list[str]) -> list[EvidenceRecord]:
+        if not evidence_ids:
+            return []
+        rows = self._q("SELECT body FROM evidence WHERE evidence_id = ANY(%s)", (list(evidence_ids),))
+        return [EvidenceRecord.model_validate(r[0]) for r in rows]
+
+    def list_evidence(self, incident_id: str) -> list[EvidenceRecord]:
+        rows = self._q("SELECT body FROM evidence WHERE incident_id = %s ORDER BY collected_at", (incident_id,))
+        return [EvidenceRecord.model_validate(r[0]) for r in rows]
+
+    # --- audit -----------------------------------------------------------------------------------
+    def append(self, record: AuditRecord) -> None:
+        self._q("INSERT INTO audit (audit_id, incident_id, at, body) VALUES (%s, %s, %s, %s)",
+                (record.audit_id, record.incident_id, record.at, Jsonb(record.model_dump(mode="json"))))
+
+    def list_for(self, incident_id: str) -> list[AuditRecord]:
+        rows = self._q("SELECT body FROM audit WHERE incident_id = %s ORDER BY at", (incident_id,))
+        return [AuditRecord.model_validate(r[0]) for r in rows]
+
+    # --- run events (telemetry of the v1.8 nodes; not audit) ---------------------------------------
+    def append_run_event(self, incident_id: str, node: str, phase: str, data: dict[str, Any]) -> None:
+        with self.pool.connection() as c, c.transaction():
+            c.execute("SELECT pg_advisory_xact_lock(hashtext(%s))", (incident_id,))
+            c.execute("INSERT INTO run_event (incident_id, seq, at, node, phase, data) "
+                      "SELECT %s, COALESCE(MAX(seq), 0) + 1, %s, %s, %s, %s FROM run_event WHERE incident_id = %s",
+                      (incident_id, utcnow(), node, phase, Jsonb(json.loads(json.dumps(data, default=str))),
+                       incident_id))
+
+    def list_run_events(self, incident_id: str, after_seq: int = 0) -> list[dict]:
+        rows = self._q("SELECT seq, at, node, phase, data FROM run_event WHERE incident_id = %s AND seq > %s "
+                       "ORDER BY seq", (incident_id, after_seq))
+        return [{"incident_id": incident_id, "seq": s, "at": a.isoformat(), "node": n, "phase": ph, "data": d}
+                for s, a, n, ph, d in rows]
+
+    # --- notifications (recording adapter) -------------------------------------------------------------
+    def notify(self, key: str, payload: dict[str, Any]) -> None:
+        self._q("INSERT INTO notification (key, at, payload) VALUES (%s, %s, %s) ON CONFLICT (key) DO NOTHING",
+                (key, utcnow(), Jsonb(json.loads(json.dumps(payload, default=str)))))
+
+    def notifications(self, limit: int = 50) -> list[dict]:
+        rows = self._q("SELECT key, at, payload FROM notification ORDER BY at DESC LIMIT %s", (limit,))
+        return [{"key": k, "at": a.isoformat(), "payload": p} for k, a, p in rows]
+
+    # --- principals --------------------------------------------------------------------------------
+    def upsert_principal(self, pid: str, kind: str, role: str, scopes: list[str], password_hash: str) -> None:
+        self._q("INSERT INTO principal (id, kind, role, scopes, password_hash, disabled) "
+                "VALUES (%s, %s, %s, %s, %s, false) ON CONFLICT (id) DO UPDATE SET kind = excluded.kind, "
+                "role = excluded.role, scopes = excluded.scopes, password_hash = excluded.password_hash, "
+                "disabled = false", (pid, kind, role, Jsonb(scopes), password_hash))
+
+    def set_disabled(self, pid: str, disabled: bool) -> None:
+        self._q("UPDATE principal SET disabled = %s WHERE id = %s", (disabled, pid))
+
+    def get_principal(self, pid: str) -> dict | None:
+        row = self._q("SELECT id, kind, role, scopes, password_hash, disabled FROM principal WHERE id = %s", (pid,))
+        if not row:
+            return None
+        i, k, r, s, h, d = row[0]
+        return {"id": i, "kind": k, "role": r, "scopes": s, "password_hash": h, "disabled": bool(d)}
+
+
+def import_sqlite(sqlite_path: str, store: PostgresStore) -> dict[str, int]:
+    """One-shot copy of the lab SQLite history into Postgres (idempotent: existing rows are skipped).
+    Rows keep their ids, timestamps and sequence numbers; nothing is deleted from either side."""
+    import sqlite3
+    src = sqlite3.connect(f"file:{sqlite_path}?mode=ro", uri=True)
+    counts: dict[str, int] = {}
+
+    def copy(table: str, select: str, insert: str, convert) -> None:
+        n = 0
+        with store.pool.connection() as c:
+            for row in src.execute(select):
+                cur = c.execute(insert + " ON CONFLICT DO NOTHING", convert(row))
+                n += cur.rowcount
+        counts[table] = n
+
+    copy("incident", "SELECT id, target, status, opened_at, idempotency_key, body FROM incident",
+         "INSERT INTO incident (id, target, status, opened_at, idempotency_key, body) VALUES (%s,%s,%s,%s,%s,%s)",
+         lambda r: (r[0], r[1], r[2], r[3], r[4], Jsonb(json.loads(r[5]))))
+    copy("evidence", "SELECT evidence_id, incident_id, collected_at, sha256, body FROM evidence",
+         "INSERT INTO evidence (evidence_id, incident_id, collected_at, host, executor, sha256, body) "
+         "VALUES (%s,%s,%s,%s,%s,%s,%s)",
+         lambda r: (r[0], r[1], r[2], json.loads(r[4]).get("host"), json.loads(r[4]).get("executor"), r[3],
+                    Jsonb(json.loads(r[4]))))
+    copy("audit", "SELECT audit_id, incident_id, at, body FROM audit",
+         "INSERT INTO audit (audit_id, incident_id, at, body) VALUES (%s,%s,%s,%s)",
+         lambda r: (r[0], r[1], r[2], Jsonb(json.loads(r[3]))))
+    copy("principal", "SELECT id, kind, role, scopes, password_hash, disabled FROM principal",
+         "INSERT INTO principal (id, kind, role, scopes, password_hash, disabled) VALUES (%s,%s,%s,%s,%s,%s)",
+         lambda r: (r[0], r[1], r[2], Jsonb(json.loads(r[3])), r[4], bool(r[5])))
+    copy("run_event", "SELECT incident_id, seq, at, node, phase, data FROM run_event",
+         "INSERT INTO run_event (incident_id, seq, at, node, phase, data) VALUES (%s,%s,%s,%s,%s,%s)",
+         lambda r: (r[0], r[1], r[2], r[3], r[4], Jsonb(json.loads(r[5]))))
+    copy("notification", "SELECT key, at, payload FROM notification",
+         "INSERT INTO notification (key, at, payload) VALUES (%s,%s,%s)",
+         lambda r: (r[0], r[1], Jsonb(json.loads(r[2]))))
+    src.close()
+    return counts
+
+
+CHECKS_SQL: list[tuple[str, str, bool]] = [
+    # (name, statement run as argus_runtime inside a savepoint, must_succeed)
+    ("insert incident", "INSERT INTO incident (id, target, status, opened_at, body) VALUES "
+                        "('inc_dbcheck', 'vm-095/container:dbcheck', 'closed', now(), '{}')", True),
+    ("insert evidence", "INSERT INTO evidence (evidence_id, incident_id, collected_at, sha256, body) VALUES "
+                        "('ev_dbcheck', 'inc_dbcheck', now(), repeat('a', 64), '{}')", True),
+    ("insert audit", "INSERT INTO audit (audit_id, incident_id, at, body) VALUES "
+                     "('aud_dbcheck', 'inc_dbcheck', now(), '{}')", True),
+    ("UPDATE evidence refused", "UPDATE evidence SET sha256 = repeat('b', 64) WHERE evidence_id = 'ev_dbcheck'", False),
+    ("DELETE evidence refused", "DELETE FROM evidence WHERE evidence_id = 'ev_dbcheck'", False),
+    ("TRUNCATE evidence refused", "TRUNCATE evidence", False),
+    ("UPDATE audit refused", "UPDATE audit SET at = now() WHERE audit_id = 'aud_dbcheck'", False),
+    ("DELETE audit refused", "DELETE FROM audit WHERE audit_id = 'aud_dbcheck'", False),
+    ("DELETE incident refused", "DELETE FROM incident WHERE id = 'inc_dbcheck'", False),
+    ("closed incident cannot reopen", "UPDATE incident SET status = 'queued' WHERE id = 'inc_dbcheck'", False),
+    ("evidence without a SHA-256 refused", "INSERT INTO evidence (evidence_id, incident_id, collected_at, sha256, body) "
+                                           "VALUES ('ev_dbcheck2', 'inc_dbcheck', now(), 'nothash', '{}')", False),
+    ("DDL refused (CREATE TABLE)", "CREATE TABLE dbcheck_x (i int)", False),
+    ("runtime role is not superuser", "DO $$ BEGIN IF (SELECT rolsuper FROM pg_roles WHERE rolname = current_user) "
+                                      "THEN RAISE EXCEPTION 'superuser'; END IF; END $$", True),
+]
+
+
+def check(conninfo: str) -> list[tuple[str, bool, str]]:
+    """Proves the Phase 5 guarantees against the LIVE database as the runtime role. Everything happens inside one
+    transaction that is rolled back, so the check leaves no rows behind."""
+    import psycopg
+    results = []
+    with psycopg.connect(conninfo) as c:                     # autocommit off: one transaction
+        for name, sql, must_succeed in CHECKS_SQL:
+            c.execute("SAVEPOINT s")
+            try:
+                c.execute(sql)
+                ok, detail = must_succeed, "succeeded"
+                c.execute("RELEASE SAVEPOINT s")
+            except psycopg.Error as e:
+                c.execute("ROLLBACK TO SAVEPOINT s")
+                ok, detail = not must_succeed, (e.diag.message_primary or type(e).__name__)
+            results.append((name, ok, detail))
+        c.rollback()
+    return results

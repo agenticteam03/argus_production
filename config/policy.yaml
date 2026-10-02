@@ -1,0 +1,24 @@
+# Argus v1.8 policy (data) for the two-VM deployment. The engine is argus/policy/engine.py; policy_version = SHA-256 of this file.
+profile: production
+max_tool_level: 2
+allowed_safety_classes: [READ_ONLY_SAFE, READ_ONLY_SENSITIVE]
+
+capabilities:
+  container.list:          {max_per_incident: 4}
+  container.status:        {max_per_incident: 8}
+  container.resources:     {max_per_incident: 6}
+  container.logs:          {max_per_incident: 6}
+  container.health:        {max_per_incident: 6}
+  container.events:        {max_per_incident: 4}
+  host.cpu:                {max_per_incident: 4}
+  host.memory:             {max_per_incident: 4}
+  host.uptime:             {max_per_incident: 2}
+  host.disk_usage:         {max_per_incident: 4}
+  network.resolve_dns:     {max_per_incident: 4}
+  network.tcp_connect:     {max_per_incident: 4}
+  network.http_probe:      {max_per_incident: 4}
+  metrics.memory_history:  {max_per_incident: 4}
+  metrics.restart_history: {max_per_incident: 4}
+
+write_gate:
+  open: []          # write gate closed (v1.8 §13.3); a non-empty list refuses startup in this phase

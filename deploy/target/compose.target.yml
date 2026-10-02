@@ -1,0 +1,55 @@
+# Argus v1.8 target-side services — SAME file on vm-095 and vm-166 (only the env file and one override differ).
+# One role per container, each with only what it needs. Names: argus-v18-*. No host ports here.
+name: argus-v18-target
+x-common: &common
+  build: ../../services/target
+  image: argus-v18-target:1
+  restart: unless-stopped
+  mem_limit: 64m
+  memswap_limit: 64m
+  cpus: 0.2
+  pids_limit: 64
+  environment: &env {TA_CONFIG: /etc/argus-v18/target.json}
+services:
+  argus-v18-read-gateway:
+    <<: *common
+    container_name: argus-v18-read-gateway
+    environment: {<<: *env, ROLE: read_gateway}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro          # THIS host's Docker; exact GET routes only
+      - ./config/${ARGUS_HOST}.json:/etc/argus-v18/target.json:ro
+      - /opt/argus-v18/secrets/docker_read_token:/run/argus-v18/docker_read_token:ro
+    networks: [argus-v18-mon]
+  argus-v18-host-probe:
+    <<: *common
+    container_name: argus-v18-host-probe
+    environment: {<<: *env, ROLE: host_probe}
+    volumes:
+      - /proc:/host/proc:ro
+      - /:/rootfs:ro
+      - ./config/${ARGUS_HOST}.json:/etc/argus-v18/target.json:ro
+      - /opt/argus-v18/secrets/host_probe_token:/run/argus-v18/host_probe_token:ro
+    networks: [argus-v18-mon]
+  argus-v18-network-probe:
+    <<: *common
+    container_name: argus-v18-network-probe
+    environment: {<<: *env, ROLE: network_probe}
+    volumes:
+      - ./config/${ARGUS_HOST}.json:/etc/argus-v18/target.json:ro
+      - /opt/argus-v18/secrets/network_probe_token:/run/argus-v18/network_probe_token:ro
+    networks: [argus-v18-mon, argus-lab-app]
+  argus-v18-exporter:
+    <<: *common
+    container_name: argus-v18-exporter
+    environment: {<<: *env, ROLE: exporter}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./config/${ARGUS_HOST}.json:/etc/argus-v18/target.json:ro
+    networks: [argus-v18-mon, argus-lab-app]
+networks:
+  argus-v18-mon:
+    name: argus-v18-mon
+    ipam: {config: [{subnet: 172.30.1.0/24}]}
+  argus-lab-app:
+    name: argus-lab-app
+    ipam: {config: [{subnet: 172.30.2.0/24}]}

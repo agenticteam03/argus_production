@@ -1,0 +1,11 @@
+# Signal catalogue: name → PromQL template ($host, $name). Every template filters on argus_host.
+# Used by detection (MetricsPort) and by the metrics.* capabilities. Free-form PromQL is never accepted.
+restarts_10m:          'max_over_time(argus_container_restart_count{argus_host="$host",container="$name"}[10m]) - min_over_time(argus_container_restart_count{argus_host="$host",container="$name"}[10m])'
+oom_killed:            'argus_container_oom_killed{argus_host="$host",container="$name"}'
+last_exit_code:        'argus_container_last_exit_code{argus_host="$host",container="$name"}'
+health_unhealthy:      'argus_container_health_unhealthy{argus_host="$host",container="$name"}'
+dependency_probe_min:  'min(argus_probe_success{argus_host="$host",owner="$name"})'
+container_memory_bytes: 'argus_container_memory_bytes{argus_host="$host",container="$name"}'
+container_restart_count: 'argus_container_restart_count{argus_host="$host",container="$name"}'
+# Freshness gate (not a detector signal): the host's exporter scrape must be up, otherwise detection is undiagnosable.
+_scrape_up:            'up{argus_host="$host",job="argus-v18-exporter"}'

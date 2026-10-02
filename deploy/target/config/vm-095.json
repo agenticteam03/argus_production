@@ -1,0 +1,17 @@
+{
+  "host": "vm-095",
+  "containers": [
+    "argus-lab-worker",
+    "argus-lab-api"
+  ],
+  "dns_names": [
+    "argus-lab-worker",
+    "argus-lab-api"
+  ],
+  "tcp": [],
+  "http_endpoints": [],
+  "probes": [],
+  "mounts": [
+    "/"
+  ]
+}

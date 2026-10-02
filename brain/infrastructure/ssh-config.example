@@ -1,0 +1,14 @@
+# Append to ~/.ssh/config on your laptop (Windows: %USERPROFILE%\.ssh\config).
+# Ask a teammate privately for the two public addresses and the team key; never commit them.
+
+Host argus-vm095
+    HostName <public address of VM 0.95>
+    User ubuntu
+    IdentityFile ~/.ssh/team_vm_ed25519
+
+Host argus-vm166
+    HostName <public address of VM 0.166>
+    User ubuntu
+    IdentityFile ~/.ssh/team_vm_ed25519
+
+# Test:  ssh -o BatchMode=yes argus-vm095 hostname   and   ssh -o BatchMode=yes argus-vm166 hostname

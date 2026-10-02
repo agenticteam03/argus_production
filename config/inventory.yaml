@@ -1,0 +1,35 @@
+# Argus v1.8 inventory — two real hosts. Endpoints only (no credentials; those live in /opt/argus-v18/secrets).
+# vm-095 = VM 0.95 (agent host + light target host): its executors are reached on the local Docker network.
+# vm-166 = VM 0.166 (primary target + monitoring): reached through an SSH tunnel over port 22.
+# Ports follow the port matrix in brain/IMPLEMENTATION_PLAN.md (section "Ports and networks").
+hosts:
+  vm-095:
+    executors:
+      docker_read:   http://argus-v18-read-gateway:8700
+      host_probe:    http://argus-v18-host-probe:8700
+      network_probe: http://argus-v18-network-probe:8700
+      prometheus:    http://argus-v18-prometheus:9090
+  vm-166:
+    # Reached through the restricted SSH tunnel sidecar on vm-095 (encrypted path, v1.8 §3.2); on vm-166
+    # these services listen on 127.0.0.1 only. Changing transport later = changing only these URLs.
+    executors:
+      docker_read:   http://argus-v18-tunnel:18701
+      host_probe:    http://argus-v18-tunnel:18702
+      network_probe: http://argus-v18-tunnel:18703
+      prometheus:    http://argus-v18-tunnel:18090
+
+targets:
+  # --- vm-095 (light target host) -----------------------------------------------------------------
+  - ref: vm-095/host:vm-095
+    mounts: ["/"]
+  - ref: vm-095/container:argus-lab-worker        # SC-02 non-OOM crash loop (same name as on vm-166)
+  - ref: vm-095/container:argus-lab-api           # healthy control twin of vm-166's api (SC-09)
+  # --- vm-166 (primary target host) ---------------------------------------------------------------
+  - ref: vm-166/host:vm-166
+    mounts: ["/", "/srv/argus-lab-fill"]
+  - ref: vm-166/container:argus-lab-worker        # SC-01 OOM restart loop
+  - ref: vm-166/container:argus-lab-api           # SC-03 victim of its dependency
+    depends_on: [vm-166/container:argus-lab-cache]
+    http_endpoints: ["http://argus-lab-api:8080/health"]
+  - ref: vm-166/container:argus-lab-cache
+    tcp_ports: [6379]

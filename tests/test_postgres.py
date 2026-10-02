@@ -1,0 +1,159 @@
+"""Phase 5: the Postgres system of record, against a REAL database. Skipped unless ARGUS_TEST_PG_OWNER_DSN points to a
+throwaway Postgres (the fixture drops and recreates its public schema). Example (laptop):
+  docker run -d --name argus-pgtest -e POSTGRES_USER=argus_owner -e POSTGRES_DB=argus -e POSTGRES_PASSWORD=ownerpw
+      -p 127.0.0.1:55432:5432 postgres:16-alpine
+  ARGUS_TEST_PG_OWNER_DSN="host=127.0.0.1 port=55432 dbname=argus user=argus_owner password=ownerpw" pytest
+"""
+from __future__ import annotations
+
+import os
+import secrets
+from datetime import timedelta
+from pathlib import Path
+
+import pytest
+
+OWNER_DSN = os.getenv("ARGUS_TEST_PG_OWNER_DSN")
+pytestmark = pytest.mark.skipif(not OWNER_DSN, reason="ARGUS_TEST_PG_OWNER_DSN not set (needs a throwaway Postgres)")
+ROOT = Path(__file__).resolve().parents[1]
+
+
+@pytest.fixture(scope="module")
+def runtime_dsn():
+    import psycopg
+    from psycopg.conninfo import conninfo_to_dict, make_conninfo
+    pw = secrets.token_hex(16)
+    with psycopg.connect(OWNER_DSN, autocommit=True) as c:
+        c.execute("DROP SCHEMA public CASCADE")
+        c.execute("CREATE SCHEMA public")
+        c.execute((ROOT / "deploy" / "migrations" / "001_init.sql").read_text(encoding="utf-8"))
+        c.execute(f"ALTER ROLE argus_runtime PASSWORD '{pw}'")
+    d = conninfo_to_dict(OWNER_DSN)
+    d.update(user="argus_runtime", password=pw)
+    return make_conninfo(**d)
+
+
+@pytest.fixture()
+def store(runtime_dsn):
+    from argus.adapters.outbound.postgres_store import PostgresStore
+    s = PostgresStore(runtime_dsn)
+    yield s
+    s.close()
+
+
+def _incident(target="vm-166/container:argus-lab-worker", status="queued", minutes_ago=0):
+    from argus.domain.model import Incident, RequestKind, TargetRef, TriggerKind, utcnow
+    return Incident(id=f"inc_{secrets.token_hex(6)}", target=TargetRef.parse(target), trigger_kind=TriggerKind.manual,
+                    request_kind=RequestKind.report, reason="t", principal="tester", trigger_id="t",
+                    opened_at=utcnow() - timedelta(minutes=minutes_ago), status=status)
+
+
+def test_incident_lifecycle_and_forward_only(store):
+    import psycopg
+    from argus.domain.model import IncidentStatus
+    inc = _incident(minutes_ago=600)                       # oldest queued ⇒ claimed first
+    key = f"k_{secrets.token_hex(4)}"
+    assert store.create_incident(inc, key) == (inc, False)
+    again, dup = store.create_incident(_incident(), key)
+    assert dup and again.id == inc.id
+    claimed = store.claim_next_queued()
+    assert claimed.id == inc.id and claimed.status == IncidentStatus.running
+    assert store.get_incident(inc.id).status == IncidentStatus.running
+    assert store.requeue_running() >= 1 and store.get_incident(inc.id).status == IncidentStatus.queued
+    inc.status = IncidentStatus.closed
+    store.update_incident(inc)
+    inc.status = IncidentStatus.queued
+    with pytest.raises(psycopg.Error, match="final"):
+        store.update_incident(inc)                         # a closed incident never reopens
+
+
+def test_evidence_audit_events_principals(store):
+    import psycopg
+    from argus.domain.model import AuditRecord, EvidenceRecord, utcnow
+    inc = _incident()
+    store.create_incident(inc, None)
+    ev = EvidenceRecord(evidence_id=f"ev_{secrets.token_hex(6)}", incident_id=inc.id, kind="observation",
+                        capability="container.status", target=str(inc.target), host="vm-166", executor="docker_read",
+                        caller="model", source_time=None, collected_at=utcnow(), status="ok",
+                        values={"oom_killed": True}, model_text="x").with_hash()
+    store.append_evidence(ev)
+    assert store.get_evidence([ev.evidence_id])[0].sha256 == ev.sha256
+    assert [e.evidence_id for e in store.list_evidence(inc.id)] == [ev.evidence_id]
+    with pytest.raises(psycopg.Error):
+        store.append_evidence(ev.model_copy(update={"evidence_id": "ev_bad", "sha256": "nothash"}))
+    with pytest.raises(psycopg.Error, match="permission denied"):
+        store._q("DELETE FROM evidence WHERE evidence_id = %s", (ev.evidence_id,))
+    store.append(AuditRecord(audit_id=f"aud_{secrets.token_hex(6)}", incident_id=inc.id, at=utcnow(),
+                             category="decision", event="decision.test", policy_version="p"))
+    assert store.list_for(inc.id)[0].event == "decision.test"
+    for node in ("detect", "recall", "record"):
+        store.append_run_event(inc.id, node, "enter", {"when": utcnow()})
+    evs = store.list_run_events(inc.id)
+    assert [e["seq"] for e in evs] == [1, 2, 3] and evs[0]["node"] == "detect"
+    assert [e["seq"] for e in store.list_run_events(inc.id, after_seq=2)] == [3]
+    store.notify("n1", {"a": 1})
+    store.notify("n1", {"a": 2})                           # idempotent
+    assert [n["payload"] for n in store.notifications() if n["key"] == "n1"] == [{"a": 1}]
+    store.upsert_principal("alice", "human", "operator", ["lab"], "hash")
+    store.set_disabled("alice", True)
+    assert store.get_principal("alice") == {"id": "alice", "kind": "human", "role": "operator", "scopes": ["lab"],
+                                           "password_hash": "hash", "disabled": True}
+
+
+def test_database_guarantees_check(runtime_dsn):
+    import psycopg
+    from argus.adapters.outbound.postgres_store import check
+    results = check(runtime_dsn)
+    assert all(ok for _, ok, _ in results), [r for r in results if not r[1]]
+    with psycopg.connect(runtime_dsn) as c:                # the check left nothing behind
+        assert c.execute("SELECT count(*) FROM incident WHERE id = 'inc_dbcheck'").fetchone()[0] == 0
+
+
+def test_full_run_and_sqlite_import(runtime_dsn, tmp_path, monkeypatch):
+    """A whole SC-01-like run on the SQLite store, imported into Postgres; then a run directly on Postgres."""
+    from test_core import FakeMetrics, FakeTargetAgent, incident
+    from argus.adapters.outbound.llm import ScriptedLLM
+    from argus.adapters.outbound.postgres_store import PostgresStore, import_sqlite
+    from argus.adapters.outbound.sqlite_store import SqliteStore
+    from argus.domain.model import IncidentOutcome
+    from argus.infrastructure.wiring import Settings, build
+    from argus.tooling.executors import ExecutorRegistry
+    monkeypatch.setenv("ARGUS_JWT_KEY", "x" * 40)
+
+    def script(ctx):
+        t = "vm-166/container:argus-lab-worker"
+        if "container.status" not in ctx:
+            return {"calls": [("get_container_status", {"target": t})]}
+        ids = [line.split('"')[1] for line in ctx.splitlines() if line.startswith("<evidence id=")]
+        return {"calls": [("conclude", {"diagnosis": "OOM-killed by its 64 MiB limit", "evidence_ids": ids[-1:],
+                                        "confidence": "high", "root_cause_target": t})]}
+
+    def app_with(store):
+        reg = ExecutorRegistry()
+        for k in ("docker_read", "host_probe", "network_probe", "prometheus"):
+            reg.register(k, lambda url, tok, k=k: FakeTargetAgent(url, tok, k))
+        s = Settings(config_dir=ROOT / "config", secrets_dir=tmp_path / "none",
+                     runbooks_dir=ROOT.parent / "RunbooksLab" / "runbooks", max_reads_per_step=2)
+        m = FakeMetrics({"vm-166/container:argus-lab-worker": {"restarts_10m": 5, "oom_killed": 1, "last_exit_code": 137}})
+        return build(s, llm=ScriptedLLM(script), metrics=m, executors=reg, store=store, require_credentials=False)
+
+    lite = SqliteStore(str(tmp_path / "lab.db"))
+    lab = app_with(lite)
+    old = lab.runner.run(incident(lab, "vm-166/container:argus-lab-worker").id)
+    who = f"user_{secrets.token_hex(3)}"
+    lite.upsert_principal(who, "human", "operator", ["lab"], "argon-hash")
+    pg = PostgresStore(runtime_dsn)
+    counts = import_sqlite(str(tmp_path / "lab.db"), pg)
+    assert counts["incident"] == 1 and counts["evidence"] >= 2 and counts["audit"] > 0 and counts["principal"] == 1
+    assert import_sqlite(str(tmp_path / "lab.db"), pg)["incident"] == 0                    # idempotent
+    moved = pg.get_incident(old.id)
+    assert moved.outcome == IncidentOutcome.diagnosed and moved.diagnosis == old.diagnosis
+    assert [e.sha256 for e in pg.list_evidence(old.id)] == [e.sha256 for e in lite.list_evidence(old.id)]
+    assert len(pg.list_run_events(old.id)) == len(lite.list_run_events(old.id))
+    assert pg.get_principal(who)["password_hash"] == "argon-hash"            # users (alice) carry over
+
+    app = app_with(pg)
+    new = app.runner.run(incident(app, "vm-166/container:argus-lab-worker").id)
+    assert new.outcome == IncidentOutcome.diagnosed and new.root_cause_target == "vm-166/container:argus-lab-worker"
+    assert all(e.sha256 and e.host == "vm-166" for e in pg.list_evidence(new.id) if e.kind == "observation")
+    pg.close()

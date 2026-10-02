@@ -1,0 +1,21 @@
+# One Argus-owned Prometheus PER target host (v1.8 §3.1). Scrapes only Argus's own exporter on argus-v18-mon.
+name: argus-v18-monitoring
+services:
+  argus-v18-prometheus:
+    image: prom/prometheus:v3.5.0
+    container_name: argus-v18-prometheus
+    command: ["--config.file=/etc/prometheus/prometheus.yml", "--storage.tsdb.retention.time=7d",
+              "--storage.tsdb.path=/prometheus"]
+    volumes:
+      - ./prometheus-${ARGUS_HOST}.yml:/etc/prometheus/prometheus.yml:ro
+      - ./alerts.yml:/etc/prometheus/alerts.yml:ro
+      - argus-v18-prometheus:/prometheus
+    networks: [argus-v18-mon]
+    mem_limit: 256m
+    memswap_limit: 256m
+    cpus: 0.3
+    restart: unless-stopped
+volumes:
+  argus-v18-prometheus: {name: argus-v18-prometheus}
+networks:
+  argus-v18-mon: {external: true, name: argus-v18-mon}

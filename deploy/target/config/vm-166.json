@@ -1,0 +1,34 @@
+{
+  "host": "vm-166",
+  "containers": [
+    "argus-lab-worker",
+    "argus-lab-api",
+    "argus-lab-cache"
+  ],
+  "dns_names": [
+    "argus-lab-worker",
+    "argus-lab-api",
+    "argus-lab-cache"
+  ],
+  "tcp": [
+    [
+      "argus-lab-cache",
+      6379
+    ]
+  ],
+  "http_endpoints": [
+    "http://argus-lab-api:8080/health"
+  ],
+  "probes": [
+    {
+      "owner": "argus-lab-api",
+      "dependency": "argus-lab-cache",
+      "host": "argus-lab-cache",
+      "port": 6379
+    }
+  ],
+  "mounts": [
+    "/",
+    "/srv/argus-lab-fill"
+  ]
+}

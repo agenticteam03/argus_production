@@ -1,0 +1,65 @@
+# Synthetic workloads (argus-lab-*). Profiles: base (always-on baseline), sc01, sc02, … (one failure at a time).
+# Only on the argus-lab-app network; hard limits; no published ports.
+name: argus-lab-workloads
+x-lim: &lim {mem_limit: 48m, memswap_limit: 48m, cpus: 0.2, pids_limit: 32}
+services:
+  argus-lab-cache:                      # vm-166 baseline (dependency of argus-lab-api)
+    <<: *lim
+    image: redis:7-alpine
+    container_name: argus-lab-cache
+    profiles: [base-166]
+    networks: [argus-lab-app]
+    tmpfs: [/data]                      # no anonymous Docker volume (redis declares VOLUME /data)
+    restart: unless-stopped
+  argus-lab-api:                        # vm-166 baseline: depends on argus-lab-cache
+    <<: *lim
+    image: python:3.12-alpine
+    container_name: argus-lab-api
+    profiles: [base-166]
+    command: ["python", "-u", "/w/api.py"]
+    volumes: ["./workloads:/w:ro"]
+    networks: [argus-lab-app]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8080/health', timeout=2).status == 200 else 1)"]
+      interval: 15s
+      timeout: 4s
+      retries: 2
+    restart: unless-stopped
+  argus-lab-api-twin:                   # vm-095 baseline: SAME container name, no dependency, healthy
+    <<: *lim
+    image: python:3.12-alpine
+    container_name: argus-lab-api
+    profiles: [base-095]
+    environment: {CACHE_HOST: none}
+    command: ["python", "-u", "/w/api.py"]
+    volumes: ["./workloads:/w:ro"]
+    networks: [argus-lab-app]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8080/health', timeout=2).status == 200 else 1)"]
+      interval: 15s
+      timeout: 4s
+      retries: 2
+    restart: unless-stopped
+  argus-lab-worker-oom:                 # SC-01 (vm-166): OOM restart loop
+    image: python:3.12-alpine
+    container_name: argus-lab-worker
+    profiles: [sc01]
+    command: ["python", "-u", "/w/oom_worker.py"]
+    volumes: ["./workloads:/w:ro"]
+    networks: [argus-lab-app]
+    mem_limit: 64m
+    memswap_limit: 64m
+    cpus: 0.2
+    pids_limit: 32
+    restart: on-failure
+  argus-lab-worker-crash:               # SC-02 (vm-095): non-OOM crash loop, SAME container name
+    <<: *lim
+    image: python:3.12-alpine
+    container_name: argus-lab-worker
+    profiles: [sc02]
+    command: ["python", "-u", "/w/crash_worker.py"]
+    volumes: ["./workloads:/w:ro"]
+    networks: [argus-lab-app]
+    restart: on-failure
+networks:
+  argus-lab-app: {external: true, name: argus-lab-app}

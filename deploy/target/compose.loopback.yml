@@ -1,0 +1,5 @@
+# vm-166 only: publish on 127.0.0.1 ONLY; reached from vm-095 through the restricted SSH tunnel.
+services:
+  argus-v18-read-gateway: {ports: ["127.0.0.1:18701:8700"]}
+  argus-v18-host-probe:   {ports: ["127.0.0.1:18702:8700"]}
+  argus-v18-network-probe: {ports: ["127.0.0.1:18703:8700"]}
