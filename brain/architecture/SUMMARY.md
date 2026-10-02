@@ -35,3 +35,4 @@ These are recorded here so nobody "fixes" one side silently. Each will be resolv
 | Workflow engine (§10) | LangGraph with a Postgres checkpointer | plain-Python runner | plan Phase 9 (task T-0013) |
 | Tools process (§12) | stdio MCP tools child under UID `argus-tools` | direct in-process provider | plan Phase 4 |
 | api / worker / scheduler | separate processes | one agent container, no scheduler | plan Phase 9 |
+| Runbooks (§2.4) | reviewed copy in the code repository (`argus/runbooks/`) | separate private repository, pinned commit, mounted read-only | **proposed D-002** (`../OPEN_PROBLEMS.md`) |

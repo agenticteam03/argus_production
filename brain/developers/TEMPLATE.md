@@ -8,4 +8,5 @@ Copy to `<github-handle>.md` on your first session. Personal preferences only â€
 | AI agent | (Claude Code / Codex / Gemini / â€¦) |
 | Laptop | OS, shell, Docker Desktop yes/no, Python version |
 | VM access | SSH aliases set up and tested: yes/no |
-| Preferences | how you like explanations, pace, language |
+| Conversation language | e.g. English or Spanish (the agent asks if empty). Repository content is always English. |
+| Preferences | how you like explanations, pace |

@@ -1,5 +1,9 @@
 # Argus Brain — start here
 
+> **New developer? Read [`guides/HOW_WE_WORK.md`](guides/HOW_WE_WORK.md) first** (5 minutes): what is planned, how a
+> session runs, the language rule, and how commands go from `code.bash` to your terminal and back through
+> `output.bash`.
+
 This folder is the **single shared source of truth** for the Argus project: what we are building, where we stand, what
 comes next, and how we work. It lives in the same repository as the code, so the code and the knowledge change together
 through the same pull requests.
