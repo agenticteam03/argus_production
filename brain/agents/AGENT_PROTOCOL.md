@@ -108,5 +108,5 @@ go in the same pull request.
   approval of the last push, or skip the hooks (`--no-verify`) — GitHub's free plan does not block these, so you must;
 - commit `output*.bash`, `*.db`, `.env`, anything under `secrets/`, `hosts.env`, keys or tokens;
 - write files for Linux with Windows line endings (use LF; Python: write bytes with `\n`, never `Path.write_text`);
-- copy runbooks into this repository (they are read in place from the pinned library);
+- change a runbook in `argus/runbooks/` without bumping its `version` and `last_reviewed` (see its README);
 - keep project state in your tool's private memory (D9) — put it in the Brain.

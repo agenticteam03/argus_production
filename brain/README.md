@@ -48,7 +48,7 @@ Read only when needed: [`architecture/`](architecture/) (the sections your task 
 | What actually runs on the VMs | `/opt/argus-v18/DEPLOYED` on each VM — **the VM wins over the docs** |
 | Tests | CI results (truth) · `tdd/CURRENT_TEST_STATE.md` (summary) |
 | Policy, inventory, signals | `config/*.yaml` (never copied into the Brain) |
-| Runbooks | the separate repo `agenticteam03/runbooks`, at the commit in `config/runbooks.lock` |
+| Runbooks | `argus/runbooks/` (each runbook's `version` in its metadata) |
 | History | `journal/logbook.md` + Git history |
 
 If two files disagree, the higher authority wins and the lower one gets fixed in the same pull request.

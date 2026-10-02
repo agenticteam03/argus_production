@@ -16,7 +16,9 @@ CI on `main` (`9ccc61d`): the tests step, until PR #1 is merged. Locally: nothin
 ## Notable tests
 
 - `test_deployable_files_have_unix_line_endings` — blocks CRLF in files that go to Linux.
-- `test_runbooks_lock_matches_compose_default` — `config/runbooks.lock` and the compose default point to the same commit.
+- `test_runbook_library_lives_in_the_repository` — D-002: 21 runbooks + index + conventions load from `argus/runbooks/`, the
+  default location; no `/opt/argus-runbooks` mount, no `runbooks.lock`. Red seen: the default still pointed to the old
+  sibling folder.
 - `test_provider_error_escalates_at_once`, the freshness-gate and identity tests — see `tests/test_core.py`.
 - `tests/brain/test_brain.py` — lease claim/refusal/race/expiry/renew/handoff/release, audit (planted secrets,
   addresses, files), lint, archive-step, checkpoint. Red seen: every lease test failed first (a Windows text-mode

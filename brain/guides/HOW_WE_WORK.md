@@ -11,8 +11,7 @@ Five minutes. Everything else in the Brain is detail you or your AI agent read w
   to explain the project to it.
 - **What is planned, in order:**
   1. finish the setup (deploy keys so the VMs pull the code from GitHub);
-  2. team decisions **D-001** (how the two VMs talk) and **D-002** (move the runbooks into this repository) —
-     see [`../OPEN_PROBLEMS.md`](../OPEN_PROBLEMS.md);
+  2. team decision **D-001** (how the two VMs talk) — see [`../OPEN_PROBLEMS.md`](../OPEN_PROBLEMS.md);
   3. the first real task, **T-0013**: the investigation workflow in LangGraph, able to resume after a crash;
   4. then the plan's remaining phases: [`../IMPLEMENTATION_PLAN.md`](../IMPLEMENTATION_PLAN.md).
   Where we are right now: [`../CURRENT_STATE.md`](../CURRENT_STATE.md) and [`../NEXT_STEP.md`](../NEXT_STEP.md).

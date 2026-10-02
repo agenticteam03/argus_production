@@ -1,4 +1,0 @@
-# Pinned runbook library (read in place on the agent host, never copied into this repo).
-# To move the pin: change both lines here AND the ARGUS_RUNBOOKS_COMMIT default in deploy/vm-095/compose.core.yml.
-repository=https://github.com/agenticteam03/runbooks.git
-commit=056b36e06f989c475a2eb6b16fc277bdda2de25e

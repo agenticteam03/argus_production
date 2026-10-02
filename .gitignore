@@ -23,6 +23,3 @@ argus.egg-info/
 
 # VM-local host addresses (template: deploy/hosts.env.example)
 hosts.env
-
-# CI checkout of the runbook library (read in place, never committed)
-_runbooks/

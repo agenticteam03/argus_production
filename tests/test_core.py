@@ -1,5 +1,5 @@
 """Offline tests of the two-VM v1.8 core: identity, guarded execution, classification, strategies,
-runbooks read in place, run events and both output modes, boundaries."""
+runbooks loaded from argus/runbooks, run events and both output modes, boundaries."""
 from __future__ import annotations
 
 import ast
@@ -18,8 +18,7 @@ from argus.ports.ports import StaleMetrics
 from argus.tooling.executors import ExecutorRegistry
 
 ROOT = Path(__file__).resolve().parents[1]
-# The runbook library is read in place (never copied): the sibling checkout on a laptop, or $ARGUS_RUNBOOKS_DIR (CI).
-RUNBOOKS = Path(os.environ.get("ARGUS_RUNBOOKS_DIR") or ROOT.parent / "RunbooksLab" / "runbooks")
+RUNBOOKS = ROOT / "argus" / "runbooks"          # the reviewed runbook library (D-002)
 
 
 # --- fakes -------------------------------------------------------------------------------------
@@ -320,12 +319,11 @@ def test_formatted_and_raw_views_render_the_same_run(make_app):
     assert len(raw) == len(events) and all(_json.loads(r)["node"] for r in raw)
 
 
-def test_runbooks_are_read_in_place_with_versions(make_app):
+def test_runbooks_are_loaded_with_versions(make_app):
     app = make_app()
     kb = app.runner.knowledge
     assert {"RB-001", "RB-002", "RB-003", "RB-008"} <= kb.ids
     assert "Safety and approval contract" in kb.pinned_text
-    assert not (ROOT / "argus" / "runbooks").exists()          # never copied into the code repository
 
 
 
@@ -351,13 +349,17 @@ def test_deployable_files_have_unix_line_endings():
     assert bad == [], bad
 
 
-def test_runbooks_lock_matches_compose_default():
-    """config/runbooks.lock is the single pin; the agent's compose default must point at the same commit."""
-    lock = dict(line.split("=", 1) for line in (ROOT / "config" / "runbooks.lock").read_text(encoding="utf-8").splitlines()
-                if line and not line.startswith("#"))
-    assert len(lock["commit"]) == 40
-    compose = (ROOT / "deploy" / "vm-095" / "compose.core.yml").read_text(encoding="utf-8")
-    assert compose.count(f"ARGUS_RUNBOOKS_COMMIT:-{lock['commit'][:7]}}}") == 2
+def test_runbook_library_lives_in_the_repository(monkeypatch):
+    """D-002: the reviewed runbook library is part of this repository (architecture 2.4) and the default location."""
+    from argus.adapters.outbound.config_adapters import TfidfRunbooks
+    monkeypatch.delenv("ARGUS_RUNBOOKS_DIR", raising=False)
+    lib = ROOT / "argus" / "runbooks"
+    assert Settings().runbooks_dir.resolve() == lib.resolve()
+    kb = TfidfRunbooks(str(lib))
+    assert len(kb.ids) == 21
+    assert kb.library_version and kb.pinned_text            # index and conventions found next to the runbooks
+    assert "/opt/argus-runbooks" not in (ROOT / "deploy" / "vm-095" / "compose.core.yml").read_text(encoding="utf-8")
+    assert not (ROOT / "config" / "runbooks.lock").exists()
 
 
 

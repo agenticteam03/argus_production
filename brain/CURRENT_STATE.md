@@ -25,7 +25,8 @@ plain-Python runner (→ LangGraph), the direct tool provider (→ MCP tools chi
   before the B2 sanitization). From B6 on, the VMs pull from Git (`ops/deploy.sh`).
 - `/opt/argus-v18/hosts.env` exists on both VMs; the live tunnel target matches it (Task 12c).
 - Agent: Postgres system of record (`argus db check` 13/13), OpenAI `gpt-5.6-luna` via the Responses API, runbooks at
-  commit `056b36e` (`config/runbooks.lock`).
+  library v1.1.0. In the repository the library now lives in `argus/runbooks/` (D-002); the running agent still reads
+  the mounted copy `/opt/argus-runbooks/056b36e` until its next redeploy (same content).
 - Users: `juanbetancurm`, `conantkd`, `juanes6554` (operator, one shared team password); the old personal user is
   disabled. **Not yet verified:** a login test per user (legacy step 12b.2).
 - Last `nonint-check.sh after`: **NO INTERFERENCE** on both VMs (2026-10-02).
@@ -53,7 +54,7 @@ undiagnosable for one host only), SC-11 (refusals), SC-12 (executor partition �
 | Step | State |
 |---|---|
 | B1 repository + code | done (32/32 tests including Postgres) |
-| B2 code sanitization, `hosts.env`, `config/runbooks.lock` | done, verified on the VMs |
+| B2 code sanitization, `hosts.env`, runbook pin (pin later retired by D-002) | done, verified on the VMs |
 | B3 stable Brain | written |
 | B4 this mutable Brain | written |
 | B5 `brain.py` (+15 tests), pre-commit (Brain audit), CI workflow, root shims, `.gitattributes` | done locally; CI runs for the first time at the B6 push |

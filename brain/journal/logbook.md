@@ -45,3 +45,27 @@ Decision (owner):
 Consequences: GitHub does not stop an owner from merging unreviewed work; the tools make it visible. Upgrading to
 GitHub Team later would allow real protection (re-run legacy step B6.5).
 Learned: check the plan's limits before designing around a platform feature.
+
+## 2026-10-02 — D-002 done: the runbook library moves into the repository
+
+Type: decision
+Who: juanbetancurm (+ agent)
+Context: CI still could not read the runbooks: deploy keys are disabled for the whole organization ("Deploy keys are
+disabled for this repository", HTTP 422), so the read-only key planned above was never accepted. Architecture 2.4 puts
+the library in the code repository anyway.
+Decision (owner):
+- D-002 is done now, on the bootstrap PR #1. The 21 runbooks, `RUNBOOK-CONVENTIONS.md` and `RUNBOOK-INDEX.md` are
+  imported from `agenticteam03/runbooks` @ `056b36e` into `argus/runbooks/`. Line endings were normalized to LF;
+  nothing else changed. Provenance is in its README.
+- This replaces the CI deploy key above:
+  - `config/runbooks.lock` is retired;
+  - the compose mount and `ARGUS_RUNBOOKS_COMMIT` are removed;
+  - the image ships the library;
+  - the runbook steps are removed from CI;
+  - the unused secret `RUNBOOKS_DEPLOY_KEY` is deleted.
+Consequences:
+- The VM agent keeps reading `/opt/argus-runbooks/056b36e` (same content) until its next redeploy.
+- Recall section hashes change because of LF, and the library version now comes from `RUNBOOK-INDEX.md`.
+- The VMs pulling this private repository still needs deploy keys (org setting) or another method; that decision
+  comes with the deploy step.
+Learned: an empty list of deploy keys does not prove that deploy keys are allowed.

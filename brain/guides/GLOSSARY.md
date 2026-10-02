@@ -26,7 +26,7 @@
 | **Protected objects** | the pre-existing WireGuard deployment and what it uses; never touched |
 | **Recall** | the step that retrieves runbook passages for the incident |
 | **Red seen** | proof that a new test failed for the right reason before the code was written |
-| **Runbook** | a procedure document in the separate library `agenticteam03/runbooks` (RB-001 …), pinned by commit |
+| **Runbook** | a procedure document in `argus/runbooks/` (RB-001 … RB-021), with its own `version` in its metadata |
 | **Skeleton** | the fixed node sequence `detect → recall → investigate ⇄ act → record` |
 | **State probe** | the read-only first step of a VM session: deployed commit, containers, health, nonint-check |
 | **Strategy** | how an incident class orders its investigation (which evidence first) |

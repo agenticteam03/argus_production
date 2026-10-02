@@ -16,8 +16,7 @@ import pytest
 OWNER_DSN = os.getenv("ARGUS_TEST_PG_OWNER_DSN")
 pytestmark = pytest.mark.skipif(not OWNER_DSN, reason="ARGUS_TEST_PG_OWNER_DSN not set (needs a throwaway Postgres)")
 ROOT = Path(__file__).resolve().parents[1]
-# The runbook library is read in place (never copied): the sibling checkout on a laptop, or $ARGUS_RUNBOOKS_DIR (CI).
-RUNBOOKS = Path(os.environ.get("ARGUS_RUNBOOKS_DIR") or ROOT.parent / "RunbooksLab" / "runbooks")
+RUNBOOKS = ROOT / "argus" / "runbooks"          # the reviewed runbook library (D-002)
 
 
 @pytest.fixture(scope="module")
