@@ -1,7 +1,7 @@
 # Current state — the last verified shared state
 
 **As of:** 2026-10-02 · **Architecture:** v1.8.0 · **Status:** `verified` on the VMs (Tasks 0–12c); the repository
-itself is being created (shared-Brain steps B1–B5 done, B6 in progress; `main` = `9ccc61d`).
+itself is being created (shared-Brain steps B1–B5 done, B6 nearly done; `main` = `bf24fac`).
 
 > The VMs are authoritative for what runs there: check `/opt/argus-v18/DEPLOYED` (from B6) and run the state probe
 > before trusting this file.
@@ -58,5 +58,5 @@ undiagnosable for one host only), SC-11 (refusals), SC-12 (executor partition �
 | B3 stable Brain | written |
 | B4 this mutable Brain | written |
 | B5 `brain.py` (+15 tests), pre-commit (Brain audit), CI workflow, root shims, `.gitattributes` | done locally; CI runs for the first time at the B6 push |
-| B6 audit → first commit → push → review rule → deploy keys + `ops/deploy.sh` | audit clean; `9ccc61d` pushed; `session` branch works; branch protection **refused (free plan)** → soft rules (bootstrap PR #1); deploy keys next |
+| B6 audit → first commit → push → review rule → deploy keys + `ops/deploy.sh` | audit clean; `9ccc61d` pushed; `session` branch works; branch protection **refused (free plan)** → soft rules; PR #1 merged (`bf24fac`, CI green); runbooks moved in (D-002); `ops/deploy.sh` + VM deploy keys = Task B6d (first teammate-reviewed PR) |
 | B7 pilot T-0013 · B8 teammates · B9 retire the private notes | later |

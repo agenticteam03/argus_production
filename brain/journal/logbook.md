@@ -69,3 +69,23 @@ Consequences:
 - The VMs pulling this private repository still needs deploy keys (org setting) or another method; that decision
   comes with the deploy step.
 Learned: an empty list of deploy keys does not prove that deploy keys are allowed.
+
+## 2026-10-02 — PR #1 merged; deploy method: org deploy keys + ops/deploy.sh (Task B6d)
+
+Type: decision
+Who: juanbetancurm (+ agent)
+`OBSERVED`:
+- PR #1 merged: `main` = `bf24fac`;
+- CI on `main` is green: `test` and `main-guard`;
+- `verify-main` is clean (PR #1 is the recorded exception).
+Decision (owner):
+- The VMs pull this repository with one read-only deploy key per VM.
+- The owner allows deploy keys in the organization's settings.
+New: `ops/deploy.sh` (status, init, deploy):
+- it refuses when the session marker is not yours, when the VM checkout has local modifications, or when the ref is
+  unknown;
+- it checks out the exact commit and writes `DEPLOYED`;
+- it prints the rebuild hints and never restarts anything.
+Tests: `tests/test_deploy.py`, 6 tests (red seen); 53 pass in total.
+Commands: Task B6d in `execution/current/code.bash`. Part 1 covers the keys, the GitHub host key pin and the access
+test. Part 2 (`deploy.sh init`) runs after a teammate reviews and merges this PR.
