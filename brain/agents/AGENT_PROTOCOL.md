@@ -95,7 +95,8 @@ go in the same pull request.
 
 ## 8. What you must never do
 
-- push to `main`, force-push a shared branch, merge your own developer's pull request, or bypass branch protection;
+- push to `main`, force-push a shared branch, merge your own developer's pull request, merge without a non-author
+  approval of the last push, or skip the hooks (`--no-verify`) — GitHub's free plan does not block these, so you must;
 - commit `output*.bash`, `*.db`, `.env`, anything under `secrets/`, `hosts.env`, keys or tokens;
 - write files for Linux with Windows line endings (use LF; Python: write bytes with `\n`, never `Path.write_text`);
 - copy runbooks into this repository (they are read in place from the pinned library);

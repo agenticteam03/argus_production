@@ -16,6 +16,8 @@ import pytest
 OWNER_DSN = os.getenv("ARGUS_TEST_PG_OWNER_DSN")
 pytestmark = pytest.mark.skipif(not OWNER_DSN, reason="ARGUS_TEST_PG_OWNER_DSN not set (needs a throwaway Postgres)")
 ROOT = Path(__file__).resolve().parents[1]
+# The runbook library is read in place (never copied): the sibling checkout on a laptop, or $ARGUS_RUNBOOKS_DIR (CI).
+RUNBOOKS = Path(os.environ.get("ARGUS_RUNBOOKS_DIR") or ROOT.parent / "RunbooksLab" / "runbooks")
 
 
 @pytest.fixture(scope="module")
@@ -133,7 +135,7 @@ def test_full_run_and_sqlite_import(runtime_dsn, tmp_path, monkeypatch):
         for k in ("docker_read", "host_probe", "network_probe", "prometheus"):
             reg.register(k, lambda url, tok, k=k: FakeTargetAgent(url, tok, k))
         s = Settings(config_dir=ROOT / "config", secrets_dir=tmp_path / "none",
-                     runbooks_dir=ROOT.parent / "RunbooksLab" / "runbooks", max_reads_per_step=2)
+                     runbooks_dir=RUNBOOKS, max_reads_per_step=2)
         m = FakeMetrics({"vm-166/container:argus-lab-worker": {"restarts_10m": 5, "oom_killed": 1, "last_exit_code": 137}})
         return build(s, llm=ScriptedLLM(script), metrics=m, executors=reg, store=store, require_credentials=False)
 

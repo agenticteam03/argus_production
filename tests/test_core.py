@@ -18,6 +18,8 @@ from argus.ports.ports import StaleMetrics
 from argus.tooling.executors import ExecutorRegistry
 
 ROOT = Path(__file__).resolve().parents[1]
+# The runbook library is read in place (never copied): the sibling checkout on a laptop, or $ARGUS_RUNBOOKS_DIR (CI).
+RUNBOOKS = Path(os.environ.get("ARGUS_RUNBOOKS_DIR") or ROOT.parent / "RunbooksLab" / "runbooks")
 
 
 # --- fakes -------------------------------------------------------------------------------------
@@ -82,7 +84,7 @@ def make_app(tmp_path, monkeypatch):
         for k in ("docker_read", "host_probe", "network_probe"):
             reg.register(k, lambda url, tok, k=k: FakeTargetAgent(url, tok, k))
         reg.register("prometheus", FakeTargetAgent)
-        s = Settings(config_dir=ROOT / "config", secrets_dir=tmp_path / "none", runbooks_dir=ROOT.parent / "RunbooksLab" / "runbooks",
+        s = Settings(config_dir=ROOT / "config", secrets_dir=tmp_path / "none", runbooks_dir=RUNBOOKS,
                      db_path=str(tmp_path / "t.db"), max_reads_per_step=2)
         return build(s, llm=llm, metrics=metrics or FakeMetrics(), executors=reg,
                      store=SqliteStore(str(tmp_path / "t.db")), require_credentials=False)

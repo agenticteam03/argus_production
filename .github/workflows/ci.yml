@@ -40,5 +40,35 @@ jobs:
         run: |
           curl -sSfL https://github.com/gitleaks/gitleaks/releases/download/v8.21.2/gitleaks_8.21.2_linux_x64.tar.gz | tar -xz gitleaks
           ./gitleaks detect --source . --no-banner --redact
+      - name: Runbook pin from config/runbooks.lock
+        id: pin
+        run: echo "commit=$(sed -n 's/^commit=//p' config/runbooks.lock)" >> "$GITHUB_OUTPUT"
+      - name: Runbook library at the pinned commit (private repo, read-only deploy key)
+        uses: actions/checkout@v4
+        with:
+          repository: agenticteam03/runbooks
+          ref: ${{ steps.pin.outputs.commit }}
+          ssh-key: ${{ secrets.RUNBOOKS_DEPLOY_KEY }}
+          path: _runbooks
       - name: Tests (offline + Postgres + brain.py)
+        env:
+          ARGUS_RUNBOOKS_DIR: ${{ github.workspace }}/_runbooks/runbooks
         run: pytest -q -rs
+
+  # Free plan = no branch protection. This job turns red if main received a change that did not come through a pull
+  # request approved (on its last push) by someone other than its author. Exceptions: brain/policies/main-exceptions.txt
+  main-guard:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Review rule on main
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python brain/tools/brain.py verify-main --ref HEAD

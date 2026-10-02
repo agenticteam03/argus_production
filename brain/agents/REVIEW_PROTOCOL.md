@@ -25,11 +25,16 @@ B's session, with B's AI agent. Reviewing comes before new work, because new wor
 6. **After the merge:** `git checkout main && git pull`; the reviewed work is now the shared state. Continue with
    `NEXT_STEP.md`.
 
-## Enforced by GitHub (branch protection on `main`)
+## How the rule is enforced (free GitHub plan: no branch protection on private repos)
 
-- a pull request is required, with 1 approval;
-- the most recent push must be approved by someone other than its author;
-- CI must be green; the branch must be up to date with `main`;
-- **no bypass**, also for organization owners.
+GitHub cannot block a merge for us, so the rule is enforced by the team and checked by tools:
+- **before merging** (the reviewer checks it in the PR page): the PR has an **Approve** from someone other than its
+  author, given **after the last push**; CI is green; the branch is up to date with `main` ("Update branch" if not);
+- **on your laptop:** the pre-push hook refuses `git push` to `main`;
+- **after merging:** `brain.py verify-main` checks every commit on `main` came from a PR approved on its last push by
+  someone other than its author — CI runs it on every push to `main` (job `main-guard`, red = rule broken) and
+  `brain.py start` warns at the start of every session;
+- the only exceptions are listed in [`../policies/main-exceptions.txt`](../policies/main-exceptions.txt).
 
-Nobody merges their own pull request. If A works again before anyone reviewed, A continues on the same branch.
+If `main-guard` is red: stop and tell the team; the fix is a follow-up PR that gets the missing review (never a
+force push). Nobody merges their own pull request. If A works again before anyone reviewed, A continues on the same branch.

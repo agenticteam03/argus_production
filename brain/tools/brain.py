@@ -11,6 +11,10 @@
   archive-step T-xxxx NN       move execution/current/code.bash into execution/history/T-xxxx/step-NN/
   audit [--staged]             forbidden files and patterns (secrets, addresses, local paths)
   lint                         Brain structure, relative links, LF line endings
+  verify-main [--ref R]        every commit on main came from a PR approved by someone other than its author
+                               (our free-plan substitute for GitHub branch protection; exceptions in
+                               brain/policies/main-exceptions.txt)
+  guard-push                   pre-push hook: refuses a push to main (changes reach main only through PRs)
 
 The live lease is session.json on the `session` branch. A claim is a fast-forward push: if two developers claim at
 the same moment, Git accepts exactly one. Your GitHub handle comes from --as, $ARGUS_DEVELOPER or
@@ -191,6 +195,14 @@ def cmd_start(args) -> int:
     else:
         print(f"You are on '{branch}' (not main): fetched only, nothing merged.")
     cmd_status(args)
+    if not os.environ.get("BRAIN_NO_GH"):
+        try:
+            problems = verify_main("refs/remotes/origin/main")
+        except BrainError as e:
+            problems = [f"could not verify main ({e})"]
+        if problems:
+            print("\nWARNING: main has changes that did not follow the review rule - tell the team:\n  "
+                  + "\n  ".join(problems))
     if args.no_claim:
         print("\nNo lease claimed (code-only work). Do not run mutating VM steps.")
         return 0
@@ -404,6 +416,81 @@ def cmd_lint(args) -> int:
     return 0
 
 
+# ------------------------------------------------------------- review rule on main (free plan: no branch protection)
+EXCEPTIONS = Path("brain/policies/main-exceptions.txt")
+
+
+def read_exceptions(root: Path) -> set[int]:
+    """PR numbers allowed without a non-author approval (one per line: `pr <n>  <reason>`)."""
+    p = root / EXCEPTIONS
+    if not p.is_file():
+        return set()
+    return {int(line.split()[1]) for line in p.read_text(encoding="utf-8").splitlines()
+            if line.startswith("pr ") and len(line.split()) > 1 and line.split()[1].isdigit()}
+
+
+def check_main(commits: list[tuple[str, int]], pr_for, reviews_for, allowed: set[int]) -> list[str]:
+    """commits: (sha, number of parents) along main's first-parent line. pr_for(sha) -> PR dict or None;
+    reviews_for(n) -> review dicts. Returns the violations (empty = rule kept)."""
+    problems = []
+    for sha, parents in commits:
+        if parents == 0:
+            continue                                   # the initial import
+        pr = pr_for(sha)
+        if not pr:
+            problems.append(f"{sha[:7]}: pushed directly to main (no pull request)")
+            continue
+        n, author, head = pr["number"], pr["user"]["login"], pr["head"]["sha"]
+        if n in allowed:
+            continue
+        ok = any(r.get("state") == "APPROVED" and r["user"]["login"] != author and r.get("commit_id") == head
+                 for r in reviews_for(n))
+        if not ok:
+            problems.append(f"{sha[:7]}: PR #{n} by {author} merged without an approval of its last push by "
+                            "another developer")
+    return problems
+
+
+def gh_json(path: str):
+    p = subprocess.run(["gh", "api", path], capture_output=True, text=True, encoding="utf-8", timeout=60)
+    if p.returncode != 0:
+        raise BrainError(f"gh api {path}: {(p.stderr or p.stdout).strip()}")
+    return json.loads(p.stdout or "null")
+
+
+def verify_main(ref: str) -> list[str]:
+    if not git("rev-parse", "--verify", "-q", ref, check=False):
+        return []
+    commits = [(line.split()[0], len(line.split()) - 1)
+               for line in git("rev-list", "--first-parent", "--parents", ref).splitlines()]
+
+    def pr_for(sha):
+        prs = [p for p in gh_json(f"repos/{{owner}}/{{repo}}/commits/{sha}/pulls") or []
+               if p.get("merge_commit_sha") == sha]
+        return prs[0] if prs else None
+
+    return check_main(commits, pr_for, lambda n: gh_json(f"repos/{{owner}}/{{repo}}/pulls/{n}/reviews"),
+                      read_exceptions(repo_root()))
+
+
+def cmd_verify_main(args) -> int:
+    problems = verify_main(args.ref)
+    if problems:
+        print("MAIN RULE BROKEN:\n  " + "\n  ".join(problems))
+        return 1
+    print("verify-main: every change on main came through an approved pull request (or a recorded exception)")
+    return 0
+
+
+def cmd_guard_push(args) -> int:
+    target = os.environ.get("PRE_COMMIT_REMOTE_BRANCH", "")
+    if target in ("refs/heads/main", "main"):
+        print("brain.py: pushing to main is not allowed. Push your task branch and open a pull request "
+              "(brain/policies/GIT_WORKFLOW.md).", file=sys.stderr)
+        return 1
+    return 0
+
+
 # ------------------------------------------------------------------------------------------------------------ main
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="brain.py", description=__doc__, formatter_class=argparse.RawTextHelpFormatter)
@@ -433,6 +520,10 @@ def main(argv: list[str] | None = None) -> int:
     au.add_argument("--staged", action="store_true")
     au.set_defaults(fn=cmd_audit)
     sub.add_parser("lint").set_defaults(fn=cmd_lint)
+    v = sub.add_parser("verify-main")
+    v.add_argument("--ref", default="refs/remotes/origin/main")
+    v.set_defaults(fn=cmd_verify_main)
+    sub.add_parser("guard-push").set_defaults(fn=cmd_guard_push)
     for stream in (sys.stdout, sys.stderr):
         stream.reconfigure(errors="replace")
     args = ap.parse_args(argv)

@@ -1,8 +1,11 @@
-# Install once per clone:  pip install -e ".[dev]"  then  pre-commit install
-# Runs on every `git commit`: the Brain audit (secrets, addresses, forbidden files) and lint (brain/policies/SECURITY.md).
+# Install once per clone:  pip install -e ".[dev]"  then  pre-commit install   (installs both hook types below)
+# On every `git commit`: the Brain audit (secrets, addresses, forbidden files) and lint (brain/policies/SECURITY.md).
+# On every `git push`: refuses a push to main - changes reach main only through reviewed pull requests
+# (our free-plan substitute for branch protection; brain/policies/GIT_WORKFLOW.md).
 # gitleaks runs in CI on every push (full history). It is not a local hook because Windows Application Control can
 # block its binary; to run it locally with Docker Desktop:
 #   docker run --rm -v "${PWD}:/repo" zricethezav/gitleaks:v8.21.2 detect --source /repo --no-banner --redact
+default_install_hook_types: [pre-commit, pre-push]
 repos:
   - repo: local
     hooks:
@@ -12,9 +15,18 @@ repos:
         language: system
         pass_filenames: false
         always_run: true
+        stages: [pre-commit]
       - id: brain-lint
         name: brain lint (structure, links, LF line endings)
         entry: python brain/tools/brain.py lint
         language: system
         pass_filenames: false
         always_run: true
+        stages: [pre-commit]
+      - id: no-push-to-main
+        name: no direct push to main (use a pull request)
+        entry: python brain/tools/brain.py guard-push
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-push]

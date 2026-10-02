@@ -13,7 +13,7 @@ audited tools, and concludes or escalates to a human. It is **read-only** in thi
 ```powershell
 python -m venv .venv
 .\.venv\Scripts\python -m pip install -e ".[test,dev]"
-.\.venv\Scripts\pre-commit install          # Brain audit (secrets, addresses) on every commit
+.\.venv\Scripts\pre-commit install          # Brain audit on every commit; refuses a push to main
 .\.venv\Scripts\python -m pytest -q          # Postgres tests: see brain/policies/TDD.md
 git config argus.developer <your-github-handle>
 python brain/tools/brain.py status
