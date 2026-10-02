@@ -99,7 +99,7 @@ Argus **adds** objects; it never modifies, reuses or depends on objects it did n
 | Rule | Mechanism |
 |---|---|
 | N1 Distinct names | `argus-v18-*`, `argus-lab-*`; checked against discovery first |
-| N2 Distinct places | `/opt/argus-v18`, `/opt/argus-runbooks`, optional `/srv/argus-lab-fill`; nothing under other projects' directories |
+| N2 Distinct places | `/opt/argus-v18`, optional `/srv/argus-lab-fill`; nothing under other projects' directories |
 | N3 Distinct subnets | explicit subnets from unused ranges |
 | N4 Distinct ports | the matrix above, verified free |
 | N5 No reuse | other deployments' Prometheus, exporters and gateways are never scraped, configured, restarted or relied on |
@@ -110,11 +110,11 @@ Argus **adds** objects; it never modifies, reuses or depends on objects it did n
 | N11 Kill switch | `docker compose down` per Argus project; nothing else |
 | N13 Existing deployment | the protected objects in `infrastructure/environment.md` are never touched |
 
-## 6. Runbook integration (never copied into this repository)
+## 6. Runbook integration (the library lives in `argus/runbooks/`, D-002)
 
 | Topic | Design |
 |---|---|
-| Source | the library `agenticteam03/runbooks`, pinned by `config/runbooks.lock`, deployed to `/opt/argus-runbooks/<commit>` on vm-095, mounted read-only (`ARGUS_RUNBOOKS_DIR`) |
+| Source | the reviewed library in `argus/runbooks/` (imported from `agenticteam03/runbooks` at `056b36e`, v1.1.0), shipped inside the agent image; `ARGUS_RUNBOOKS_DIR` can override it |
 | Loading | IDs, version and status come from each file's metadata, never the file name; `RUNBOOK-CONVENTIONS.md` is pinned in every context |
 | Mapping | `IncidentClassSpec.runbook_ids`; startup refuses a class referencing a missing runbook; draft runbooks shown as `status: draft` |
 | Retrieval | TF-IDF over coherent sections; an over-long section is refused, never cut |

@@ -37,7 +37,7 @@ class Settings:
     config_dir: Path = field(default_factory=lambda: Path(os.getenv("ARGUS_CONFIG_DIR", "config")))
     secrets_dir: Path = field(default_factory=lambda: Path(os.getenv("ARGUS_SECRETS_DIR", "/run/argus-secrets")))
     runbooks_dir: Path = field(default_factory=lambda: Path(os.getenv(
-        "ARGUS_RUNBOOKS_DIR", str(Path(__file__).resolve().parents[3] / "RunbooksLab" / "runbooks"))))
+        "ARGUS_RUNBOOKS_DIR", str(Path(__file__).resolve().parents[1] / "runbooks"))))   # argus/runbooks (D-002)
     runbooks_commit: str | None = field(default_factory=lambda: os.getenv("ARGUS_RUNBOOKS_COMMIT") or None)
     db_path: str = field(default_factory=lambda: os.getenv("ARGUS_DB", "argus.db"))
     db_backend: str = field(default_factory=lambda: os.getenv("ARGUS_DB_BACKEND", "sqlite"))   # sqlite | postgres

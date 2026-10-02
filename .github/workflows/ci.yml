@@ -42,3 +42,21 @@ jobs:
           ./gitleaks detect --source . --no-banner --redact
       - name: Tests (offline + Postgres + brain.py)
         run: pytest -q -rs
+
+  # Free plan = no branch protection. This job turns red if main received a change that did not come through a pull
+  # request approved (on its last push) by someone other than its author. Exceptions: brain/policies/main-exceptions.txt
+  main-guard:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Review rule on main
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python brain/tools/brain.py verify-main --ref HEAD

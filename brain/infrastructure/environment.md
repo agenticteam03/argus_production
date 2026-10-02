@@ -46,7 +46,7 @@ vm-095                                               vm-166
 | Kind | Argus uses | Rule |
 |---|---|---|
 | Container / compose names | `argus-v18-*` (platform), `argus-lab-*` (synthetic workloads) | nothing else is ours |
-| Directories | `/opt/argus-v18/app` (code, 0755), `/opt/argus-v18/secrets` (0700 root), `/opt/argus-v18/baseline` (non-interference snapshots), `/opt/argus-v18/hosts.env`, `/opt/argus-runbooks/<commit>` (vm-095) | nothing outside them |
+| Directories | `/opt/argus-v18/app` (code, 0755), `/opt/argus-v18/secrets` (0700 root), `/opt/argus-v18/baseline` (non-interference snapshots), `/opt/argus-v18/hosts.env`; legacy `/opt/argus-runbooks/056b36e` (vm-095, unused after the next agent redeploy) | nothing outside them |
 | Ports | 18000–18799, bound to `127.0.0.1` only | never `0.0.0.0` or a public address |
 | Docker networks | `argus-v18-core` 172.30.0.0/24 (vm-095), `argus-v18-mon` 172.30.1.0/24, `argus-lab-app` 172.30.2.0/24 | explicit subnets |
 | Volumes | `argus-v18-*` (e.g. `argus-v18-pgdata`, `argus-v18-agent-data`) | — |
@@ -77,7 +77,7 @@ listening ports, firewall rules, interfaces including `wg0`) and must print `NO 
 | Users | one per developer (GitHub handle), role operator, one shared team password |
 | Database | `argus-v18-postgres` (Postgres 16), system of record; migrations `ops/db-migrate.sh`; `argus db check` |
 | Model | OpenAI `gpt-5.6-luna` via the Responses API (no `temperature`) |
-| Runbooks | `/opt/argus-runbooks/<commit>` mounted read-only; the commit is in `config/runbooks.lock` |
+| Runbooks | inside the image (`argus/runbooks/`, D-002); until the next redeploy the running agent reads the mounted `/opt/argus-runbooks/056b36e` |
 
 ## 6. Laptop prerequisites (each developer)
 

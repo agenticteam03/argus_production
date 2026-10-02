@@ -29,6 +29,7 @@ part of this repository. New entries go to [`logbook.md`](logbook.md).
 | 2026-10-02 | **Team logins:** one Argus user per developer (GitHub handle), one shared password, the old personal user disabled. |
 | 2026-10-02 | **Shared Brain** (this repository): `brain/` is the single source of truth; task branches; the next developer reviews and merges; 60-minute renewable session lease; VMs deploy by `git fetch` with read-only deploy keys; the architecture changes only through ACRs (no longer frozen). |
 | 2026-10-02 | Private addresses moved to the VM-local `/opt/argus-v18/hosts.env`; runbook pin in `config/runbooks.lock`. |
+| 2026-10-02 | **D-002:** the runbook library moved into `argus/runbooks/` (as architecture 2.4 says); the pin and the separate-repository access are retired. |
 
 ## Learned (recurring lessons)
 

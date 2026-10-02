@@ -2,7 +2,17 @@
 
 Every command a developer must run goes into **`brain/execution/current/code.bash`**. The developer pastes what the
 terminal printed into **`brain/execution/current/output.bash`** (gitignored, never committed) and tells the agent
-"output.bash updated". The agent validates it against the expected lines.
+"output.bash updated". The agent validates it against the expected lines. The developer-facing explanation is
+[`../guides/HOW_WE_WORK.md`](../guides/HOW_WE_WORK.md) §4–§5.
+
+## Reading `output.bash` economically (agents)
+
+Do not read the whole file by default. First **search** it: the step's verdict lines and `Expected:` markers, and
+error words (`error`, `fail`, `denied`, `refused`, `STOP`, `MISMATCH`, `Traceback`, `exit code`, `not recognized`).
+If every verdict is present and no error word appears, the step passed — say so and move on. Read a section in full
+only when a verdict is missing or an error word appears. To make this possible, **every block ends with a printed
+verdict line** that is unique and greppable (e.g. `NO INTERFERENCE`, `TUNNEL TARGET MATCHES`, `47 passed`), or with
+an explicit `&& echo "<STEP> OK" || echo "<STEP> STOP: <reason>"`.
 
 ## Block format
 

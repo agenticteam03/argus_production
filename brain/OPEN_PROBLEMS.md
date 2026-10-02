@@ -6,6 +6,7 @@ When a problem is fixed, set its status to `fixed` with the date, and add a jour
 | ID | Item | Status | Opened |
 |---|---|---|---|
 | **D-001** | Cross-host path and alert direction: architecture text vs the running system | **pending team decision** | 2026-10-02 |
+| **D-002** | Move the runbook library into this repository (the architecture expects it there) | **decided and done** 2026-10-02 | 2026-10-02 |
 | OP-001 | Runbook `detector` metadata uses old or empty class names | open | 2026-09-30 |
 | OP-002 | P0 safety gaps of the runbook library not yet reconciled with architecture v1.8 | open | 2026-09-30 |
 | OP-003 | Runbook safety classes not mapped to `CapabilitySpec.risk` | open | 2026-09-30 |
@@ -37,6 +38,30 @@ the journal.
 
 ---
 
+## D-002 — Move the runbook library into this repository
+
+**Status:** decided and done (2026-10-02, owner: deploy keys are disabled in the organization, so CI could not read
+the separate repository; moving the library removes the need) · **Opened:** 2026-10-02
+
+**The difference.** Architecture §2.4 places the runbooks in the code repository (`argus/runbooks/`, "reviewed copy
+of the runbook library v1.1.0" + `RUNBOOK-CONVENTIONS.md`). The running system reads them from a separate private
+repository (`agenticteam03/runbooks`, pinned in `config/runbooks.lock`). That came from an implementation choice on
+2026-09-30 ("read in place, never copied") and the shared-Brain plan decision D2, not from the architecture. It costs
+a deploy key for CI, a deploy key per VM, and a pin bump plus a second repository for every runbook change.
+
+**Done.** Moved (without history: the old repository keeps it; provenance in `argus/runbooks/README.md`) the reviewed runbooks (RB-001…RB-021, `RUNBOOK-CONVENTIONS.md`, `RUNBOOK-INDEX.md`) into
+`argus/runbooks/` with their history (`git subtree`), keep each runbook's own `version` in its metadata (already
+recorded in the recall audit), deploy them with the code, retire `config/runbooks.lock` and the CI deploy key, and
+leave the research material (books, assessments, gap backlog) in the old repository as history. OP-001 is then fixed
+in this repository.
+
+**Alternative.** Keep the separate repository (works today; costs as above).
+
+**Done when.** Decided; if yes, done as one task (tests: recall finds every class's runbooks from `argus/runbooks/`;
+deployment no longer mounts `/opt/argus-runbooks`) and the journal records it.
+
+---
+
 ## OP-001 — Runbook `detector` metadata uses old or empty class names
 
 **Status:** open · **Opened:** 2026-09-30
@@ -47,7 +72,7 @@ RB-002 `health_check_failed` and RB-003 `dependency_unavailable` already match; 
 §15.3 requires that "a runbook's `detector` metadata names the class that uses it".
 
 **Fix.** In the runbooks repository: set `detector:` in every runbook to its v1.8 class (§1.3); bump `version` and
-`last_reviewed`; update `RUNBOOK-INDEX.md`. Then move the pin in `config/runbooks.lock`.
+`last_reviewed`; update `RUNBOOK-INDEX.md`. Now done in this repository (`argus/runbooks/`), through a pull request.
 
 **Done when.** All 21 runbooks name a class that exists in §1.3, and a check shows no class without a runbook and no
 runbook without a class.

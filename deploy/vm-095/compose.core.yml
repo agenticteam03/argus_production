@@ -48,9 +48,7 @@ services:
       - argus-v18-agent-data:/data
       - /opt/argus-v18/app/config:/app/config:ro
       - /opt/argus-v18/secrets/agent:/run/argus-secrets:ro
-      - /opt/argus-runbooks/${ARGUS_RUNBOOKS_COMMIT:-056b36e}:/runbooks:ro
     environment:
-      ARGUS_RUNBOOKS_COMMIT: ${ARGUS_RUNBOOKS_COMMIT:-056b36e}
       ARGUS_DB_BACKEND: ${ARGUS_DB_BACKEND:-postgres}   # rollback: ARGUS_DB_BACKEND=sqlite (the SQLite file is kept)
       ARGUS_LLM_MODEL: ${ARGUS_LLM_MODEL:-gpt-5.6-luna}
       ARGUS_MAX_READS_PER_STEP: "2"

@@ -134,8 +134,10 @@ class TfidfRunbooks:
         root = Path(directory)
         if not root.is_dir():
             raise ValueError(f"runbook library not found at {root}")
-        self.library_version = library_version or self._index_version(root.parent / "RUNBOOK-INDEX.md")
-        self.pinned_text = self._pinned(root.parent / "RUNBOOK-CONVENTIONS.md")
+        # The index and conventions sit next to the runbooks (argus/runbooks/) or, in the old library layout, one up.
+        home = root if (root / "RUNBOOK-INDEX.md").is_file() else root.parent
+        self.library_version = library_version or self._index_version(home / "RUNBOOK-INDEX.md")
+        self.pinned_text = self._pinned(home / "RUNBOOK-CONVENTIONS.md")
         self.ids: set[str] = set()
         self.sections: list[tuple[str, str, str, str, list[str]]] = []   # (id, version, status, section, text)
         for path in sorted(root.glob("RB-*.md")):

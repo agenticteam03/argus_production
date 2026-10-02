@@ -224,3 +224,49 @@ def test_checkpoint_commits_pushes_and_blocks_a_secret(repos, monkeypatch, capsy
     (repo / "b.md").write_bytes(("key " + "sk-" + "Q" * 30 + "\n").encode())
     assert brain.main(["checkpoint", "T-0013: add b", "--no-tests"]) == 2
     assert run(repo, "log", "-1", "--format=%s") == "T-0013: add a"
+
+
+# --- the review rule on main (free plan: verify-main instead of branch protection) -----------------------------------
+def _pr(n, author, head):
+    return {"number": n, "user": {"login": author}, "head": {"sha": head}}
+
+
+def _review(who, state, commit):
+    return {"user": {"login": who}, "state": state, "commit_id": commit}
+
+
+def test_check_main_accepts_initial_commit_and_approved_prs():
+    commits = [("m2" * 20, 2), ("m1" * 20, 2), ("root" * 10, 0)]
+    prs = {"m2" * 20: _pr(3, "alice", "h3"), "m1" * 20: _pr(2, "bob", "h2")}
+    reviews = {3: [_review("bob", "APPROVED", "h3")], 2: [_review("alice", "APPROVED", "h2")]}
+    assert brain.check_main(commits, prs.get, reviews.get, set()) == []
+
+
+def test_check_main_flags_direct_push_self_approval_and_stale_approval():
+    commits = [("d" * 40, 1), ("s" * 40, 2), ("o" * 40, 2), ("root" * 10, 0)]
+    prs = {"s" * 40: _pr(5, "alice", "h5"), "o" * 40: _pr(4, "bob", "h4-new")}
+    reviews = {5: [_review("alice", "APPROVED", "h5")],                    # approved by its own author
+               4: [_review("alice", "APPROVED", "h4-old")]}                # approval predates the last push
+    problems = brain.check_main(commits, prs.get, reviews.get, set())
+    assert len(problems) == 3
+    assert "pushed directly to main" in problems[0]
+    assert "PR #5 by alice" in problems[1]
+    assert "PR #4 by bob" in problems[2]
+
+
+def test_check_main_honours_recorded_exceptions(tmp_path):
+    p = tmp_path / "brain" / "policies"
+    p.mkdir(parents=True)
+    (p / "main-exceptions.txt").write_bytes(b"# comment\npr 1  2026-10-02  someone  bootstrap\n")
+    allowed = brain.read_exceptions(tmp_path)
+    assert allowed == {1}
+    commits = [("x" * 40, 2), ("root" * 10, 0)]
+    assert brain.check_main(commits, {"x" * 40: _pr(1, "alice", "h1")}.get, lambda n: [], allowed) == []
+
+
+def test_guard_push_refuses_main_only(monkeypatch, capsys):
+    monkeypatch.setenv("PRE_COMMIT_REMOTE_BRANCH", "refs/heads/main")
+    assert brain.main(["guard-push"]) == 1
+    assert "pull request" in capsys.readouterr().err
+    monkeypatch.setenv("PRE_COMMIT_REMOTE_BRANCH", "refs/heads/task/T-0013-x")
+    assert brain.main(["guard-push"]) == 0
