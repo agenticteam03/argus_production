@@ -58,5 +58,5 @@ undiagnosable for one host only), SC-11 (refusals), SC-12 (executor partition �
 | B3 stable Brain | written |
 | B4 this mutable Brain | written |
 | B5 `brain.py` (+15 tests), pre-commit (Brain audit), CI workflow, root shims, `.gitattributes` | done locally; CI runs for the first time at the B6 push |
-| B6 audit → first commit → push → review rule → deploy keys + `ops/deploy.sh` | audit clean; `9ccc61d` pushed; `session` branch works; branch protection **refused (free plan)** → soft rules; PR #1 merged (`bf24fac`, CI green); runbooks moved in (D-002); `ops/deploy.sh` + VM deploy keys = Task B6d (first teammate-reviewed PR) |
+| B6 audit → first commit → push → review rule → deploy keys + `ops/deploy.sh` | audit clean; `9ccc61d` pushed; `session` branch works; branch protection **refused (free plan)** → soft rules; PR #1 merged (`bf24fac`, CI green); runbooks moved in (D-002); Task B6d part 1 done 2026-10-03: read-only deploy keys on both VMs, GitHub host key pinned, both VMs can read the repository; PR #2 (`ops/deploy.sh`) waits for a teammate's review; then `deploy.sh init` |
 | B7 pilot T-0013 · B8 teammates · B9 retire the private notes | later |

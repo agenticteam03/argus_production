@@ -89,3 +89,22 @@ New: `ops/deploy.sh` (status, init, deploy):
 Tests: `tests/test_deploy.py`, 6 tests (red seen); 53 pass in total.
 Commands: Task B6d in `execution/current/code.bash`. Part 1 covers the keys, the GitHub host key pin and the access
 test. Part 2 (`deploy.sh init`) runs after a teammate reviews and merges this PR.
+
+## 2026-10-03 — Task B6d part 1: read-only deploy keys on both VMs
+
+Type: infrastructure
+Who: juanbetancurm (+ agent)
+`OBSERVED`:
+- Each VM has its key in `/opt/argus-v18/secrets/deploy/` (0700), with GitHub's ed25519 host key pinned
+  (`SHA256:+DiY3wvvV6TuJJhbpZisF/zLDA0zPMSvHdkr4UvCOqU`).
+- Both keys are registered on GitHub as read-only.
+- `git ls-remote` works from vm-095 and from vm-166.
+- NO INTERFERENCE on both VMs.
+- PR #2 is open with green CI and a review requested.
+Problems on the way:
+- The VM session marker depended on pasting a separate line, and that step was missed twice. Now the laptop block
+  B6d.M renews the lease and writes the marker on both VMs over SSH, reading the session id from the lease.
+- The vm-166 step said "paste the B6d.2 block again" and was misread; it is now a full block.
+- B6d.4 sent an empty key for a VM without a key file, and its message blamed the org setting. It now skips
+  registered keys, refuses to send a missing key, and reports the real cause.
+Learned: a code.bash step must never depend on text the developer has to carry over by hand.

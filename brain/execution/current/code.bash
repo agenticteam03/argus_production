@@ -24,9 +24,23 @@ python brain\tools\brain.py start --task B6d
 # Expected: "Lease CLAIMED by juanbetancurm until ..." and a "VM marker" line: COPY that echo line, you paste it in
 # B6d.2 on BOTH VMs. If it says the VMs are in use by someone else: STOP.
 
+# --- B6d.M [LAPTOP · PowerShell] Renew the lease and write the session marker on BOTH VMs (MUTATES SESSION files) ---
+# Nothing to copy by hand: the holder and session id are read from the lease on GitHub, then written over SSH.
+cd C:\repos\ml_course_tasks\agent_frameworks\wwfinal_project\argus_production
+python brain\tools\brain.py renew
+git fetch -q origin "+refs/heads/session:refs/remotes/origin/session"
+$L = git show origin/session:session.json | ConvertFrom-Json
+"lease: holder=$($L.holder) session=$($L.session_id) released=$($L.released) until=$($L.expires_at)"
+$ok = 0
+foreach ($vm in "argus-vm095", "argus-vm166") {
+  $got = ssh -o BatchMode=yes $vm "echo 'holder=$($L.holder) session=$($L.session_id)' | sudo tee /opt/argus-v18/SESSION >/dev/null; cat /opt/argus-v18/SESSION"
+  "${vm}: $got"
+  if ("$got" -eq "holder=$($L.holder) session=$($L.session_id)") { $ok++ }
+}
+if (($ok -eq 2) -and ($L.holder -eq "juanbetancurm") -and (-not $L.released)) { "VERDICT B6d.M OK: lease renewed, marker on both VMs" } else { "VERDICT B6d.M STOP: lease not yours/active, or marker missing on a VM" }
+
 # --- B6d.2 [VM vm-095 · bash] (ssh argus-vm095) Deploy key + pinned GitHub host key (MUTATES /opt/argus-v18 only) --
 # Undo: sudo rm -rf /opt/argus-v18/secrets/deploy   (and delete the key on GitHub: see B6d.4)
-#   >>> first paste the "VM marker" line printed by B6d.1 <<<
 D=/opt/argus-v18/secrets/deploy
 sudo install -d -m 700 "$D"
 sudo test -f "$D/id_ed25519" || sudo ssh-keygen -q -t ed25519 -N "" -C "argus_production read-only deploy $(hostname)" -f "$D/id_ed25519"
@@ -39,14 +53,28 @@ sudo bash /opt/argus-v18/app/ops/nonint-check.sh after
   || echo "VERDICT B6d.2 STOP: host key '$FP', or key missing, or SESSION marker not yours"
 # Expected: "NO INTERFERENCE" and the VERDICT OK line. The .pub line is public (safe to paste).
 
-# --- B6d.3 [VM vm-166 · bash] (ssh argus-vm166) The same on vm-166 ------------------------------------------------
-#   >>> first paste the same "VM marker" line printed by B6d.1 <<<
-#   then paste the whole B6d.2 block again (from D=... to the VERDICT line).
+# --- B6d.3 [VM vm-166 · bash] (ssh argus-vm166) The same on vm-166 (full block, nothing to repeat) ---------------
+# Undo: sudo rm -rf /opt/argus-v18/secrets/deploy   (and delete the key on GitHub: see B6d.4)
+D=/opt/argus-v18/secrets/deploy
+sudo install -d -m 700 "$D"
+sudo test -f "$D/id_ed25519" || sudo ssh-keygen -q -t ed25519 -N "" -C "argus_production read-only deploy $(hostname)" -f "$D/id_ed25519"
+ssh-keyscan -t ed25519 github.com 2>/dev/null | sudo tee "$D/known_hosts" >/dev/null
+FP=$(sudo ssh-keygen -lf "$D/known_hosts" | awk '{print $2}'); echo "github.com host key: $FP"
+sudo cat "$D/id_ed25519.pub"
+sudo bash /opt/argus-v18/app/ops/nonint-check.sh after
+[ "$FP" = "SHA256:+DiY3wvvV6TuJJhbpZisF/zLDA0zPMSvHdkr4UvCOqU" ] && sudo test -f "$D/id_ed25519" && grep -q '^holder=juanbetancurm ' /opt/argus-v18/SESSION \
+  && echo "VERDICT B6d.3 OK: key ready, GitHub host key verified, session marker yours ($(hostname))" \
+  || echo "VERDICT B6d.3 STOP: host key '$FP', or key missing, or SESSION marker not yours"
+# Expected: "NO INTERFERENCE" and the VERDICT OK line.
 
-# --- B6d.4 [LAPTOP · PowerShell] Register both public keys as READ-ONLY deploy keys (MUTATES GitHub) ---------------
+# --- B6d.4 [LAPTOP · PowerShell] Register the VMs' public keys as READ-ONLY deploy keys (MUTATES GitHub) -----------
+# Safe to re-run: a VM whose key is already registered is skipped; a VM without a key file is reported, not sent.
 # Undo: gh repo deploy-key list --repo agenticteam03/argus_production  ->  gh repo deploy-key delete <id> --repo ...
+$have = gh repo deploy-key list --repo agenticteam03/argus_production
 foreach ($vm in "argus-vm095", "argus-vm166") {
+  if ($have | Select-String -SimpleMatch $vm) { "${vm}: already registered"; continue }
   $pub = ssh -o BatchMode=yes $vm "sudo cat /opt/argus-v18/secrets/deploy/id_ed25519.pub"
+  if (-not ("$pub" -match '^ssh-ed25519 ')) { "${vm}: NO public key on the VM - run its key block (B6d.2 / B6d.3) first"; continue }
   $f = "$env:TEMP\$vm-deploy.pub"
   Set-Content -Encoding ascii $f $pub
   gh repo deploy-key add $f --repo agenticteam03/argus_production --title "$vm (read-only)"
@@ -54,7 +82,7 @@ foreach ($vm in "argus-vm095", "argus-vm166") {
 }
 gh repo deploy-key list --repo agenticteam03/argus_production
 $ro = (gh repo deploy-key list --repo agenticteam03/argus_production | Select-String "read-only" | Select-String "argus-vm").Count
-if ($ro -eq 2) { "VERDICT B6d.4 OK: 2 read-only deploy keys" } else { "VERDICT B6d.4 STOP: found $ro read-only VM keys (HTTP 422 = deploy keys still disabled in the org)" }
+if ($ro -eq 2) { "VERDICT B6d.4 OK: 2 read-only deploy keys" } else { "VERDICT B6d.4 STOP: $ro of 2 VM keys registered - see the lines above (missing key on a VM, or an HTTP error from GitHub)" }
 
 # --- B6d.5 [VM vm-095 · bash] then [VM vm-166 · bash] Test read access with the key (READ-ONLY) -----------------
 D=/opt/argus-v18/secrets/deploy
