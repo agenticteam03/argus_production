@@ -4,6 +4,9 @@ Argus is an SRE incident-diagnosis agent for servers and containers. When an ale
 operator asks, it detects the symptom deterministically, recalls runbooks, investigates with narrow, read-only,
 audited tools, and concludes or escalates to a human. It is **read-only** in this phase.
 
+**New on the team?** Follow [`START_HERE.md`](START_HERE.md): put it in an empty folder, open your AI agent there and say
+"Read START_HERE.md and follow it". The agent installs, clones and sets up everything with you.
+
 - **Start here (developers and AI agents):** [`brain/README.md`](brain/README.md).
 - Architecture: [`brain/architecture/ARCHITECTURE.md`](brain/architecture/ARCHITECTURE.md) (v1.8.x).
 - Where we stand: [`brain/CURRENT_STATE.md`](brain/CURRENT_STATE.md).
