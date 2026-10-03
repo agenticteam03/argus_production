@@ -1,11 +1,11 @@
 {
   "holder": "juanbetancurm",
-  "session_id": "245c3e43a711",
-  "task": "B6",
-  "branch": "main",
-  "base_commit": "9ccc61d107de3968dca20f3192f09bbe0de53369",
-  "started_at": "2026-10-02T18:52:53+00:00",
-  "expires_at": "2026-10-02T19:52:53+00:00",
-  "released": true,
+  "session_id": "3295126b71e8",
+  "task": "B6d",
+  "branch": "task/B6-deploy",
+  "base_commit": "0d6430eb1b044d7453f392f3891d450bfaa753bf",
+  "started_at": "2026-10-03T14:55:21+00:00",
+  "expires_at": "2026-10-03T15:55:21+00:00",
+  "released": false,
   "handoff": null
 }
