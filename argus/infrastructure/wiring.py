@@ -15,6 +15,7 @@ from argus.application.invoke_capability import InvokeCapability
 from argus.capabilities.catalog import build_catalog
 from argus.capabilities.redaction import Redactor
 from argus.detectors.classes import CLASSES
+from argus.orchestration.graph_runner import GraphRunner
 from argus.orchestration.runner import SkeletonRunner
 from argus.orchestration.strategies import EvidencePackStrategy, ModelLoopStrategy, PlanThenReasonStrategy
 from argus.policy.engine import PolicyEngine
@@ -52,6 +53,7 @@ class Settings:
     llm_reasoning_effort: str | None = field(default_factory=lambda: os.getenv("ARGUS_LLM_REASONING_EFFORT") or None)
     max_reads_per_step: int = field(default_factory=lambda: int(os.getenv("ARGUS_MAX_READS_PER_STEP", "2")))
     max_steps: int = field(default_factory=lambda: int(os.getenv("ARGUS_MAX_STEPS", "8")))
+    runner: str = field(default_factory=lambda: os.getenv("ARGUS_RUNNER", "plain"))   # plain | langgraph (T-0013)
     metrics_max_staleness_s: int = field(default_factory=lambda: int(os.getenv("ARGUS_METRICS_MAX_STALENESS", "90")))
     jwt_ttl_min: int = field(default_factory=lambda: int(os.getenv("ARGUS_JWT_TTL_MIN", "30")))
 
@@ -164,7 +166,10 @@ def build(settings: Settings | None = None, llm=None, metrics=None, executors: E
         missing = [r for r in c.runbook_ids + c.branch_runbook_ids if r not in knowledge.ids]
         if missing:
             raise SystemExit(f"class {c.name} references runbooks missing from the library: {missing}")
-    runner = SkeletonRunner(memory=store, audit=store, inventory=inventory,
+    runners = {"plain": SkeletonRunner, "langgraph": GraphRunner}
+    if s.runner not in runners:
+        raise SystemExit(f"ARGUS_RUNNER must be 'plain' or 'langgraph', not {s.runner!r}")
+    runner = runners[s.runner](memory=store, audit=store, inventory=inventory,
                             metrics=metrics or PrometheusMetrics(inventory, signals, s.metrics_max_staleness_s),
                             knowledge=knowledge, notifier=store, invoke=invoke, events=store,
                             strategies=strategies, offered_specs=[sp for sp in specs if policy.capability_known(sp.name)],

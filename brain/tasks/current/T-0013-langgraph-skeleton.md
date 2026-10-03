@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | `planned` |
+| Status | `executed` (steps 1-2 of 5; laptop only) |
 | Phase | 9 — agent workflow ([`../../IMPLEMENTATION_PLAN.md`](../../IMPLEMENTATION_PLAN.md)) |
 | Architecture | §10 (orchestration, the safety skeleton), §16 (persistence, checkpoints), §19 (failure behaviour), §21.1 |
 | Branch | `task/T-0013-langgraph-skeleton` |
@@ -54,4 +54,14 @@ Splitting api / worker / scheduler (T-0014+), the MCP tools child (Phase 4), HIT
 
 ## Red seen / evidence
 
-(filled in during the task)
+- **Step 1 (2026-10-03):** `langgraph` 1.2.12 + `langgraph-checkpoint-postgres` 3.1.2 added. Every dependency (43
+  packages) has a ready-made Linux ARM64 / Python 3.12 build (`pip download --platform manylinux*_aarch64
+  --only-binary=:all:`), so the agent image builds on vm-095 without compiling.
+- **Step 2 (2026-10-03):** `argus/orchestration/graph_runner.py` (`GraphRunner`, a subclass of the plain runner that
+  reuses its audit, evidence, scope, context and record helpers; state = plain JSON) and `ARGUS_RUNNER=plain|langgraph`
+  in `wiring.py` (default still `plain` until verified on the VMs).
+  - Red seen: `tests/test_graph_runner.py` failed with `'SkeletonRunner' == 'GraphRunner'` (no graph runner yet).
+  - Green: parity with the plain runner in 5 scenarios (diagnosed, healthy, unsupported, undiagnosable, refused:
+    same nodes, outcome, root cause); resume after a simulated crash continues after the last checkpoint and does
+    **not** repeat the completed read (audit `incident.resumed`); the switch refuses unknown values. Suite: 54 passed.
+  - Checkpointer: in-memory for now (resume works within one process); step 3 = Postgres.

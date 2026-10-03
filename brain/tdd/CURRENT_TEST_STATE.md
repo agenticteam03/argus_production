@@ -1,17 +1,17 @@
 # Current test state
 
-**Last updated:** 2026-10-02 · **Commit:** `9ccc61d` + branch `task/B6-ci-runbooks` (PR #1)
+**Last updated:** 2026-10-02 · **Commit:** `bf24fac` (main) + branch `task/T-0013-langgraph-skeleton`
 
 | Stage | Result | Where / when |
 |---|---|---|
-| 3. Offline suite | **47 passed** (28 Argus + 19 `brain.py`), 4 skipped (the Postgres tests) | laptop, 2026-10-02 |
+| 3. Offline suite | **54 passed** (35 Argus incl. 7 graph-runner + 19 `brain.py`), 4 skipped (the Postgres tests) | laptop, 2026-10-03 |
 | 4. Postgres integration | **32 passed** (28 + 4) against a throwaway `postgres:16-alpine` | laptop, Docker Desktop, 2026-10-02 |
 | 5. CI | first run on `9ccc61d`: audit, lint, gitleaks ✓; tests ✗ (runbook library not available in CI) → fixed in PR #1 (pinned runbooks checkout with a read-only deploy key) | GitHub, 2026-10-02 |
 | 7. Deployment validation | `phase3_check` 28/28 (2026-10-01); `argus db check` 13/13 (2026-10-02); scenarios in `CURRENT_STATE.md` §4; NO INTERFERENCE on both VMs (2026-10-02, Task 12c) | VMs |
 
 ## Currently red
 
-CI on `main` (`9ccc61d`): the tests step, until PR #1 is merged. Locally: nothing.
+Nothing (CI on `main` `bf24fac`: test + main-guard green).
 
 ## Notable tests
 
@@ -26,3 +26,5 @@ CI on `main` (`9ccc61d`): the tests step, until PR #1 is merged. Locally: nothin
 - `tests/test_postgres.py` — contract, forward-only states, SQLite import, a full run on Postgres (needs
   `ARGUS_TEST_PG_OWNER_DSN`).
 - The 4 `verify-main` / `guard-push` tests (PR #1) were written **after** the code — no red seen; recorded honestly.
+- `tests/test_graph_runner.py` (T-0013) — LangGraph runner = plain runner in 5 scenarios; resume after a crash without
+  repeating completed reads; the `ARGUS_RUNNER` switch. Red seen: the runner was still `SkeletonRunner`.

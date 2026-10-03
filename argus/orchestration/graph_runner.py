@@ -1,0 +1,295 @@
+"""The fixed safety skeleton (v1.8 §10.1) as a LangGraph graph with a checkpointer (T-0013, Phase 9 first slice).
+
+detect → (record | evidence_pack → record | recall → investigate ⇄ act → record). Same nodes, run events, audit
+and outcomes as SkeletonRunner (the plain runner, kept as the rollback: ARGUS_RUNNER=plain). The graph state is
+plain JSON, checkpointed after every node per incident (thread_id = incident id), so an interrupted investigation
+resumes at the node after the last completed one: completed reads are never repeated.
+"""
+from __future__ import annotations
+
+import hashlib
+import json
+import logging
+from typing import Any, TypedDict
+
+from langgraph.checkpoint.memory import InMemorySaver
+from langgraph.graph import END, START, StateGraph
+
+from argus.application.invoke_capability import InvocationContext
+from argus.detectors.classes import CLASSES, classes_for
+from argus.domain.model import (Conclude, EvidenceRef, Escalate, Incident, IncidentOutcome, IncidentStatus,
+                                InvalidDecision, Passage, RequestKind, UseReadTools)
+from argus.orchestration.runner import SkeletonRunner
+from argus.orchestration.strategies import EvidencePackStrategy
+from argus.orchestration.view import InvestigationView
+from argus.ports.ports import MetricsUnavailable, StaleMetrics
+
+log = logging.getLogger("argus.graph")
+
+_DECISIONS = {"use_read_tools": UseReadTools, "conclude": Conclude, "escalate": Escalate, "invalid": InvalidDecision}
+_PACK_STEPS = 2
+
+
+class RunState(TypedDict, total=False):
+    incident_id: str
+    route: str                    # the next node, chosen by the node that just ran
+    evidence: list[dict]          # EvidenceRef, JSON
+    decisions: list[dict]         # decisions so far, JSON (discriminated by "kind")
+    notes: list[str]
+    down: dict[str, str]          # "executor@host" -> error category
+    passages: list[dict]          # Passage, JSON
+    class_name: str | None
+    detector_findings: list[str]  # the matched detector's findings (recall query)
+    step: int
+    max_steps: int
+    pending: list[dict]           # the read calls the last decision asked for
+    pack_outcome: str             # outcome carried through evidence_pack
+    final: dict                   # {"outcome", "status", "cited"} for record
+
+
+class GraphRunner(SkeletonRunner):
+    """InvestigationRunner on LangGraph. Reuses SkeletonRunner's audit, evidence, scope, context and record."""
+
+    def __init__(self, *, checkpointer: Any = None, **kw):
+        super().__init__(**kw)
+        self.checkpointer = checkpointer if checkpointer is not None else InMemorySaver()
+        g = StateGraph(RunState)
+        for name in ("detect", "recall", "investigate", "act", "evidence_pack", "record"):
+            g.add_node(name, getattr(self, f"_n_{name}"))
+        g.add_edge(START, "detect")
+        g.add_conditional_edges("detect", _route, ["recall", "evidence_pack", "record"])
+        g.add_edge("recall", "investigate")
+        g.add_conditional_edges("investigate", _route, ["act", "investigate", "record"])
+        g.add_edge("act", "investigate")
+        g.add_edge("evidence_pack", "record")
+        g.add_edge("record", END)
+        self.graph = g.compile(checkpointer=self.checkpointer)
+
+    # ------------------------------------------------------------------------------------------- entry point
+    def run(self, incident_id: str) -> Incident:
+        config = {"configurable": {"thread_id": incident_id}, "recursion_limit": 100}
+        inc = self.memory.get_incident(incident_id)
+        if inc is None:
+            raise KeyError(incident_id)
+        pending = self.graph.get_state(config).next
+        if pending:                                   # interrupted earlier: continue after the last checkpoint
+            self._audit(inc, "incident", "incident.resumed", actor=inc.principal, detail={"next": list(pending)})
+            payload = None
+        else:
+            inc.status = IncidentStatus.running
+            self.memory.update_incident(inc)
+            self._audit(inc, "incident", "incident.started", actor=inc.principal,
+                        detail={"target": str(inc.target), "trigger": inc.trigger_kind, "request": inc.request_kind})
+            payload = {"incident_id": incident_id, "route": "", "evidence": [], "decisions": [], "notes": [],
+                       "down": {}, "passages": [], "class_name": None, "step": 0, "max_steps": 0, "pending": []}
+        try:
+            self.graph.invoke(payload, config)
+        except Exception as e:                        # a crash is recorded, never silent
+            log.exception("run failed %s", incident_id)
+            inc = self.memory.get_incident(incident_id)
+            inc.diagnosis = f"internal error: {type(e).__name__}: {e}"
+            return self._record(inc, IncidentOutcome.no_action_escalated, IncidentStatus.escalated)
+        return self.memory.get_incident(incident_id)
+
+    # ------------------------------------------------------------------------------------------------ helpers
+    def _inc(self, s: RunState) -> Incident:
+        return self.memory.get_incident(s["incident_id"])
+
+    @staticmethod
+    def _final(outcome: IncidentOutcome, status: IncidentStatus, cited: list[str] | None = None) -> dict:
+        return {"route": "record", "final": {"outcome": str(outcome), "status": str(status), "cited": cited or []}}
+
+    @staticmethod
+    def _cls(name: str | None):
+        return next((c for c in CLASSES if c.name == name), None)
+
+    def _ctx(self, inc: Incident, caller: str) -> InvocationContext:
+        return InvocationContext(incident=inc, caller=caller, scope=self.scope(inc.target))
+
+    def _offered(self, cls) -> list[Any]:
+        return [sp for sp in self.all_specs if sp.level <= self.max_tool_level and
+                (sp.tags & cls.tool_tags or sp.level == 1)]
+
+    def _view(self, inc, cls, s: RunState, offered, steps_left) -> InvestigationView:
+        view = InvestigationView(
+            incident=inc, incident_class=cls, findings=inc.findings,
+            passages=[Passage.model_validate(p) for p in s.get("passages", [])],
+            evidence=[EvidenceRef.model_validate(e) for e in s.get("evidence", [])],
+            decisions_so_far=[_DECISIONS[d["kind"]].model_validate(d) for d in s.get("decisions", [])],
+            offered_specs=offered, scope=sorted(self.scope(inc.target), key=str), steps_left=steps_left,
+            max_reads_per_step=self.max_reads_per_step, notes=list(s.get("notes", [])),
+            down_executors=dict(s.get("down", {})))
+        view.context_text = self.context(view)
+        return view
+
+    def _read(self, inc, ctx, calls: list[dict], node: str, evidence: list[dict], down: dict) -> None:
+        for call in calls:
+            obs, ref = self.invoke(ctx, call["name"], call["arguments"])
+            if ref:
+                evidence.append(ref.model_dump(mode="json"))
+            if obs.error_category in ("unreachable", "timeout"):
+                down[f"{obs.executor}@{obs.host}"] = obs.error_category
+            self._ev(inc, node, "step", capability=obs.capability,
+                     tool=self._spec_names.get(obs.capability, obs.capability), target=str(obs.target),
+                     host=obs.host, executor=obs.executor, status=obs.status, error_category=obs.error_category,
+                     evidence_id=ref.evidence_id if ref else None, sha256=ref.sha256 if ref else None,
+                     result=obs.model_text)
+
+    # -------------------------------------------------------------------------------------------------- nodes
+    def _n_detect(self, s: RunState) -> dict:
+        inc = self._inc(s)
+        target = inc.target
+        if self.inventory.target(target) is None:
+            self._audit(inc, "access", "access.target_not_in_inventory", detail={"target": str(target)})
+            inc.diagnosis = f"{target} is not in the inventory; nothing was read"
+            self.memory.update_incident(inc)
+            return self._final(IncidentOutcome.refused, IncidentStatus.escalated)
+        scope = self.scope(target)
+        evidence: list[dict] = []
+        if inc.reason:
+            evidence.append(self._store(inc, "reported_symptom", {"reason": inc.reason},
+                                        f"reported by {inc.principal or inc.trigger_kind}: {inc.reason}",
+                                        str(target), caller=inc.principal or "system").model_dump(mode="json"))
+        self._ev(inc, "detect", "enter", target=str(target), host=target.host, trigger=inc.trigger_kind,
+                 request=inc.request_kind, scope=sorted(str(t) for t in scope))
+        classes = classes_for(target.kind)
+        snap = None
+        if classes:
+            signals = set().union(*(c.required_signals for c in classes))
+            try:
+                snap = self.metrics.snapshot(target, signals)
+            except (StaleMetrics, MetricsUnavailable) as e:
+                self._audit(inc, "incident", "incident.undiagnosable", detail={"error": str(e)})
+                inc.findings = [f"metrics stale or unavailable: {e}", "see RB-014 (monitoring blind spot)"]
+                self.memory.update_incident(inc)
+                self._ev(inc, "detect", "exit", result="undiagnosable", findings=inc.findings, next="evidence_pack")
+                return {"route": "evidence_pack", "evidence": evidence,
+                        "pack_outcome": str(IncidentOutcome.undiagnosable)}
+            evidence.append(self._store(inc, "metric_snapshot", {"values": snap.values},
+                                        "metric snapshot: " + json.dumps(snap.values), str(target),
+                                        source_time=snap.observed_at).model_dump(mode="json"))
+        matched = [(c, r) for c in classes for r in [c.detector(snap)] if r.matched] if snap else []
+        inc.findings = [f for c in classes for f in (c.detector(snap).findings if snap else [])]
+        if not matched:
+            check = inc.request_kind == RequestKind.check
+            self._ev(inc, "detect", "exit", classes_considered=[c.name for c in classes],
+                     signals=snap.values if snap else {}, result="no class matched", findings=inc.findings,
+                     next="record" if check else "evidence_pack")
+            if check:
+                inc.diagnosis = "healthy: no registered incident class matches the current metrics"
+                self.memory.update_incident(inc)
+                return {**self._final(IncidentOutcome.no_incident, IncidentStatus.closed), "evidence": evidence}
+            self._audit(inc, "incident", "incident.unsupported", detail={"findings": inc.findings})
+            self.memory.update_incident(inc)
+            return {"route": "evidence_pack", "evidence": evidence,
+                    "pack_outcome": str(IncidentOutcome.unsupported_escalated)}
+        cls, res = matched[0]
+        inc.incident_class, inc.strategy = cls.name, cls.strategy
+        inc.findings = [f"{cls.name}: {f}" for f in res.findings] + [f"also matched: {c.name}" for c, _ in matched[1:]]
+        self.memory.update_incident(inc)
+        self._audit(inc, "decision", "decision.strategy_selected", detail={"class": cls.name, "strategy": cls.strategy})
+        self._ev(inc, "detect", "exit", classes_considered=[c.name for c in classes], signals=snap.values,
+                 result=cls.name, family=cls.family, findings=inc.findings, strategy=cls.strategy, next="recall")
+        return {"route": "recall", "evidence": evidence, "class_name": cls.name,
+                "detector_findings": list(res.findings)}
+
+    def _n_recall(self, s: RunState) -> dict:
+        inc, cls = self._inc(s), self._cls(s["class_name"])
+        query = f"{cls.name} {' '.join(s.get('detector_findings', []))} {inc.reason}"
+        self._ev(inc, "recall", "enter", runbooks=cls.runbook_ids + cls.branch_runbook_ids)
+        passages = self.knowledge.search(query, 3, cls.runbook_ids + cls.branch_runbook_ids)
+        recalled = [{"runbook_id": p.runbook_id, "version": p.runbook_version, "status": p.runbook_status,
+                     "section": p.section, "score": p.score,
+                     "sha256": hashlib.sha256(p.text.encode()).hexdigest()} for p in passages]
+        library = getattr(self.knowledge, "library_version", None)
+        self._audit(inc, "incident", "recall.passages", detail={"passages": recalled, "library": library})
+        self._ev(inc, "recall", "exit", passages=recalled, library=library)
+        return {"route": "investigate", "passages": [p.model_dump(mode="json") for p in passages],
+                "step": 0, "max_steps": min(cls.max_steps, self.max_steps_cap)}
+
+    def _n_investigate(self, s: RunState) -> dict:
+        inc, cls = self._inc(s), self._cls(s["class_name"])
+        step, max_steps = s["step"], s["max_steps"]
+        if step >= max_steps:
+            self._audit(inc, "access", "access.budget_exhausted", detail={"steps": max_steps})
+            inc.diagnosis = (inc.diagnosis or "") + f" step budget of {max_steps} exhausted; escalating with evidence"
+            self.memory.update_incident(inc)
+            return self._final(inc.outcome or IncidentOutcome.no_action_escalated, IncidentStatus.escalated)
+        strategy = self.strategies[cls.strategy]
+        caller = "model" if strategy.name == "model_loop" else f"strategy:{strategy.name}"
+        view = self._view(inc, cls, s, self._offered(cls), max_steps - step)
+        self._ev(inc, "investigate", "enter", step=step + 1, strategy=strategy.name, steps_left=max_steps - step)
+        d = strategy.next_step(view)
+        self._ev(inc, "investigate", "exit", step=step + 1, decided_by=getattr(strategy, "last_source", "rule"),
+                 decision=self._summary(d))
+        self._audit(inc, "decision", "decision." + getattr(d, "kind", "unknown"), actor=caller,
+                    detail=json.loads(d.model_dump_json()) if hasattr(d, "model_dump_json") else {})
+        upd = {"step": step + 1, "decisions": [*s.get("decisions", []), d.model_dump(mode="json")]}
+        if isinstance(d, InvalidDecision):
+            if d.reason == "fabricated_tool":
+                self._audit(inc, "security", "security.fabricated_tool", actor=caller, detail={"detail": d.detail})
+            if d.reason == "provider_error":          # the adapter already retried: escalate now
+                inc.diagnosis = f"model provider failed at step {step + 1} ({d.detail}); escalating with evidence"
+                self.memory.update_incident(inc)
+                return {**upd, **self._final(inc.outcome or IncidentOutcome.no_action_escalated,
+                                             IncidentStatus.escalated)}
+            return {**upd, "route": "investigate",
+                    "notes": [*s.get("notes", []), f"step {step + 1} was invalid ({d.reason}): {d.detail}. Correct it."]}
+        if isinstance(d, UseReadTools):
+            return {**upd, "route": "act", "pending": [c.model_dump(mode="json") for c in d.calls]}
+        if isinstance(d, Conclude):
+            inc.diagnosis, inc.confidence, inc.root_cause_target = d.diagnosis, d.confidence, d.root_cause_target
+            self.memory.update_incident(inc)
+            return {**upd, **self._final(IncidentOutcome.diagnosed, IncidentStatus.closed, d.evidence_ids)}
+        inc.diagnosis = d.reason                      # Escalate
+        self.memory.update_incident(inc)
+        return {**upd, **self._final(inc.outcome or IncidentOutcome.no_action_escalated, IncidentStatus.escalated,
+                                     d.evidence_ids)}
+
+    def _n_act(self, s: RunState) -> dict:
+        inc, cls = self._inc(s), self._cls(s["class_name"])
+        strategy = self.strategies[cls.strategy]
+        ctx = self._ctx(inc, "model" if strategy.name == "model_loop" else f"strategy:{strategy.name}")
+        evidence, down = list(s.get("evidence", [])), dict(s.get("down", {}))
+        self._ev(inc, "act", "enter", calls=len(s.get("pending", [])))
+        self._read(inc, ctx, s.get("pending", []), "act", evidence, down)
+        self._ev(inc, "act", "exit", evidence_total=len(evidence))
+        return {"route": "investigate", "evidence": evidence, "down": down, "pending": []}
+
+    def _n_evidence_pack(self, s: RunState) -> dict:
+        inc = self._inc(s)
+        inc.strategy, inc.outcome = "evidence_pack", IncidentOutcome(s["pack_outcome"])
+        self.memory.update_incident(inc)
+        strategy, ctx = EvidencePackStrategy(), self._ctx(inc, "strategy:evidence_pack")
+        evidence, decisions, notes, down = list(s.get("evidence", [])), [], [], {}
+        self._ev(inc, "evidence_pack", "enter", reason=inc.outcome)
+        for step in range(_PACK_STEPS):
+            view = self._view(inc, None, {"evidence": evidence, "decisions": decisions, "notes": notes,
+                                          "down": down, "passages": []}, [], _PACK_STEPS - step)
+            d = strategy.next_step(view)
+            decisions.append(d.model_dump(mode="json"))
+            self._audit(inc, "decision", "decision." + getattr(d, "kind", "unknown"), actor=ctx.caller,
+                        detail=json.loads(d.model_dump_json()) if hasattr(d, "model_dump_json") else {})
+            if isinstance(d, UseReadTools):
+                self._read(inc, ctx, [c.model_dump(mode="json") for c in d.calls], "evidence_pack", evidence, down)
+                continue
+            if isinstance(d, Escalate):
+                self._ev(inc, "evidence_pack", "exit", evidence_total=len(evidence))
+                inc.diagnosis = d.reason
+                self.memory.update_incident(inc)
+                return {"evidence": evidence, **self._final(inc.outcome, IncidentStatus.escalated, d.evidence_ids)}
+            if isinstance(d, InvalidDecision):
+                notes.append(f"step {step + 1} was invalid ({d.reason}): {d.detail}. Correct it.")
+        self._audit(inc, "access", "access.budget_exhausted", detail={"steps": _PACK_STEPS})
+        inc.diagnosis = (inc.diagnosis or "") + f" step budget of {_PACK_STEPS} exhausted; escalating with evidence"
+        self.memory.update_incident(inc)
+        return {"evidence": evidence, **self._final(inc.outcome, IncidentStatus.escalated)}
+
+    def _n_record(self, s: RunState) -> dict:
+        f = s["final"]
+        self._record(self._inc(s), IncidentOutcome(f["outcome"]), IncidentStatus(f["status"]), cited=f["cited"])
+        return {"route": "end"}
+
+
+def _route(s: RunState) -> str:
+    return s["route"]
