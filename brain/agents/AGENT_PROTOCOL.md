@@ -22,6 +22,8 @@ Brain file.
 
 ## 1. Session start
 
+0. **New developer or new laptop?** If `git config argus.developer` is empty, `.venv` is missing, or
+   `brain/developers/<handle>.md` does not exist, follow [`../../START_HERE.md`](../../START_HERE.md) first.
 1. The developer runs (or asks you to run) `python brain/tools/brain.py start`. It:
    - refuses if the working tree is not clean;
    - fetches, fast-forwards `main`;

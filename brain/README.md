@@ -1,5 +1,7 @@
 # Argus Brain — start here
 
+> **First time on this laptop?** Follow [`../START_HERE.md`](../START_HERE.md) (setup with your agent).
+>
 > **New developer? Read [`guides/HOW_WE_WORK.md`](guides/HOW_WE_WORK.md) first** (5 minutes): what is planned, how a
 > session runs, the language rule, and how commands go from `code.bash` to your terminal and back through
 > `output.bash`.
