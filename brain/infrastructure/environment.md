@@ -50,7 +50,8 @@ vm-095                                               vm-166
 | Ports | 18000–18799, bound to `127.0.0.1` only | never `0.0.0.0` or a public address |
 | Docker networks | `argus-v18-core` 172.30.0.0/24 (vm-095), `argus-v18-mon` 172.30.1.0/24, `argus-lab-app` 172.30.2.0/24 | explicit subnets |
 | Volumes | `argus-v18-*` (e.g. `argus-v18-pgdata`, `argus-v18-agent-data`) | — |
-| Markers (from B6) | `/opt/argus-v18/DEPLOYED` (deployed commit), `/opt/argus-v18/SESSION` (lease holder) | written by `ops/deploy.sh` / `brain.py` |
+| Markers (from B6) | `/opt/argus-v18/DEPLOYED` (deployed commit), `/opt/argus-v18/SESSION` (lease holder) | written by `ops/deploy.sh` / the `brain.py start` marker line |
+| Deploy key (from B6d) | `/opt/argus-v18/secrets/deploy/` (read-only key for this repository + pinned GitHub host key) | one per VM; registered on GitHub as read-only |
 
 ## 4. Protected objects — NEVER touch
 
