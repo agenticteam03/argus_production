@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | `executed` (steps 1-2 of 5; laptop only) |
+| Status | `executed` (steps 1-4 of 5 on the laptop; step 5 = VMs) |
 | Phase | 9 — agent workflow ([`../../IMPLEMENTATION_PLAN.md`](../../IMPLEMENTATION_PLAN.md)) |
 | Architecture | §10 (orchestration, the safety skeleton), §16 (persistence, checkpoints), §19 (failure behaviour), §21.1 |
 | Branch | `task/T-0013-langgraph-skeleton` |
@@ -65,3 +65,17 @@ Splitting api / worker / scheduler (T-0014+), the MCP tools child (Phase 4), HIT
     same nodes, outcome, root cause); resume after a simulated crash continues after the last checkpoint and does
     **not** repeat the completed read (audit `incident.resumed`); the switch refuses unknown values. Suite: 54 passed.
   - Checkpointer: in-memory for now (resume works within one process); step 3 = Postgres.
+- **Steps 3-4 (2026-10-04):** the Postgres checkpointer.
+  - `deploy/migrations/002_checkpoints.sql` = LangGraph's checkpoint schema (library migrations 0-9, recorded in
+    `checkpoint_migrations`), created by the owner; indexes non-concurrent (one transaction per migration); the runtime
+    role gets SELECT/INSERT/UPDATE only (no DELETE, no DDL).
+  - `PostgresStore.checkpointer()` (own small pool: autocommit, dict rows, no prepared statements); `wiring.py` uses it
+    when `ARGUS_RUNNER=langgraph` on Postgres; `argus db check` proves 15 guarantees (+ checkpoint insert allowed,
+    checkpoint DELETE refused); `compose.core.yml` passes `ARGUS_RUNNER` (default `plain`).
+  - Red seen: `test_checkpoint_migration_covers_every_library_migration` (no 002 file) and
+    `test_graph_runner_resumes_from_postgres_after_a_restart` (`'InMemorySaver' == 'PostgresSaver'`).
+  - Green: a NEW app (new pool, nothing in memory) resumes the crashed run from Postgres without repeating the read.
+    Full suite against a throwaway Postgres: **60 passed**.
+- **Step 5 (VMs) needs PR #2 (`ops/deploy.sh`) merged first:** deploy this branch on vm-095, run `ops/db-migrate.sh`
+  (applies 002), `argus db check` (15/15), rebuild the agent with `ARGUS_RUNNER=langgraph`, then H-1, SC-09, SC-01 and
+  NO INTERFERENCE. Rollback: `ARGUS_RUNNER=plain` (the 002 tables stay, unused).

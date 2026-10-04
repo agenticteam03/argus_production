@@ -27,7 +27,8 @@ def runtime_dsn():
     with psycopg.connect(OWNER_DSN, autocommit=True) as c:
         c.execute("DROP SCHEMA public CASCADE")
         c.execute("CREATE SCHEMA public")
-        c.execute((ROOT / "deploy" / "migrations" / "001_init.sql").read_text(encoding="utf-8"))
+        for f in sorted((ROOT / "deploy" / "migrations").glob("*.sql")):     # in order, like ops/db-migrate.sh
+            c.execute(f.read_text(encoding="utf-8"))
         c.execute(f"ALTER ROLE argus_runtime PASSWORD '{pw}'")
     d = conninfo_to_dict(OWNER_DSN)
     d.update(user="argus_runtime", password=pw)
@@ -158,3 +159,54 @@ def test_full_run_and_sqlite_import(runtime_dsn, tmp_path, monkeypatch):
     assert new.outcome == IncidentOutcome.diagnosed and new.root_cause_target == "vm-166/container:argus-lab-worker"
     assert all(e.sha256 and e.host == "vm-166" for e in pg.list_evidence(new.id) if e.kind == "observation")
     pg.close()
+
+
+def test_graph_runner_resumes_from_postgres_after_a_restart(runtime_dsn, tmp_path, monkeypatch):
+    """T-0013 step 3: the checkpoint lives in Postgres, so a NEW process (new app, new pool) resumes the run."""
+    from test_core import FakeMetrics, FakeTargetAgent, incident
+    from argus.adapters.outbound.llm import ScriptedLLM
+    from argus.adapters.outbound.postgres_store import PostgresStore
+    from argus.domain.model import IncidentOutcome
+    from argus.infrastructure.wiring import Settings, build
+    from argus.tooling.executors import ExecutorRegistry
+    monkeypatch.setenv("ARGUS_JWT_KEY", "x" * 40)
+    monkeypatch.setenv("ARGUS_RUNNER", "langgraph")
+    t = "vm-166/container:argus-lab-worker"
+    state = {"crash": True}
+
+    class Crash(BaseException):
+        pass
+
+    def script(ctx):
+        if "container.status" not in ctx:
+            return {"calls": [("get_container_status", {"target": t})]}
+        if state["crash"]:
+            state["crash"] = False
+            raise Crash("process died")
+        ids = [line.split('"')[1] for line in ctx.splitlines() if line.startswith("<evidence id=")]
+        return {"calls": [("conclude", {"diagnosis": "OOM-killed by its 64 MiB limit", "evidence_ids": ids[-1:],
+                                        "confidence": "high", "root_cause_target": t})]}
+
+    def new_process():
+        reg = ExecutorRegistry()
+        for k in ("docker_read", "host_probe", "network_probe", "prometheus"):
+            reg.register(k, lambda url, tok, k=k: FakeTargetAgent(url, tok, k))
+        s = Settings(config_dir=ROOT / "config", secrets_dir=tmp_path / "none", runbooks_dir=RUNBOOKS,
+                     max_reads_per_step=2)
+        m = FakeMetrics({t: {"restarts_10m": 5, "oom_killed": 1, "last_exit_code": 137}})
+        return build(s, llm=ScriptedLLM(script), metrics=m, executors=reg, store=PostgresStore(runtime_dsn),
+                     require_credentials=False)
+
+    first = new_process()
+    assert type(first.runner.checkpointer).__name__ == "PostgresSaver"
+    inc = incident(first, t)
+    FakeTargetAgent.calls = []
+    with pytest.raises(Crash):
+        first.runner.run(inc.id)
+    reads = len(FakeTargetAgent.calls)
+    assert reads >= 1
+    second = new_process()                                   # the restarted worker: nothing shared in memory
+    done = second.runner.run(inc.id)
+    assert done.outcome == IncidentOutcome.diagnosed
+    assert len(FakeTargetAgent.calls) == reads               # the completed read was not repeated
+    assert "incident.resumed" in [a.event for a in second.store.list_for(inc.id)]

@@ -4,8 +4,8 @@
 
 | Stage | Result | Where / when |
 |---|---|---|
-| 3. Offline suite | **54 passed** (35 Argus incl. 7 graph-runner + 19 `brain.py`), 4 skipped (the Postgres tests) | laptop, 2026-10-03 |
-| 4. Postgres integration | **32 passed** (28 + 4) against a throwaway `postgres:16-alpine` | laptop, Docker Desktop, 2026-10-02 |
+| 3. Offline suite | **55 passed** (36 Argus incl. 8 graph-runner + 19 `brain.py`), 5 skipped (the Postgres tests) | laptop, 2026-10-04 |
+| 4. Postgres integration | **60 passed** (55 + 5 Postgres, incl. the restart test and the 15 db guarantees) against a throwaway `postgres:16-alpine` | laptop, Docker Desktop, 2026-10-04 |
 | 5. CI | first run on `9ccc61d`: audit, lint, gitleaks ✓; tests ✗ (runbook library not available in CI) → fixed in PR #1 (pinned runbooks checkout with a read-only deploy key) | GitHub, 2026-10-02 |
 | 7. Deployment validation | `phase3_check` 28/28 (2026-10-01); `argus db check` 13/13 (2026-10-02); scenarios in `CURRENT_STATE.md` §4; NO INTERFERENCE on both VMs (2026-10-02, Task 12c) | VMs |
 
@@ -28,3 +28,5 @@ Nothing (CI on `main` `bf24fac`: test + main-guard green).
 - The 4 `verify-main` / `guard-push` tests (PR #1) were written **after** the code — no red seen; recorded honestly.
 - `tests/test_graph_runner.py` (T-0013) — LangGraph runner = plain runner in 5 scenarios; resume after a crash without
   repeating completed reads; the `ARGUS_RUNNER` switch. Red seen: the runner was still `SkeletonRunner`.
+- `test_graph_runner_resumes_from_postgres_after_a_restart` (T-0013) — a new app resumes a crashed run from the Postgres
+  checkpoint without repeating reads; `test_checkpoint_migration_covers_every_library_migration` guards library upgrades.

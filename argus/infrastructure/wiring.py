@@ -169,7 +169,10 @@ def build(settings: Settings | None = None, llm=None, metrics=None, executors: E
     runners = {"plain": SkeletonRunner, "langgraph": GraphRunner}
     if s.runner not in runners:
         raise SystemExit(f"ARGUS_RUNNER must be 'plain' or 'langgraph', not {s.runner!r}")
-    runner = runners[s.runner](memory=store, audit=store, inventory=inventory,
+    extra = {}
+    if s.runner == "langgraph" and hasattr(store, "checkpointer"):   # Postgres: checkpoints survive a restart
+        extra["checkpointer"] = store.checkpointer()
+    runner = runners[s.runner](**extra, memory=store, audit=store, inventory=inventory,
                             metrics=metrics or PrometheusMetrics(inventory, signals, s.metrics_max_staleness_s),
                             knowledge=knowledge, notifier=store, invoke=invoke, events=store,
                             strategies=strategies, offered_specs=[sp for sp in specs if policy.capability_known(sp.name)],

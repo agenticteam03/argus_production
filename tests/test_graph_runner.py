@@ -86,3 +86,18 @@ def test_runner_switch(make_app, monkeypatch):
     monkeypatch.setenv("ARGUS_RUNNER", "something-else")
     with pytest.raises(SystemExit):
         make_app()
+
+
+def test_checkpoint_migration_covers_every_library_migration():
+    """002_checkpoints.sql creates LangGraph's checkpoint schema for the runtime role (no DDL at runtime). If a library
+    upgrade adds a schema migration, this fails: write the next deploy/migrations/00N file instead of guessing."""
+    import re
+    from pathlib import Path
+    from langgraph.checkpoint.postgres.base import BasePostgresSaver
+    sql = (Path(__file__).resolve().parents[1] / "deploy" / "migrations" / "002_checkpoints.sql").read_text(encoding="utf-8")
+    m = re.search(r"INSERT INTO checkpoint_migrations \(v\) VALUES ([^;]+);", sql)
+    assert m, "002 must record the library migrations it covers"
+    covered = {int(v) for v in re.findall(r"\((\d+)\)", m.group(1))}
+    assert covered == set(range(len(BasePostgresSaver.MIGRATIONS)))
+    assert "CONCURRENTLY" not in sql                           # db-migrate.sh runs each file in one transaction
+    assert "DELETE" not in re.findall(r"GRANT ([A-Z, ]+) ON checkpoint", sql)[0]

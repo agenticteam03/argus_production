@@ -49,6 +49,7 @@ services:
       - /opt/argus-v18/app/config:/app/config:ro
       - /opt/argus-v18/secrets/agent:/run/argus-secrets:ro
     environment:
+      ARGUS_RUNNER: ${ARGUS_RUNNER:-plain}              # T-0013: plain | langgraph (checkpoints in Postgres)
       ARGUS_DB_BACKEND: ${ARGUS_DB_BACKEND:-postgres}   # rollback: ARGUS_DB_BACKEND=sqlite (the SQLite file is kept)
       ARGUS_LLM_MODEL: ${ARGUS_LLM_MODEL:-gpt-5.6-luna}
       ARGUS_MAX_READS_PER_STEP: "2"
