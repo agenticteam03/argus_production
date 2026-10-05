@@ -4,7 +4,7 @@
 
 | Stage | Result | Where / when |
 |---|---|---|
-| 3. Offline suite | **61 passed** (36 Argus incl. 8 graph-runner + 19 `brain.py` + 6 `deploy.sh`), 5 skipped (the Postgres tests) | laptop, 2026-10-04 |
+| 3. Offline suite | **63 passed** (38 Argus incl. 10 graph-runner + 19 `brain.py` + 6 `deploy.sh`), 5 skipped (the Postgres tests) | laptop, 2026-10-05 |
 | 4. Postgres integration | **60 passed** on `661f904` (before merging main; incl. the restart test and the 15 db guarantees) against a throwaway `postgres:16-alpine`; not re-run after the merge (Docker was off) - the merge adds only the 6 offline `deploy.sh` tests | laptop, Docker Desktop, 2026-10-04 |
 | 5. CI | first run on `9ccc61d`: audit, lint, gitleaks ✓; tests ✗ (runbook library not available in CI) → fixed in PR #1 (pinned runbooks checkout with a read-only deploy key) | GitHub, 2026-10-02 |
 | 7. Deployment validation | T-0013 on vm-095 (2026-10-04): `argus db check` 15/15; H-1, SC-09, SC-01 on LangGraph, each checkpointed in Postgres; NO INTERFERENCE on both VMs. Earlier: `phase3_check` 28/28 (2026-10-01) | VMs |
@@ -33,3 +33,5 @@
   repeating completed reads; the `ARGUS_RUNNER` switch. Red seen: the runner was still `SkeletonRunner`.
 - `test_graph_runner_resumes_from_postgres_after_a_restart` (T-0013) — a new app resumes a crashed run from the Postgres
   checkpoint without repeating reads; `test_checkpoint_migration_covers_every_library_migration` guards library upgrades.
+- `test_resume_inside_act_does_not_repeat_completed_reads` / `..._inside_evidence_pack_...` (T-0013 review) — a crash
+  between two reads of one step resumes with only the missing read. Red seen: completed reads ran twice.

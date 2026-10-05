@@ -3,7 +3,8 @@
 detect → (record | evidence_pack → record | recall → investigate ⇄ act → record). Same nodes, run events, audit
 and outcomes as SkeletonRunner (the plain runner, kept as the rollback: ARGUS_RUNNER=plain). The graph state is
 plain JSON, checkpointed after every node per incident (thread_id = incident id), so an interrupted investigation
-resumes at the node after the last completed one: completed reads are never repeated.
+resumes after the last completed graph step. act and evidence_pack make ONE read per graph step, so a crash never
+repeats a completed read (only the read that was interrupted runs again).
 """
 from __future__ import annotations
 
@@ -44,6 +45,9 @@ class RunState(TypedDict, total=False):
     max_steps: int
     pending: list[dict]           # the read calls the last decision asked for
     pack_outcome: str             # outcome carried through evidence_pack
+    pack_started: bool            # evidence_pack already entered (its enter event was emitted)
+    pack_step: int                # evidence-pack decisions taken so far
+    act_open: bool                # an act batch is in progress (its enter event was emitted)
     final: dict                   # {"outcome", "status", "cited"} for record
 
 
@@ -60,8 +64,8 @@ class GraphRunner(SkeletonRunner):
         g.add_conditional_edges("detect", _route, ["recall", "evidence_pack", "record"])
         g.add_edge("recall", "investigate")
         g.add_conditional_edges("investigate", _route, ["act", "investigate", "record"])
-        g.add_edge("act", "investigate")
-        g.add_edge("evidence_pack", "record")
+        g.add_conditional_edges("act", _route, ["act", "investigate"])           # one read per step
+        g.add_conditional_edges("evidence_pack", _route, ["evidence_pack", "record"])
         g.add_edge("record", END)
         self.graph = g.compile(checkpointer=self.checkpointer)
 
@@ -247,43 +251,57 @@ class GraphRunner(SkeletonRunner):
                                      d.evidence_ids)}
 
     def _n_act(self, s: RunState) -> dict:
+        """ONE read per graph step: the checkpoint after each read means a crash never repeats a completed read
+        (review finding, conantkd). The node routes back to itself until the batch is done."""
         inc, cls = self._inc(s), self._cls(s["class_name"])
         strategy = self.strategies[cls.strategy]
         ctx = self._ctx(inc, "model" if strategy.name == "model_loop" else f"strategy:{strategy.name}")
-        evidence, down = list(s.get("evidence", [])), dict(s.get("down", {}))
-        self._ev(inc, "act", "enter", calls=len(s.get("pending", [])))
-        self._read(inc, ctx, s.get("pending", []), "act", evidence, down)
+        evidence, down, pending = list(s.get("evidence", [])), dict(s.get("down", {})), list(s.get("pending", []))
+        if not s.get("act_open"):
+            self._ev(inc, "act", "enter", calls=len(pending))
+        if pending:
+            self._read(inc, ctx, pending[:1], "act", evidence, down)
+            pending = pending[1:]
+        if pending:
+            return {"route": "act", "evidence": evidence, "down": down, "pending": pending, "act_open": True}
         self._ev(inc, "act", "exit", evidence_total=len(evidence))
-        return {"route": "investigate", "evidence": evidence, "down": down, "pending": []}
+        return {"route": "investigate", "evidence": evidence, "down": down, "pending": [], "act_open": False}
 
     def _n_evidence_pack(self, s: RunState) -> dict:
+        """The evidence pack, one decision or ONE read per graph step (same reason as act)."""
         inc = self._inc(s)
-        inc.strategy, inc.outcome = "evidence_pack", IncidentOutcome(s["pack_outcome"])
-        self.memory.update_incident(inc)
-        strategy, ctx = EvidencePackStrategy(), self._ctx(inc, "strategy:evidence_pack")
-        evidence, decisions, notes, down = list(s.get("evidence", [])), [], [], {}
-        self._ev(inc, "evidence_pack", "enter", reason=inc.outcome)
-        for step in range(_PACK_STEPS):
-            view = self._view(inc, None, {"evidence": evidence, "decisions": decisions, "notes": notes,
-                                          "down": down, "passages": []}, [], _PACK_STEPS - step)
-            d = strategy.next_step(view)
-            decisions.append(d.model_dump(mode="json"))
-            self._audit(inc, "decision", "decision." + getattr(d, "kind", "unknown"), actor=ctx.caller,
-                        detail=json.loads(d.model_dump_json()) if hasattr(d, "model_dump_json") else {})
-            if isinstance(d, UseReadTools):
-                self._read(inc, ctx, [c.model_dump(mode="json") for c in d.calls], "evidence_pack", evidence, down)
-                continue
-            if isinstance(d, Escalate):
-                self._ev(inc, "evidence_pack", "exit", evidence_total=len(evidence))
-                inc.diagnosis = d.reason
-                self.memory.update_incident(inc)
-                return {"evidence": evidence, **self._final(inc.outcome, IncidentStatus.escalated, d.evidence_ids)}
-            if isinstance(d, InvalidDecision):
-                notes.append(f"step {step + 1} was invalid ({d.reason}): {d.detail}. Correct it.")
-        self._audit(inc, "access", "access.budget_exhausted", detail={"steps": _PACK_STEPS})
-        inc.diagnosis = (inc.diagnosis or "") + f" step budget of {_PACK_STEPS} exhausted; escalating with evidence"
-        self.memory.update_incident(inc)
-        return {"evidence": evidence, **self._final(inc.outcome, IncidentStatus.escalated)}
+        if not s.get("pack_started"):
+            inc.strategy, inc.outcome = "evidence_pack", IncidentOutcome(s["pack_outcome"])
+            self.memory.update_incident(inc)
+            self._ev(inc, "evidence_pack", "enter", reason=inc.outcome)
+        ctx = self._ctx(inc, "strategy:evidence_pack")
+        evidence, down, pending = list(s.get("evidence", [])), dict(s.get("down", {})), list(s.get("pending", []))
+        base = {"pack_started": True, "evidence": evidence, "down": down}
+        if pending:
+            self._read(inc, ctx, pending[:1], "evidence_pack", evidence, down)
+            return {**base, "route": "evidence_pack", "pending": pending[1:]}
+        step, decisions, notes = s.get("pack_step", 0), list(s.get("decisions", [])), list(s.get("notes", []))
+        if step >= _PACK_STEPS:
+            self._audit(inc, "access", "access.budget_exhausted", detail={"steps": _PACK_STEPS})
+            inc.diagnosis = (inc.diagnosis or "") + f" step budget of {_PACK_STEPS} exhausted; escalating with evidence"
+            self.memory.update_incident(inc)
+            return {**base, **self._final(inc.outcome, IncidentStatus.escalated)}
+        view = self._view(inc, None, {"evidence": evidence, "decisions": decisions, "notes": notes, "down": down,
+                                      "passages": []}, [], _PACK_STEPS - step)
+        d = EvidencePackStrategy().next_step(view)
+        decisions.append(d.model_dump(mode="json"))
+        self._audit(inc, "decision", "decision." + getattr(d, "kind", "unknown"), actor=ctx.caller,
+                    detail=json.loads(d.model_dump_json()) if hasattr(d, "model_dump_json") else {})
+        upd = {**base, "pack_step": step + 1, "decisions": decisions}
+        if isinstance(d, UseReadTools):
+            return {**upd, "route": "evidence_pack", "pending": [c.model_dump(mode="json") for c in d.calls]}
+        if isinstance(d, Escalate):
+            self._ev(inc, "evidence_pack", "exit", evidence_total=len(evidence))
+            inc.diagnosis = d.reason
+            self.memory.update_incident(inc)
+            return {**upd, **self._final(inc.outcome, IncidentStatus.escalated, d.evidence_ids)}
+        notes.append(f"step {step + 1} was invalid ({getattr(d, 'reason', '?')}): {getattr(d, 'detail', '')}. Correct it.")
+        return {**upd, "route": "evidence_pack", "notes": notes}
 
     def _n_record(self, s: RunState) -> dict:
         f = s["final"]

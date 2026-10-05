@@ -86,3 +86,14 @@ Splitting api / worker / scheduler (T-0014+), the MCP tools child (Phase 4), HIT
   fixed with a Prometheus readiness gate. Evidence: `execution/history/T-0013/step-05/evidence.md`.
 - **Closing:** compose now defaults to `ARGUS_RUNNER=langgraph`; `wiring.py` keeps `plain` as the library default
   (tests choose explicitly). Not in this slice: automatic resume of interrupted runs (needs the worker, T-0014).
+- **Review (conantkd, 2026-10-05):** re-ran step 5 on the VMs (same results; evidence in
+  `execution/history/T-0013-review/step-01/`) and did the per-user login test (all three HEALTHY). Findings:
+  1. `ARGUS_RUNNER` default: already `langgraph` in `compose.core.yml` (closing commit, not yet pushed when he
+     reviewed); `wiring.py` keeps `plain` as the library default because the tests choose explicitly.
+  2. Brain items (journal, SUMMARY row, CURRENT_STATE): already in the closing commit, likewise.
+  3. **A crash in the middle of `act` repeated the reads already completed in that step** (criterion 1). Fixed:
+     `act` and `evidence_pack` make one read per graph step, so each completed read is checkpointed. Red seen:
+     `test_resume_inside_act_does_not_repeat_completed_reads` (status read twice) and
+     `test_resume_inside_evidence_pack_does_not_repeat_completed_reads` (8 reads for 6 distinct). Suite: 63 passed.
+  4. Checkpoint growth (no retention, orphaned checkpoints of failed runs) -> proposal OP-004, separate PR.
+  5. `restarts_10m` undercounts when the first sample is already above 0 -> proposal OP-005, separate PR.

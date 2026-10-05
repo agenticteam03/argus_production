@@ -101,3 +101,50 @@ def test_checkpoint_migration_covers_every_library_migration():
     assert covered == set(range(len(BasePostgresSaver.MIGRATIONS)))
     assert "CONCURRENTLY" not in sql                           # db-migrate.sh runs each file in one transaction
     assert "DELETE" not in re.findall(r"GRANT ([A-Z, ]+) ON checkpoint", sql)[0]
+
+
+# --- review finding (conantkd): a crash in the middle of a node must not repeat the reads already completed ----------
+def _die_on_call(monkeypatch, n: int):
+    """The n-th executor call (1-based) kills the process once, before it reads anything."""
+    real, seen = FakeTargetAgent.get, {"count": 0, "died": False}
+
+    def get(self, path, params=None):
+        seen["count"] += 1
+        if seen["count"] == n and not seen["died"]:
+            seen["died"] = True
+            raise Crash(f"process died before read {n}")
+        return real(self, path, params)
+    monkeypatch.setattr(FakeTargetAgent, "get", get)
+
+
+def test_resume_inside_act_does_not_repeat_completed_reads(make_app, monkeypatch):
+    monkeypatch.setenv("ARGUS_RUNNER", "langgraph")
+
+    def script(ctx):                                           # one step with TWO reads, then conclude
+        if "container.status" not in ctx:
+            return {"calls": [("get_container_status", {"target": WORKER_166}),
+                              ("get_container_logs", {"target": WORKER_166})]}
+        return _diagnose_script(ctx)
+
+    app = make_app(llm=ScriptedLLM(script), metrics=_metrics())
+    inc = incident(app, WORKER_166)
+    _die_on_call(monkeypatch, 2)                               # dies between the first and the second read
+    with pytest.raises(Crash):
+        app.runner.run(inc.id)
+    done = app.runner.run(inc.id)
+    assert done.outcome == IncidentOutcome.diagnosed
+    paths = [p for _, p in FakeTargetAgent.calls]
+    assert paths.count("/containers/argus-lab-worker/status") == 1    # completed before the crash: not repeated
+    assert paths.count("/containers/argus-lab-worker/logs") == 1      # interrupted: done once, after the resume
+
+
+def test_resume_inside_evidence_pack_does_not_repeat_completed_reads(make_app, monkeypatch):
+    monkeypatch.setenv("ARGUS_RUNNER", "langgraph")
+    app = make_app(llm=ScriptedLLM([]), metrics=_metrics())
+    inc = incident(app, WORKER_095)                            # healthy metrics + a report -> evidence pack
+    _die_on_call(monkeypatch, 3)
+    with pytest.raises(Crash):
+        app.runner.run(inc.id)
+    done = app.runner.run(inc.id)
+    assert done.outcome == IncidentOutcome.unsupported_escalated
+    assert len(FakeTargetAgent.calls) == len(set(FakeTargetAgent.calls)) >= 3   # every read exactly once
