@@ -1,11 +1,11 @@
 {
   "holder": "juanbetancurm",
-  "session_id": "3295126b71e8",
-  "task": "B6d",
-  "branch": "task/B6-deploy",
-  "base_commit": "0d6430eb1b044d7453f392f3891d450bfaa753bf",
-  "started_at": "2026-10-03T14:55:21+00:00",
-  "expires_at": "2026-10-03T16:09:06+00:00",
-  "released": true,
+  "session_id": "c850f1cf2348",
+  "task": "T-0013",
+  "branch": "task/T-0013-langgraph-skeleton",
+  "base_commit": "c87d76c5e0a3112835b3ef6c8da8b82b9f9b2822",
+  "started_at": "2026-10-05T02:17:10+00:00",
+  "expires_at": "2026-10-05T03:17:10+00:00",
+  "released": false,
   "handoff": null
 }
