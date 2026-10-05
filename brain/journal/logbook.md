@@ -146,3 +146,17 @@ Decision / result (`OBSERVED`):
     restart signal that does not undercount.
 Consequences: criterion 1 ("without repeating completed tool calls") now holds at read granularity; 63 tests pass.
 Learned: push the closing commit before handing over; a reviewer can only review what is on GitHub.
+
+## 2026-10-05 — T-0013 final review: approved and merged; recursion limit follow-up (T-0013)
+
+Type: decision
+Who: conantkd (review, + agent)
+Context: final review of PR #6 at `5a1b765` (the one-read-per-graph-step fix).
+Decision / result (`OBSERVED`): 63 passed / 5 skipped locally (Postgres tests green in CI); red seen reproduced for
+both new tests on the previous `graph_runner.py`; Brain consistent; no secrets. Approved and merged as is.
+Consequences:
+- One follow-up, recorded as OP-006: the fixed LangGraph `recursion_limit` (100) can be too small for larger step
+  budgets now that each read is a graph step. Agreed fix: `max(100, formula)`.
+- The fix itself has not run on the VMs yet (vm-095 runs `c87d76c`): repeat H-1 / SC-09 / SC-01 after `deploy.sh main`.
+References: `tasks/completed/T-0013-langgraph-skeleton.md` (finding 6), `OPEN_PROBLEMS.md` OP-006.
+Learned: when a change multiplies graph steps, check the framework's own step limit too.

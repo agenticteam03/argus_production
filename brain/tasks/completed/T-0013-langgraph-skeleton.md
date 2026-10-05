@@ -97,3 +97,10 @@ Splitting api / worker / scheduler (T-0014+), the MCP tools child (Phase 4), HIT
      `test_resume_inside_evidence_pack_does_not_repeat_completed_reads` (8 reads for 6 distinct). Suite: 63 passed.
   4. Checkpoint growth (no retention, orphaned checkpoints of failed runs) -> proposal OP-004, separate PR.
   5. `restarts_10m` undercounts when the first sample is already above 0 -> proposal OP-005, separate PR.
+- **Final review (conantkd, 2026-10-05, on `5a1b765`):** suite 63 passed / 5 skipped locally (Postgres tests green in
+  CI); red seen reproduced for both new tests on the previous `graph_runner.py`. Approved and merged as is, with one
+  follow-up:
+  6. The fixed `recursion_limit` of 100 can be too small now that each read is its own graph step (worst case
+     `max_steps × (1 + max(reads_per_step, 6)) + 4`; 60 with the defaults, 144 with `ARGUS_MAX_STEPS=20`). Not a
+     problem with today's configuration -> OP-006.
+  - Not yet run on the VMs: vm-095 still runs `c87d76c`. Repeat H-1 / SC-09 / SC-01 after `deploy.sh main`.
