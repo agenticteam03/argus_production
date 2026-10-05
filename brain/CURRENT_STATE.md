@@ -29,7 +29,12 @@ plain-Python runner (→ LangGraph), the direct tool provider (→ MCP tools chi
   the mounted copy `/opt/argus-runbooks/056b36e` until its next redeploy (same content).
 - Users: `juanbetancurm`, `conantkd`, `juanes6554` (operator, one shared team password); the old personal user is
   disabled. **Not yet verified:** a login test per user (legacy step 12b.2).
-- Last `nonint-check.sh after`: **NO INTERFERENCE** on both VMs (2026-10-02).
+- Last `nonint-check.sh after`: **NO INTERFERENCE** on both VMs (2026-10-05).
+- **Deployed code (OBSERVED 2026-10-05, `/opt/argus-v18/DEPLOYED`):** vm-166 = `main` `8eff994`; vm-095 = `c87d76c` from
+  the **unmerged branch** `task/T-0013-langgraph-skeleton` (deployed by `juanbetancurm`, the pilot; the running
+  `argus-v18-agent` container was not rebuilt, up 2 h). Both VMs should track `main` once T-0013 is reviewed and merged.
+- **Login test (legacy 12b.2) done 2026-10-05:** `juanbetancurm`, `conantkd`, `juanes6554` all log in and get
+  `outcome: HEALTHY` on a `--check` of `vm-095/container:argus-lab-api`.
 
 ## 3. Phase status
 
