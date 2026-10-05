@@ -170,3 +170,17 @@ Decision / result: the checkpoint retention proposal is accepted with three cond
 "ended" defined as `body->>'closed_at'`.
 Consequences: a later task implements it; until then checkpoints keep growing (small at today's volume).
 References: `OPEN_PROBLEMS.md` OP-004, PR #7.
+
+## 2026-10-05 — Temporary fast-track for self-merged pull requests; PR #4 recorded as an exception
+
+Type: decision
+Who: juanbetancurm (+ agent)
+Context: the course presentation came earlier than planned; waiting for a teammate review on every pull request
+would block the work. `main-guard` was red because PR #4 had no recorded approval.
+Decision: PR #4 is added to `policies/main-exceptions.txt` (documentation only). Until 2026-10-12, `juanbetancurm`
+may merge their own pull requests under the conditions in `agents/REVIEW_PROTOCOL.md` ("Temporary fast-track"):
+still a PR from a task branch, CI `test` green, agent review report posted, the PR lists itself in
+`main-exceptions.txt`, and no change to a safety principle, `SECURITY.md`, an ACR or the enforcement itself.
+Consequences: `brain.py`, CI and the hooks are unchanged; every self-merge is listed and reviewed by a teammate
+after the merge. Teammates may object in any PR, which ends the fast-track.
+References: `agents/REVIEW_PROTOCOL.md`, `policies/main-exceptions.txt`.

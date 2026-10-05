@@ -2,3 +2,6 @@
 # Read by `brain.py verify-main`. Adding a line here is itself a change that needs review (except the bootstrap).
 # Format: pr <number>  <date>  <who merged>  <reason>
 pr 1  2026-10-02  juanbetancurm  bootstrap: soft review rules, D-002 runbook import, developer guide (free plan, before any teammate had a clone)
+pr 4  2026-10-04  juanbetancurm  retroactive: onboarding docs only (START_HERE.md); content reviewed in chat, GitHub approval never recorded
+# Temporary fast-track (REVIEW_PROTOCOL.md, "Temporary fast-track"): each self-merged PR adds its own line below,
+# in the PR itself, before the merge. Format: pr <n>  <date>  <who merged>  fast-track: <what>. Window ends 2026-10-12.
