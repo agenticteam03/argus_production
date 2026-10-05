@@ -1,11 +1,17 @@
 {
-  "holder": "conantkd",
-  "session_id": "bf20ba09cc1e",
-  "task": "T-0013",
-  "branch": "task/T-0013-step5-verify",
-  "base_commit": "705a85f3a1289e5c2f53eba80c737f49215e7f2a",
-  "started_at": "2026-10-05T15:29:28+00:00",
-  "expires_at": "2026-10-05T18:31:33+00:00",
+  "holder": "juanbetancurm",
+  "session_id": "e5b3a57f3df7",
+  "task": "DEMO-SC03",
+  "branch": "task/demo-SC03-langgraph",
+  "base_commit": "001e2a62c0a456fb07a2f86e5e4e283507e0dbbf",
+  "started_at": "2026-10-05T20:19:20+00:00",
+  "expires_at": "2026-10-05T21:19:20+00:00",
   "released": false,
-  "handoff": null
+  "handoff": null,
+  "took_over_from": {
+    "holder": "conantkd",
+    "task": "T-0013",
+    "branch": "task/T-0013-step5-verify",
+    "expired_at": "2026-10-05T18:31:33+00:00"
+  }
 }
