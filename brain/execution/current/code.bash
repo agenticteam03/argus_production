@@ -7,146 +7,113 @@
 #   [VM vm-166 · bash]      ssh argus-vm166
 # Paste what the terminal printed into brain/execution/current/output.bash (gitignored, never committed)
 # and tell the agent "output.bash updated". Every block ends with a VERDICT line.
+# (Task B6d is done; its commands are in the history of this file on main.)
 # =====================================================================================
 
 # =====================================================================================
-# TASK B6d — Read-only deploy keys on both VMs, then the first `deploy.sh init`   [~20 min + teammate review]
-# Why: the VMs must run an exact, known commit of this repository, fetched from GitHub (no laptop copying).
-# PART 1 (now): keys on the VMs, registered on GitHub as READ-ONLY deploy keys, access tested. Changes no service.
-# PART 2 (after a teammate reviewed and merged the PR that adds ops/deploy.sh): /opt/argus-v18/app becomes a git
-#   clone of main. The running containers keep running unchanged; nothing is rebuilt in this task.
-# Prerequisite: deploy keys allowed in the organization (Settings -> Member privileges -> Deploy keys).
+# T-0013 STEP 5 — The agent on LangGraph with Postgres checkpoints, on the real VMs   [~40 min]
+# Why: verify on vm-095 what the tests proved on the laptop: same diagnoses, and every run checkpointed in Postgres.
+# What changes:
+#   - both VMs: /opt/argus-v18/app becomes a git checkout (deploy.sh init; the old folder is kept as app.pre-git-<time>)
+#   - vm-095: migration 002 (checkpoint tables), the agent image rebuilt and restarted with ARGUS_RUNNER=langgraph
+#     (this redeploy also ships the runbooks inside the image, D-002)
+#   - lab: SC-01 worker started on vm-166, then removed
+# Rollback (vm-095): cd /opt/argus-v18/app/deploy/vm-095 && sudo ARGUS_RUNNER=plain docker compose --env-file
+#   /opt/argus-v18/hosts.env -f compose.core.yml up -d --build --no-deps argus-v18-agent   (the 002 tables stay, unused)
 # =====================================================================================
 
-# --- B6d.1 [LAPTOP · PowerShell] Claim the VM session (MUTATES GitHub: the session branch) --------------------------
+# --- S5.1 [LAPTOP · PowerShell] Push the branch, claim the VM session, write the marker on both VMs -----------------
 cd C:\repos\ml_course_tasks\agent_frameworks\wwfinal_project\argus_production
-python brain\tools\brain.py start --task B6d
-# Expected: "Lease CLAIMED by juanbetancurm until ..." and a "VM marker" line: COPY that echo line, you paste it in
-# B6d.2 on BOTH VMs. If it says the VMs are in use by someone else: STOP.
-
-# --- B6d.M [LAPTOP · PowerShell] Renew the lease and write the session marker on BOTH VMs (MUTATES SESSION files) ---
-# Nothing to copy by hand: the holder and session id are read from the lease on GitHub, then written over SSH.
-cd C:\repos\ml_course_tasks\agent_frameworks\wwfinal_project\argus_production
-python brain\tools\brain.py renew
+git push origin task/T-0013-langgraph-skeleton
+python brain\tools\brain.py start --task T-0013
 git fetch -q origin "+refs/heads/session:refs/remotes/origin/session"
 $L = git show origin/session:session.json | ConvertFrom-Json
-"lease: holder=$($L.holder) session=$($L.session_id) released=$($L.released) until=$($L.expires_at)"
 $ok = 0
 foreach ($vm in "argus-vm095", "argus-vm166") {
   $got = ssh -o BatchMode=yes $vm "echo 'holder=$($L.holder) session=$($L.session_id)' | sudo tee /opt/argus-v18/SESSION >/dev/null; cat /opt/argus-v18/SESSION"
   "${vm}: $got"
   if ("$got" -eq "holder=$($L.holder) session=$($L.session_id)") { $ok++ }
 }
-if (($ok -eq 2) -and ($L.holder -eq "juanbetancurm") -and (-not $L.released)) { "VERDICT B6d.M OK: lease renewed, marker on both VMs" } else { "VERDICT B6d.M STOP: lease not yours/active, or marker missing on a VM" }
+$unpushed = git rev-list --count origin/task/T-0013-langgraph-skeleton..task/T-0013-langgraph-skeleton
+if (($ok -eq 2) -and ($L.holder -eq "juanbetancurm") -and (-not $L.released) -and ($unpushed -eq "0")) { "VERDICT S5.1 OK: branch pushed, lease yours, marker on both VMs" } else { "VERDICT S5.1 STOP: unpushed=$unpushed holder=$($L.holder) released=$($L.released) markers=$ok" }
 
-# --- B6d.2 [VM vm-095 · bash] (ssh argus-vm095) Deploy key + pinned GitHub host key (MUTATES /opt/argus-v18 only) --
-# Undo: sudo rm -rf /opt/argus-v18/secrets/deploy   (and delete the key on GitHub: see B6d.4)
-D=/opt/argus-v18/secrets/deploy
-sudo install -d -m 700 "$D"
-sudo test -f "$D/id_ed25519" || sudo ssh-keygen -q -t ed25519 -N "" -C "argus_production read-only deploy $(hostname)" -f "$D/id_ed25519"
-ssh-keyscan -t ed25519 github.com 2>/dev/null | sudo tee "$D/known_hosts" >/dev/null
-FP=$(sudo ssh-keygen -lf "$D/known_hosts" | awk '{print $2}'); echo "github.com host key: $FP"
-sudo cat "$D/id_ed25519.pub"
-sudo bash /opt/argus-v18/app/ops/nonint-check.sh after
-[ "$FP" = "SHA256:+DiY3wvvV6TuJJhbpZisF/zLDA0zPMSvHdkr4UvCOqU" ] && sudo test -f "$D/id_ed25519" && grep -q '^holder=juanbetancurm ' /opt/argus-v18/SESSION \
-  && echo "VERDICT B6d.2 OK: key ready, GitHub host key verified, session marker yours ($(hostname))" \
-  || echo "VERDICT B6d.2 STOP: host key '$FP', or key missing, or SESSION marker not yours"
-# Expected: "NO INTERFERENCE" and the VERDICT OK line. The .pub line is public (safe to paste).
-
-# --- B6d.3 [VM vm-166 · bash] (ssh argus-vm166) The same on vm-166 (full block, nothing to repeat) ---------------
-# Undo: sudo rm -rf /opt/argus-v18/secrets/deploy   (and delete the key on GitHub: see B6d.4)
-D=/opt/argus-v18/secrets/deploy
-sudo install -d -m 700 "$D"
-sudo test -f "$D/id_ed25519" || sudo ssh-keygen -q -t ed25519 -N "" -C "argus_production read-only deploy $(hostname)" -f "$D/id_ed25519"
-ssh-keyscan -t ed25519 github.com 2>/dev/null | sudo tee "$D/known_hosts" >/dev/null
-FP=$(sudo ssh-keygen -lf "$D/known_hosts" | awk '{print $2}'); echo "github.com host key: $FP"
-sudo cat "$D/id_ed25519.pub"
-sudo bash /opt/argus-v18/app/ops/nonint-check.sh after
-[ "$FP" = "SHA256:+DiY3wvvV6TuJJhbpZisF/zLDA0zPMSvHdkr4UvCOqU" ] && sudo test -f "$D/id_ed25519" && grep -q '^holder=juanbetancurm ' /opt/argus-v18/SESSION \
-  && echo "VERDICT B6d.3 OK: key ready, GitHub host key verified, session marker yours ($(hostname))" \
-  || echo "VERDICT B6d.3 STOP: host key '$FP', or key missing, or SESSION marker not yours"
-# Expected: "NO INTERFERENCE" and the VERDICT OK line.
-
-# --- B6d.4 [LAPTOP · PowerShell] Register the VMs' public keys as READ-ONLY deploy keys (MUTATES GitHub) -----------
-# Safe to re-run: a VM whose key is already registered is skipped; a VM without a key file is reported, not sent.
-# Undo: gh repo deploy-key list --repo agenticteam03/argus_production  ->  gh repo deploy-key delete <id> --repo ...
-$have = gh repo deploy-key list --repo agenticteam03/argus_production
-foreach ($vm in "argus-vm095", "argus-vm166") {
-  if ($have | Select-String -SimpleMatch $vm) { "${vm}: already registered"; continue }
-  $pub = ssh -o BatchMode=yes $vm "sudo cat /opt/argus-v18/secrets/deploy/id_ed25519.pub"
-  if (-not ("$pub" -match '^ssh-ed25519 ')) { "${vm}: NO public key on the VM - run its key block (B6d.2 / B6d.3) first"; continue }
-  $f = "$env:TEMP\$vm-deploy.pub"
-  Set-Content -Encoding ascii $f $pub
-  gh repo deploy-key add $f --repo agenticteam03/argus_production --title "$vm (read-only)"
-  Remove-Item $f
-}
-gh repo deploy-key list --repo agenticteam03/argus_production
-$ro = (gh repo deploy-key list --repo agenticteam03/argus_production | Select-String "read-only" | Select-String "argus-vm").Count
-if ($ro -eq 2) { "VERDICT B6d.4 OK: 2 read-only deploy keys" } else { "VERDICT B6d.4 STOP: $ro of 2 VM keys registered - see the lines above (missing key on a VM, or an HTTP error from GitHub)" }
-
-# --- B6d.5 [VM vm-095 · bash] then [VM vm-166 · bash] Test read access with the key (READ-ONLY) -----------------
-D=/opt/argus-v18/secrets/deploy
-sudo GIT_SSH_COMMAND="ssh -i $D/id_ed25519 -o IdentitiesOnly=yes -o UserKnownHostsFile=$D/known_hosts -o StrictHostKeyChecking=yes -o BatchMode=yes" \
-  git ls-remote git@github.com:agenticteam03/argus_production.git main \
-  && echo "VERDICT B6d.5 OK: $(hostname) can read the repository" || echo "VERDICT B6d.5 STOP: $(hostname) cannot read it"
-# Expected: one line "<sha>  refs/heads/main" and the VERDICT OK line, on each VM.
-
-# --- B6d.P [LAPTOP · PowerShell] Push this branch, open the PR, ask a teammate to review (MUTATES GitHub) -----------
-# You do NOT merge it: conantkd or juanes6554 reviews (brain/agents/REVIEW_PROTOCOL.md), approves and merges.
-cd C:\repos\ml_course_tasks\agent_frameworks\wwfinal_project\argus_production
-git push -u origin task/B6-deploy
-$B = "$env:TEMP\argus-pr-deploy.md"
-@'
-## Why
-The VMs must run an exact, known commit of this repository, fetched from GitHub instead of copied from a laptop
-(shared-Brain plan, deploy method B). Deploy keys are now allowed in the organization.
-
-## What
-- `ops/deploy.sh` (`status`, `init`, `<ref>`): refuses when /opt/argus-v18/SESSION is not yours, when the VM
-  checkout has local modifications, or when the ref is unknown; checks out the exact commit (detached), writes
-  /opt/argus-v18/DEPLOYED, prints which services to rebuild; never restarts anything. `init` keeps the old folder
-  as app.pre-git-<time> for rollback.
-- `tests/test_deploy.py`: 6 tests against a throwaway bare repository (red seen first).
-- `brain/execution/current/code.bash`: Task B6d (read-only deploy keys on both VMs, pinned GitHub host key, access
-  test; after this PR is merged: `deploy.sh init` on both VMs).
-- Brain: state, next step, test state, troubleshooting (3 new entries), environment, journal.
-
-## How to review (suggested)
-Read `ops/deploy.sh` top to bottom (about 80 lines) and `tests/test_deploy.py`; run `pytest -q tests/test_deploy.py`.
-Nothing in this PR changes a running service.
-
-## Tests
-53 passed locally, 4 skipped (Postgres needs Docker); CI must be green.
-
-🤖 Generated with [Claude Code](https://claude.com/claude-code)
-'@ | Set-Content -Encoding utf8 $B
-gh pr create --repo agenticteam03/argus_production --base main --head task/B6-deploy --title "B6d: ops/deploy.sh - the VMs check out an exact commit (deploy keys)" --body-file $B --reviewer conantkd,juanes6554
-Remove-Item $B
-$N = gh pr view task/B6-deploy --repo agenticteam03/argus_production --json number --jq .number
-gh pr checks $N --repo agenticteam03/argus_production --watch --interval 20
-if ($LASTEXITCODE -eq 0) { "VERDICT B6d.P OK: PR #$N open, CI green, review requested" } else { "VERDICT B6d.P STOP: CI not green on PR #$N" }
-# Then tell your teammates the PR is waiting (they start with: python brain/tools/brain.py start).
-
-# ---------------------------------------------------------------------------------------------------------------------
-# PART 2 — only AFTER the PR with ops/deploy.sh is approved by a teammate and merged into main.
-# If more than ~60 minutes passed since B6d.1: python brain\tools\brain.py start --task B6d  (and re-paste the marker).
-# ---------------------------------------------------------------------------------------------------------------------
-
-# --- B6d.6 [VM vm-095 · bash] then [VM vm-166 · bash] Turn /opt/argus-v18/app into a clone of main (MUTATES files only)
-# The old folder is kept as /opt/argus-v18/app.pre-git-<time> (rollback: move it back). Running containers are not
-# touched: their mounts keep pointing at the files they started with until they are recreated.
+# --- S5.2 [VM vm-166 · bash] (ssh argus-vm166) Baseline, then turn app/ into a git checkout of main (files only) ---
+sudo bash /opt/argus-v18/app/ops/nonint-check.sh before
 D=/opt/argus-v18/secrets/deploy
 sudo rm -rf /tmp/argus-bootstrap
 sudo GIT_SSH_COMMAND="ssh -i $D/id_ed25519 -o IdentitiesOnly=yes -o UserKnownHostsFile=$D/known_hosts -o StrictHostKeyChecking=yes -o BatchMode=yes" \
   git clone -q --depth 1 git@github.com:agenticteam03/argus_production.git /tmp/argus-bootstrap
 sudo bash /tmp/argus-bootstrap/ops/deploy.sh init main --as juanbetancurm
 sudo rm -rf /tmp/argus-bootstrap
-sudo bash /opt/argus-v18/app/ops/deploy.sh status
+sudo bash /opt/argus-v18/app/ops/deploy.sh status | grep -E '^(commit|ref)=|checkout:'
+sudo docker ps --filter name=argus- --format '{{.Names}} {{.Status}}'
+sudo bash /opt/argus-v18/app/ops/deploy.sh status | grep -q 'local modifications: 0' \
+  && echo "VERDICT S5.2 OK: vm-166 app/ is a clean checkout of main" || echo "VERDICT S5.2 STOP"
+# Expected: "saved .../before.txt", "DEPLOY OK: <commit> (main) on agent-test-vnic", every argus-* container still Up.
+# (Ignore the "rebuild" hints printed by deploy.sh: nothing on vm-166 is rebuilt in this task.)
+
+# --- S5.3 [VM vm-095 · bash] (ssh argus-vm095) Baseline, then app/ = the T-0013 branch (files only) -----------------
+sudo bash /opt/argus-v18/app/ops/nonint-check.sh before
+D=/opt/argus-v18/secrets/deploy
+sudo rm -rf /tmp/argus-bootstrap
+sudo GIT_SSH_COMMAND="ssh -i $D/id_ed25519 -o IdentitiesOnly=yes -o UserKnownHostsFile=$D/known_hosts -o StrictHostKeyChecking=yes -o BatchMode=yes" \
+  git clone -q --depth 1 git@github.com:agenticteam03/argus_production.git /tmp/argus-bootstrap
+sudo bash /tmp/argus-bootstrap/ops/deploy.sh init task/T-0013-langgraph-skeleton --as juanbetancurm
+sudo rm -rf /tmp/argus-bootstrap
+sudo bash /opt/argus-v18/app/ops/deploy.sh status | grep -E '^(commit|ref)=|checkout:'
+test -f /opt/argus-v18/app/deploy/migrations/002_checkpoints.sql \
+  && echo "VERDICT S5.3 OK: vm-095 app/ is the T-0013 branch" || echo "VERDICT S5.3 STOP: 002 migration missing"
+# Expected: "DEPLOY OK: <commit> (task/T-0013-langgraph-skeleton) on vm-appsvnic", "local modifications: 0".
+
+# --- S5.4 [VM vm-095 · bash] Migration 002, then rebuild the agent on LangGraph (MUTATES Postgres + the agent) -------
+cd /opt/argus-v18/app && sudo bash ops/db-migrate.sh
+cd /opt/argus-v18/app/deploy/vm-095 && sudo ARGUS_RUNNER=langgraph docker compose --env-file /opt/argus-v18/hosts.env \
+  -f compose.core.yml up -d --build --no-deps argus-v18-agent && cd ~
+sleep 15
+RUNNER=$(sudo docker exec argus-v18-agent python -c "from argus.infrastructure.wiring import Settings; print(Settings().runner)")
+echo "agent runner: $RUNNER"
+sudo docker exec argus-v18-agent argus db check | tail -4
+sudo docker exec argus-v18-agent argus db check | grep -q '^15/15 database checks passed' && [ "$RUNNER" = langgraph ] \
+  && echo "VERDICT S5.4 OK: 002 applied, agent on LangGraph, db check 15/15" || echo "VERDICT S5.4 STOP"
+# Expected: "+ 002_checkpoints applied" (or "= ... already applied"), "Container argus-v18-agent Started" (the build
+# takes a few minutes the first time: it downloads LangGraph), "agent runner: langgraph", "15/15 database checks passed".
+
+# --- S5.5 [VM vm-095 · bash] H-1 (healthy, no model) and SC-09 (unsupported, evidence pack) ---------------------------
+read -rsp "Shared Argus password: " ARGUS_PASSWORD; echo; export ARGUS_PASSWORD
+argus() { sudo --preserve-env=ARGUS_PASSWORD docker exec -i -e ARGUS_USER=juanbetancurm -e ARGUS_PASSWORD argus-v18-agent argus "$@"; }
+ckpt() { sudo docker exec argus-v18-postgres psql -U argus_owner -d argus -At -c "SELECT count(DISTINCT thread_id) FROM checkpoints"; }
+BEFORE=$(ckpt)
+H1=$(argus diagnose vm-166/container:argus-lab-api --check --reason "T-0013 H-1" | grep -E '^incident|outcome'); echo "$H1"
+S9=$(argus diagnose vm-095/container:argus-lab-api --reason "users see stale data" | grep -E '^incident|outcome'); echo "$S9"
+AFTER=$(ckpt); echo "checkpointed investigations: $BEFORE -> $AFTER"
+echo "$H1" | grep -q 'HEALTHY' && echo "$S9" | grep -qi 'unsupported' && [ "$AFTER" -ge $((BEFORE + 2)) ] \
+  && echo "VERDICT S5.5 OK: same outcomes as before, both runs checkpointed in Postgres" || echo "VERDICT S5.5 STOP"
+
+# --- S5.6 [VM vm-166 · bash] Start SC-01 (OOM restart loop) and wait for 3+ restarts (MUTATES: lab worker) ------------
+cd /opt/argus-v18/app/deploy/lab && sudo docker compose -f compose.lab.yml --profile sc01 up -d argus-lab-worker-oom && cd ~
+for i in $(seq 1 18); do r=$(sudo docker inspect -f '{{.RestartCount}}' argus-lab-worker 2>/dev/null || echo 0); echo "restarts=$r"; [ "$r" -ge 3 ] && break; sleep 10; done
+[ "$r" -ge 3 ] && echo "VERDICT S5.6 OK: SC-01 worker is crash-looping" || echo "VERDICT S5.6 STOP: fewer than 3 restarts"
+
+# --- S5.7 [VM vm-095 · bash] SC-01: Argus diagnoses it on LangGraph ---------------------------------------------------
+BEFORE=$(ckpt)
+argus diagnose vm-166/container:argus-lab-worker --reason "keeps restarting" | tee /tmp/sc01.txt | tail -25
+AFTER=$(ckpt); echo "checkpointed investigations: $BEFORE -> $AFTER"
+grep -qi 'outcome.*diagnosed' /tmp/sc01.txt && grep -q 'RB-001' /tmp/sc01.txt && [ "$AFTER" -gt "$BEFORE" ] \
+  && echo "VERDICT S5.7 OK: SC-01 diagnosed (RB-001) on LangGraph, checkpointed in Postgres" || echo "VERDICT S5.7 STOP"
+rm -f /tmp/sc01.txt; unset ARGUS_PASSWORD
+# Expected: DETECT container_restart_loop -> RECALL RB-001 -> INVESTIGATE/ACT on vm-166 only -> RECORD: diagnosed (OOM).
+
+# --- S5.8 [VM vm-166 · bash] Reset SC-01, prove non-interference -------------------------------------------------
+cd /opt/argus-v18/app/deploy/lab && sudo docker compose -f compose.lab.yml --profile sc01 rm -sf argus-lab-worker-oom && cd ~
+sudo bash /opt/argus-v18/app/ops/nonint-check.sh after
+# Expected: NO INTERFERENCE: non-Argus objects unchanged
+
+# --- S5.9 [VM vm-095 · bash] Prove non-interference ----------------------------------------------------------------
 sudo docker ps --filter name=argus- --format '{{.Names}} {{.Status}}'
 sudo bash /opt/argus-v18/app/ops/nonint-check.sh after
-# Expected: "DEPLOY OK: <commit> (main) on <host>", the status shows commit=... and "local modifications: 0",
-# every argus-* container still Up, and "NO INTERFERENCE". (The rebuild hints are for a LATER task: do not run them.)
+# Expected: every argus-* container Up (argus-v18-agent recently restarted), NO INTERFERENCE
 
-# --- B6d.7 [LAPTOP · PowerShell] Release the session ---------------------------------------------------------------
+# --- S5.10 [LAPTOP · PowerShell] Release the VM session ------------------------------------------------------------
+cd C:\repos\ml_course_tasks\agent_frameworks\wwfinal_project\argus_production
 python brain\tools\brain.py release
 # Expected: "Lease released."
