@@ -32,7 +32,7 @@ These are recorded here so nobody "fixes" one side silently. Each will be resolv
 |---|---|---|---|
 | Cross-host path (§3.2, §3.6) | §3.6 reference values: private subnet, no tunnel | restricted SSH tunnel over port 22 (the only open port between the VMs) | **pending team decision D-001** (`../OPEN_PROBLEMS.md`) |
 | Alerts | Alertmanager webhook push | alerts pulled by `ReconcileFiringAlerts` through the tunnel | **pending team decision D-001** |
-| Workflow engine (§10) | LangGraph with a Postgres checkpointer | plain-Python runner | plan Phase 9 (task T-0013) |
+| Workflow engine (§10) | LangGraph with a Postgres checkpointer | **resolved by T-0013 (2026-10-04):** LangGraph runner, checkpoints in Postgres (plain runner kept as rollback) | — |
 | Tools process (§12) | stdio MCP tools child under UID `argus-tools` | direct in-process provider | plan Phase 4 |
-| api / worker / scheduler | separate processes | one agent container, no scheduler | plan Phase 9 |
+| api / worker / scheduler | separate processes | one agent container, no scheduler; interrupted runs are not resumed automatically yet | plan Phase 9 (next: T-0014) |
 | Runbooks (§2.4) | reviewed copy in the code repository (`argus/runbooks/`) | **resolved by D-002 (2026-10-02):** in `argus/runbooks/`; the VM still mounts the old copy until the next agent redeploy | — |

@@ -47,6 +47,7 @@ Record the lesson: the journal entry gets a `Learned:` line; a problem seen twic
 | 13 | after a restart, an OOM crash looks like a normal exit | Docker resets `ExitCode`/`OOMKilled` once the container runs again | fixed: the exporter takes the last exit from `die`/`oom` events in the 10-minute window |
 | 14 | `HTTP 422 ... Deploy keys are disabled for this repository` | the organization setting "Deploy keys" is off (an empty `gh repo deploy-key list` does NOT prove they are allowed) | an org owner allows them: Organization settings → Member privileges → Deploy keys |
 | 15 | `HTTP 403 Upgrade to GitHub Pro or make this repository public` on branch protection | free organization plan: no branch protection on private repos | the soft review rules (`brain.py verify-main`, pre-push hook) — see `agents/REVIEW_PROTOCOL.md` |
+| 17 | a crash-looping container is reported UNSUPPORTED ("no class matched", `restarts_10m=1`) although Docker shows 3+ restarts | Prometheus samples every 15 s and `restarts_10m` is computed from its samples, so it trails Docker's own counter | wait on Prometheus, not Docker: poll `restarts_10m` on the target host's Prometheus until ≥ 3 (T-0013 step 5, S5.6) |
 | 16 | `DEPLOY STOP: NOT YOUR SESSION` | `/opt/argus-v18/SESSION` names someone else, or the marker line was not pasted | `brain.py start`, then paste its VM-marker line on the VM |
 
 ## First diagnostic commands

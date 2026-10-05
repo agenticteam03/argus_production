@@ -1,16 +1,18 @@
 # Next step
 
-**Now (repository setup, owner `juanbetancurm`):** finish shared-Brain step **B6**: Task B6d in `execution/current/code.bash` (read-only deploy keys on
-both VMs; the PR with `ops/deploy.sh`, reviewed by `conantkd` or `juanes6554`; then `deploy.sh init` on both VMs).
+**First (any developer, 5 minutes):**
+1. Review and merge the T-0013 pull request (`task/T-0013-langgraph-skeleton`) — not by its author.
+2. Turn `main-guard` green: `conantkd` opens PR #4 → Files changed → Review changes → **Approve**; if GitHub refuses
+   on a merged PR, open a small PR adding `pr 4` to `brain/policies/main-exceptions.txt` (reviewed by someone else).
+3. After the T-0013 merge, put vm-095 back on `main` (VM lease): `sudo bash /opt/argus-v18/app/ops/deploy.sh main
+   --as <you>` — same code, so nothing needs rebuilding.
 
-**Then — the first real task through the protocol (the pilot, B7):**
+**Then — the next task (to be created by whoever takes it, as `tasks/current/T-0014-<slug>.md`):**
 
-| | |
-|---|---|
-| Task | [**T-0013 — LangGraph skeleton with a Postgres checkpointer**](tasks/current/T-0013-langgraph-skeleton.md) |
-| Phase | 9 (agent workflow), first slice |
-| Who | `juanbetancurm` (pilot), reviewed by the next developer |
-| Needs the VM lease | yes, for the deployment steps only |
+| Option | Phase | What | Depends on |
+|---|---|---|---|
+| **T-0014 — worker + scheduler** (recommended next) | 9 | split the agent into api / worker / scheduler; the worker claims queued incidents and **resumes interrupted runs from their checkpoint**; the scheduler runs periodic checks and pulls firing alerts | T-0013 merged |
+| SC-07 — network/DNS scenario | 11 | a client and a backend on different Docker networks; Argus must find the network misconfiguration | nothing (independent) |
+| MCP tools child | 4 | tool calls through a separate stdio process under its own user | nothing (independent) |
 
-Before starting T-0013, if the team password is at hand: run the pending login test for each user (legacy step
-12b.2 in `execution/history/legacy/code.bash`) and record the result in `CURRENT_STATE.md`.
+Two developers can work in parallel on different rows. The VMs are used by one person at a time (`brain.py start`).
