@@ -30,8 +30,16 @@ and repeated end-to-end runs.
   (`argus/runbooks/`, library v1.1.0). `/opt/argus-runbooks/056b36e` on vm-095 is no longer used.
 - `/opt/argus-v18/hosts.env` on both VMs; the tunnel target matches it.
 - Users: `juanbetancurm`, `conantkd`, `juanes6554` (operator, one shared team password); the old personal user is
-  disabled. `juanbetancurm` logged in successfully on 2026-10-04 (T-0013 step 5).
-- Last `nonint-check.sh after`: **NO INTERFERENCE** on both VMs (2026-10-04).
+  disabled. Login test per user (legacy step 12b.2) **done 2026-10-05**: all three log in and get `outcome: HEALTHY`
+  on a `--check` of `vm-095/container:argus-lab-api`.
+- Last `nonint-check.sh after`: **NO INTERFERENCE** on both VMs (2026-10-05).
+- **Deployed code (OBSERVED 2026-10-05, `/opt/argus-v18/DEPLOYED`):** vm-166 = `main` `8eff994`; vm-095 = `c87d76c`,
+  the T-0013 branch `task/T-0013-langgraph-skeleton`, as planned by T-0013 step 5 (deploy the branch before the merge).
+  On vm-095 migration 002 (checkpoint tables) is applied and `argus-v18-agent` runs with `ARGUS_RUNNER=langgraph`.
+  Both VMs should track `main` again once T-0013 is reviewed and merged.
+- **T-0013 step 5 verified 2026-10-05** (by the reviewer `conantkd`): `argus db check` 15/15, H-1 `HEALTHY`, SC-09
+  `UNSUPPORTED → escalated`, SC-01 `DIAGNOSED` (RB-001), every run checkpointed in Postgres, NO INTERFERENCE.
+  Evidence: [`execution/history/T-0013-review/step-01/evidence.md`](execution/history/T-0013-review/step-01/evidence.md).
 
 ## 3. Phase status
 
