@@ -108,3 +108,23 @@ Problems on the way:
 - B6d.4 sent an empty key for a VM without a key file, and its message blamed the org setting. It now skips
   registered keys, refuses to send a missing key, and reports the real cause.
 Learned: a code.bash step must never depend on text the developer has to carry over by hand.
+
+## 2026-10-04 — T-0013 verified on vm-095: the skeleton runs on LangGraph with Postgres checkpoints (T-0013)
+
+Type: deployment
+Who: juanbetancurm (+ agent); PRs #2 and #4 merged by conantkd, PR #3 by juanbetancurm
+Context: Phase 9 first slice; the pilot of the shared-Brain protocol.
+Decision / result (`OBSERVED`):
+- `/opt/argus-v18/app` is a git checkout on both VMs (`deploy.sh init`). vm-095 runs this branch; vm-166 runs `main`.
+- Migration 002 is applied; `argus db check` passes 15/15.
+- The agent was rebuilt with `ARGUS_RUNNER=langgraph`, and the runbooks now ship inside the image.
+- H-1, SC-09 and SC-01 give the same outcomes as before, and each run is checkpointed in Postgres.
+- NO INTERFERENCE on both VMs.
+- Compose now defaults to `langgraph`.
+Consequences:
+- Phase 9 is at 50 %.
+- An interrupted run can resume from its checkpoint, but nothing triggers that automatically yet; that comes with the
+  worker (T-0014).
+- After the merge, vm-095 must be put back on `main` with `deploy.sh main`.
+References: `tasks/completed/T-0013-langgraph-skeleton.md`, `execution/history/T-0013/step-05/evidence.md`.
+Learned: a readiness gate must wait on the data the agent reads (Prometheus), not on its source (Docker).

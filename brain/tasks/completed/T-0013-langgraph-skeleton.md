@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | `executed` (steps 1-4 of 5 on the laptop; step 5 = VMs) |
+| Status | `verified` on vm-095 (2026-10-04); PR open — merged = done |
 | Phase | 9 — agent workflow ([`../../IMPLEMENTATION_PLAN.md`](../../IMPLEMENTATION_PLAN.md)) |
 | Architecture | §10 (orchestration, the safety skeleton), §16 (persistence, checkpoints), §19 (failure behaviour), §21.1 |
 | Branch | `task/T-0013-langgraph-skeleton` |
@@ -79,3 +79,10 @@ Splitting api / worker / scheduler (T-0014+), the MCP tools child (Phase 4), HIT
 - **Step 5 (VMs) needs PR #2 (`ops/deploy.sh`) merged first:** deploy this branch on vm-095, run `ops/db-migrate.sh`
   (applies 002), `argus db check` (15/15), rebuild the agent with `ARGUS_RUNNER=langgraph`, then H-1, SC-09, SC-01 and
   NO INTERFERENCE. Rollback: `ARGUS_RUNNER=plain` (the 002 tables stay, unused).
+- **Step 5 (2026-10-04, VMs) — verified.** `deploy.sh init` on both VMs (vm-166: `main`, vm-095: this branch);
+  migration 002 applied; agent rebuilt with `ARGUS_RUNNER=langgraph`; `argus db check` 15/15; H-1 HEALTHY, SC-09
+  UNSUPPORTED, SC-01 DIAGNOSED (RB-001), each run checkpointed in Postgres; NO INTERFERENCE on both VMs. First SC-01
+  attempt escalated (UNSUPPORTED) because the wait checked Docker's restart counter while Prometheus still had 1 —
+  fixed with a Prometheus readiness gate. Evidence: `execution/history/T-0013/step-05/evidence.md`.
+- **Closing:** compose now defaults to `ARGUS_RUNNER=langgraph`; `wiring.py` keeps `plain` as the library default
+  (tests choose explicitly). Not in this slice: automatic resume of interrupted runs (needs the worker, T-0014).
