@@ -45,6 +45,9 @@ Record the lesson: the journal entry gets a `Learned:` line; a problem seen twic
 | 11 | the model answers HTTP 400 when tools are sent | this model does not accept function tools on `/v1/chat/completions` | use the Responses API (`ARGUS_LLM_API=responses`, the default); 4xx is never retried |
 | 12 | `required variable ARGUS_VM166_PRIVATE_IP is missing a value` | compose for the core was run without the VM-local address file | add `--env-file /opt/argus-v18/hosts.env`; check the file exists |
 | 13 | after a restart, an OOM crash looks like a normal exit | Docker resets `ExitCode`/`OOMKilled` once the container runs again | fixed: the exporter takes the last exit from `die`/`oom` events in the 10-minute window |
+| 14 | `HTTP 422 ... Deploy keys are disabled for this repository` | the organization setting "Deploy keys" is off (an empty `gh repo deploy-key list` does NOT prove they are allowed) | an org owner allows them: Organization settings → Member privileges → Deploy keys |
+| 15 | `HTTP 403 Upgrade to GitHub Pro or make this repository public` on branch protection | free organization plan: no branch protection on private repos | the soft review rules (`brain.py verify-main`, pre-push hook) — see `agents/REVIEW_PROTOCOL.md` |
+| 16 | `DEPLOY STOP: NOT YOUR SESSION` | `/opt/argus-v18/SESSION` names someone else, or the marker line was not pasted | `brain.py start`, then paste its VM-marker line on the VM |
 
 ## First diagnostic commands
 

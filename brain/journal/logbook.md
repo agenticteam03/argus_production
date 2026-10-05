@@ -69,3 +69,42 @@ Consequences:
 - The VMs pulling this private repository still needs deploy keys (org setting) or another method; that decision
   comes with the deploy step.
 Learned: an empty list of deploy keys does not prove that deploy keys are allowed.
+
+## 2026-10-02 — PR #1 merged; deploy method: org deploy keys + ops/deploy.sh (Task B6d)
+
+Type: decision
+Who: juanbetancurm (+ agent)
+`OBSERVED`:
+- PR #1 merged: `main` = `bf24fac`;
+- CI on `main` is green: `test` and `main-guard`;
+- `verify-main` is clean (PR #1 is the recorded exception).
+Decision (owner):
+- The VMs pull this repository with one read-only deploy key per VM.
+- The owner allows deploy keys in the organization's settings.
+New: `ops/deploy.sh` (status, init, deploy):
+- it refuses when the session marker is not yours, when the VM checkout has local modifications, or when the ref is
+  unknown;
+- it checks out the exact commit and writes `DEPLOYED`;
+- it prints the rebuild hints and never restarts anything.
+Tests: `tests/test_deploy.py`, 6 tests (red seen); 53 pass in total.
+Commands: Task B6d in `execution/current/code.bash`. Part 1 covers the keys, the GitHub host key pin and the access
+test. Part 2 (`deploy.sh init`) runs after a teammate reviews and merges this PR.
+
+## 2026-10-03 — Task B6d part 1: read-only deploy keys on both VMs
+
+Type: infrastructure
+Who: juanbetancurm (+ agent)
+`OBSERVED`:
+- Each VM has its key in `/opt/argus-v18/secrets/deploy/` (0700), with GitHub's ed25519 host key pinned
+  (`SHA256:+DiY3wvvV6TuJJhbpZisF/zLDA0zPMSvHdkr4UvCOqU`).
+- Both keys are registered on GitHub as read-only.
+- `git ls-remote` works from vm-095 and from vm-166.
+- NO INTERFERENCE on both VMs.
+- PR #2 is open with green CI and a review requested.
+Problems on the way:
+- The VM session marker depended on pasting a separate line, and that step was missed twice. Now the laptop block
+  B6d.M renews the lease and writes the marker on both VMs over SSH, reading the session id from the lease.
+- The vm-166 step said "paste the B6d.2 block again" and was misread; it is now a full block.
+- B6d.4 sent an empty key for a VM without a key file, and its message blamed the org setting. It now skips
+  registered keys, refuses to send a missing key, and reports the real cause.
+Learned: a code.bash step must never depend on text the developer has to carry over by hand.

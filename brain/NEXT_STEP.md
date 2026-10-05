@@ -1,7 +1,7 @@
 # Next step
 
-**Now (repository setup, owner `juanbetancurm`):** finish shared-Brain step **B6** (pre-publish audit → first commit → push → branch
-protection → `session` branch → deploy keys + `ops/deploy.sh`).
+**Now (repository setup, owner `juanbetancurm`):** finish shared-Brain step **B6**: Task B6d in `execution/current/code.bash` (read-only deploy keys on
+both VMs; the PR with `ops/deploy.sh`, reviewed by `conantkd` or `juanes6554`; then `deploy.sh init` on both VMs).
 
 **Then — the first real task through the protocol (the pilot, B7):**
 
