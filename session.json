@@ -6,6 +6,6 @@
   "base_commit": "c87d76c5e0a3112835b3ef6c8da8b82b9f9b2822",
   "started_at": "2026-10-05T02:17:10+00:00",
   "expires_at": "2026-10-05T03:17:10+00:00",
-  "released": false,
+  "released": true,
   "handoff": null
 }
