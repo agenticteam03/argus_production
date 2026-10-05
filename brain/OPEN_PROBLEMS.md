@@ -10,6 +10,7 @@ When a problem is fixed, set its status to `fixed` with the date, and add a jour
 | OP-001 | Runbook `detector` metadata uses old or empty class names | open | 2026-09-30 |
 | OP-002 | P0 safety gaps of the runbook library not yet reconciled with architecture v1.8 | open | 2026-09-30 |
 | OP-003 | Runbook safety classes not mapped to `CapabilitySpec.risk` | open | 2026-09-30 |
+| OP-006 | LangGraph `recursion_limit` is fixed at 100 and can be too small for larger step budgets | open | 2026-10-05 |
 
 ---
 
@@ -114,3 +115,27 @@ equivalent).
 mandatory field allowlists (ties to G-006); `FORBIDDEN` operations are never registered; classify every capability in §12.2.
 
 **Done when.** §12.3 has one scheme; every capability has a class; policy and redaction rules refer to it.
+
+---
+
+## OP-006 — LangGraph `recursion_limit` is fixed at 100 and can be too small for larger step budgets
+
+**Status:** open · **Opened:** 2026-10-05 (T-0013 review, conantkd)
+
+**Problem.** `GraphRunner.run` passes `recursion_limit: 100` to LangGraph (`argus/orchestration/graph_runner.py`).
+Since the T-0013 review fix, `act` and `evidence_pack` make one read per graph step, so one investigation round costs
+`1 + reads` graph steps instead of 2. The worst case is `max_steps × (1 + max(ARGUS_MAX_READS_PER_STEP, 6)) + 4`
+(6 = the largest deterministic plan, the evidence pack, which the model's read limit does not cap). With the defaults
+(8 steps) it is 60, below 100. With `ARGUS_MAX_STEPS=20` it is 144: the run would stop with `GraphRecursionError`
+although Argus is still inside its own budget.
+
+The round budget is not chosen by the model: `recall` sets it to `min(class max_steps, ARGUS_MAX_STEPS)` and
+`investigate` only counts it. An infinite loop is still impossible as long as the limit is a fixed number.
+
+**Fix (agreed in review).** `recursion_limit = max(100, max_steps_cap × (1 + max(max_reads_per_step, largest plan)) + 4 + 10)`:
+unchanged (100) with today's configuration, grows only when the budgets need it. Tests: the default limit is 100; with
+20 steps × 5 reads a model that exhausts the budget ends `escalated`, not with `GraphRecursionError` (red first).
+Separate, optional: refuse to start when `ARGUS_MAX_STEPS` is above a sane ceiling (for example 30), so a typo cannot
+create a huge budget (cost of model calls and reads).
+
+**Done when.** The limit is derived from the budgets, both tests pass, and this item is set to `fixed`.

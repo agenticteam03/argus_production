@@ -1,17 +1,17 @@
 # Current test state
 
-**Last updated:** 2026-10-02 · **Commit:** `bf24fac` (main) + branch `task/B6-deploy`
+**Last updated:** 2026-10-04 · **Commit:** `8eff994` (main) merged into branch `task/T-0013-langgraph-skeleton`
 
 | Stage | Result | Where / when |
 |---|---|---|
-| 3. Offline suite | **53 passed** (28 Argus + 19 `brain.py` + 6 `deploy.sh`), 4 skipped (the Postgres tests) | laptop, 2026-10-02 |
-| 4. Postgres integration | **32 passed** (28 + 4) against a throwaway `postgres:16-alpine` | laptop, Docker Desktop, 2026-10-02 |
+| 3. Offline suite | **63 passed** (38 Argus incl. 10 graph-runner + 19 `brain.py` + 6 `deploy.sh`), 5 skipped (the Postgres tests) | laptop, 2026-10-05 |
+| 4. Postgres integration | **60 passed** on `661f904` (before merging main; incl. the restart test and the 15 db guarantees) against a throwaway `postgres:16-alpine`; not re-run after the merge (Docker was off) - the merge adds only the 6 offline `deploy.sh` tests | laptop, Docker Desktop, 2026-10-04 |
 | 5. CI | first run on `9ccc61d`: audit, lint, gitleaks ✓; tests ✗ (runbook library not available in CI) → fixed in PR #1 (pinned runbooks checkout with a read-only deploy key) | GitHub, 2026-10-02 |
-| 7. Deployment validation | `phase3_check` 28/28 (2026-10-01); `argus db check` 13/13 (2026-10-02); scenarios in `CURRENT_STATE.md` §4; NO INTERFERENCE on both VMs (2026-10-02, Task 12c) | VMs |
+| 7. Deployment validation | T-0013 on vm-095 (2026-10-04): `argus db check` 15/15; H-1, SC-09, SC-01 on LangGraph, each checkpointed in Postgres; NO INTERFERENCE on both VMs. Earlier: `phase3_check` 28/28 (2026-10-01) | VMs |
 
 ## Currently red
 
-Nothing (CI on `main` `bf24fac`: test + main-guard green).
+`main-guard` on `main` (since PR #4 merged without a recorded approval) — see `CURRENT_STATE.md` §5. Tests: nothing.
 
 ## Notable tests
 
@@ -29,3 +29,9 @@ Nothing (CI on `main` `bf24fac`: test + main-guard green).
 - `tests/test_deploy.py` — `ops/deploy.sh` against a throwaway bare repository: init keeps the old folder, session check,
   newer commit + rebuild hints, local modifications refused, unknown ref refused, status. Red seen: all 6 failed before
   the script existed. Runs with Git for Windows' bash locally and bash in CI.
+- `tests/test_graph_runner.py` (T-0013) — LangGraph runner = plain runner in 5 scenarios; resume after a crash without
+  repeating completed reads; the `ARGUS_RUNNER` switch. Red seen: the runner was still `SkeletonRunner`.
+- `test_graph_runner_resumes_from_postgres_after_a_restart` (T-0013) — a new app resumes a crashed run from the Postgres
+  checkpoint without repeating reads; `test_checkpoint_migration_covers_every_library_migration` guards library upgrades.
+- `test_resume_inside_act_does_not_repeat_completed_reads` / `..._inside_evidence_pack_...` (T-0013 review) — a crash
+  between two reads of one step resumes with only the missing read. Red seen: completed reads ran twice.
