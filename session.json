@@ -1,17 +1,11 @@
 {
   "holder": "juanbetancurm",
-  "session_id": "e5b3a57f3df7",
+  "session_id": "01bd70bde217",
   "task": "DEMO-SC03",
   "branch": "task/demo-SC03-langgraph",
-  "base_commit": "001e2a62c0a456fb07a2f86e5e4e283507e0dbbf",
-  "started_at": "2026-10-05T20:19:20+00:00",
-  "expires_at": "2026-10-05T21:19:20+00:00",
-  "released": true,
-  "handoff": null,
-  "took_over_from": {
-    "holder": "conantkd",
-    "task": "T-0013",
-    "branch": "task/T-0013-step5-verify",
-    "expired_at": "2026-10-05T18:31:33+00:00"
-  }
+  "base_commit": "923a1c94d151aafffb3206d514b10ad7f3683ddc",
+  "started_at": "2026-10-05T20:40:34+00:00",
+  "expires_at": "2026-10-05T21:40:34+00:00",
+  "released": false,
+  "handoff": null
 }
