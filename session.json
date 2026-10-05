@@ -1,11 +1,11 @@
 {
-  "holder": "juanbetancurm",
-  "session_id": "c850f1cf2348",
+  "holder": "conantkd",
+  "session_id": "5445701c2cd7",
   "task": "T-0013",
-  "branch": "task/T-0013-langgraph-skeleton",
-  "base_commit": "c87d76c5e0a3112835b3ef6c8da8b82b9f9b2822",
-  "started_at": "2026-10-05T02:17:10+00:00",
-  "expires_at": "2026-10-05T03:17:10+00:00",
-  "released": true,
+  "branch": "main",
+  "base_commit": "8eff9943bb17643cf8c665a445984fe613a37663",
+  "started_at": "2026-10-05T04:22:36+00:00",
+  "expires_at": "2026-10-05T05:22:36+00:00",
+  "released": false,
   "handoff": null
 }
