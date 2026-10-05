@@ -5,7 +5,7 @@
   "branch": "task/T-0013-step5-verify",
   "base_commit": "705a85f3a1289e5c2f53eba80c737f49215e7f2a",
   "started_at": "2026-10-05T15:29:28+00:00",
-  "expires_at": "2026-10-05T16:29:28+00:00",
+  "expires_at": "2026-10-05T17:55:46+00:00",
   "released": false,
   "handoff": null
 }
