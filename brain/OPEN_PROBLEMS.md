@@ -10,6 +10,7 @@ When a problem is fixed, set its status to `fixed` with the date, and add a jour
 | OP-001 | Runbook `detector` metadata uses old or empty class names | open | 2026-09-30 |
 | OP-002 | P0 safety gaps of the runbook library not yet reconciled with architecture v1.8 | open | 2026-09-30 |
 | OP-003 | Runbook safety classes not mapped to `CapabilitySpec.risk` | open | 2026-09-30 |
+| **OP-005** | The `restarts_10m` signal undercounts restarts of a container younger than its window | **proposed — awaiting approval (conantkd)** | 2026-10-05 |
 
 ---
 
@@ -114,3 +115,39 @@ equivalent).
 mandatory field allowlists (ties to G-006); `FORBIDDEN` operations are never registered; classify every capability in §12.2.
 
 **Done when.** §12.3 has one scheme; every capability has a class; policy and redaction rules refer to it.
+
+---
+
+## OP-005 — `restarts_10m` undercounts young containers (proposal, awaiting approval)
+
+**Status:** proposed · **Opened:** 2026-10-05 · **Found by:** `conantkd` (T-0013 review) · **Approval:** this PR
+
+**Problem.** `config/signals.yaml` computes `restarts_10m` as `max_over_time(count[10m]) - min_over_time(count[10m])`.
+For a container that has existed for less than 10 minutes, the first sample Prometheus has is often already above 0
+(the container restarted before the first scrape, every 15 s), and those restarts are lost. Observed in T-0013 step 5:
+Docker counted 3 restarts while the signal said 1 (first run) and 2 (the reviewer's run), so the restart-loop class
+(threshold 3) did not match and SC-01 was escalated as unsupported until enough time passed. The observed metric did
+not match what really happened.
+
+**Proposed solution — an improved calculation:** count from zero when the series is younger than the window.
+
+```text
+restarts_10m = clamp_min(
+    count - (count offset 10m  or  count * 0),
+  0)
+where count = argus_container_restart_count{argus_host="$host",container="$name"}
+```
+
+- the series existed 10 minutes ago: the restarts of the last 10 minutes (same as today);
+- the container is younger than 10 minutes (`offset 10m` has no value): all its restarts, which all happened inside
+  the window — the value then equals Docker's own counter;
+- `clamp_min(..., 0)` keeps the value at 0 when a container is recreated and its counter starts again from 0.
+
+The S5.6 readiness gate in `code.bash` (T-0013) uses the same expression and changes with it.
+
+**Alternatives.** Wait longer before diagnosing (a workaround, not a fix: the value stays wrong) · let the exporter
+publish restarts-since-creation directly (moves the logic out of the signal catalogue, where every signal lives).
+
+**Done when.** Approved here; then a task changes `config/signals.yaml` (+ a test that the signal text is the approved
+one) and verifies on vm-166 with SC-01: right after the third restart the signal shows 3, the same as Docker, and
+SC-01 is diagnosed without extra waiting.
