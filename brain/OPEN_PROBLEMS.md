@@ -10,6 +10,7 @@ When a problem is fixed, set its status to `fixed` with the date, and add a jour
 | OP-001 | Runbook `detector` metadata uses old or empty class names | open | 2026-09-30 |
 | OP-002 | P0 safety gaps of the runbook library not yet reconciled with architecture v1.8 | open | 2026-09-30 |
 | OP-003 | Runbook safety classes not mapped to `CapabilitySpec.risk` | open | 2026-09-30 |
+| OP-004 | LangGraph checkpoints grow forever; checkpoints of failed runs are orphaned | accepted 2026-10-05 — to implement | 2026-10-05 |
 | OP-006 | LangGraph `recursion_limit` is fixed at 100 and can be too small for larger step budgets | open | 2026-10-05 |
 
 ---
@@ -115,6 +116,44 @@ equivalent).
 mandatory field allowlists (ties to G-006); `FORBIDDEN` operations are never registered; classify every capability in §12.2.
 
 **Done when.** §12.3 has one scheme; every capability has a class; policy and redaction rules refer to it.
+
+---
+
+## OP-004 — Checkpoint retention (accepted, to implement)
+
+**Status:** accepted 2026-10-05 (PR #7, approved by `conantkd`) · **Opened:** 2026-10-05 · **Found by:** `conantkd` (T-0013 review)
+
+**Problem.** Since T-0013 every investigation leaves rows in `checkpoints`, `checkpoint_blobs` and `checkpoint_writes`,
+and nothing ever removes them: the runtime role has no DELETE (on purpose, migration 002). A run that ends with an
+exception leaves a pending checkpoint that is never resumed, because its incident is already final. Small today, but
+it grows without limit.
+
+**Proposed solution — an automatic cleanup policy:**
+- a small script `ops/checkpoint-retention.sh` on vm-095, run **as the owner role** inside the Postgres container
+  (the runtime role keeps "no DELETE anywhere"), once a day by a systemd timer (later by the Argus scheduler);
+- it deletes the checkpoint rows (all three tables) of threads whose incident is final (`closed` or `escalated`) and
+  ended more than **30 days** ago (configurable: `ARGUS_CHECKPOINT_RETENTION_DAYS`); a final incident's checkpoints
+  are never needed again, because a final incident is never resumed;
+- the same rule removes the orphaned checkpoints of failed runs (their incident is final too);
+- it never touches incidents, evidence, audit or run events (they stay insert-only), and it records each run as an
+  audit row `maintenance.checkpoints_pruned` with the number of threads removed;
+- `argus db check` keeps proving that the runtime role cannot delete checkpoints.
+
+**Alternatives.** Keep everything (disk grows; fine for months at today's volume) · delete at the end of every run
+(loses the record of how a run progressed, and needs DELETE for the runtime role — rejected).
+
+**Done when.** Approved here; then a task implements the script, its Postgres test (old final threads removed, recent
+and non-final ones kept, evidence and audit untouched) and the timer on vm-095, with NO INTERFERENCE.
+
+**Review conditions (conantkd, PR #7) — part of the accepted proposal:**
+1. Implement it as an Argus command (for example `argus db prune-checkpoints`) run with the owner DSN, not as a
+   standalone SQL/bash script: the audit row is then written by the same code and in the same format as every other
+   audit row, and the Postgres tests can cover it. The systemd timer (named `argus-v18-*`) only calls that command.
+2. Dry-run first: the command reports what it would delete without deleting; the first runs on vm-095 are dry-runs.
+   Deleting database rows is a stop condition (`agents/AGENT_PROTOCOL.md` §6) and the Postgres backup/restore drill
+   is not done yet.
+3. The `incident` table has no end-time column: "ended" means `body->>'closed_at'` (set when the incident becomes
+   final); an incident without it is never pruned.
 
 ---
 

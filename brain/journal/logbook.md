@@ -160,3 +160,13 @@ Consequences:
 - The fix itself has not run on the VMs yet (vm-095 runs `c87d76c`): repeat H-1 / SC-09 / SC-01 after `deploy.sh main`.
 References: `tasks/completed/T-0013-langgraph-skeleton.md` (finding 6), `OPEN_PROBLEMS.md` OP-006.
 Learned: when a change multiplies graph steps, check the framework's own step limit too.
+
+## 2026-10-05 — OP-004 accepted: checkpoint retention, with review conditions (OP-004)
+
+Type: decision
+Who: conantkd (review of PR #7 by juanbetancurm)
+Decision / result: the checkpoint retention proposal is accepted with three conditions, recorded in
+`OPEN_PROBLEMS.md` OP-004: an Argus command run with the owner DSN (not a standalone script), dry-run first, and
+"ended" defined as `body->>'closed_at'`.
+Consequences: a later task implements it; until then checkpoints keep growing (small at today's volume).
+References: `OPEN_PROBLEMS.md` OP-004, PR #7.
