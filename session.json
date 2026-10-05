@@ -6,7 +6,7 @@
   "base_commit": "001e2a62c0a456fb07a2f86e5e4e283507e0dbbf",
   "started_at": "2026-10-05T20:19:20+00:00",
   "expires_at": "2026-10-05T21:19:20+00:00",
-  "released": false,
+  "released": true,
   "handoff": null,
   "took_over_from": {
     "holder": "conantkd",
