@@ -281,3 +281,39 @@ LAB BASELINE OK and NO INTERFERENCE on both VMs at the end. Note: SC-02's text c
 (wording slip; root cause and class right).
 Next: Phase 12 repeated runs (≥ 5 per scenario).
 References: `execution/history/LGS/step-01/evidence.md`.
+
+## 2026-10-06 — After-merge review of fast-track PRs #9 and #13
+
+Type: review
+Who: conantkd (+ agent)
+Context: `REVIEW_PROTOCOL.md` ("Temporary fast-track"): a teammate reviews each self-merged PR after the merge.
+Decision / result: #13 (removal of the practice-lab files) has no findings: only the 8 files were removed, they
+contain no secrets (loopback addresses only), nothing references them, and the agent image was rebuilt from a
+later commit by DEPLOY-MAIN. #9 (the fast-track rule) meets its own conditions. It approved itself and the `pr 4`
+exception without a teammate, so this review is their first one: accepted, no objection. Follow-up in this PR:
+the `main-exceptions.txt` header no longer contradicts the fast-track lines, and `CURRENT_STATE.md` lists which
+after-merge reviews are done (#9, #13) and which are pending (#10, #11, #12).
+References: PR #9, PR #13, this pull request.
+
+## 2026-10-06 — conantkd asks to join the temporary fast-track
+
+Type: decision
+Who: conantkd (+ agent)
+Context: the same deadline that motivated the fast-track (PR #9) applies to `conantkd`'s VM and Brain work.
+Decision / result: `conantkd` is added to the fast-track "Who" list in `REVIEW_PROTOCOL.md`, with the same
+conditions and the same end date (2026-10-12). It is a change to the review rule, so it takes effect only when
+`juanbetancurm` approves PR #16; it is not self-merged.
+References: PR #9, PR #16.
+
+## 2026-10-06 — After-merge review of fast-track PRs #10, #11 and #12
+
+Type: review
+Who: conantkd (+ agent)
+Context: the remaining after-merge reviews of the temporary fast-track.
+Decision / result: no defects. #11 (OP-006): the formula covers the worst case (the model path and the evidence-pack
+path never mix; an invalid decision also consumes a step); its two numbers are now named and explained in
+`GraphRunner` (`FIXED_NODES = 4`: detect, recall, final investigate, record; `SAFETY_MARGIN = 10`: deliberate slack),
+behaviour unchanged. #10: honest "reported, not verified", now superseded by DEPLOY-MAIN. #12: plan fine; T-0015's
+ACR-0001 pull request cannot be fast-tracked (the rule excludes ACRs) and its token code should get a teammate's review.
+All fast-track PRs #9–#13 are now reviewed.
+References: PRs #10, #11, #12, this pull request.

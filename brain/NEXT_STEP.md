@@ -11,9 +11,8 @@ rebuild).
    - **PR #8 — OP-005 proposal**, revised with `conantkd`'s requested changes (creation-time guard, scrape-gap
      test) plus one refinement to judge: the young-container branch goes first, so a container recreated under the
      same name counts from zero. Approve or request changes. Do **not** fast-track it.
-   - **After-merge review of the fast-track PRs #9–#13** (listed in `policies/main-exceptions.txt`): #9 the
-     fast-track rule itself, #10 the class-demo record, #11 OP-006 (the only code change: `graph_runner.py` + 2
-     tests), #12 the frontend plan, #13 removal of files committed by mistake. Findings → a follow-up PR.
+   - ~~After-merge review of the fast-track PRs #9–#13~~ **done 2026-10-06** (`conantkd`, PR #16): no defects;
+     reports posted as comments on each PR.
 2. ~~DEPLOY-MAIN~~ **done 2026-10-06** (`conantkd`): both VMs on `main` `09f5ab1`, agent rebuilt, H-1 `HEALTHY`,
    SC-03 verified on LangGraph, NO INTERFERENCE ([evidence](execution/history/DEPLOY-MAIN/step-01/evidence.md)).
 

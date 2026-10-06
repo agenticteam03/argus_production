@@ -1,5 +1,6 @@
 # Pull requests merged into main WITHOUT an approval of their last push by another developer.
-# Read by `brain.py verify-main`. Adding a line here is itself a change that needs review (except the bootstrap).
+# Read by `brain.py verify-main`. Adding a line here is itself a change that needs review (except the bootstrap and
+# the temporary fast-track lines below, which a teammate reviews after the merge; see REVIEW_PROTOCOL.md).
 # Format: pr <number>  <date>  <who merged>  <reason>
 pr 1  2026-10-02  juanbetancurm  bootstrap: soft review rules, D-002 runbook import, developer guide (free plan, before any teammate had a clone)
 pr 4  2026-10-04  juanbetancurm  retroactive: onboarding docs only (START_HERE.md); content reviewed in chat, GitHub approval never recorded
