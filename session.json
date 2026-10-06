@@ -1,11 +1,11 @@
 {
-  "holder": "juanbetancurm",
-  "session_id": "accd19622024",
+  "holder": "conantkd",
+  "session_id": "06cb9843af9b",
   "task": "AFTER-MERGE",
   "branch": "main",
-  "base_commit": "2097eb155cc8b245c48c26b9ee396e25cb98ac6b",
-  "started_at": "2026-10-06T10:38:17+00:00",
-  "expires_at": "2026-10-06T11:38:17+00:00",
-  "released": true,
+  "base_commit": "24d9bb0c5b02100cc4dd689b91fb0cbc1369e9d6",
+  "started_at": "2026-10-06T17:20:27+00:00",
+  "expires_at": "2026-10-06T18:20:27+00:00",
+  "released": false,
   "handoff": null
 }
