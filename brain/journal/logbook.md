@@ -341,3 +341,18 @@ whatever the role (403, audited). `GET /api/v1/me` lists the actions a token may
 `docs/API-FOR-UI.md`. Red seen in every step. The main laptop now runs the offline suite in Docker because Windows
 Smart App Control blocks a native LangGraph dependency. Step 6 (deploy on vm-095) needs the VM lease.
 References: ACR-0001, T-0015, PR #22.
+
+## 2026-10-06 — Review of PR #24 (T-0016 steps 1-2) and the UI runbooks decision
+
+Type: review
+Who: juanbetancurm (+ agent)
+Context: the frontend is mock-only. Its fake API assumes routes Argus does not have: email login, an `admin` role,
+approvals, a simulator, a scheduler, chat and health.
+Decision / result:
+- PR #24 approved. The CI job `frontend` uses no secrets and doesn't touch other jobs.
+- The review lists the smallest change set to connect to the real API (T-0016 step 3): username login with
+  `scope=read`, then `/me`; token in memory only; roles viewer/operator/approver; pages without routes hidden; a Vite
+  proxy to `127.0.0.1:18000`, so no CORS.
+- **Runbooks:** the UI reads the reviewed library in `argus/runbooks/` at build time, instead of its demo copies,
+  which are byte-identical. `parseRunbook` parses all 21 runbooks. No API route and no ACR change are needed.
+References: PR #24, PR #22, ACR-0001, `docs/API-FOR-UI.md`.
