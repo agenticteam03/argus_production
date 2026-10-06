@@ -1,11 +1,11 @@
 {
   "holder": "conantkd",
-  "session_id": "6b413ecc1488",
-  "task": "DEPLOY-MAIN",
+  "session_id": "38cd93d490ec",
+  "task": "HANDOFF",
   "branch": "main",
   "base_commit": "09f5ab10f84000d1b0e4e791769753b093193a8f",
-  "started_at": "2026-10-06T04:57:50+00:00",
-  "expires_at": "2026-10-06T08:23:56+00:00",
-  "released": true,
+  "started_at": "2026-10-06T06:32:57+00:00",
+  "expires_at": "2026-10-06T07:32:57+00:00",
+  "released": false,
   "handoff": null
 }
