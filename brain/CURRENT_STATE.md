@@ -54,8 +54,11 @@ T-0015 (API side) and T-0016 (frontend), planned.
 - With the plain runner (2026-10-01/02): H-1/H-2, SC-01, SC-02, the identity proof (SC-01 + SC-02 at once), SC-03,
   SC-09, SC-10, SC-11, SC-12.
 - **With the LangGraph runner (2026-10-04):** H-1 (healthy), SC-09 (unsupported → evidence pack), SC-01 (diagnosed,
-  RB-001) — every run checkpointed in Postgres. The others are expected to behave the same (parity tests); re-run
-  them as part of Phase 12.
+  RB-001) — every run checkpointed in Postgres.
+- **All the plain-runner scenarios now pass on LangGraph (2026-10-06, final `main` agent, one run each):** H-2,
+  SC-02, the identity proof, SC-10, SC-11, SC-12 (LGS), plus SC-03 (DEPLOY-MAIN). SC-12 escalates at step 2 (plain
+  runner: step 3). Evidence: [`execution/history/LGS/step-01/evidence.md`](execution/history/LGS/step-01/evidence.md).
+  Phase 12 still needs ≥ 5 runs per scenario.
 - **SC-03 on the LangGraph runner: verified 2026-10-06** on the final `main` code (DEPLOY-MAIN D.5): `DIAGNOSED`,
   root cause `vm-166/container:argus-lab-cache`, confidence high, the api the victim; H-1 `HEALTHY` before (after
   restoring the lab) and after: [`execution/history/DEPLOY-MAIN/step-01/evidence.md`](execution/history/DEPLOY-MAIN/step-01/evidence.md)
