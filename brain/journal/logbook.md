@@ -208,3 +208,16 @@ Decision / result: `GraphRunner.recursion_limit = max(100, max_steps_cap × (1 +
 plan)) + 4 + 10)`, as agreed in the review. Unchanged (100) with today's configuration. Tests: 65 passed, 5
 skipped (Postgres, in CI); red seen. No VM change needed (same behaviour with the deployed budgets).
 References: `OPEN_PROBLEMS.md` OP-006, `tests/test_graph_runner.py`.
+## 2026-10-05 — Frontend planned: T-0015 (read access, API side) and T-0016 (the frontend, test-driven)
+
+Type: decision
+Who: juanbetancurm (+ agent)
+Context: `juanes6554` will build a web frontend in his own framework; operators choose console or browser.
+Decision: the frontend lives in `frontend/` of this repository and only reads. Argus enforces it: a login with
+`scope=read` gives a token that every non-`GET` route refuses (T-0015). `GET /api/v1/me` lists the actions a token
+may use, and the frontend shows only those, so later levels (start an investigation, a container map, approving
+Argus's proposals) add server actions instead of rewriting the frontend. A versioned UI contract
+(`contracts/ui-api.json` + sample responses) is tested on the API side. The frontend is test-driven: `juanes6554`
+writes guidelines, the agent writes the tests first (Playwright acceptance with a network read-only guard, contract,
+unit), a CI job `frontend` enforces them. It starts with ACR-0001 (OD-10).
+References: `tasks/current/T-0015-ui-read-access.md`, `tasks/current/T-0016-frontend.md`.
