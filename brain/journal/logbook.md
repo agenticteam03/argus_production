@@ -184,3 +184,16 @@ still a PR from a task branch, CI `test` green, agent review report posted, the 
 Consequences: `brain.py`, CI and the hooks are unchanged; every self-merge is listed and reviewed by a teammate
 after the merge. Teammates may object in any PR, which ends the fast-track.
 References: `agents/REVIEW_PROTOCOL.md`, `policies/main-exceptions.txt`.
+
+## 2026-10-05 — SC-03 shown in the class demo on the LangGraph runner (DEMO-SC03)
+
+Type: testing
+Who: juanbetancurm (+ agent)
+Context: a class demo: stop the lab Redis, the api turns unhealthy, Argus must blame the cache, not the api.
+Decision / result: reported successful by the developer (root cause = `argus-lab-cache`). The output was not
+archived, so `CURRENT_STATE.md` lists it as reported, not verified. Demo commands archived in
+`execution/history/demo-SC03/step-01/`.
+Learned: a block that releases the lease must never sit in a file that is run twice (dry run, then class); and
+helpers defined in one VM shell fail confusingly when a block is pasted on the other VM: label blocks with the
+VM prompt name and avoid shell helpers in demo scripts.
+References: `execution/history/demo-SC03/step-01/evidence.md`.
