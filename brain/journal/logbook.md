@@ -318,6 +318,17 @@ ACR-0001 pull request cannot be fast-tracked (the rule excludes ACRs) and its to
 All fast-track PRs #9–#13 are now reviewed.
 References: PRs #10, #11, #12, this pull request.
 
+## 2026-10-06 — juanes6554 joins the temporary fast-track (frontend)
+
+Type: decision
+Who: juanbetancurm (+ agent)
+Context: `juanes6554` starts the frontend (T-0016) with the same deadline (2026-10-12).
+Decision / result: `juanes6554` is added to the fast-track "Who" list, effective once his onboarding is done. Same
+conditions and end date. The rule now names `.github/workflows/` as enforcement, so the PR that adds the CI job
+`frontend` still needs a teammate, and so does any change to `contracts/` (shared with the API side). A change to the
+review rule, so it is not self-merged: it takes effect when `conantkd` approves this pull request.
+References: `agents/REVIEW_PROTOCOL.md`, `tasks/current/T-0016-frontend.md`, PR #16 (same precedent).
+
 ## 2026-10-06 — T-0015 steps 2-5: read-only tokens, /me, UI origins, the UI contract
 
 Type: implementation
