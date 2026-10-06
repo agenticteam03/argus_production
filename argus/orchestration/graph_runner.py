@@ -18,10 +18,10 @@ from langgraph.graph import END, START, StateGraph
 
 from argus.application.invoke_capability import InvocationContext
 from argus.detectors.classes import CLASSES, classes_for
-from argus.domain.model import (Conclude, EvidenceRef, Escalate, Incident, IncidentOutcome, IncidentStatus,
+from argus.domain.model import (Conclude, EvidenceRef, Escalate, Incident, IncidentOutcome, IncidentStatus, TargetRef,
                                 InvalidDecision, Passage, RequestKind, UseReadTools)
 from argus.orchestration.runner import SkeletonRunner
-from argus.orchestration.strategies import EvidencePackStrategy
+from argus.orchestration.strategies import EvidencePackStrategy, evidence_pack_plan
 from argus.orchestration.view import InvestigationView
 from argus.ports.ports import MetricsUnavailable, StaleMetrics
 
@@ -69,9 +69,16 @@ class GraphRunner(SkeletonRunner):
         g.add_edge("record", END)
         self.graph = g.compile(checkpointer=self.checkpointer)
 
+    @property
+    def recursion_limit(self) -> int:
+        """LangGraph's step ceiling, derived from Argus's own budgets (OP-006): a round costs 1 investigate step plus
+        one act step per read; the largest deterministic plan (the evidence pack) is not capped by the read limit."""
+        largest_plan = len(evidence_pack_plan(TargetRef.parse("h/container:c")))
+        return max(100, self.max_steps_cap * (1 + max(self.max_reads_per_step, largest_plan)) + 4 + 10)
+
     # ------------------------------------------------------------------------------------------- entry point
     def run(self, incident_id: str) -> Incident:
-        config = {"configurable": {"thread_id": incident_id}, "recursion_limit": 100}
+        config = {"configurable": {"thread_id": incident_id}, "recursion_limit": self.recursion_limit}
         inc = self.memory.get_incident(incident_id)
         if inc is None:
             raise KeyError(incident_id)
