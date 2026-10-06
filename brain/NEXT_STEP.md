@@ -1,5 +1,10 @@
 # Next step
 
+**Pending VM step after this PR merges (`conantkd`, 2026-10-06):** both VMs run the checkout of
+`task/lab-baseline-check` (only `ops/deploy.sh` differs from `main`). Once the PR is merged, whoever holds the VM
+lease puts them back on `main` with the block ready in `execution/current/code.bash` (AFTER-MERGE, ~5 min, no
+rebuild).
+
 **Handoff (2026-10-05, from `juanbetancurm`; read the latest journal entry first).** In this order:
 
 1. **Review (start of the session, `agents/REVIEW_PROTOCOL.md`):**
