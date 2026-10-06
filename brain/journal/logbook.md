@@ -197,3 +197,14 @@ Learned: a block that releases the lease must never sit in a file that is run tw
 helpers defined in one VM shell fail confusingly when a block is pasted on the other VM: label blocks with the
 VM prompt name and avoid shell helpers in demo scripts.
 References: `execution/history/demo-SC03/step-01/evidence.md`.
+
+## 2026-10-05 — OP-006 fixed: the LangGraph recursion limit follows the budgets (OP-006)
+
+Type: implementation
+Who: juanbetancurm (+ agent)
+Context: `recursion_limit` was fixed at 100; a class with a larger step budget would stop with `GraphRecursionError`
+although Argus was still inside its own budget (found in the T-0013 review).
+Decision / result: `GraphRunner.recursion_limit = max(100, max_steps_cap × (1 + max(max_reads_per_step, largest
+plan)) + 4 + 10)`, as agreed in the review. Unchanged (100) with today's configuration. Tests: 65 passed, 5
+skipped (Postgres, in CI); red seen. No VM change needed (same behaviour with the deployed budgets).
+References: `OPEN_PROBLEMS.md` OP-006, `tests/test_graph_runner.py`.
