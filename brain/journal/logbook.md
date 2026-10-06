@@ -268,3 +268,16 @@ Decision / result: `conantkd` is added to the fast-track "Who" list in `REVIEW_P
 conditions and the same end date (2026-10-12). It is a change to the review rule, so it takes effect only when
 `juanbetancurm` approves PR #16; it is not self-merged.
 References: PR #9, PR #16.
+
+## 2026-10-06 — After-merge review of fast-track PRs #10, #11 and #12
+
+Type: review
+Who: conantkd (+ agent)
+Context: the remaining after-merge reviews of the temporary fast-track.
+Decision / result: no defects. #11 (OP-006): the formula covers the worst case (the model path and the evidence-pack
+path never mix; an invalid decision also consumes a step); its two numbers are now named and explained in
+`GraphRunner` (`FIXED_NODES = 4`: detect, recall, final investigate, record; `SAFETY_MARGIN = 10`: deliberate slack),
+behaviour unchanged. #10: honest "reported, not verified", now superseded by DEPLOY-MAIN. #12: plan fine; T-0015's
+ACR-0001 pull request cannot be fast-tracked (the rule excludes ACRs) and its token code should get a teammate's review.
+All fast-track PRs #9–#13 are now reviewed.
+References: PRs #10, #11, #12, this pull request.

@@ -69,12 +69,22 @@ class GraphRunner(SkeletonRunner):
         g.add_edge("record", END)
         self.graph = g.compile(checkpointer=self.checkpointer)
 
+    # Graph steps outside the investigation rounds, run once per investigation:
+    # detect + recall + the final investigate (it concludes or finds the budget exhausted) + record.
+    # The model path is detect → recall → [investigate → act × reads] × N → investigate → record = N × (1 + reads) + 4.
+    FIXED_NODES = 4
+    # Slack so that a small graph change (one more node) does not hit LangGraph's ceiling before Argus's own budget.
+    # Not derived from the graph: a deliberate margin, agreed in the T-0013 review (OP-006).
+    SAFETY_MARGIN = 10
+
     @property
     def recursion_limit(self) -> int:
         """LangGraph's step ceiling, derived from Argus's own budgets (OP-006): a round costs 1 investigate step plus
-        one act step per read; the largest deterministic plan (the evidence pack) is not capped by the read limit."""
+        one act step per read; the largest deterministic plan (the evidence pack, 6 reads) is not capped by the read
+        limit. Never below 100, the value used before OP-006."""
         largest_plan = len(evidence_pack_plan(TargetRef.parse("h/container:c")))
-        return max(100, self.max_steps_cap * (1 + max(self.max_reads_per_step, largest_plan)) + 4 + 10)
+        per_round = 1 + max(self.max_reads_per_step, largest_plan)
+        return max(100, self.max_steps_cap * per_round + self.FIXED_NODES + self.SAFETY_MARGIN)
 
     # ------------------------------------------------------------------------------------------- entry point
     def run(self, incident_id: str) -> Incident:

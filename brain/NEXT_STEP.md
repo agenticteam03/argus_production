@@ -6,9 +6,8 @@
    - **PR #8 — OP-005 proposal**, revised with `conantkd`'s requested changes (creation-time guard, scrape-gap
      test) plus one refinement to judge: the young-container branch goes first, so a container recreated under the
      same name counts from zero. Approve or request changes. Do **not** fast-track it.
-   - **After-merge review of the fast-track PRs #9–#13** (listed in `policies/main-exceptions.txt`): #9 the
-     fast-track rule itself, #10 the class-demo record, #11 OP-006 (the only code change: `graph_runner.py` + 2
-     tests), #12 the frontend plan, #13 removal of files committed by mistake. Findings → a follow-up PR.
+   - ~~After-merge review of the fast-track PRs #9–#13~~ **done 2026-10-06** (`conantkd`, PR #16): no defects;
+     reports posted as comments on each PR.
 2. **DEPLOY-MAIN (VM lease, ~25 min):** ready in `execution/current/code.bash`. vm-095 still runs `c87d76c`, which
    lacks the T-0013 review fix and OP-006: deploy `main`, **rebuild the agent**, check H-1, and re-run SC-03 with
    archived output (that upgrades the class demo from "reported" to "verified"). vm-166 only moves its checkout.
