@@ -11,6 +11,7 @@ When a problem is fixed, set its status to `fixed` with the date, and add a jour
 | OP-002 | P0 safety gaps of the runbook library not yet reconciled with architecture v1.8 | open | 2026-09-30 |
 | OP-003 | Runbook safety classes not mapped to `CapabilitySpec.risk` | open | 2026-09-30 |
 | OP-004 | LangGraph checkpoints grow forever; checkpoints of failed runs are orphaned | accepted 2026-10-05 — to implement | 2026-10-05 |
+| **OP-005** | The `restarts_10m` signal undercounts restarts of a container younger than its window | **proposed, revised after review — awaiting `conantkd`'s re-review** | 2026-10-05 |
 | OP-006 | LangGraph `recursion_limit` is fixed at 100 and can be too small for larger step budgets | fixed 2026-10-05 | 2026-10-05 |
 
 ---
@@ -154,6 +155,79 @@ and non-final ones kept, evidence and audit untouched) and the timer on vm-095, 
    is not done yet.
 3. The `incident` table has no end-time column: "ended" means `body->>'closed_at'` (set when the incident becomes
    final); an incident without it is never pruned.
+
+---
+
+## OP-005 — `restarts_10m` undercounts young containers (proposal, revised after review)
+
+**Status:** proposed, revised 2026-10-05 after `conantkd`'s review (PR #8, changes requested) · **Opened:** 2026-10-05 ·
+**Found by:** `conantkd` (T-0013 review) · **Approval:** this PR (re-review by `conantkd`)
+
+**Problem.** `config/signals.yaml` computes `restarts_10m` as `max_over_time(count[10m]) - min_over_time(count[10m])`.
+For a container that has existed for less than 10 minutes, the first sample Prometheus has is often already above 0
+(the container restarted before the first scrape, every 15 s), and those restarts are lost. Observed in T-0013 step 5:
+Docker counted 3 restarts while the signal said 1 (first run) and 2 (the reviewer's run), so the restart-loop class
+(threshold 3) did not match and SC-01 was escalated as unsupported until enough time passed. The observed metric did
+not match what really happened.
+
+**Why the first version was rejected (`conantkd`, PR #8).** It used `count - (count offset 10m or count * 0)`. "No
+sample 10 minutes ago" does not mean "the container is new": it also happens when the exporter or Prometheus was down
+at that time (a redeploy, a scrape gap longer than the 5-minute lookback) or when a container was just added to the
+exporter's list. An old container with 5 restarts from last week would then show 5 ≥ 3 and open a **false
+restart-loop incident**. An undercount delays a diagnosis; an overcount invents an incident.
+
+**Proposed solution (`conantkd`'s design).**
+1. The exporter (`services/target/service.py`) also publishes the container's creation time from `docker inspect`
+   (`.Created`): `argus_container_created_seconds{container="..."}` in Unix seconds. An absent container has no
+   series, as today.
+2. The signal counts all restarts only for a container that is really young:
+
+```text
+restarts_10m = clamp_min(
+    (count and on(argus_host, container) (time() - created < 600))
+  or on(argus_host, container)
+    (count - count offset 10m),
+  0)
+where count   = argus_container_restart_count{argus_host="$host",container="$name"}
+      created = argus_container_created_seconds{argus_host="$host",container="$name"}
+```
+
+| Case | Value |
+|---|---|
+| container created less than 10 minutes ago | all its restarts, the same as Docker's counter (the T-0013 step-5 case) |
+| older container, series present 10 minutes ago | the restarts of the last 10 minutes |
+| older container, gap at `t - 10m` (exporter or Prometheus down, newly added) | **no value**: the signal is unknown, not zero and not inflated (G-007, "unknown ≠ healthy") |
+| creation time not published (exporter not yet redeployed) | the difference only; never inflated |
+
+**One refinement for the re-review: the order of the two branches.** The review text puts the difference first and
+the young-container branch after `or`. With that order, a container that is **removed and recreated under the same
+name** within 10 minutes (SC-01 does this with `compose rm` / `up`) still has an old sample at `t - 10m`, so the
+difference wins: `new count − old count`, clamped to 0, which is the original undercount. Putting the
+young-container branch first gives the counter since creation. Both branches use explicit `on(argus_host,
+container)` matching, so the metric name cannot keep `or` from matching.
+
+The S5.6 readiness gate in the T-0013 `code.bash` uses the same expression and changes with it.
+
+**Tests (requested in the review).**
+- young container (created 3 minutes ago, Docker counter 3) → 3;
+- **old container + scrape gap at `t - 10m`** (counter 5, no sample then) → no value (not 5, not 0);
+- old container without a gap, 2 restarts in the last 10 minutes → 2;
+- recreated container (same name, created 2 minutes ago, old series 5 at `t - 10m`, new counter 3) → 3;
+- the exporter publishes `argus_container_created_seconds` from `.Created` (unit test of its output);
+- `config/signals.yaml` holds exactly the approved expression.
+
+The PromQL cases run against synthetic series (`promtool test rules` with a recording rule of the same expression,
+or a throwaway Prometheus in CI). The implementing task chooses which.
+
+**Alternatives.** Wait longer before diagnosing (a workaround, not a fix: the value stays wrong) · the first version
+above (rejected: false positives after scrape gaps) · let the exporter publish restarts-since-creation directly
+(moves the logic out of the signal catalogue, where every signal lives).
+
+**Done when.** `conantkd` approves this revision. Then a task changes the exporter and `config/signals.yaml` with
+the tests above, redeploys the exporter on both VMs, and verifies on vm-166:
+- SC-01 right after the third restart: the signal shows 3, the same as Docker, and SC-01 is diagnosed without extra
+  waiting;
+- after an exporter restart, a healthy old container shows no restart loop.
 
 ---
 
