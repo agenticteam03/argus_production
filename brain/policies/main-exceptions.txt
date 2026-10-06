@@ -6,3 +6,4 @@ pr 4  2026-10-04  juanbetancurm  retroactive: onboarding docs only (START_HERE.m
 # Temporary fast-track (REVIEW_PROTOCOL.md, "Temporary fast-track"): each self-merged PR adds its own line below,
 # in the PR itself, before the merge. Format: pr <n>  <date>  <who merged>  fast-track: <what>. Window ends 2026-10-12.
 pr 9  2026-10-05  juanbetancurm  fast-track: this rule itself (first fast-track merge; PR #4 exception)
+pr 10  2026-10-05  juanbetancurm  fast-track: archive the SC-03 class demo (documentation only)
