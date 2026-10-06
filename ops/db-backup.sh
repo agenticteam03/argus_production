@@ -3,7 +3,7 @@
 #   sudo bash /opt/argus-v18/app/ops/db-backup.sh backup --as <github-handle>
 #       pg_dump of argus-v18-postgres (read-only toward it) into /opt/argus-v18/backups/argus-<UTC>.dump (+ .sha256,
 #       + .fingerprint: rows and a content hash per table, taken before and after the dump; they must be equal).
-#   sudo bash /opt/argus-v18/app/ops/db-backup.sh verify <dump> --as <github-handle>
+#   sudo bash /opt/argus-v18/app/ops/db-backup.sh verify <dump>|latest --as <github-handle>
 #       restores the dump into a throwaway argus-lab-pgrestore (no network, no port, data in tmpfs), compares its
 #       fingerprint with the stored one and always removes the container. Never touches the live database.
 # A dump holds password hashes (table principal): the folder is 700 and each file 600; a dump never leaves the VM.
@@ -67,6 +67,11 @@ if [ "$CMD" = backup ]; then
 fi
 
 # --- verify ------------------------------------------------------------------------------------------------------
+if [ "$DUMP" = latest ]; then              # found here, as root: the operator's shell cannot list the 700 folder
+  DUMP=$(ls -1 "$DIR"/argus-*.dump 2>/dev/null | sort | tail -1 || true)
+  [ -n "$DUMP" ] || stop "no dump in $DIR (run backup first)"
+fi
+echo "  dump: $DUMP"
 [ -f "$DUMP" ] || stop "no such dump: $DUMP"
 [ -f "$DUMP.sha256" ] && [ -f "${DUMP%.dump}.fingerprint" ] || stop "missing $DUMP.sha256 or its .fingerprint"
 (cd "$(dirname "$DUMP")" && sha256sum -c --status "$(basename "$DUMP").sha256") || stop "checksum mismatch: $DUMP"

@@ -126,7 +126,7 @@ def backup_ok(env) -> Path:
     r = run(env, "backup")
     assert r.returncode == 0, r.stdout + r.stderr
     (env["fake"] / "calls.log").unlink()
-    return dumps(env)[0]
+    return dumps(env)[-1]                             # names carry the UTC time: the last one is the newest
 
 
 def test_verify_restores_into_an_isolated_throwaway_container_and_reports_ok(env):
@@ -141,6 +141,29 @@ def test_verify_restores_into_an_isolated_throwaway_container_and_reports_ok(env
     assert (env["fake"] / "restored.bin").read_bytes() == dump.read_bytes()
     assert log.splitlines()[-1].startswith(f"rm -f {RESTORE}")          # always removed at the end
     assert LIVE not in log                                            # verify never touches the live database
+
+
+def test_verify_latest_picks_the_newest_dump_itself(env):
+    # Step T-0017.3 on vm-095: `sudo ls backups/argus-*.dump` found nothing because the operator's own shell expands
+    # the glob before sudo, and the folder is root-only (700). The script, running as root, must find the dump.
+    first = backup_ok(env)
+    old = first.with_name("argus-20000101T000000Z.dump")              # make the first dump an old one
+    sha = first.with_name(first.name + ".sha256").read_text(encoding="utf-8").replace(first.name, old.name)
+    first.rename(old)
+    first.with_name(first.name + ".sha256").unlink()
+    old.with_name(old.name + ".sha256").write_text(sha, encoding="utf-8")
+    first.with_suffix(".fingerprint").rename(old.with_suffix(".fingerprint"))
+    newest = backup_ok(env)
+    r = run(env, "verify", "latest")
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert newest.name in r.stdout and old.name not in r.stdout
+    assert "VERIFY OK" in r.stdout
+
+
+def test_verify_latest_without_any_dump_says_so(env):
+    r = run(env, "verify", "latest")
+    assert r.returncode != 0
+    assert "VERIFY STOP" in r.stdout and "no dump" in r.stdout
 
 
 def test_verify_reports_a_mismatch_and_still_removes_the_container(env):
