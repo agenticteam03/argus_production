@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | `planned` |
+| Status | `executed` (step 1: ACR-0001 proposed, awaiting review) |
 | Phase | 10 — output modes ([`../../IMPLEMENTATION_PLAN.md`](../../IMPLEMENTATION_PLAN.md)) |
 | Architecture | §7.1 (HTTP API), §17.3 (authentication), §25 OD-10 ("dedicated UI: not needed for this release") → ACR first |
 | Branch | `task/T-0015-ui-read-access` |
@@ -48,4 +48,4 @@ step 6 archived; Brain updated (`CURRENT_STATE.md`, `tdd/CURRENT_TEST_STATE.md`,
 
 ## Red seen / evidence
 
-(empty — fill in at each step)
+- **Step 1 (2026-10-06):** ACR-0001 drafted ([`../../architecture/changes/ACR-0001-ui-read-access.md`](../../architecture/changes/ACR-0001-ui-read-access.md)) and applied to `ARCHITECTURE.md` as v1.8.1 on this branch (§2.4, §7.1, §17.3, §25 OD-10, changelog). Status `proposed` until a teammate approves the PR. Design notes: the read-only flag is a new JWT claim `access`, separate from the existing `scopes` claim (target scopes); three read routes the code already serves (`/events`, `/evidence/{id}`, `/escalations`) were missing from §7.1 and are now documented.

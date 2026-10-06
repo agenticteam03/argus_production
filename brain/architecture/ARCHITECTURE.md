@@ -1,7 +1,7 @@
 # Argus — Production Architecture Specification
 
 **Document type:** consolidated target architecture and implementation blueprint ·
-**Version:** 1.8.0 (30 September 2026; sanitized for the shared repository 2026-10-02) · **Audience:** engineers and AI coding agents implementing
+**Version:** 1.8.1 (2026-10-06, ACR-0001; base 1.8.0 of 30 September 2026, sanitized for the shared repository 2026-10-02) · **Audience:** engineers and AI coding agents implementing
 Argus from an empty repository.
 
 
@@ -385,6 +385,8 @@ argus/
 │   ├── metrics.py  logging.py  tracing_langfuse.py  tracing_noop.py
 └── runbooks/                    reviewed copy of the runbook library v1.1.0: RB-001-….md … RB-021-….md
                                  + RUNBOOK-CONVENTIONS.md (shared contracts, pinned in context)
+
+frontend/                        the team's web UI: its own toolchain; talks to the HTTP API only (ACR-0001)
 
 config/
 ├── inventory.yaml               hosts, executor endpoints, targets, dependencies, allowlisted endpoints/paths
@@ -1173,6 +1175,10 @@ An unauthorized read returns **404** (not 403) and is audited as `access.inciden
 | `POST /api/v1/investigations` | `RunInvestigation` (`manual`) | JWT: operator or approver | body: `target`, `reason`, optional `idempotency_key`; no `force_reasoning` flag exists |
 | `GET /api/v1/incidents` | `ListIncidents` | JWT | filters: status, class, target, since |
 | `GET /api/v1/incidents/{id}` | `GetIncident` | JWT | role-redacted view |
+| `GET /api/v1/incidents/{id}/events` | run events of an incident | JWT | the node timeline (CLI and UIs) |
+| `GET /api/v1/evidence/{id}` | one evidence record | JWT: operator or approver | |
+| `GET /api/v1/escalations` | escalations waiting for a human | JWT | |
+| `GET /api/v1/me` | — (who am I) | JWT (read or full) | `user`, `role`, `access` and the `actions` this token may use (e.g. `view_incidents`, `view_timeline`, `view_evidence`); a UI shows a control only when its action is listed (ACR-0001) |
 | `GET /api/v1/approvals?state=pending` | `ListPendingApprovals` | JWT: approver | shows each proposal with `approval_id` and `proposal_digest` |
 | `POST /api/v1/incidents/{id}/approve` | `AnswerApprovalRequest` | JWT: human approver (later also a signed single-use link) | body: `approval_id`, `proposal_digest` |
 | `POST /api/v1/incidents/{id}/deny` | `AnswerApprovalRequest` | same | same |
@@ -1191,6 +1197,10 @@ HTTP or the application in-process.
   refused and audited, whatever their role claims.
 - The alert adapter translates Alertmanager's JSON into `AlertNotification` and counts
   truncated alerts (`truncatedAlerts > 0`) and unsupported ones.
+- **Read-only tokens** (§17.3) are refused with 403 on every route that is not a `GET`, before any use case runs.
+- **Browser clients:** cross-origin requests are refused unless their origin is listed in `ARGUS_UI_ORIGINS`
+  (empty by default: no CORS headers at all). In production a UI container proxies the API on the same origin,
+  so the list stays empty there (ACR-0001).
 - **Listeners:** humans and Swagger use a loopback listener reached over an SSH tunnel or VPN. The
   Alertmanager webhook and `/metrics` use a listener on the private address, source-restricted to the
   monitoring host. The peer adapter (§23) gets its own listener.
@@ -2242,6 +2252,11 @@ stored as evidence or sent to the model.
   flow for agents. It verifies the password (Argon2) or client secret and returns a **JWT** signed with
   HS256, lifetime `ACCESS_TOKEN_TTL` *(default 30 min)*, with claims `sub`, `kind`, `role`, `scopes`,
   `iat`, `exp`, `jti` and `aud="argus-api"`. There are no refresh tokens: the caller logs in again.
+- **Read-only tokens (ACR-0001).** The login may ask for `scope=read` (the OAuth2 form field). The JWT then
+  carries `access: "read"` (otherwise `access: "full"`). This claim is separate from `scopes` (the target-scope
+  names) and can only **narrow** what the role allows: a read token is refused with 403 on every route that is
+  not a `GET`, whatever the role, and the refusal is audited (`access.read_only_refused`). User interfaces are
+  separate clients of the API and hold only the user's own short-lived token, never a server secret.
 - Every request re-reads the principal's `disabled` flag, so disabling a user takes effect before the
   token expires.
 - The JWT only proves **who** is calling. What the caller may do is decided server-side by the use
@@ -2636,7 +2651,7 @@ The goal of this architecture is that Argus's diagnostic reach grows **without c
 | OD-7 | Numeric values for `MAX_STEPS`, `MAX_TOKENS_PER_INCIDENT`, `MAX_MODEL_COST_PER_DAY`, per-principal quotas, approval expiry, `METRICS_MAX_STALENESS`, `VERIFY_TIMEOUT`, `RESUME_MAX_ATTEMPTS`, evidence retention per kind | set from measurements and the project model budget |
 | OD-8 | Schedule cadence per target | derived from the measured p95 investigation duration (§6.5) |
 | OD-9 | Plain SQL vs SQLAlchemy; migration tooling | adopt SQLAlchemy only if schema complexity justifies it |
-| OD-10 | A dedicated approval/incident UI beyond Swagger, CLI and (later) Slack links | not needed for this release |
+| OD-10 | A dedicated approval/incident UI beyond Swagger, CLI and (later) Slack links | **decided by ACR-0001 (2026-10-06):** user interfaces are allowed as separate clients of the HTTP API, never inside the core; a UI may hold a read-only token; the team's frontend lives in `frontend/` and runs as `argus-v18-ui` (static files + a proxy to the API) on a loopback port of Host A; answering approvals stays in Swagger/CLI in this release |
 | OD-11 | Model fine-tuning | explicitly undecided |
 | OD-12 | Consolidating gateways and probes into one target agent per host | revisit at the second monitored host; privilege separation argues for keeping them separate |
 | OD-13 | Automatic merging of related incidents | linked only in this release; decide from operational experience |
@@ -2800,3 +2815,4 @@ erDiagram
 | Version | Date | Change | ACR |
 |---|---|---|---|
 | 1.8.0 | 2026-10-02 | v1.8 (30 Sep 2026) imported into the shared repository; addresses replaced by placeholders, nothing else changed | — |
+| 1.8.1 | 2026-10-06 | user interfaces as read-only-capable clients of the HTTP API (§25 OD-10, §17.3); `GET /api/v1/me`; the existing read routes `/incidents/{id}/events`, `/evidence/{id}`, `/escalations` documented (§7.1); `frontend/` (§2.4) | [ACR-0001](changes/ACR-0001-ui-read-access.md) |
