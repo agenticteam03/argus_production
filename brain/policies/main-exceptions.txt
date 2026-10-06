@@ -9,3 +9,4 @@ pr 9  2026-10-05  juanbetancurm  fast-track: this rule itself (first fast-track 
 pr 10  2026-10-05  juanbetancurm  fast-track: archive the SC-03 class demo (documentation only)
 pr 11  2026-10-05  juanbetancurm  fast-track: OP-006 recursion limit from the budgets (agreed in the T-0013 review)
 pr 12  2026-10-05  juanbetancurm  fast-track: frontend plan, T-0015 + T-0016 task files (documentation only)
+pr 13  2026-10-05  juanbetancurm  fast-track: remove practice-lab files committed by mistake in PR #11
