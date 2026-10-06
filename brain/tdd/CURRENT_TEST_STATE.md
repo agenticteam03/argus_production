@@ -1,6 +1,6 @@
 # Current test state
 
-**Last updated:** 2026-10-05 · **Branch:** `task/OP-006-recursion-limit` (from `main` `6502104`)
+**Last updated:** 2026-10-05 · **Commit:** `main` `2009945` (after PRs #11–#13)
 
 | Stage | Result | Where / when |
 |---|---|---|
