@@ -54,6 +54,9 @@ In progress: 4 (50 %), 7 (50 %), **9 (50 %: LangGraph + checkpoints done; api/wo
 - **With the LangGraph runner (2026-10-04):** H-1 (healthy), SC-09 (unsupported → evidence pack), SC-01 (diagnosed,
   RB-001) — every run checkpointed in Postgres. The others are expected to behave the same (parity tests); re-run
   them as part of Phase 12.
+- **SC-03 on the LangGraph runner (2026-10-05, class demo):** reported successful by `juanbetancurm` (root cause =
+  `argus-lab-cache`, the api the victim), but the output was not archived, so it is **reported, not verified**:
+  [`execution/history/demo-SC03/step-01/evidence.md`](execution/history/demo-SC03/step-01/evidence.md).
 
 ## 5. Known gaps and decisions pending
 
