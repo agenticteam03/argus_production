@@ -1,5 +1,8 @@
 # Next step
 
+**Now (2026-10-06):** both VMs run `main` `2097eb1` (AFTER-MERGE done). (1) PR #19 (`juanes6554` on the fast-track)
+waits for `conantkd`; (2) T-0015: draft ACR-0001 (needs `conantkd`'s approval).
+
 **Pending VM step after this PR merges (`conantkd`, 2026-10-06):** both VMs run the checkout of
 `task/lab-baseline-check` (only `ops/deploy.sh` differs from `main`). Once the PR is merged, whoever holds the VM
 lease puts them back on `main` with the block ready in `execution/current/code.bash` (AFTER-MERGE, ~5 min, no
