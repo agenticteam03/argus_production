@@ -57,8 +57,10 @@ In progress: 4 (50 %), 7 (50 %), **9 (50 %: LangGraph + checkpoints done; api/wo
 
 ## 5. Known gaps and decisions pending
 
-- **`main-guard` is red** since PR #4 was merged without a recorded approval (content reviewed, documentation only):
-  `conantkd` approves PR #4 on GitHub, or a reviewed PR adds `pr 4` to `policies/main-exceptions.txt`.
+- `main-guard` is green again: PR #4 is a recorded exception in `policies/main-exceptions.txt`.
+- **Temporary fast-track until 2026-10-12:** `juanbetancurm` may merge their own pull requests under the conditions
+  of `agents/REVIEW_PROTOCOL.md` ("Temporary fast-track"); each one is listed in `main-exceptions.txt` and reviewed
+  by a teammate after the merge.
 - Pending team decision **D-001** (cross-host path and alert direction) and open problems OP-001…OP-003:
   [`OPEN_PROBLEMS.md`](OPEN_PROBLEMS.md).
 - Differences between the architecture text and the running system: [`architecture/SUMMARY.md`](architecture/SUMMARY.md).

@@ -1,11 +1,12 @@
 # Next step
 
 **First (any developer, 5 minutes):**
-1. Review and merge the T-0013 pull request (`task/T-0013-langgraph-skeleton`) — not by its author.
-2. Turn `main-guard` green: `conantkd` opens PR #4 → Files changed → Review changes → **Approve**; if GitHub refuses
-   on a merged PR, open a small PR adding `pr 4` to `brain/policies/main-exceptions.txt` (reviewed by someone else).
-3. After the T-0013 merge, put vm-095 back on `main` (VM lease): `sudo bash /opt/argus-v18/app/ops/deploy.sh main
-   --as <you>` — same code, so nothing needs rebuilding.
+1. Teammates: review the fast-track pull requests merged since 2026-10-05 (listed in
+   `brain/policies/main-exceptions.txt`), see `agents/REVIEW_PROTOCOL.md` ("Temporary fast-track").
+2. `juanbetancurm`: update PR #8 (OP-005) with `conantkd`'s requested changes (creation-time guard, scrape-gap test,
+   resolve the `OPEN_PROBLEMS.md` conflict).
+3. At the next VM session, check vm-095 is on `main` (`deploy.sh status`); if it still shows the T-0013 branch:
+   `sudo bash /opt/argus-v18/app/ops/deploy.sh main --as <you>` — same code, so nothing needs rebuilding.
 
 **Then — the next task (to be created by whoever takes it, as `tasks/current/T-0014-<slug>.md`):**
 
