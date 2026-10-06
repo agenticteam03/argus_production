@@ -1,17 +1,17 @@
 # Current test state
 
-**Last updated:** 2026-10-04 · **Commit:** `8eff994` (main) merged into branch `task/T-0013-langgraph-skeleton`
+**Last updated:** 2026-10-05 · **Branch:** `task/OP-006-recursion-limit` (from `main` `6502104`)
 
 | Stage | Result | Where / when |
 |---|---|---|
-| 3. Offline suite | **63 passed** (38 Argus incl. 10 graph-runner + 19 `brain.py` + 6 `deploy.sh`), 5 skipped (the Postgres tests) | laptop, 2026-10-05 |
+| 3. Offline suite | **65 passed** (40 Argus incl. 12 graph-runner + 19 `brain.py` + 6 `deploy.sh`), 5 skipped (the Postgres tests) | laptop, 2026-10-05 (OP-006) |
 | 4. Postgres integration | **60 passed** on `661f904` (before merging main; incl. the restart test and the 15 db guarantees) against a throwaway `postgres:16-alpine`; not re-run after the merge (Docker was off) - the merge adds only the 6 offline `deploy.sh` tests | laptop, Docker Desktop, 2026-10-04 |
 | 5. CI | first run on `9ccc61d`: audit, lint, gitleaks ✓; tests ✗ (runbook library not available in CI) → fixed in PR #1 (pinned runbooks checkout with a read-only deploy key) | GitHub, 2026-10-02 |
 | 7. Deployment validation | T-0013 on vm-095 (2026-10-04): `argus db check` 15/15; H-1, SC-09, SC-01 on LangGraph, each checkpointed in Postgres; NO INTERFERENCE on both VMs. Earlier: `phase3_check` 28/28 (2026-10-01) | VMs |
 
 ## Currently red
 
-`main-guard` on `main` (since PR #4 merged without a recorded approval) — see `CURRENT_STATE.md` §5. Tests: nothing.
+Nothing (`main-guard` green again since PR #9).
 
 ## Notable tests
 
@@ -19,6 +19,9 @@
 - `test_runbook_library_lives_in_the_repository` — D-002: 21 runbooks + index + conventions load from `argus/runbooks/`, the
   default location; no `/opt/argus-runbooks` mount, no `runbooks.lock`. Red seen: the default still pointed to the old
   sibling folder.
+- OP-006 (`tests/test_graph_runner.py`): the recursion limit is 100 with the default budgets; a 20-step x 5-read
+  budget ends `escalated` (budget exhausted), not with `GraphRecursionError`. Red seen: `GraphRecursionError:
+  Recursion limit of 100 reached`.
 - `test_provider_error_escalates_at_once`, the freshness-gate and identity tests — see `tests/test_core.py`.
 - `tests/brain/test_brain.py` — lease claim/refusal/race/expiry/renew/handoff/release, audit (planted secrets,
   addresses, files), lint, archive-step, checkpoint. Red seen: every lease test failed first (a Windows text-mode
