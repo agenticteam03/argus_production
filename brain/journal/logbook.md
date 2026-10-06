@@ -221,3 +221,15 @@ Argus's proposals) add server actions instead of rewriting the frontend. A versi
 writes guidelines, the agent writes the tests first (Playwright acceptance with a network read-only guard, contract,
 unit), a CI job `frontend` enforces them. It starts with ACR-0001 (OD-10).
 References: `tasks/current/T-0015-ui-read-access.md`, `tasks/current/T-0016-frontend.md`.
+
+## 2026-10-05 — Unintended practice-lab files removed from main
+
+Type: incident
+Who: juanbetancurm (+ agent)
+Context: the OP-006 commit (`e0fc766`, PR #11) also carried 8 unrelated, untracked files
+(`argus/runbooks/practice/RB-002/`) because the agent staged whole folders (`git add -A argus …`).
+Decision / result: removed by this pull request. No secrets in them (loopback addresses only), so the history is
+not rewritten (no force-push of `main`). They were also inside the agent image built from that commit; nothing
+was redeployed from it.
+Learned: stage explicit file paths, never whole folders; check `git status` for untracked files before a commit.
+References: PR #11, this pull request.
