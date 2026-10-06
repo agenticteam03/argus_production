@@ -10,38 +10,47 @@
 # =====================================================================================
 
 # =====================================================================================
-# STEP T-0017.1 — State probe before the Postgres backup/restore drill           [~2 min]
-# Goal / Why: confirm vm-095 matches the Brain and measure what the drill needs: database size, free disk under
-#             /opt/argus-v18, free memory, and whether the postgres:16-alpine image is already present.
-# READ-ONLY (except the session marker, which records that conantkd holds the VMs now).
+# STEP T-0017.3 — Postgres backup/restore drill on vm-095                          [~5 min]
+# Goal / Why: take a real backup of the Argus database and prove it restores (phase 5, last missing item).
+# MUTATES: checks out task/T-0017-pg-backup-drill in /opt/argus-v18/app (only ops/, tests/ and brain/ differ: no
+#          rebuild); creates /opt/argus-v18/backups/ (one dump, root-only); starts and removes argus-lab-pgrestore.
+#          The live database argus-v18-postgres is only READ.
+# Undo:    sudo bash /opt/argus-v18/app/ops/deploy.sh main --as conantkd   (after the PR merges this is the normal
+#          AFTER-MERGE step);  sudo rm -rf /opt/argus-v18/backups   (only if you want to drop the dump)
 # =====================================================================================
 
-# --- 1.1 [VM vm-095 · bash] (ssh argus-vm095) Session marker -----------------------------------------------
-echo 'holder=conantkd session=06cb9843af9b' | sudo tee /opt/argus-v18/SESSION >/dev/null && cat /opt/argus-v18/SESSION
-# Expected: holder=conantkd session=06cb9843af9b
+# --- 3.1 [VM vm-095 · bash] (ssh argus-vm095) Session marker and "before" snapshot ---------------------------
+grep -q "holder=conantkd " /opt/argus-v18/SESSION && echo "SESSION OK" || echo "NOT YOUR SESSION"
+# Expected: SESSION OK
+sudo bash /opt/argus-v18/app/ops/nonint-check.sh before
+# Expected: saved /opt/argus-v18/baseline/before.txt (...)
 
-# --- 1.2 [VM vm-095 · bash] Deployed code and Argus containers ---------------------------------------------
-cat /opt/argus-v18/DEPLOYED
-# Expected: commit=2097eb1... ref=main
-sudo docker ps --format '{{.Names}} {{.Status}}' | grep -E '^argus-(v18|lab)-' | sort
-# Expected: argus-v18-postgres Up ... (healthy), argus-v18-agent Up ..., no argus-lab-pgrestore
+# --- 3.2 [VM vm-095 · bash] Check out the task branch (no restart, no rebuild) -------------------------------
+sudo bash /opt/argus-v18/app/ops/deploy.sh task/T-0017-pg-backup-drill --as conantkd
+# Expected: DEPLOY OK: 23afbeb... (task/T-0017-pg-backup-drill) and NO service to rebuild
 
-# --- 1.3 [VM vm-095 · bash] What the drill needs -----------------------------------------------------------
-sudo docker exec argus-v18-postgres psql -X -At -U argus_owner -d argus -c \
-  "SELECT 'pg: ' || current_setting('server_version') || ' size: ' || pg_size_pretty(pg_database_size('argus'))"
-# Expected: pg: 16.x size: <a few MB>
-sudo docker exec argus-v18-postgres psql -X -At -U argus_owner -d argus -c \
-  "SELECT relname || ' ' || n_live_tup FROM pg_stat_user_tables ORDER BY relname"
-# Expected: one line per table (incident, evidence, audit, principal, run_event, notification, checkpoints ...)
-df -h /opt/argus-v18 | tail -1; free -m | sed -n 2p
-# Expected: free disk well above the database size; some hundred MB of available memory
-sudo docker image ls postgres:16-alpine --format 'image: {{.Repository}}:{{.Tag}} {{.ID}}'
-# Expected: image: postgres:16-alpine <id>
-sudo ls -ld /opt/argus-v18/backups 2>/dev/null || echo "backups: none yet"
-# Expected: backups: none yet
+# --- 3.3 [VM vm-095 · bash] Backup (reads the live database only) ------------------------------------------
+sudo bash /opt/argus-v18/app/ops/db-backup.sh backup --as conantkd
+# Expected: "  11 tables, <about 4600> rows" and "BACKUP OK: /opt/argus-v18/backups/argus-<UTC>.dump (<bytes>)"
+# If "BACKUP STOP: the database changed during the dump": an investigation was writing; just run 3.3 again.
+sudo ls -la /opt/argus-v18/backups
+# Expected: drwx------ root; three files -rw------- root: .dump, .dump.sha256, .fingerprint
 
-# --- 1.4 [VM vm-095 · bash] Non-interference ---------------------------------------------------------------
+# --- 3.4 [VM vm-095 · bash] Verify: restore into a throwaway container and compare -------------------------
+DUMP=$(sudo ls -1t /opt/argus-v18/backups/argus-*.dump | head -1); echo "$DUMP"
+sudo bash /opt/argus-v18/app/ops/db-backup.sh verify "$DUMP" --as conantkd
+# Expected: VERIFY OK: 11 tables, <same rows as 3.3> rows match   (~20 s: the container starts, restores, compares)
+
+# --- 3.5 [VM vm-095 · bash] Nothing left behind; the live database untouched -------------------------------
+sudo docker ps -a --format '{{.Names}}' | grep -x argus-lab-pgrestore || echo "restore container removed"
+# Expected: restore container removed
+sudo docker ps --format '{{.Names}} {{.Status}}' | grep -E '^argus-v18-(postgres|agent) '
+# Expected: argus-v18-postgres Up ... (healthy) — same uptime as before (never restarted); argus-v18-agent Up ...
+sudo bash /opt/argus-v18/app/ops/deploy.sh status
+# Expected: ref=task/T-0017-pg-backup-drill, LAB BASELINE OK
+
+# --- 3.6 [VM vm-095 · bash] Prove non-interference ---------------------------------------------------------
 sudo bash /opt/argus-v18/app/ops/nonint-check.sh after
 # Expected: NO INTERFERENCE
-echo "T-0017.1 PROBE DONE"
+echo "T-0017.3 DRILL DONE"
 # >>> Paste everything into output.bash and tell the agent "output.bash updated". <<<
