@@ -148,3 +148,25 @@ def test_resume_inside_evidence_pack_does_not_repeat_completed_reads(make_app, m
     done = app.runner.run(inc.id)
     assert done.outcome == IncidentOutcome.unsupported_escalated
     assert len(FakeTargetAgent.calls) == len(set(FakeTargetAgent.calls)) >= 3   # every read exactly once
+
+
+# --- OP-006: the LangGraph recursion limit follows the step and read budgets ------------------------------------
+def test_recursion_limit_is_100_with_the_default_budgets(make_app, monkeypatch):
+    monkeypatch.setenv("ARGUS_RUNNER", "langgraph")
+    app = make_app(llm=ScriptedLLM([]), metrics=_metrics())
+    assert app.runner.recursion_limit == 100
+
+
+def test_a_large_budget_ends_escalated_not_with_a_recursion_error(make_app, monkeypatch):
+    from argus.detectors.classes import CLASSES
+    monkeypatch.setenv("ARGUS_RUNNER", "langgraph")
+    monkeypatch.setattr(next(c for c in CLASSES if c.name == "container_restart_loop"), "max_steps", 20)
+
+    def script(ctx):                                           # the model never concludes: 5 reads every round
+        return {"calls": [("get_container_status", {"target": WORKER_166})] * 5}
+
+    app = make_app(llm=ScriptedLLM(script), metrics=_metrics())
+    app.runner.max_steps_cap, app.runner.max_reads_per_step = 20, 5
+    inc = app.runner.run(incident(app, WORKER_166).id)          # 20 rounds x (1 + 5) graph steps > 100
+    assert inc.outcome == IncidentOutcome.no_action_escalated
+    assert "step budget of 20 exhausted" in (inc.diagnosis or "")

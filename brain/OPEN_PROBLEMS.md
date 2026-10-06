@@ -11,7 +11,7 @@ When a problem is fixed, set its status to `fixed` with the date, and add a jour
 | OP-002 | P0 safety gaps of the runbook library not yet reconciled with architecture v1.8 | open | 2026-09-30 |
 | OP-003 | Runbook safety classes not mapped to `CapabilitySpec.risk` | open | 2026-09-30 |
 | OP-004 | LangGraph checkpoints grow forever; checkpoints of failed runs are orphaned | accepted 2026-10-05 — to implement | 2026-10-05 |
-| OP-006 | LangGraph `recursion_limit` is fixed at 100 and can be too small for larger step budgets | open | 2026-10-05 |
+| OP-006 | LangGraph `recursion_limit` is fixed at 100 and can be too small for larger step budgets | fixed 2026-10-05 | 2026-10-05 |
 
 ---
 
@@ -159,7 +159,8 @@ and non-final ones kept, evidence and audit untouched) and the timer on vm-095, 
 
 ## OP-006 — LangGraph `recursion_limit` is fixed at 100 and can be too small for larger step budgets
 
-**Status:** open · **Opened:** 2026-10-05 (T-0013 review, conantkd)
+**Status:** fixed 2026-10-05 (`GraphRunner.recursion_limit`, tests `test_recursion_limit_is_100_with_the_default_budgets`
+and `test_a_large_budget_ends_escalated_not_with_a_recursion_error`, red seen) · **Opened:** 2026-10-05 (T-0013 review, conantkd)
 
 **Problem.** `GraphRunner.run` passes `recursion_limit: 100` to LangGraph (`argus/orchestration/graph_runner.py`).
 Since the T-0013 review fix, `act` and `evidence_pack` make one read per graph step, so one investigation round costs

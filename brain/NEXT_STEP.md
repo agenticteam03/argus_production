@@ -12,7 +12,8 @@
 | Option | Phase | What | Depends on |
 |---|---|---|---|
 | **T-0014 — worker + scheduler** (recommended next; `juanbetancurm`) | 9 | split the agent into api / worker / scheduler; the worker claims queued incidents and **resumes interrupted runs from their checkpoint**; the scheduler runs periodic checks and pulls firing alerts | T-0013 merged |
-| **T-0015 — read-only incident UI** (`juanes6554`; say *"I want to implement the frontend"*) | 10 | a web page over the existing API: incident list, outcome, root cause, step timeline, evidence; reads only. Guided steps and the rules against conflicts: [`tasks/current/T-0015-readonly-ui.md`](tasks/current/T-0015-readonly-ui.md) | nothing (starts with an ACR for OD-10) |
+| **T-0015 — read access for user interfaces** (`juanbetancurm`) | 10 | read-only tokens, `GET /api/v1/me`, the UI contract: [`tasks/current/T-0015-ui-read-access.md`](tasks/current/T-0015-ui-read-access.md) | nothing (starts with ACR-0001 for OD-10) |
+| **T-0016 — the web frontend** (`juanes6554`; say *"I want to implement the frontend"*) | 10 | his own framework in `frontend/`, test-driven (the agent writes the tests from his guidelines): [`tasks/current/T-0016-frontend.md`](tasks/current/T-0016-frontend.md) | T-0015 steps 1–5 merged |
 | SC-07 — network/DNS scenario | 11 | a client and a backend on different Docker networks; Argus must find the network misconfiguration | nothing (independent) |
 | MCP tools child | 4 | tool calls through a separate stdio process under its own user | nothing (independent) |
 

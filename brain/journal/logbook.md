@@ -198,13 +198,26 @@ helpers defined in one VM shell fail confusingly when a block is pasted on the o
 VM prompt name and avoid shell helpers in demo scripts.
 References: `execution/history/demo-SC03/step-01/evidence.md`.
 
-## 2026-10-05 — T-0015 planned: a read-only incident UI for juanes6554 (T-0015)
+## 2026-10-05 — OP-006 fixed: the LangGraph recursion limit follows the budgets (OP-006)
+
+Type: implementation
+Who: juanbetancurm (+ agent)
+Context: `recursion_limit` was fixed at 100; a class with a larger step budget would stop with `GraphRecursionError`
+although Argus was still inside its own budget (found in the T-0013 review).
+Decision / result: `GraphRunner.recursion_limit = max(100, max_steps_cap × (1 + max(max_reads_per_step, largest
+plan)) + 4 + 10)`, as agreed in the review. Unchanged (100) with today's configuration. Tests: 65 passed, 5
+skipped (Postgres, in CI); red seen. No VM change needed (same behaviour with the deployed budgets).
+References: `OPEN_PROBLEMS.md` OP-006, `tests/test_graph_runner.py`.
+## 2026-10-05 — Frontend planned: T-0015 (read access, API side) and T-0016 (the frontend, test-driven)
 
 Type: decision
 Who: juanbetancurm (+ agent)
-Context: `juanes6554` proposed a frontend; the core team works on T-0014 at the same time.
-Decision: a read-only web page over the existing API, as an inbound adapter in `argus/adapters/inbound/web/`,
-served by the API on the loopback listener under `/ui` (SSH tunnel to reach it). It starts with an ACR for OD-10.
-Rules against conflicts: own folder; only two small touch points (end of `build_api`, one `package-data` entry);
-no API changes; shared Brain files only in the last PR; a test enforces GET-only calls.
-References: `tasks/current/T-0015-readonly-ui.md`, `NEXT_STEP.md`.
+Context: `juanes6554` will build a web frontend in his own framework; operators choose console or browser.
+Decision: the frontend lives in `frontend/` of this repository and only reads. Argus enforces it: a login with
+`scope=read` gives a token that every non-`GET` route refuses (T-0015). `GET /api/v1/me` lists the actions a token
+may use, and the frontend shows only those, so later levels (start an investigation, a container map, approving
+Argus's proposals) add server actions instead of rewriting the frontend. A versioned UI contract
+(`contracts/ui-api.json` + sample responses) is tested on the API side. The frontend is test-driven: `juanes6554`
+writes guidelines, the agent writes the tests first (Playwright acceptance with a network read-only guard, contract,
+unit), a CI job `frontend` enforces them. It starts with ACR-0001 (OD-10).
+References: `tasks/current/T-0015-ui-read-access.md`, `tasks/current/T-0016-frontend.md`.

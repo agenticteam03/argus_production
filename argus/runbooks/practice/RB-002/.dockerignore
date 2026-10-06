@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+.gitignore
+code.bash
+output.bash
+README.md
+test_lab_contract.py
