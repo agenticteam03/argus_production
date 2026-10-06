@@ -72,7 +72,7 @@ T-0015 (API side) and T-0016 (frontend), planned.
   fast-track rule is accepted; the `main-exceptions.txt` header now says fast-track lines are reviewed after the
   merge; OP-006's constants are named (`GraphRunner.FIXED_NODES`, `SAFETY_MARGIN`). **T-0015:** its ACR-0001 pull
   request cannot be fast-tracked (the rule excludes ACRs); its token code should also get a teammate's review.
-- **Temporary fast-track until 2026-10-12:** `juanbetancurm` and `conantkd` may merge their own pull requests under the conditions
+- **Temporary fast-track until 2026-10-12:** `juanbetancurm`, `conantkd` and (for the frontend, after onboarding) `juanes6554` may merge their own pull requests under the conditions
   of `agents/REVIEW_PROTOCOL.md` ("Temporary fast-track"); each one is listed in `main-exceptions.txt` and reviewed
   by a teammate after the merge.
 - Pending team decision **D-001** (cross-host path and alert direction) and open problems OP-001…OP-003:

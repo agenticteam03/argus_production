@@ -38,6 +38,11 @@ guidelines (step 1).
 A CI job `frontend` runs all of them on every push that touches `frontend/` or `contracts/`. A PR with the job red
 is not merged (`agents/REVIEW_PROTOCOL.md`: CI green before merging).
 
+**Fast-track (until 2026-10-12):** `juanes6554` may merge his own frontend PRs under the rule in
+`agents/REVIEW_PROTOCOL.md` ("Temporary fast-track"): his agent posts the review report, the PR lists itself in
+`policies/main-exceptions.txt`, and the jobs `test` and `frontend` are green. Not fast-tracked: the PR that adds the
+CI job (it changes `.github/workflows/`) and any change to `contracts/` (shared with the API side).
+
 ## Rules against conflicts (now and later)
 
 1. **Own folder:** all frontend code in `frontend/` (its own `package.json`, tests, `Dockerfile`, README). The core
