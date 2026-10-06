@@ -27,7 +27,7 @@ sudo bash /opt/argus-v18/app/ops/nonint-check.sh before
 
 # --- 3.2 [VM vm-095 · bash] Check out the task branch (no restart, no rebuild) -------------------------------
 sudo bash /opt/argus-v18/app/ops/deploy.sh task/T-0017-pg-backup-drill --as conantkd
-# Expected: DEPLOY OK: 23afbeb... (task/T-0017-pg-backup-drill) and NO service to rebuild
+# Expected: DEPLOY OK: <the branch head> (task/T-0017-pg-backup-drill) and NO service to rebuild
 
 # --- 3.3 [VM vm-095 · bash] Backup (reads the live database only) ------------------------------------------
 sudo bash /opt/argus-v18/app/ops/db-backup.sh backup --as conantkd
