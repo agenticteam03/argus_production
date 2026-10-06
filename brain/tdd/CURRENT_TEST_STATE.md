@@ -1,10 +1,10 @@
 # Current test state
 
-**Last updated:** 2026-10-05 · **Commit:** `main` `2009945` (after PRs #11–#13)
+**Last updated:** 2026-10-06 · **Commit:** `task/lab-baseline-check` `58a51c3`
 
 | Stage | Result | Where / when |
 |---|---|---|
-| 3. Offline suite | **65 passed** (40 Argus incl. 12 graph-runner + 19 `brain.py` + 6 `deploy.sh`), 5 skipped (the Postgres tests) | laptop, 2026-10-05 (OP-006) |
+| 3. Offline suite | **68 passed** (40 Argus incl. 12 graph-runner + 19 `brain.py` + 9 `deploy.sh`), 5 skipped (the Postgres tests) | laptop, 2026-10-06 (lab baseline check) |
 | 4. Postgres integration | **60 passed** on `661f904` (before merging main; incl. the restart test and the 15 db guarantees) against a throwaway `postgres:16-alpine`; not re-run after the merge (Docker was off) - the merge adds only the 6 offline `deploy.sh` tests | laptop, Docker Desktop, 2026-10-04 |
 | 5. CI | first run on `9ccc61d`: audit, lint, gitleaks ✓; tests ✗ (runbook library not available in CI) → fixed in PR #1 (pinned runbooks checkout with a read-only deploy key) | GitHub, 2026-10-02 |
 | 7. Deployment validation | T-0013 on vm-095 (2026-10-04): `argus db check` 15/15; H-1, SC-09, SC-01 on LangGraph, each checkpointed in Postgres; NO INTERFERENCE on both VMs. Earlier: `phase3_check` 28/28 (2026-10-01) | VMs |
@@ -22,6 +22,9 @@ Nothing (`main-guard` green again since PR #9).
 - OP-006 (`tests/test_graph_runner.py`): the recursion limit is 100 with the default budgets; a 20-step x 5-read
   budget ends `escalated` (budget exhausted), not with `GraphRecursionError`. Red seen: `GraphRecursionError:
   Recursion limit of 100 reached`.
+- Lab baseline (`tests/test_deploy.py`, 3 tests): `deploy.sh status` prints `LAB BASELINE OK` only when every
+  `argus-lab-*` container runs and none is unhealthy; it names the stopped/unhealthy ones; without docker it says
+  so and never claims OK. Red seen: none of the three found any lab line.
 - `test_provider_error_escalates_at_once`, the freshness-gate and identity tests — see `tests/test_core.py`.
 - `tests/brain/test_brain.py` — lease claim/refusal/race/expiry/renew/handoff/release, audit (planted secrets,
   addresses, files), lint, archive-step, checkpoint. Red seen: every lease test failed first (a Windows text-mode

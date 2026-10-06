@@ -259,3 +259,13 @@ Learned: `docker exec -i` in a pasted block reads the terminal and hangs; use `<
 (TROUBLESHOOTING #18). Scenarios must end with their undo and a health check; the state probe should list
 `argus-lab-*` health (#19).
 References: `execution/history/DEPLOY-MAIN/step-01/evidence.md`.
+
+## 2026-10-06 — LAB-BASELINE: deploy.sh status reports the lab baseline
+
+Type: change
+Who: conantkd (+ agent)
+Context: DEPLOY-MAIN found `argus-lab-cache` stopped for ~7 hours and nothing flagged it.
+Decision / result: `deploy.sh status` lists every `argus-lab-*` container and ends with `LAB BASELINE OK` or
+`LAB BASELINE NOT OK: <names>`. 3 tests (red seen), suite 68 passed / 5 skipped. Deployed as the task branch on
+both VMs: `LAB BASELINE OK`, NO INTERFERENCE, nothing rebuilt. The state probe in `AGENT_PROTOCOL.md` uses it.
+References: `execution/history/LAB-BASELINE/step-01/evidence.md`.
