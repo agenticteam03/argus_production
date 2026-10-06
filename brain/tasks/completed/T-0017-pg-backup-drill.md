@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | `executed` (script + tests on the branch; the drill on vm-095 is step 3) |
+| Status | `verified` on vm-095 (2026-10-06); merged by this pull request |
 | Phase | 5 — Postgres ([`../../IMPLEMENTATION_PLAN.md`](../../IMPLEMENTATION_PLAN.md): "backup/restore drill") |
 | Architecture | no change (operations script; the live database is only read) |
 | Branch | `task/T-0017-pg-backup-drill` |
@@ -39,4 +39,14 @@ Not in scope: scheduling (cron) and retention of old dumps; copying dumps off th
    (`assert 1 == 0`, missing `BACKUP OK` / `VERIFY OK`). Green: 6 passed; the real-Docker test passed on the laptop
    (Docker Desktop 29.8.1).
 3. Deploy the branch on vm-095, run `backup` then `verify`, `nonint-check` before/after, archive the evidence.
-4. Brain: phase 5 to 100 %, `CURRENT_STATE.md`, `NEXT_STEP.md`, journal; pull request.
+   **Done:** `BACKUP OK` (11 tables, 4603 rows, 363 KB, root-only files); the first `verify` never ran because the
+   block expanded `backups/argus-*.dump` in the operator's shell, which cannot list the 700 folder, so we added
+   `verify latest` (red seen: `VERIFY STOP: no such dump: latest`); re-run: **`VERIFY OK: 11 tables, 4603 rows
+   match`**, restore container removed, postgres never restarted, NO INTERFERENCE.
+   Evidence: [`../../execution/history/T-0017/step-03/evidence.md`](../../execution/history/T-0017/step-03/evidence.md).
+4. Brain: phase 5 to 100 %, `CURRENT_STATE.md`, `NEXT_STEP.md`, journal; pull request. **Done.**
+
+## Follow-ups (not in this task)
+
+- Run the backup on a schedule (cron or the T-0014 scheduler) and keep the last N dumps.
+- A copy off the VM (today the only copy sits on the same disk as the database): needs an encryption decision first.

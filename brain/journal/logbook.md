@@ -328,3 +328,16 @@ conditions and end date. The rule now names `.github/workflows/` as enforcement,
 `frontend` still needs a teammate, and so does any change to `contracts/` (shared with the API side). A change to the
 review rule, so it is not self-merged: it takes effect when `conantkd` approves this pull request.
 References: `agents/REVIEW_PROTOCOL.md`, `tasks/current/T-0016-frontend.md`, PR #16 (same precedent).
+
+## 2026-10-06 — T-0017: the Postgres backup is proved restorable (phase 5 complete)
+
+Type: task
+Who: conantkd (+ agent)
+Context: phase 5 lacked only a backup/restore drill; a backup nobody restored is only a hope.
+Decision / result: `ops/db-backup.sh` (tests first). `backup` dumps the live database read-only and stores a
+per-table fingerprint taken before and after the dump (refused if they differ); `verify` restores into a throwaway
+`argus-lab-pgrestore` (no network, no port, tmpfs) and compares. On vm-095: 11 tables, 4603 rows, `VERIFY OK`, NO
+INTERFERENCE. Lesson: `sudo ls folder/*.dump` fails on a root-only folder because the operator's shell expands the
+glob before sudo; the script now offers `verify latest`. Dumps hold password hashes: root-only, never off the VM.
+Follow-ups: schedule + retention; an encrypted off-VM copy.
+References: `tasks/completed/T-0017-pg-backup-drill.md`, `execution/history/T-0017/`.

@@ -19,3 +19,19 @@ Key output lines from output.bash, SANITIZED (no addresses, no secrets, no perso
 expands the glob **before** `sudo`, and it cannot list the root-only (700) folder, so `ls` got the literal pattern.
 The folder protection worked; the block was wrong. **Fix:** `db-backup.sh verify latest` finds the newest dump itself,
 as root (test `test_verify_latest_picks_the_newest_dump_itself`, red seen: `VERIFY STOP: no such dump: latest`).
+
+## Re-run of the verification (block 3b, `code-3b.bash` in this folder)
+
+| Block | Expected | Observed | Result |
+|---|---|---|---|
+| 3b.1 session + before | `SESSION OK` | `SESSION OK`; snapshot saved | OK |
+| 3b.2 checkout | `DEPLOY OK (task/T-0017-pg-backup-drill)`, nothing to rebuild | `DEPLOY OK: aba61c1cc098 (task/T-0017-pg-backup-drill)` | OK |
+| 3b.3 verify latest | the 18:50 dump; `VERIFY OK: 11 tables, 4603 rows match` | `dump: /opt/argus-v18/backups/argus-20261006T185011Z.dump`; **`VERIFY OK: 11 tables, 4603 rows match`** | OK |
+| 3b.4 leftovers / live DB | no restore container; postgres never restarted | `restore container removed`; `argus-v18-postgres Up 14 hours (healthy)`; `argus-v18-agent Up 8 hours`; `ref=task/T-0017-pg-backup-drill`; `LAB BASELINE OK` | OK |
+| 3b.5 after | `NO INTERFERENCE` | `NO INTERFERENCE: non-Argus objects unchanged`; `T-0017.3b VERIFY DONE` | OK |
+
+nonint-check: NO INTERFERENCE on vm-095 (yes, both runs).
+
+**Result:** the backup of 2026-10-06 18:50 UTC restores into a clean Postgres 16 with every row of all 11 tables
+identical (row count and content hash per table). The phase-5 backup/restore drill is done. State left on vm-095:
+`/opt/argus-v18/backups/` (one dump, root-only); the checkout on `task/T-0017-pg-backup-drill` until the PR merges.

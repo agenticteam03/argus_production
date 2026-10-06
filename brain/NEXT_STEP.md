@@ -1,12 +1,12 @@
 # Next step
 
 **Now (2026-10-06):** both VMs run `main` `2097eb1` (AFTER-MERGE done). (1) PR #19 (`juanes6554` on the fast-track)
-waits for `conantkd`; (2) T-0015: draft ACR-0001 (needs `conantkd`'s approval).
+merged (approved by `conantkd`); (2) T-0015: draft ACR-0001 (needs `conantkd`'s approval).
 
-**Pending VM step after this PR merges (`conantkd`, 2026-10-06):** both VMs run the checkout of
-`task/lab-baseline-check` (only `ops/deploy.sh` differs from `main`). Once the PR is merged, whoever holds the VM
-lease puts them back on `main` with the block ready in `execution/current/code.bash` (AFTER-MERGE, ~5 min, no
-rebuild).
+**Pending VM step after the T-0017 PR merges (`conantkd`, 2026-10-06):** vm-095 runs the checkout of
+`task/T-0017-pg-backup-drill` (only `ops/db-backup.sh`, tests and the Brain differ from `main`). Once merged,
+whoever holds the VM lease puts it back on `main` with the block in `execution/current/code.bash` (~2 min, no
+rebuild). vm-166 is already on `main`. Phase 5 is complete (backup/restore drill, T-0017).
 
 **Handoff (2026-10-05, from `juanbetancurm`; read the latest journal entry first).** In this order:
 

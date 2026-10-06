@@ -18,7 +18,7 @@ calls); the phases below replace each simplification.
 | 2 | Inventory & identity | `vm-095` / `vm-166` as real hosts | the same name on two hosts must never be confused | ✅ done | — |
 | 3 | Target services | read gateway, probes, exporter per VM | Argus reads hosts only through narrow, audited services | ✅ 90 % | DB probe (with SC-04) |
 | 4 | Tools & guarded execution | every tool call through `InvokeCapability` | policy, audit and host isolation on every read | 🟡 50 % | MCP tools child, UID `argus-tools`, credential-isolation test |
-| 5 | Postgres | system of record (incidents, evidence, audit) | durable insert-only evidence; LangGraph checkpoints need it | ✅ 90 % | backup/restore drill |
+| 5 | Postgres | system of record (incidents, evidence, audit) | durable insert-only evidence; LangGraph checkpoints need it | ✅ 100 % | — (backup/restore drill done 2026-10-06, T-0017) |
 | 6 | Runbooks | the library drives recall | diagnoses traceable to a runbook version | ✅ 85 % | recall-quality checks per class |
 | 7 | Monitoring & detection | per-host Prometheus, detectors | detect deterministically before any AI | 🟡 50 % | Alertmanager, node-exporter, cAdvisor; pull firing alerts |
 | 8 | Policies | scope, limits, closed write gate as data | safety is configuration, not code | ✅ 80 % | routing data; standing write-gate test on the VMs |
