@@ -328,3 +328,22 @@ conditions and end date. The rule now names `.github/workflows/` as enforcement,
 `frontend` still needs a teammate, and so does any change to `contracts/` (shared with the API side). A change to the
 review rule, so it is not self-merged: it takes effect when `conantkd` approves this pull request.
 References: `agents/REVIEW_PROTOCOL.md`, `tasks/current/T-0016-frontend.md`, PR #16 (same precedent).
+
+## 2026-10-06 — juanes6554's pre-existing UI prototype integrated into `frontend/` (T-0016 steps 1–2)
+
+Type: implementation
+Who: juanes6554 (+ agent)
+Context: `juanes6554` had already built a mock-driven React UI outside the repository (with Claude on the web).
+T-0016 starts with his guidelines; its official gate is T-0015 steps 1–5 merged, and PR #22 (T-0015) is still a
+draft. The prototype touches nothing outside its own folder and makes no network calls.
+Decision / result: integrated on `task/T-0016-frontend` as steps 1–2: `frontend/GUIDELINES.md` (drafted by the
+agent from his code, approved by him), 20 Vitest unit tests with red seen (missing test harness; one fixture
+corrected to match the parser), the CI job `frontend` (unit tests + production build; the workflow change needs
+a teammate and is excluded from the fast-track), `frontend/README.md`, `.gitignore` entries (`node_modules/`,
+`frontend/dist/`), stray files removed, login hero image 3.8 MB PNG → 136 KB JPEG. Deviation recorded in the
+task file: the task started before T-0015 merged because the UI is mock-only; the HTTP/contract work still
+waits for T-0015. Known follow-ups in `frontend/README.md` (react-router 6→7 audit findings, `demoRunbooks/`
+removal with the mock adapter).
+Consequences: `frontend/` is tracked with tests; the `frontend` CI job runs on every push; Playwright
+acceptance tests and the fake API from `contracts/samples/` are the next steps of T-0016.
+References: `tasks/current/T-0016-frontend.md`, `frontend/GUIDELINES.md`, `frontend/README.md`, this pull request.
