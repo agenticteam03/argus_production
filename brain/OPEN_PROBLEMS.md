@@ -11,7 +11,7 @@ When a problem is fixed, set its status to `fixed` with the date, and add a jour
 | OP-002 | P0 safety gaps of the runbook library not yet reconciled with architecture v1.8 | open | 2026-09-30 |
 | OP-003 | Runbook safety classes not mapped to `CapabilitySpec.risk` | open | 2026-09-30 |
 | OP-004 | LangGraph checkpoints grow forever; checkpoints of failed runs are orphaned | accepted 2026-10-05 — to implement | 2026-10-05 |
-| **OP-005** | The `restarts_10m` signal undercounts restarts of a container younger than its window | **proposed, revised after review — awaiting `conantkd`'s re-review** | 2026-10-05 |
+| **OP-005** | The `restarts_10m` signal undercounts restarts of a container younger than its window | accepted 2026-10-06 (PR #8, approved by `conantkd`) — to implement | 2026-10-05 |
 | OP-006 | LangGraph `recursion_limit` is fixed at 100 and can be too small for larger step budgets | fixed 2026-10-05 | 2026-10-05 |
 
 ---
@@ -158,9 +158,9 @@ and non-final ones kept, evidence and audit untouched) and the timer on vm-095, 
 
 ---
 
-## OP-005 — `restarts_10m` undercounts young containers (proposal, revised after review)
+## OP-005 — `restarts_10m` undercounts young containers (accepted, to implement)
 
-**Status:** proposed, revised 2026-10-05 after `conantkd`'s review (PR #8, changes requested) · **Opened:** 2026-10-05 ·
+**Status:** accepted 2026-10-06 (PR #8, approved by `conantkd`; revised 2026-10-05 after his first review) · **Opened:** 2026-10-05 ·
 **Found by:** `conantkd` (T-0013 review) · **Approval:** this PR (re-review by `conantkd`)
 
 **Problem.** `config/signals.yaml` computes `restarts_10m` as `max_over_time(count[10m]) - min_over_time(count[10m])`.

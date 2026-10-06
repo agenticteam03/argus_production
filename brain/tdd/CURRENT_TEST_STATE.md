@@ -1,6 +1,6 @@
 # Current test state
 
-**Last updated:** 2026-10-06 · **Commit:** `task/lab-baseline-check` `58a51c3`
+**Last updated:** 2026-10-06 · **Commit:** `main` `610e639` (after PRs #15, #16, #17, #8)
 
 | Stage | Result | Where / when |
 |---|---|---|
