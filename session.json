@@ -6,6 +6,10 @@
   "base_commit": "09f5ab10f84000d1b0e4e791769753b093193a8f",
   "started_at": "2026-10-06T06:32:57+00:00",
   "expires_at": "2026-10-06T07:32:57+00:00",
-  "released": false,
-  "handoff": null
+  "released": true,
+  "handoff": {
+    "note": "done (conantkd, 2026-10-06): DEPLOY-MAIN (both VMs on main code, agent rebuilt, SC-03 verified on LangGraph); LAB-BASELINE (deploy.sh status ends with LAB BASELINE OK/NOT OK); LGS (H-2, SC-02, identity proof, SC-10, SC-11, SC-12 verified on LangGraph: every plain-runner scenario now passes); PR #8 OP-005 approved; after-merge reviews #9-#13 posted as PR comments. next: (1) review+merge #15 DEPLOY-MAIN, then #17 LAB-BASELINE+LGS (stacked on #15); #16 after-merge follow-up + named OP-006 constants + request to add conantkd to the fast-track (not self-merged); author merges #8. (2) after #17 merges: run the AFTER-MERGE block in execution/current/code.bash (deploy.sh main on both VMs, no rebuild). (3) then NEXT_STEP: T-0015 (its ACR-0001 PR cannot be fast-tracked), OP-005 implementation, T-0014. environment: both VMs on task/lab-baseline-check 58a51c3 (= main + the deploy.sh lab check), lab at baseline, NO INTERFERENCE; no VM change pending.",
+    "branch": "main",
+    "at": "2026-10-06T06:33:03+00:00"
+  }
 }
