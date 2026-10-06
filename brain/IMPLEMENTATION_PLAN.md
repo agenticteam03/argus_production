@@ -9,7 +9,7 @@ skeleton with checkpointing, the stdio MCP tools child, exact-route gateways and
 closed-write-gate HITL machinery. The current code started as a simplified lab core (SQLite, one process, direct tool
 calls); the phases below replace each simplification.
 
-## 1. Phases at a glance (status 2026-10-02, after the Postgres phase)
+## 1. Phases at a glance (status 2026-10-05)
 
 | # | Phase | What | Why | Status | Next |
 |---|---|---|---|---|---|
@@ -22,8 +22,8 @@ calls); the phases below replace each simplification.
 | 6 | Runbooks | the library drives recall | diagnoses traceable to a runbook version | ✅ 85 % | recall-quality checks per class |
 | 7 | Monitoring & detection | per-host Prometheus, detectors | detect deterministically before any AI | 🟡 50 % | Alertmanager, node-exporter, cAdvisor; pull firing alerts |
 | 8 | Policies | scope, limits, closed write gate as data | safety is configuration, not code | ✅ 80 % | routing data; standing write-gate test on the VMs |
-| 9 | Agent workflow | the v1.8 skeleton in LangGraph | resume after a crash; a real worker and scheduler | 🟡 50 % | T-0013 done (LangGraph + Postgres checkpoints); next T-0014: split api/worker → scheduler |
-| 10 | Output modes | formatted CLI and `--raw` | readable for humans, complete for developers | ✅ 90 % | fix the truncated ACT result column |
+| 9 | Agent workflow | the v1.8 skeleton in LangGraph | resume after a crash; a real worker and scheduler | 🟡 55 % | T-0013 (LangGraph + Postgres checkpoints) and OP-006 done; next T-0014: split api/worker → scheduler; OP-004 checkpoint cleanup after it |
+| 10 | Output modes | formatted CLI and `--raw` | readable for humans, complete for developers | ✅ 90 % | fix the truncated ACT result column; new scope: read-only web UI (T-0015 API side, T-0016 frontend) |
 | 11 | Synthetic incidents | controlled failures on both VMs | proof needs reproducible failures | 🟡 50 % | SC-04 Postgres, SC-05 disk, SC-06 CPU, SC-07 DNS, SC-08 nginx |
 | 12 | End-to-end tests | every scenario through the CLI | quality claims need repeated runs | 🟡 30 % | scripted e2e suite; ≥ 5 runs per scenario |
 | 13 | Failure & recovery | behaviour under real faults | failures become escalations, never crashes | 🟡 35 % | kill the worker mid-run, restart Postgres, rotate tokens |
@@ -33,7 +33,8 @@ calls); the phases below replace each simplification.
 11 the remaining scenarios → 12 repeated end-to-end runs → 13 recovery tests.
 
 **Scenarios passing on the real VMs (one run each):** H-1/H-2, SC-01, SC-02, the identity proof, SC-03, SC-09, SC-10,
-SC-11, SC-12. NO INTERFERENCE after every step.
+SC-11, SC-12. NO INTERFERENCE after every step. On the LangGraph runner so far: H-1, SC-09, SC-01 verified; SC-03
+reported (class demo, output not archived; DEPLOY-MAIN re-runs it with evidence).
 
 ## 2. Phase details
 

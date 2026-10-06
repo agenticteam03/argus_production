@@ -1,7 +1,8 @@
 # Current state — the last verified shared state
 
-**As of:** 2026-10-04 · **Architecture:** v1.8.0 · **Status:** `verified` on the VMs; T-0013 (LangGraph + Postgres
-checkpoints) verified on vm-095 · shared-Brain setup B1–B8 under way (two developers active).
+**As of:** 2026-10-05 (end of the `juanbetancurm` session) · **Architecture:** v1.8.0 · **Status:** `verified` on
+the VMs; T-0013 (LangGraph + Postgres checkpoints) merged; **vm-095 runs an older commit than `main`** (§2) ·
+shared-Brain setup B1–B8 under way (three developers).
 
 > The VMs are authoritative for what runs there: run `sudo bash /opt/argus-v18/app/ops/deploy.sh status` (or read
 > `/opt/argus-v18/DEPLOYED`) and the state probe before trusting this file.
@@ -19,8 +20,8 @@ and repeated end-to-end runs.
 
 | VM | Argus containers | Published ports | Code (`deploy.sh status`) |
 |---|---|---|---|
-| vm-095 | `argus-v18-agent` (LangGraph runner), `argus-v18-postgres` (healthy), `argus-v18-tunnel`, `argus-v18-read-gateway`, `-host-probe`, `-network-probe`, `-exporter`, `-prometheus`, `argus-lab-api` | `127.0.0.1:18000` only | branch `task/T-0013-langgraph-skeleton` @ `c87d76c` — redeploy `main` after this PR is merged |
-| vm-166 | `argus-v18-read-gateway`, `-host-probe`, `-network-probe`, `-exporter`, `-prometheus`, `argus-lab-api` (healthy), `argus-lab-cache` | `127.0.0.1:18701-18703`, `127.0.0.1:18090` | `main` @ `8eff994` |
+| vm-095 | `argus-v18-agent` (LangGraph runner), `argus-v18-postgres` (healthy), `argus-v18-tunnel`, `argus-v18-read-gateway`, `-host-probe`, `-network-probe`, `-exporter`, `-prometheus`, `argus-lab-api` | `127.0.0.1:18000` only | `c87d76c` (T-0013 branch) — **behind `main`**: lacks the T-0013 review fix (one read per graph step) and OP-006; redeploy + agent rebuild = task DEPLOY-MAIN in `execution/current/code.bash` |
+| vm-166 | `argus-v18-read-gateway`, `-host-probe`, `-network-probe`, `-exporter`, `-prometheus`, `argus-lab-api` (healthy), `argus-lab-cache` | `127.0.0.1:18701-18703`, `127.0.0.1:18090` | `8eff994` — no target-service code changed since; DEPLOY-MAIN only moves the checkout |
 
 - `/opt/argus-v18/app` is a **git checkout** on both VMs (read-only deploy key per VM); the old tarball folder is kept
   as `/opt/argus-v18/app.pre-git-<time>`. Only the agent on vm-095 was rebuilt; the other containers still run the
@@ -36,7 +37,7 @@ and repeated end-to-end runs.
 - **Deployed code (OBSERVED 2026-10-05, `/opt/argus-v18/DEPLOYED`):** vm-166 = `main` `8eff994`; vm-095 = `c87d76c`,
   the T-0013 branch `task/T-0013-langgraph-skeleton`, as planned by T-0013 step 5 (deploy the branch before the merge).
   On vm-095 migration 002 (checkpoint tables) is applied and `argus-v18-agent` runs with `ARGUS_RUNNER=langgraph`.
-  Both VMs should track `main` again once T-0013 is reviewed and merged.
+  T-0013 is merged (PR #6); putting both VMs back on `main` is task DEPLOY-MAIN (not run yet).
 - **T-0013 step 5 verified 2026-10-05** (by the reviewer `conantkd`): `argus db check` 15/15, H-1 `HEALTHY`, SC-09
   `UNSUPPORTED → escalated`, SC-01 `DIAGNOSED` (RB-001), every run checkpointed in Postgres, NO INTERFERENCE.
   Evidence: [`execution/history/T-0013-review/step-01/evidence.md`](execution/history/T-0013-review/step-01/evidence.md).
@@ -44,8 +45,9 @@ and repeated end-to-end runs.
 ## 3. Phase status
 
 See [`IMPLEMENTATION_PLAN.md`](IMPLEMENTATION_PLAN.md) §1. Done or nearly done: 0, 1, 2, 3, 5, 6, 8, 10.
-In progress: 4 (50 %), 7 (50 %), **9 (50 %: LangGraph + checkpoints done; api/worker/scheduler split next)**,
-11 (50 %), 12 (30 %), 13 (35 %). Not started: 14.
+In progress: 4 (50 %), 7 (50 %), **9 (55 %: LangGraph + checkpoints + OP-006 done; api/worker/scheduler split
+next)**, 11 (50 %), 12 (30 %), 13 (35 %). Not started: 14. Phase 10 (90 %) gets a read-only web UI as new scope:
+T-0015 (API side) and T-0016 (frontend), planned.
 
 ## 4. Scenarios verified on the real VMs
 
@@ -60,7 +62,9 @@ In progress: 4 (50 %), 7 (50 %), **9 (50 %: LangGraph + checkpoints done; api/wo
 
 ## 5. Known gaps and decisions pending
 
-- `main-guard` is green again: PR #4 is a recorded exception in `policies/main-exceptions.txt`.
+- `main-guard` is green: PRs #4 and #9–#13 are recorded exceptions in `policies/main-exceptions.txt`.
+- **Waiting for a teammate:** PR #8 (OP-005 proposal, revised; re-review by `conantkd`); the after-merge review of
+  the fast-track PRs #9–#13 (all small; #11 is the only code change: OP-006).
 - **Temporary fast-track until 2026-10-12:** `juanbetancurm` may merge their own pull requests under the conditions
   of `agents/REVIEW_PROTOCOL.md` ("Temporary fast-track"); each one is listed in `main-exceptions.txt` and reviewed
   by a teammate after the merge.
@@ -77,6 +81,6 @@ In progress: 4 (50 %), 7 (50 %), **9 (50 %: LangGraph + checkpoints done; api/wo
 |---|---|
 | B1–B5 repository, sanitization, Brain, `brain.py`, CI, hooks | done |
 | B6 first push, soft review rules (free plan), deploy keys, `ops/deploy.sh` | done (PRs #1, #2; `deploy.sh init` on both VMs 2026-10-04) |
-| B7 pilot T-0013 | done (this PR) |
-| B8 teammates | `conantkd` onboarded (PR #3, first review); `juanes6554` pending |
+| B7 pilot T-0013 | done (PR #6) |
+| B8 teammates | `conantkd` onboarded (PR #3, first review); `juanes6554` pending — his entry is T-0016 (*"I want to implement the frontend"*) |
 | B9 retire the private notes | later |

@@ -233,3 +233,15 @@ not rewritten (no force-push of `main`). They were also inside the agent image b
 was redeployed from it.
 Learned: stage explicit file paths, never whole folders; check `git status` for untracked files before a commit.
 References: PR #11, this pull request.
+
+## 2026-10-05 — Session end (juanbetancurm): handoff to conantkd
+
+Type: decision
+Who: juanbetancurm (+ agent)
+Context: end of a long session: class demo, fast-track rule, OP-006, frontend plan, a cleanup.
+Decision / result: merged today (fast-track): #9 rule, #10 demo record, #11 OP-006, #12 frontend plan (T-0015,
+T-0016), #13 removal of files committed by mistake. Open: PR #8 (OP-005, waiting for `conantkd`). Found at the
+end: vm-095 still runs `c87d76c`, older than `main` (no T-0013 review fix, no OP-006), so the old note "same code,
+nothing to rebuild" was wrong; task DEPLOY-MAIN is ready in `execution/current/code.bash`. Lease released.
+Next: `NEXT_STEP.md` (reviews first, then DEPLOY-MAIN, then T-0015 to unblock the frontend).
+References: `CURRENT_STATE.md`, `NEXT_STEP.md`, `policies/main-exceptions.txt`.
