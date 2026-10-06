@@ -6,6 +6,10 @@
   "base_commit": "24d9bb0c5b02100cc4dd689b91fb0cbc1369e9d6",
   "started_at": "2026-10-06T17:20:27+00:00",
   "expires_at": "2026-10-06T20:02:45+00:00",
-  "released": false,
-  "handoff": null
+  "released": true,
+  "handoff": {
+    "note": "done: T-0017 script+tests (76 passed), backup and VERIFY OK on vm-095, Brain updated on task/T-0017-pg-backup-drill (5f6a90d); next: open the PR (only when conantkd orders it), then after merge run the AFTER-MERGE block in code.bash to put vm-095 back on main; environment: vm-095 checkout on task/T-0017-pg-backup-drill (no rebuild), vm-166 on main, /opt/argus-v18/backups holds one root-only dump",
+    "branch": "task/T-0017-pg-backup-drill",
+    "at": "2026-10-06T19:08:30+00:00"
+  }
 }
