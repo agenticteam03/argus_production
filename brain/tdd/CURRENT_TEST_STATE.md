@@ -1,10 +1,11 @@
 # Current test state
 
-**Last updated:** 2026-10-06 · **Commit:** `main` `610e639` (after PRs #15, #16, #17, #8)
+**Last updated:** 2026-10-06 · **Commit:** `task/T-0015-ui-read-access` (steps 1-5, before commit); `main` `24d9bb0`
 
 | Stage | Result | Where / when |
 |---|---|---|
-| 3. Offline suite | **68 passed** (40 Argus incl. 12 graph-runner + 19 `brain.py` + 9 `deploy.sh`), 5 skipped (the Postgres tests) | laptop, 2026-10-06 (lab baseline check) |
+| 3. Offline suite | **81 passed**, 5 skipped on the T-0015 branch (+10 `test_ui_access.py`, +3 `test_ui_contract.py`) | laptop, in Docker `python:3.12` (Smart App Control blocks `uuid_utils` natively), 2026-10-06 |
+| 3. Offline suite (main) | **68 passed** (40 Argus incl. 12 graph-runner + 19 `brain.py` + 9 `deploy.sh`), 5 skipped (the Postgres tests) | laptop, 2026-10-06 (lab baseline check) |
 | 4. Postgres integration | **60 passed** on `661f904` (before merging main; incl. the restart test and the 15 db guarantees) against a throwaway `postgres:16-alpine`; not re-run after the merge (Docker was off) - the merge adds only the 6 offline `deploy.sh` tests | laptop, Docker Desktop, 2026-10-04 |
 | 5. CI | first run on `9ccc61d`: audit, lint, gitleaks ✓; tests ✗ (runbook library not available in CI) → fixed in PR #1 (pinned runbooks checkout with a read-only deploy key) | GitHub, 2026-10-02 |
 | 7. Deployment validation | T-0013 on vm-095 (2026-10-04): `argus db check` 15/15; H-1, SC-09, SC-01 on LangGraph, each checkpointed in Postgres; NO INTERFERENCE on both VMs. Earlier: `phase3_check` 28/28 (2026-10-01) | VMs |
@@ -41,3 +42,9 @@ Nothing (`main-guard` green again since PR #9).
   checkpoint without repeating reads; `test_checkpoint_migration_covers_every_library_migration` guards library upgrades.
 - `test_resume_inside_act_does_not_repeat_completed_reads` / `..._inside_evidence_pack_...` (T-0013 review) — a crash
   between two reads of one step resumes with only the missing read. Red seen: completed reads ran twice.
+- `tests/test_ui_access.py` (T-0015, ACR-0001) — a `scope=read` token is refused (403, audited) on every non-GET
+  route, found by walking the registered routes, and accepted on every `/api/` GET; old tokens count as full; `/me`;
+  CORS only for `ARGUS_UI_ORIGINS`. Red seen per step.
+- `tests/test_ui_contract.py` (T-0015) — the API's UI routes match `contracts/ui-api.json`; a scripted SC-03-like
+  run keeps the shapes of `contracts/samples/*.json`. Red seen: files missing. Regenerate deliberately with
+  `ARGUS_UPDATE_UI_CONTRACT=1`.

@@ -317,3 +317,16 @@ behaviour unchanged. #10: honest "reported, not verified", now superseded by DEP
 ACR-0001 pull request cannot be fast-tracked (the rule excludes ACRs) and its token code should get a teammate's review.
 All fast-track PRs #9–#13 are now reviewed.
 References: PRs #10, #11, #12, this pull request.
+
+## 2026-10-06 — T-0015 steps 2-5: read-only tokens, /me, UI origins, the UI contract
+
+Type: implementation
+Who: juanbetancurm (+ agent)
+Context: ACR-0001 (proposed, PR #22) lets user interfaces use the API with read-only tokens.
+Decision / result: `scope=read` at login gives a token with the claim `access: read`, refused on every non-GET route
+whatever the role (403, audited). `GET /api/v1/me` lists the actions a token may use; a UI shows only those.
+`ARGUS_UI_ORIGINS` enables CORS for listed origins only (none by default). The UI contract is
+`contracts/ui-api.json` plus sample responses, guarded by `tests/test_ui_contract.py` and described in
+`docs/API-FOR-UI.md`. Red seen in every step. The main laptop now runs the offline suite in Docker because Windows
+Smart App Control blocks a native LangGraph dependency. Step 6 (deploy on vm-095) needs the VM lease.
+References: ACR-0001, T-0015, PR #22.

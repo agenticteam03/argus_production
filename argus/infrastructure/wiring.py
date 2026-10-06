@@ -56,6 +56,9 @@ class Settings:
     runner: str = field(default_factory=lambda: os.getenv("ARGUS_RUNNER", "plain"))   # plain | langgraph (T-0013)
     metrics_max_staleness_s: int = field(default_factory=lambda: int(os.getenv("ARGUS_METRICS_MAX_STALENESS", "90")))
     jwt_ttl_min: int = field(default_factory=lambda: int(os.getenv("ARGUS_JWT_TTL_MIN", "30")))
+    # ACR-0001: browser origins allowed to call the API (a UI during development); empty = no CORS headers at all
+    ui_origins: list[str] = field(default_factory=lambda: [o.strip() for o in os.getenv("ARGUS_UI_ORIGINS", "").split(",")
+                                                           if o.strip()])
 
     def secret(self, rel: str) -> str | None:
         return _read(self.secrets_dir / rel)
