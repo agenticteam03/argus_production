@@ -197,3 +197,14 @@ Learned: a block that releases the lease must never sit in a file that is run tw
 helpers defined in one VM shell fail confusingly when a block is pasted on the other VM: label blocks with the
 VM prompt name and avoid shell helpers in demo scripts.
 References: `execution/history/demo-SC03/step-01/evidence.md`.
+
+## 2026-10-05 — T-0015 planned: a read-only incident UI for juanes6554 (T-0015)
+
+Type: decision
+Who: juanbetancurm (+ agent)
+Context: `juanes6554` proposed a frontend; the core team works on T-0014 at the same time.
+Decision: a read-only web page over the existing API, as an inbound adapter in `argus/adapters/inbound/web/`,
+served by the API on the loopback listener under `/ui` (SSH tunnel to reach it). It starts with an ACR for OD-10.
+Rules against conflicts: own folder; only two small touch points (end of `build_api`, one `package-data` entry);
+no API changes; shared Brain files only in the last PR; a test enforces GET-only calls.
+References: `tasks/current/T-0015-readonly-ui.md`, `NEXT_STEP.md`.
