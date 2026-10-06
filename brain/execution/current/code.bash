@@ -10,52 +10,29 @@
 # =====================================================================================
 
 # =====================================================================================
-# AFTER-MERGE — put both VMs back on `main` after PRs #15, #16, #17 and #8                        [~10 min]
-# Why: both VMs run the checkout of task/lab-baseline-check (58a51c3). Since then `main` changed only documentation
-#   and argus/orchestration/graph_runner.py (PR #16: named constants, identical behaviour). vm-166 only moves its
-#   checkout; vm-095 also rebuilds the agent, so the running image matches the deployed commit.
-# MUTATES: the git checkout on both VMs (+ DEPLOYED marker); rebuilds argus-v18-agent on vm-095.
-# Undo: sudo bash /opt/argus-v18/app/ops/deploy.sh 58a51c3 --as juanbetancurm  (on vm-095: then rebuild as in A.2).
+# AFTER-MERGE (remaining part) — put vm-166 on `main`                                            [~3 min]
+# Why: AFTER-MERGE step 01 (2026-10-06) moved vm-095 to `main` 2097eb1, but its A.1 block (vm-166) was not run.
+#   vm-166 still has the checkout 58a51c3; its services are identical to `main`, so nothing is rebuilt.
+# MUTATES: the git checkout on vm-166 (+ DEPLOYED marker). Undo: deploy.sh 58a51c3 --as <you>.
 # =====================================================================================
 
-# --- A.0 [LAPTOP · PowerShell] Lease + session marker on both VMs (MUTATES the session branch + SESSION files) -----
-cd C:\repos\ml_course_tasks\agent_frameworks\wwfinal_project\argus_production
-git switch main
-python brain\tools\brain.py start --task AFTER-MERGE
+# --- B.0 [LAPTOP · PowerShell] Lease + session marker on vm-166 (MUTATES the session branch + SESSION file) -------
+python brain\tools\brain.py start --task AFTER-MERGE-166
 git fetch -q origin "+refs/heads/session:refs/remotes/origin/session"
 $L = git show origin/session:session.json | ConvertFrom-Json
-foreach ($vm in "argus-vm095", "argus-vm166") { ssh -o BatchMode=yes $vm "echo 'holder=$($L.holder) session=$($L.session_id)' | sudo tee /opt/argus-v18/SESSION" }
-if (($L.holder -eq "juanbetancurm") -and (-not $L.released)) { "VERDICT A.0 OK" } else { "VERDICT A.0 STOP: lease not yours/active" }
-# Expected: "Lease CLAIMED by juanbetancurm until ...", both VMs print the same holder/session line, "VERDICT A.0 OK".
+ssh -o BatchMode=yes argus-vm166 "echo 'holder=$($L.holder) session=$($L.session_id)' | sudo tee /opt/argus-v18/SESSION"
+if (($L.holder -eq "juanbetancurm") -and (-not $L.released)) { "VERDICT B.0 OK" } else { "VERDICT B.0 STOP: lease not yours/active" }
 
-# --- A.1 [VM vm-166 · bash] (ubuntu@agent-test-vnic) Move the checkout to main (MUTATES files only) ---------------
+# --- B.1 [VM vm-166 · bash] (ubuntu@agent-test-vnic — check the prompt!) Move the checkout to main ----------------
 ME=juanbetancurm
 grep -q "^holder=$ME " /opt/argus-v18/SESSION && echo "session marker: mine" || echo "NOT YOUR SESSION - stop here"
 sudo bash /opt/argus-v18/app/ops/nonint-check.sh before | tail -1
 sudo bash /opt/argus-v18/app/ops/deploy.sh main --as $ME
 sudo bash /opt/argus-v18/app/ops/deploy.sh status | grep -E '^(commit|ref)=|LAB BASELINE'
 sudo bash /opt/argus-v18/app/ops/nonint-check.sh after | tail -1
-# Expected: "DEPLOY OK: <main commit> (main)". Its rebuild hint names only the agent (vm-095): nothing to do on
-# vm-166. Then ref=main, LAB BASELINE OK, NO INTERFERENCE.
+# Expected: "DEPLOY OK: <main commit> (main) on ...vm166..." (its hint names only the agent of vm-095: nothing to do
+# here), ref=main, LAB BASELINE OK, NO INTERFERENCE.
 
-# --- A.2 [VM vm-095 · bash] (ubuntu@vm-appsvnic) Deploy main + rebuild the agent (MUTATES: argus-v18-agent) -------
-ME=juanbetancurm
-grep -q "^holder=$ME " /opt/argus-v18/SESSION && echo "session marker: mine" || echo "NOT YOUR SESSION - stop here"
-sudo bash /opt/argus-v18/app/ops/nonint-check.sh before | tail -1
-sudo bash /opt/argus-v18/app/ops/deploy.sh main --as $ME
-cd /opt/argus-v18/app/deploy/vm-095 && sudo docker compose --env-file /opt/argus-v18/hosts.env -f compose.core.yml \
-  up -d --build --no-deps argus-v18-agent < /dev/null; cd ~
-sleep 15
-RUNNER=$(sudo docker exec argus-v18-agent python -c "from argus.infrastructure.wiring import Settings; print(Settings().runner)")
-echo "agent runner: $RUNNER"
-curl -s http://127.0.0.1:18000/healthz; echo
-sudo docker exec argus-v18-agent argus db check | grep -q '^15/15 database checks passed' && [ "$RUNNER" = langgraph ] \
-  && echo "VERDICT A.2 OK: vm-095 on main, agent rebuilt on LangGraph, db check 15/15" || echo "VERDICT A.2 STOP"
-sudo bash /opt/argus-v18/app/ops/deploy.sh status | grep -E '^(commit|ref)=|LAB BASELINE'
-sudo bash /opt/argus-v18/app/ops/nonint-check.sh after | tail -1
-# Expected: "DEPLOY OK: <main commit> (main)" with the agent hint (no migration hint), "agent runner: langgraph",
-# healthz "ok":true, "VERDICT A.2 OK", ref=main, LAB BASELINE OK, NO INTERFERENCE.
-
-# --- A.3 [LAPTOP · PowerShell] Release the lease ----------------------------------------------------------------
+# --- B.2 [LAPTOP · PowerShell] Release the lease ------------------------------------------------------------------
 python brain\tools\brain.py release
 # >>> Paste everything into output.bash and tell the agent "output.bash updated". <<<
