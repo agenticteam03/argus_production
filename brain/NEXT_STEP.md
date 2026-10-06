@@ -9,9 +9,8 @@
    - **After-merge review of the fast-track PRs #9–#13** (listed in `policies/main-exceptions.txt`): #9 the
      fast-track rule itself, #10 the class-demo record, #11 OP-006 (the only code change: `graph_runner.py` + 2
      tests), #12 the frontend plan, #13 removal of files committed by mistake. Findings → a follow-up PR.
-2. **DEPLOY-MAIN (VM lease, ~25 min):** ready in `execution/current/code.bash`. vm-095 still runs `c87d76c`, which
-   lacks the T-0013 review fix and OP-006: deploy `main`, **rebuild the agent**, check H-1, and re-run SC-03 with
-   archived output (that upgrades the class demo from "reported" to "verified"). vm-166 only moves its checkout.
+2. ~~DEPLOY-MAIN~~ **done 2026-10-06** (`conantkd`): both VMs on `main` `09f5ab1`, agent rebuilt, H-1 `HEALTHY`,
+   SC-03 verified on LangGraph, NO INTERFERENCE ([evidence](execution/history/DEPLOY-MAIN/step-01/evidence.md)).
 
 **Then — the next tasks:**
 
