@@ -1,62 +1,82 @@
 # Current state — the last verified shared state
 
-**As of:** 2026-10-02 · **Architecture:** v1.8.0 · **Status:** `verified` on the VMs (Tasks 0–12c); the repository
-itself is being created (shared-Brain steps B1–B5 done, B6 nearly done; `main` = `bf24fac`).
+**As of:** 2026-10-04 · **Architecture:** v1.8.0 · **Status:** `verified` on the VMs; T-0013 (LangGraph + Postgres
+checkpoints) verified on vm-095 · shared-Brain setup B1–B8 under way (two developers active).
 
-> The VMs are authoritative for what runs there: check `/opt/argus-v18/DEPLOYED` (from B6) and run the state probe
-> before trusting this file.
+> The VMs are authoritative for what runs there: run `sudo bash /opt/argus-v18/app/ops/deploy.sh status` (or read
+> `/opt/argus-v18/DEPLOYED`) and the state probe before trusting this file.
 
 ## 1. In one paragraph
 
 Argus v1.8 runs on the two VMs. The agent on vm-095 diagnoses incidents on both hosts through the per-host gateways
-and probes (vm-166 through the restricted SSH tunnel), stores everything in Postgres, and is read-only. Every scenario
-runnable today passes on the real VMs. The remaining work replaces the lab mechanics still in the core — the
-plain-Python runner (→ LangGraph), the direct tool provider (→ MCP tools child), the single agent container
-(→ api / worker / scheduler) — and adds the missing scenarios, alerting and repeated end-to-end runs.
+and probes (vm-166 through the restricted SSH tunnel), stores everything in Postgres, and is read-only. Since T-0013 the
+investigation skeleton runs as a **LangGraph graph whose state is checkpointed in Postgres** after every node, so an
+interrupted investigation resumes instead of starting over. The remaining work: split the single agent container into
+api / worker / scheduler (with recovery of interrupted runs), the MCP tools child, the missing scenarios, alerting
+and repeated end-to-end runs.
 
-## 2. What runs (OBSERVED 2026-10-02)
+## 2. What runs (OBSERVED 2026-10-04)
 
-| VM | Argus containers | Published ports |
-|---|---|---|
-| vm-095 | `argus-v18-agent`, `argus-v18-postgres` (healthy), `argus-v18-tunnel`, `argus-v18-read-gateway`, `-host-probe`, `-network-probe`, `-exporter`, `-prometheus`, `argus-lab-api` | `127.0.0.1:18000` only |
-| vm-166 | `argus-v18-read-gateway`, `-host-probe`, `-network-probe`, `-exporter`, `-prometheus`, `argus-lab-api` (healthy), `argus-lab-cache` | `127.0.0.1:18701-18703`, `127.0.0.1:18090` |
+| VM | Argus containers | Published ports | Code (`deploy.sh status`) |
+|---|---|---|---|
+| vm-095 | `argus-v18-agent` (LangGraph runner), `argus-v18-postgres` (healthy), `argus-v18-tunnel`, `argus-v18-read-gateway`, `-host-probe`, `-network-probe`, `-exporter`, `-prometheus`, `argus-lab-api` | `127.0.0.1:18000` only | branch `task/T-0013-langgraph-skeleton` @ `c87d76c` — redeploy `main` after this PR is merged |
+| vm-166 | `argus-v18-read-gateway`, `-host-probe`, `-network-probe`, `-exporter`, `-prometheus`, `argus-lab-api` (healthy), `argus-lab-cache` | `127.0.0.1:18701-18703`, `127.0.0.1:18090` | `main` @ `8eff994` |
 
-- Code on the VMs: deployed by laptop tarball from the pre-repository folder (equivalent to this repository's code
-  before the B2 sanitization). From B6 on, the VMs pull from Git (`ops/deploy.sh`).
-- `/opt/argus-v18/hosts.env` exists on both VMs; the live tunnel target matches it (Task 12c).
-- Agent: Postgres system of record (`argus db check` 13/13), OpenAI `gpt-5.6-luna` via the Responses API, runbooks at
-  library v1.1.0. In the repository the library now lives in `argus/runbooks/` (D-002); the running agent still reads
-  the mounted copy `/opt/argus-runbooks/056b36e` until its next redeploy (same content).
+- `/opt/argus-v18/app` is a **git checkout** on both VMs (read-only deploy key per VM); the old tarball folder is kept
+  as `/opt/argus-v18/app.pre-git-<time>`. Only the agent on vm-095 was rebuilt; the other containers still run the
+  code they were started with (same behaviour).
+- Agent: `ARGUS_RUNNER=langgraph`, Postgres system of record with migrations `001_init` + `002_checkpoints`;
+  `argus db check` **15/15**; OpenAI `gpt-5.6-luna` via the Responses API; runbooks shipped inside the image
+  (`argus/runbooks/`, library v1.1.0). `/opt/argus-runbooks/056b36e` on vm-095 is no longer used.
+- `/opt/argus-v18/hosts.env` on both VMs; the tunnel target matches it.
 - Users: `juanbetancurm`, `conantkd`, `juanes6554` (operator, one shared team password); the old personal user is
-  disabled. **Not yet verified:** a login test per user (legacy step 12b.2).
-- Last `nonint-check.sh after`: **NO INTERFERENCE** on both VMs (2026-10-02).
+  disabled. Login test per user (legacy step 12b.2) **done 2026-10-05**: all three log in and get `outcome: HEALTHY`
+  on a `--check` of `vm-095/container:argus-lab-api`.
+- Last `nonint-check.sh after`: **NO INTERFERENCE** on both VMs (2026-10-05).
+- **Deployed code (OBSERVED 2026-10-05, `/opt/argus-v18/DEPLOYED`):** vm-166 = `main` `8eff994`; vm-095 = `c87d76c`,
+  the T-0013 branch `task/T-0013-langgraph-skeleton`, as planned by T-0013 step 5 (deploy the branch before the merge).
+  On vm-095 migration 002 (checkpoint tables) is applied and `argus-v18-agent` runs with `ARGUS_RUNNER=langgraph`.
+  Both VMs should track `main` again once T-0013 is reviewed and merged.
+- **T-0013 step 5 verified 2026-10-05** (by the reviewer `conantkd`): `argus db check` 15/15, H-1 `HEALTHY`, SC-09
+  `UNSUPPORTED → escalated`, SC-01 `DIAGNOSED` (RB-001), every run checkpointed in Postgres, NO INTERFERENCE.
+  Evidence: [`execution/history/T-0013-review/step-01/evidence.md`](execution/history/T-0013-review/step-01/evidence.md).
 
 ## 3. Phase status
 
 See [`IMPLEMENTATION_PLAN.md`](IMPLEMENTATION_PLAN.md) §1. Done or nearly done: 0, 1, 2, 3, 5, 6, 8, 10.
-In progress: 4 (50 %), 7 (50 %), 9 (30 %), 11 (50 %), 12 (30 %), 13 (35 %). Not started: 14.
+In progress: 4 (50 %), 7 (50 %), **9 (50 %: LangGraph + checkpoints done; api/worker/scheduler split next)**,
+11 (50 %), 12 (30 %), 13 (35 %). Not started: 14.
 
-## 4. Scenarios verified on the real VMs (one run each)
+## 4. Scenarios verified on the real VMs
 
-H-1/H-2 (healthy checks), SC-01 (OOM, vm-166), SC-02 (non-OOM crash, vm-095), the identity proof (SC-01 + SC-02 at
-once), SC-03 (dependency root cause), SC-09 (unsupported → evidence pack, no model), SC-10 (blind spot →
-undiagnosable for one host only), SC-11 (refusals), SC-12 (executor partition → escalation for one host only).
+- With the plain runner (2026-10-01/02): H-1/H-2, SC-01, SC-02, the identity proof (SC-01 + SC-02 at once), SC-03,
+  SC-09, SC-10, SC-11, SC-12.
+- **With the LangGraph runner (2026-10-04):** H-1 (healthy), SC-09 (unsupported → evidence pack), SC-01 (diagnosed,
+  RB-001) — every run checkpointed in Postgres. The others are expected to behave the same (parity tests); re-run
+  them as part of Phase 12.
+- **SC-03 on the LangGraph runner (2026-10-05, class demo):** reported successful by `juanbetancurm` (root cause =
+  `argus-lab-cache`, the api the victim), but the output was not archived, so it is **reported, not verified**:
+  [`execution/history/demo-SC03/step-01/evidence.md`](execution/history/demo-SC03/step-01/evidence.md).
 
 ## 5. Known gaps and decisions pending
 
+- `main-guard` is green again: PR #4 is a recorded exception in `policies/main-exceptions.txt`.
+- **Temporary fast-track until 2026-10-12:** `juanbetancurm` may merge their own pull requests under the conditions
+  of `agents/REVIEW_PROTOCOL.md` ("Temporary fast-track"); each one is listed in `main-exceptions.txt` and reviewed
+  by a teammate after the merge.
 - Pending team decision **D-001** (cross-host path and alert direction) and open problems OP-001…OP-003:
   [`OPEN_PROBLEMS.md`](OPEN_PROBLEMS.md).
 - Differences between the architecture text and the running system: [`architecture/SUMMARY.md`](architecture/SUMMARY.md).
+- Nothing resumes an interrupted run automatically yet (no worker recovery loop): that belongs to the
+  api/worker/scheduler split.
 - Postgres backup/restore drill not done. vm-095 says "System restart required" — do not reboot (team decision).
 
-## 6. The shared-Brain setup (in progress)
+## 6. The shared-Brain setup
 
 | Step | State |
 |---|---|
-| B1 repository + code | done (32/32 tests including Postgres) |
-| B2 code sanitization, `hosts.env`, runbook pin (pin later retired by D-002) | done, verified on the VMs |
-| B3 stable Brain | written |
-| B4 this mutable Brain | written |
-| B5 `brain.py` (+15 tests), pre-commit (Brain audit), CI workflow, root shims, `.gitattributes` | done locally; CI runs for the first time at the B6 push |
-| B6 audit → first commit → push → review rule → deploy keys + `ops/deploy.sh` | audit clean; `9ccc61d` pushed; `session` branch works; branch protection **refused (free plan)** → soft rules; PR #1 merged (`bf24fac`, CI green); runbooks moved in (D-002); Task B6d part 1 done 2026-10-03: read-only deploy keys on both VMs, GitHub host key pinned, both VMs can read the repository; PR #2 (`ops/deploy.sh`) waits for a teammate's review; then `deploy.sh init` |
-| B7 pilot T-0013 · B8 teammates · B9 retire the private notes | later |
+| B1–B5 repository, sanitization, Brain, `brain.py`, CI, hooks | done |
+| B6 first push, soft review rules (free plan), deploy keys, `ops/deploy.sh` | done (PRs #1, #2; `deploy.sh init` on both VMs 2026-10-04) |
+| B7 pilot T-0013 | done (this PR) |
+| B8 teammates | `conantkd` onboarded (PR #3, first review); `juanes6554` pending |
+| B9 retire the private notes | later |

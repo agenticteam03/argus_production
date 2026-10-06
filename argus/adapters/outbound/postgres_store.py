@@ -21,8 +21,26 @@ class PostgresStore:
                                    kwargs={"autocommit": True}, check=ConnectionPool.check_connection,
                                    name="argus")
         self.pool.wait(timeout=30)
+        self.conninfo = conninfo
+        self._checkpoint_pool: ConnectionPool | None = None
+
+    def checkpointer(self):
+        """LangGraph's Postgres checkpointer (T-0013) on its own small pool, configured as the library requires
+        (autocommit, dict rows, no server-side prepared statements). Its tables come from migration 002; it never
+        runs DDL (the runtime role has none)."""
+        from langgraph.checkpoint.postgres import PostgresSaver
+        from psycopg.rows import dict_row
+        if self._checkpoint_pool is None:
+            self._checkpoint_pool = ConnectionPool(
+                self.conninfo, min_size=1, max_size=2, open=True, name="argus-checkpoints",
+                kwargs={"autocommit": True, "prepare_threshold": 0, "row_factory": dict_row},
+                check=ConnectionPool.check_connection)
+            self._checkpoint_pool.wait(timeout=30)
+        return PostgresSaver(self._checkpoint_pool)
 
     def close(self) -> None:
+        if self._checkpoint_pool is not None:
+            self._checkpoint_pool.close()
         self.pool.close()
 
     def _q(self, sql: str, params: tuple = ()) -> list[tuple]:
@@ -197,6 +215,9 @@ CHECKS_SQL: list[tuple[str, str, bool]] = [
     ("evidence without a SHA-256 refused", "INSERT INTO evidence (evidence_id, incident_id, collected_at, sha256, body) "
                                            "VALUES ('ev_dbcheck2', 'inc_dbcheck', now(), 'nothash', '{}')", False),
     ("DDL refused (CREATE TABLE)", "CREATE TABLE dbcheck_x (i int)", False),
+    ("insert checkpoint (T-0013)", "INSERT INTO checkpoints (thread_id, checkpoint_id, checkpoint) VALUES "
+                                   "('dbcheck', 'c1', '{}')", True),
+    ("DELETE checkpoint refused", "DELETE FROM checkpoints WHERE thread_id = 'dbcheck'", False),
     ("runtime role is not superuser", "DO $$ BEGIN IF (SELECT rolsuper FROM pg_roles WHERE rolname = current_user) "
                                       "THEN RAISE EXCEPTION 'superuser'; END IF; END $$", True),
 ]

@@ -37,4 +37,26 @@ GitHub cannot block a merge for us, so the rule is enforced by the team and chec
 - the only exceptions are listed in [`../policies/main-exceptions.txt`](../policies/main-exceptions.txt).
 
 If `main-guard` is red: stop and tell the team; the fix is a follow-up PR that gets the missing review (never a
-force push). Nobody merges their own pull request. If A works again before anyone reviewed, A continues on the same branch.
+force push). Nobody merges their own pull request (except under the temporary fast-track below). If A works again
+before anyone reviewed, A continues on the same branch.
+
+## Temporary fast-track (until 2026-10-12, then it expires by itself)
+
+**Why:** the course presentation came earlier than planned; waiting for a review on every pull request would block
+the work. Decided by `juanbetancurm` on 2026-10-05 (journal). Teammates may object in any PR; an objection ends it.
+
+**Who:** `juanbetancurm`. **Until:** 2026-10-12 inclusive. After that date no new fast-track line may be added.
+
+A fast-track pull request may be merged by its author when **all** of these hold:
+- it is still a pull request from a task branch (no direct push to `main`; the pre-push hook stays);
+- CI `test` is green on its last push and the branch is up to date with `main`;
+- the agent did the review checklist above on it and posted the report as a PR comment;
+- **the PR adds its own line** to [`../policies/main-exceptions.txt`](../policies/main-exceptions.txt)
+  (`pr <n>  <date>  <who>  fast-track: <what>`) in a commit on the PR branch, so `main-guard` stays green and every
+  self-merge stays visible;
+- it does **not** touch a safety principle (read-only, write gate, host isolation, evidence integrity, secrets),
+  `policies/SECURITY.md`, an ACR, or the enforcement itself (`brain.py verify-main`, CI `main-guard`, the hooks).
+  Those still need a teammate's approval.
+
+**After the merge:** a teammate reviews the merged PR at the start of their next session (same checklist); findings
+become a follow-up PR. Nothing here changes `brain.py`, CI or the hooks.

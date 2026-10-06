@@ -22,7 +22,7 @@ calls); the phases below replace each simplification.
 | 6 | Runbooks | the library drives recall | diagnoses traceable to a runbook version | ✅ 85 % | recall-quality checks per class |
 | 7 | Monitoring & detection | per-host Prometheus, detectors | detect deterministically before any AI | 🟡 50 % | Alertmanager, node-exporter, cAdvisor; pull firing alerts |
 | 8 | Policies | scope, limits, closed write gate as data | safety is configuration, not code | ✅ 80 % | routing data; standing write-gate test on the VMs |
-| 9 | Agent workflow | the v1.8 skeleton in LangGraph | resume after a crash; a real worker and scheduler | 🟡 30 % | **T-0013**: LangGraph + checkpointer → split api/worker → scheduler |
+| 9 | Agent workflow | the v1.8 skeleton in LangGraph | resume after a crash; a real worker and scheduler | 🟡 50 % | T-0013 done (LangGraph + Postgres checkpoints); next T-0014: split api/worker → scheduler |
 | 10 | Output modes | formatted CLI and `--raw` | readable for humans, complete for developers | ✅ 90 % | fix the truncated ACT result column |
 | 11 | Synthetic incidents | controlled failures on both VMs | proof needs reproducible failures | 🟡 50 % | SC-04 Postgres, SC-05 disk, SC-06 CPU, SC-07 DNS, SC-08 nginx |
 | 12 | End-to-end tests | every scenario through the CLI | quality claims need repeated runs | 🟡 30 % | scripted e2e suite; ≥ 5 runs per scenario |

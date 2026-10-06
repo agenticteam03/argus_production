@@ -108,3 +108,92 @@ Problems on the way:
 - B6d.4 sent an empty key for a VM without a key file, and its message blamed the org setting. It now skips
   registered keys, refuses to send a missing key, and reports the real cause.
 Learned: a code.bash step must never depend on text the developer has to carry over by hand.
+
+## 2026-10-04 — T-0013 verified on vm-095: the skeleton runs on LangGraph with Postgres checkpoints (T-0013)
+
+Type: deployment
+Who: juanbetancurm (+ agent); PRs #2 and #4 merged by conantkd, PR #3 by juanbetancurm
+Context: Phase 9 first slice; the pilot of the shared-Brain protocol.
+Decision / result (`OBSERVED`):
+- `/opt/argus-v18/app` is a git checkout on both VMs (`deploy.sh init`). vm-095 runs this branch; vm-166 runs `main`.
+- Migration 002 is applied; `argus db check` passes 15/15.
+- The agent was rebuilt with `ARGUS_RUNNER=langgraph`, and the runbooks now ship inside the image.
+- H-1, SC-09 and SC-01 give the same outcomes as before, and each run is checkpointed in Postgres.
+- NO INTERFERENCE on both VMs.
+- Compose now defaults to `langgraph`.
+Consequences:
+- Phase 9 is at 50 %.
+- An interrupted run can resume from its checkpoint, but nothing triggers that automatically yet; that comes with the
+  worker (T-0014).
+- After the merge, vm-095 must be put back on `main` with `deploy.sh main`.
+References: `tasks/completed/T-0013-langgraph-skeleton.md`, `execution/history/T-0013/step-05/evidence.md`.
+Learned: a readiness gate must wait on the data the agent reads (Prometheus), not on its source (Docker).
+
+## 2026-10-05 — T-0013 review by conantkd: step 5 re-verified, login test done, one real gap fixed (T-0013)
+
+Type: testing
+Who: conantkd (review), juanbetancurm (+ agent)
+Context: the closing commit of T-0013 had not been pushed. The reviewer saw the branch at the step-5 commands, ran
+step 5 again on the VMs and recorded it on `task/T-0013-step5-verify`, now merged into the T-0013 branch.
+Decision / result (`OBSERVED`):
+- Step 5 re-verified with the same outcomes.
+- The per-user login test (legacy 12b.2) is done: all three users get HEALTHY.
+- Review findings:
+  - the `ARGUS_RUNNER` default and the missing Brain items were already in the unpushed closing commit;
+  - **real gap fixed:** a crash in the middle of `act` repeated the reads already completed in that step. Now one read
+    runs per graph step, in `act` and in `evidence_pack`.
+  - Two proposals go to separate PRs for the team to approve: OP-004, a retention cleanup for checkpoints; OP-005, a
+    restart signal that does not undercount.
+Consequences: criterion 1 ("without repeating completed tool calls") now holds at read granularity; 63 tests pass.
+Learned: push the closing commit before handing over; a reviewer can only review what is on GitHub.
+
+## 2026-10-05 — T-0013 final review: approved and merged; recursion limit follow-up (T-0013)
+
+Type: decision
+Who: conantkd (review, + agent)
+Context: final review of PR #6 at `5a1b765` (the one-read-per-graph-step fix).
+Decision / result (`OBSERVED`): 63 passed / 5 skipped locally (Postgres tests green in CI); red seen reproduced for
+both new tests on the previous `graph_runner.py`; Brain consistent; no secrets. Approved and merged as is.
+Consequences:
+- One follow-up, recorded as OP-006: the fixed LangGraph `recursion_limit` (100) can be too small for larger step
+  budgets now that each read is a graph step. Agreed fix: `max(100, formula)`.
+- The fix itself has not run on the VMs yet (vm-095 runs `c87d76c`): repeat H-1 / SC-09 / SC-01 after `deploy.sh main`.
+References: `tasks/completed/T-0013-langgraph-skeleton.md` (finding 6), `OPEN_PROBLEMS.md` OP-006.
+Learned: when a change multiplies graph steps, check the framework's own step limit too.
+
+## 2026-10-05 — OP-004 accepted: checkpoint retention, with review conditions (OP-004)
+
+Type: decision
+Who: conantkd (review of PR #7 by juanbetancurm)
+Decision / result: the checkpoint retention proposal is accepted with three conditions, recorded in
+`OPEN_PROBLEMS.md` OP-004: an Argus command run with the owner DSN (not a standalone script), dry-run first, and
+"ended" defined as `body->>'closed_at'`.
+Consequences: a later task implements it; until then checkpoints keep growing (small at today's volume).
+References: `OPEN_PROBLEMS.md` OP-004, PR #7.
+
+## 2026-10-05 — Temporary fast-track for self-merged pull requests; PR #4 recorded as an exception
+
+Type: decision
+Who: juanbetancurm (+ agent)
+Context: the course presentation came earlier than planned; waiting for a teammate review on every pull request
+would block the work. `main-guard` was red because PR #4 had no recorded approval.
+Decision: PR #4 is added to `policies/main-exceptions.txt` (documentation only). Until 2026-10-12, `juanbetancurm`
+may merge their own pull requests under the conditions in `agents/REVIEW_PROTOCOL.md` ("Temporary fast-track"):
+still a PR from a task branch, CI `test` green, agent review report posted, the PR lists itself in
+`main-exceptions.txt`, and no change to a safety principle, `SECURITY.md`, an ACR or the enforcement itself.
+Consequences: `brain.py`, CI and the hooks are unchanged; every self-merge is listed and reviewed by a teammate
+after the merge. Teammates may object in any PR, which ends the fast-track.
+References: `agents/REVIEW_PROTOCOL.md`, `policies/main-exceptions.txt`.
+
+## 2026-10-05 — SC-03 shown in the class demo on the LangGraph runner (DEMO-SC03)
+
+Type: testing
+Who: juanbetancurm (+ agent)
+Context: a class demo: stop the lab Redis, the api turns unhealthy, Argus must blame the cache, not the api.
+Decision / result: reported successful by the developer (root cause = `argus-lab-cache`). The output was not
+archived, so `CURRENT_STATE.md` lists it as reported, not verified. Demo commands archived in
+`execution/history/demo-SC03/step-01/`.
+Learned: a block that releases the lease must never sit in a file that is run twice (dry run, then class); and
+helpers defined in one VM shell fail confusingly when a block is pasted on the other VM: label blocks with the
+VM prompt name and avoid shell helpers in demo scripts.
+References: `execution/history/demo-SC03/step-01/evidence.md`.
