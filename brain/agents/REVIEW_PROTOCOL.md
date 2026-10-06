@@ -45,7 +45,9 @@ before anyone reviewed, A continues on the same branch.
 **Why:** the course presentation came earlier than planned; waiting for a review on every pull request would block
 the work. Decided by `juanbetancurm` on 2026-10-05 (journal). Teammates may object in any PR; an objection ends it.
 
-**Who:** `juanbetancurm`, `conantkd` (added 2026-10-06 by PR #16, approved by `juanbetancurm`). **Until:** 2026-10-12 inclusive. After that date no new fast-track line may be added.
+**Who:** `juanbetancurm`, `conantkd` (added 2026-10-06 by PR #16, approved by `juanbetancurm`), `juanes6554` (added
+2026-10-06 for the frontend, T-0016, once his onboarding is done; approved by `conantkd`). **Until:** 2026-10-12
+inclusive. After that date no new fast-track line may be added.
 
 A fast-track pull request may be merged by its author when **all** of these hold:
 - it is still a pull request from a task branch (no direct push to `main`; the pre-push hook stays);
@@ -55,8 +57,10 @@ A fast-track pull request may be merged by its author when **all** of these hold
   (`pr <n>  <date>  <who>  fast-track: <what>`) in a commit on the PR branch, so `main-guard` stays green and every
   self-merge stays visible;
 - it does **not** touch a safety principle (read-only, write gate, host isolation, evidence integrity, secrets),
-  `policies/SECURITY.md`, an ACR, or the enforcement itself (`brain.py verify-main`, CI `main-guard`, the hooks).
-  Those still need a teammate's approval.
+  `policies/SECURITY.md`, an ACR, or the enforcement itself (`brain.py verify-main`, CI `main-guard`, the hooks,
+  anything under `.github/workflows/`). Those still need a teammate's approval. For the frontend this means: the PR
+  that adds the CI job `frontend` and any change to `contracts/` need a teammate; frontend PRs after that need the
+  job `frontend` green as well (tests first, `tasks/current/T-0016-frontend.md`).
 
 **After the merge:** a teammate reviews the merged PR at the start of their next session (same checklist); findings
 become a follow-up PR. Nothing here changes `brain.py`, CI or the hooks.
