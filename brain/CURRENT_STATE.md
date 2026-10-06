@@ -20,8 +20,8 @@ and repeated end-to-end runs.
 
 | VM | Argus containers | Published ports | Code (`deploy.sh status`) |
 |---|---|---|---|
-| vm-095 | `argus-v18-agent` (LangGraph runner), `argus-v18-postgres` (healthy), `argus-v18-tunnel`, `argus-v18-read-gateway`, `-host-probe`, `-network-probe`, `-exporter`, `-prometheus`, `argus-lab-api` | `127.0.0.1:18000` only | `main` `09f5ab1` — agent rebuilt 2026-10-06 (T-0013 review fix + OP-006); checkout on `task/lab-baseline-check` `58a51c3` (only `ops/deploy.sh` differs: no rebuild) |
-| vm-166 | `argus-v18-read-gateway`, `-host-probe`, `-network-probe`, `-exporter`, `-prometheus`, `argus-lab-api` (healthy), `argus-lab-cache` | `127.0.0.1:18701-18703`, `127.0.0.1:18090` | `main` `09f5ab1`; checkout on `task/lab-baseline-check` `58a51c3` (only `ops/deploy.sh` differs: no rebuild) |
+| vm-095 | `argus-v18-agent` (LangGraph runner), `argus-v18-postgres` (healthy), `argus-v18-tunnel`, `argus-v18-read-gateway`, `-host-probe`, `-network-probe`, `-exporter`, `-prometheus`, `argus-lab-api` | `127.0.0.1:18000` only | `main` `2097eb1` — agent rebuilt 2026-10-06 (AFTER-MERGE; the image matches the deployed commit) |
+| vm-166 | `argus-v18-read-gateway`, `-host-probe`, `-network-probe`, `-exporter`, `-prometheus`, `argus-lab-api` (healthy), `argus-lab-cache` | `127.0.0.1:18701-18703`, `127.0.0.1:18090` | checkout `58a51c3` (`task/lab-baseline-check`); its services equal `main`'s. **Pending:** move to `main` (`execution/current/code.bash`, ~3 min) |
 
 - `/opt/argus-v18/app` is a **git checkout** on both VMs (read-only deploy key per VM); the old tarball folder is kept
   as `/opt/argus-v18/app.pre-git-<time>`. Only the agent on vm-095 was rebuilt; the other containers still run the
@@ -34,7 +34,10 @@ and repeated end-to-end runs.
   disabled. Login test per user (legacy step 12b.2) **done 2026-10-05**: all three log in and get `outcome: HEALTHY`
   on a `--check` of `vm-095/container:argus-lab-api`.
 - Last `nonint-check.sh after`: **NO INTERFERENCE** on both VMs (2026-10-06).
-- **Deployed code (OBSERVED 2026-10-06, `/opt/argus-v18/DEPLOYED`):** both VMs `commit=09f5ab1…`, `ref=main`
+- **Latest (OBSERVED 2026-10-06, AFTER-MERGE):** vm-095 `commit=2097eb1…`, `ref=main`, agent rebuilt, `LAB BASELINE OK`,
+  NO INTERFERENCE; vm-166's block was not run (still `58a51c3`). Evidence:
+  [`execution/history/AFTER-MERGE/step-01/evidence.md`](execution/history/AFTER-MERGE/step-01/evidence.md).
+- **Deployed code (OBSERVED earlier on 2026-10-06, `/opt/argus-v18/DEPLOYED`):** both VMs `commit=09f5ab1…`, `ref=main`
   (DEPLOY-MAIN). On vm-095 migrations `001_init` + `002_checkpoints` are applied (no new one) and `argus-v18-agent`
   was rebuilt from `main` and runs with `ARGUS_RUNNER=langgraph`; `argus db check` 15/15.
   Evidence: [`execution/history/DEPLOY-MAIN/step-01/evidence.md`](execution/history/DEPLOY-MAIN/step-01/evidence.md).
