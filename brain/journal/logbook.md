@@ -245,3 +245,16 @@ end: vm-095 still runs `c87d76c`, older than `main` (no T-0013 review fix, no OP
 nothing to rebuild" was wrong; task DEPLOY-MAIN is ready in `execution/current/code.bash`. Lease released.
 Next: `NEXT_STEP.md` (reviews first, then DEPLOY-MAIN, then T-0015 to unblock the frontend).
 References: `CURRENT_STATE.md`, `NEXT_STEP.md`, `policies/main-exceptions.txt`.
+
+## 2026-10-06 — After-merge review of fast-track PRs #9 and #13
+
+Type: review
+Who: conantkd (+ agent)
+Context: `REVIEW_PROTOCOL.md` ("Temporary fast-track"): a teammate reviews each self-merged PR after the merge.
+Decision / result: #13 (removal of the practice-lab files) has no findings: only the 8 files were removed, they
+contain no secrets (loopback addresses only), nothing references them, and the agent image was rebuilt from a
+later commit by DEPLOY-MAIN. #9 (the fast-track rule) meets its own conditions. It approved itself and the `pr 4`
+exception without a teammate, so this review is their first one: accepted, no objection. Follow-up in this PR:
+the `main-exceptions.txt` header no longer contradicts the fast-track lines, and `CURRENT_STATE.md` lists which
+after-merge reviews are done (#9, #13) and which are pending (#10, #11, #12).
+References: PR #9, PR #13, this pull request.
