@@ -38,6 +38,22 @@ if [ "$MODE" = status ]; then
   else
     echo "checkout: $APP is not a git clone yet"
   fi
+  # Is the lab at its baseline (every argus-lab-* running, none unhealthy)? A scenario left half-done makes the
+  # next --check say DIAGNOSED (DEPLOY-MAIN found argus-lab-cache stopped for ~7 h); nonint-check ignores Argus objects.
+  D="${ARGUS_DOCKER:-docker}"
+  if ! LAB="$($D ps -a --filter name=argus-lab- --format '{{.Names}} {{.State}} {{.Status}}' 2>/dev/null)"; then
+    echo "lab: docker not available"
+  elif [ -z "$LAB" ]; then
+    echo "lab: no argus-lab-* containers"
+  else
+    BAD=""
+    while read -r name state rest; do
+      echo "lab: $name $state $rest"
+      if [ "$state" != running ] || echo "$rest" | grep -qE 'unhealthy|health: starting'; then BAD="$BAD $name"; fi
+    done <<< "$LAB"
+    [ -z "$BAD" ] && echo "LAB BASELINE OK" \
+      || echo "LAB BASELINE NOT OK:$BAD (a scenario left the lab changed? restore it before testing)"
+  fi
   exit 0
 fi
 

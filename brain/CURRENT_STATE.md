@@ -20,8 +20,8 @@ and repeated end-to-end runs.
 
 | VM | Argus containers | Published ports | Code (`deploy.sh status`) |
 |---|---|---|---|
-| vm-095 | `argus-v18-agent` (LangGraph runner), `argus-v18-postgres` (healthy), `argus-v18-tunnel`, `argus-v18-read-gateway`, `-host-probe`, `-network-probe`, `-exporter`, `-prometheus`, `argus-lab-api` | `127.0.0.1:18000` only | `main` `09f5ab1` — agent rebuilt 2026-10-06 (T-0013 review fix + OP-006) |
-| vm-166 | `argus-v18-read-gateway`, `-host-probe`, `-network-probe`, `-exporter`, `-prometheus`, `argus-lab-api` (healthy), `argus-lab-cache` | `127.0.0.1:18701-18703`, `127.0.0.1:18090` | `main` `09f5ab1` (checkout only; no target-service code changed since `8eff994`) |
+| vm-095 | `argus-v18-agent` (LangGraph runner), `argus-v18-postgres` (healthy), `argus-v18-tunnel`, `argus-v18-read-gateway`, `-host-probe`, `-network-probe`, `-exporter`, `-prometheus`, `argus-lab-api` | `127.0.0.1:18000` only | `main` `09f5ab1` — agent rebuilt 2026-10-06 (T-0013 review fix + OP-006); checkout on `task/lab-baseline-check` `58a51c3` (only `ops/deploy.sh` differs: no rebuild) |
+| vm-166 | `argus-v18-read-gateway`, `-host-probe`, `-network-probe`, `-exporter`, `-prometheus`, `argus-lab-api` (healthy), `argus-lab-cache` | `127.0.0.1:18701-18703`, `127.0.0.1:18090` | `main` `09f5ab1`; checkout on `task/lab-baseline-check` `58a51c3` (only `ops/deploy.sh` differs: no rebuild) |
 
 - `/opt/argus-v18/app` is a **git checkout** on both VMs (read-only deploy key per VM); the old tarball folder is kept
   as `/opt/argus-v18/app.pre-git-<time>`. Only the agent on vm-095 was rebuilt; the other containers still run the
@@ -54,8 +54,11 @@ T-0015 (API side) and T-0016 (frontend), planned.
 - With the plain runner (2026-10-01/02): H-1/H-2, SC-01, SC-02, the identity proof (SC-01 + SC-02 at once), SC-03,
   SC-09, SC-10, SC-11, SC-12.
 - **With the LangGraph runner (2026-10-04):** H-1 (healthy), SC-09 (unsupported → evidence pack), SC-01 (diagnosed,
-  RB-001) — every run checkpointed in Postgres. The others are expected to behave the same (parity tests); re-run
-  them as part of Phase 12.
+  RB-001) — every run checkpointed in Postgres.
+- **All the plain-runner scenarios now pass on LangGraph (2026-10-06, final `main` agent, one run each):** H-2,
+  SC-02, the identity proof, SC-10, SC-11, SC-12 (LGS), plus SC-03 (DEPLOY-MAIN). SC-12 escalates at step 2 (plain
+  runner: step 3). Evidence: [`execution/history/LGS/step-01/evidence.md`](execution/history/LGS/step-01/evidence.md).
+  Phase 12 still needs ≥ 5 runs per scenario.
 - **SC-03 on the LangGraph runner: verified 2026-10-06** on the final `main` code (DEPLOY-MAIN D.5): `DIAGNOSED`,
   root cause `vm-166/container:argus-lab-cache`, confidence high, the api the victim; H-1 `HEALTHY` before (after
   restoring the lab) and after: [`execution/history/DEPLOY-MAIN/step-01/evidence.md`](execution/history/DEPLOY-MAIN/step-01/evidence.md)
@@ -74,8 +77,8 @@ T-0015 (API side) and T-0016 (frontend), planned.
 - Differences between the architecture text and the running system: [`architecture/SUMMARY.md`](architecture/SUMMARY.md).
 - Nothing resumes an interrupted run automatically yet (no worker recovery loop): that belongs to the
   api/worker/scheduler split.
-- The state probe does not check `argus-lab-*` health and `nonint-check.sh` does not cover Argus objects: a lab
-  left in a scenario state goes unnoticed (DEPLOY-MAIN found `argus-lab-cache` stopped for ~7 h). Small follow-up.
+- Lab baseline: `deploy.sh status` now ends with `LAB BASELINE OK` or names the stopped/unhealthy `argus-lab-*`
+  (DEPLOY-MAIN found `argus-lab-cache` stopped for ~7 h; `nonint-check.sh` does not cover Argus objects).
 - Postgres backup/restore drill not done. vm-095 says "System restart required" — do not reboot (team decision).
 
 ## 6. The shared-Brain setup

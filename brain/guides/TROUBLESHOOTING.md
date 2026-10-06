@@ -50,7 +50,7 @@ Record the lesson: the journal entry gets a `Learned:` line; a problem seen twic
 | 17 | a crash-looping container is reported UNSUPPORTED ("no class matched", `restarts_10m=1`) although Docker shows 3+ restarts | Prometheus samples every 15 s and `restarts_10m` is computed from its samples, so it trails Docker's own counter | wait on Prometheus, not Docker: poll `restarts_10m` on the target host's Prometheus until ≥ 3 (T-0013 step 5, S5.6) |
 | 16 | `DEPLOY STOP: NOT YOUR SESSION` | `/opt/argus-v18/SESSION` names someone else, or the marker line was not pasted | `brain.py start`, then paste its VM-marker line on the VM |
 | 18 | a pasted block **hangs with no output** at `db-migrate.sh`, `argus diagnose` or another `docker exec -i` command | `docker exec -i` forwards the terminal's stdin, so it waits on (or swallows) the rest of the pasted block; a `\| tail` hides that it is waiting | Ctrl+C (check `pg_stat_activity`: nothing half-applied); run it with `< /dev/null` and without `\| tail` (DEPLOY-MAIN D.2) |
-| 19 | a `--check` on a lab service says DIAGNOSED instead of HEALTHY | the lab is not in its baseline state (e.g. `argus-lab-cache` left stopped after a scenario) — Argus is right | `sudo docker ps -a --filter name=argus-lab-` on the target VM; restore the baseline, then re-check (DEPLOY-MAIN D.3b) |
+| 19 | a `--check` on a lab service says DIAGNOSED instead of HEALTHY | the lab is not in its baseline state (e.g. `argus-lab-cache` left stopped after a scenario) — Argus is right | `sudo bash /opt/argus-v18/app/ops/deploy.sh status` (it ends with `LAB BASELINE OK` or names the stopped/unhealthy lab containers); restore the baseline, then re-check (DEPLOY-MAIN D.3b) |
 
 ## First diagnostic commands
 

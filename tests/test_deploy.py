@@ -121,3 +121,40 @@ def test_status_needs_no_session(env):
     r = deploy(env, "status", who="bob")
     assert r.returncode == 0
     assert "commit=" in r.stdout
+
+
+# --- status also reports whether the lab is at its baseline (DEPLOY-MAIN found argus-lab-cache stopped for ~7 h) ---
+
+def fake_docker(env, lines: str) -> str:
+    """A stand-in for `docker ps` that prints the given '<name> <state> <status>' lines."""
+    script = env["tmp"] / "fake-docker.sh"
+    script.write_bytes(b"#!/usr/bin/env bash\ncat <<'OUT'\n" + lines.encode() + b"OUT\n")
+    return f"bash {script.as_posix()}"
+
+
+def status(env, docker: str) -> subprocess.CompletedProcess:
+    e = dict(os.environ, ARGUS_DEPLOY_HOME=env["home"].as_posix(), ARGUS_DEPLOY_REPO=env["origin"].as_posix(),
+             ARGUS_DOCKER=docker)
+    return subprocess.run([BASH, SCRIPT.as_posix(), "status"], env=e, capture_output=True, text=True)
+
+
+def test_status_says_the_lab_is_at_baseline_when_every_lab_container_runs_healthy(env):
+    r = status(env, fake_docker(env, "argus-lab-api running Up 3 hours (healthy)\n"
+                                     "argus-lab-cache running Up 3 hours\n"))
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert "LAB BASELINE OK" in r.stdout
+
+
+def test_status_flags_a_stopped_or_unhealthy_lab_container(env):
+    r = status(env, fake_docker(env, "argus-lab-cache exited Exited (0) 7 hours ago\n"
+                                     "argus-lab-api running Up 31 minutes (unhealthy)\n"))
+    assert r.returncode == 0                                  # status stays read-only and informative
+    assert "LAB BASELINE NOT OK" in r.stdout
+    assert "argus-lab-cache" in r.stdout and "argus-lab-api" in r.stdout.split("LAB BASELINE NOT OK")[1]
+
+
+def test_status_without_docker_says_so_instead_of_claiming_ok(env):
+    r = status(env, "no-such-docker-binary")
+    assert r.returncode == 0
+    assert "LAB BASELINE OK" not in r.stdout
+    assert "lab: docker not available" in r.stdout

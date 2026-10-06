@@ -259,3 +259,25 @@ Learned: `docker exec -i` in a pasted block reads the terminal and hangs; use `<
 (TROUBLESHOOTING #18). Scenarios must end with their undo and a health check; the state probe should list
 `argus-lab-*` health (#19).
 References: `execution/history/DEPLOY-MAIN/step-01/evidence.md`.
+
+## 2026-10-06 — LAB-BASELINE: deploy.sh status reports the lab baseline
+
+Type: change
+Who: conantkd (+ agent)
+Context: DEPLOY-MAIN found `argus-lab-cache` stopped for ~7 hours and nothing flagged it.
+Decision / result: `deploy.sh status` lists every `argus-lab-*` container and ends with `LAB BASELINE OK` or
+`LAB BASELINE NOT OK: <names>`. 3 tests (red seen), suite 68 passed / 5 skipped. Deployed as the task branch on
+both VMs: `LAB BASELINE OK`, NO INTERFERENCE, nothing rebuilt. The state probe in `AGENT_PROTOCOL.md` uses it.
+References: `execution/history/LAB-BASELINE/step-01/evidence.md`.
+
+## 2026-10-06 — LGS: every plain-runner scenario now passes on LangGraph
+
+Type: verification
+Who: conantkd (+ agent)
+Context: on LangGraph only H-1, SC-09, SC-01 and SC-03 had real runs; the rest relied on parity tests.
+Decision / result: H-2, SC-02, the identity proof, SC-10, SC-11 and SC-12 re-run on the final `main` agent, one run
+each, all as expected (outcomes cross-checked in Postgres). SC-12 escalated at step 2 (plain runner: step 3).
+LAB BASELINE OK and NO INTERFERENCE on both VMs at the end. Note: SC-02's text called the worker a "read gateway"
+(wording slip; root cause and class right).
+Next: Phase 12 repeated runs (≥ 5 per scenario).
+References: `execution/history/LGS/step-01/evidence.md`.
