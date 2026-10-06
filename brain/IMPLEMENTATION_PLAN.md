@@ -33,8 +33,8 @@ calls); the phases below replace each simplification.
 11 the remaining scenarios → 12 repeated end-to-end runs → 13 recovery tests.
 
 **Scenarios passing on the real VMs (one run each):** H-1/H-2, SC-01, SC-02, the identity proof, SC-03, SC-09, SC-10,
-SC-11, SC-12. NO INTERFERENCE after every step. On the LangGraph runner so far: H-1, SC-09, SC-01 verified; SC-03
-reported (class demo, output not archived; DEPLOY-MAIN re-runs it with evidence).
+SC-11, SC-12. NO INTERFERENCE after every step. On the LangGraph runner so far: H-1, SC-09, SC-01, SC-03 verified
+(SC-03 on the final `main` code, DEPLOY-MAIN 2026-10-06).
 
 ## 2. Phase details
 

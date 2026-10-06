@@ -1,7 +1,7 @@
 # Current state — the last verified shared state
 
-**As of:** 2026-10-05 (end of the `juanbetancurm` session) · **Architecture:** v1.8.0 · **Status:** `verified` on
-the VMs; T-0013 (LangGraph + Postgres checkpoints) merged; **vm-095 runs an older commit than `main`** (§2) ·
+**As of:** 2026-10-06 (DEPLOY-MAIN by `conantkd`) · **Architecture:** v1.8.0 · **Status:** `verified` on
+the VMs; T-0013 (LangGraph + Postgres checkpoints) merged and **deployed: both VMs run `main` `09f5ab1`** (§2) ·
 shared-Brain setup B1–B8 under way (three developers).
 
 > The VMs are authoritative for what runs there: run `sudo bash /opt/argus-v18/app/ops/deploy.sh status` (or read
@@ -16,12 +16,12 @@ interrupted investigation resumes instead of starting over. The remaining work: 
 api / worker / scheduler (with recovery of interrupted runs), the MCP tools child, the missing scenarios, alerting
 and repeated end-to-end runs.
 
-## 2. What runs (OBSERVED 2026-10-04)
+## 2. What runs (OBSERVED 2026-10-06)
 
 | VM | Argus containers | Published ports | Code (`deploy.sh status`) |
 |---|---|---|---|
-| vm-095 | `argus-v18-agent` (LangGraph runner), `argus-v18-postgres` (healthy), `argus-v18-tunnel`, `argus-v18-read-gateway`, `-host-probe`, `-network-probe`, `-exporter`, `-prometheus`, `argus-lab-api` | `127.0.0.1:18000` only | `c87d76c` (T-0013 branch) — **behind `main`**: lacks the T-0013 review fix (one read per graph step) and OP-006; redeploy + agent rebuild = task DEPLOY-MAIN in `execution/current/code.bash` |
-| vm-166 | `argus-v18-read-gateway`, `-host-probe`, `-network-probe`, `-exporter`, `-prometheus`, `argus-lab-api` (healthy), `argus-lab-cache` | `127.0.0.1:18701-18703`, `127.0.0.1:18090` | `8eff994` — no target-service code changed since; DEPLOY-MAIN only moves the checkout |
+| vm-095 | `argus-v18-agent` (LangGraph runner), `argus-v18-postgres` (healthy), `argus-v18-tunnel`, `argus-v18-read-gateway`, `-host-probe`, `-network-probe`, `-exporter`, `-prometheus`, `argus-lab-api` | `127.0.0.1:18000` only | `main` `09f5ab1` — agent rebuilt 2026-10-06 (T-0013 review fix + OP-006) |
+| vm-166 | `argus-v18-read-gateway`, `-host-probe`, `-network-probe`, `-exporter`, `-prometheus`, `argus-lab-api` (healthy), `argus-lab-cache` | `127.0.0.1:18701-18703`, `127.0.0.1:18090` | `main` `09f5ab1` (checkout only; no target-service code changed since `8eff994`) |
 
 - `/opt/argus-v18/app` is a **git checkout** on both VMs (read-only deploy key per VM); the old tarball folder is kept
   as `/opt/argus-v18/app.pre-git-<time>`. Only the agent on vm-095 was rebuilt; the other containers still run the
@@ -33,11 +33,11 @@ and repeated end-to-end runs.
 - Users: `juanbetancurm`, `conantkd`, `juanes6554` (operator, one shared team password); the old personal user is
   disabled. Login test per user (legacy step 12b.2) **done 2026-10-05**: all three log in and get `outcome: HEALTHY`
   on a `--check` of `vm-095/container:argus-lab-api`.
-- Last `nonint-check.sh after`: **NO INTERFERENCE** on both VMs (2026-10-05).
-- **Deployed code (OBSERVED 2026-10-05, `/opt/argus-v18/DEPLOYED`):** vm-166 = `main` `8eff994`; vm-095 = `c87d76c`,
-  the T-0013 branch `task/T-0013-langgraph-skeleton`, as planned by T-0013 step 5 (deploy the branch before the merge).
-  On vm-095 migration 002 (checkpoint tables) is applied and `argus-v18-agent` runs with `ARGUS_RUNNER=langgraph`.
-  T-0013 is merged (PR #6); putting both VMs back on `main` is task DEPLOY-MAIN (not run yet).
+- Last `nonint-check.sh after`: **NO INTERFERENCE** on both VMs (2026-10-06).
+- **Deployed code (OBSERVED 2026-10-06, `/opt/argus-v18/DEPLOYED`):** both VMs `commit=09f5ab1…`, `ref=main`
+  (DEPLOY-MAIN). On vm-095 migrations `001_init` + `002_checkpoints` are applied (no new one) and `argus-v18-agent`
+  was rebuilt from `main` and runs with `ARGUS_RUNNER=langgraph`; `argus db check` 15/15.
+  Evidence: [`execution/history/DEPLOY-MAIN/step-01/evidence.md`](execution/history/DEPLOY-MAIN/step-01/evidence.md).
 - **T-0013 step 5 verified 2026-10-05** (by the reviewer `conantkd`): `argus db check` 15/15, H-1 `HEALTHY`, SC-09
   `UNSUPPORTED → escalated`, SC-01 `DIAGNOSED` (RB-001), every run checkpointed in Postgres, NO INTERFERENCE.
   Evidence: [`execution/history/T-0013-review/step-01/evidence.md`](execution/history/T-0013-review/step-01/evidence.md).
@@ -56,9 +56,10 @@ T-0015 (API side) and T-0016 (frontend), planned.
 - **With the LangGraph runner (2026-10-04):** H-1 (healthy), SC-09 (unsupported → evidence pack), SC-01 (diagnosed,
   RB-001) — every run checkpointed in Postgres. The others are expected to behave the same (parity tests); re-run
   them as part of Phase 12.
-- **SC-03 on the LangGraph runner (2026-10-05, class demo):** reported successful by `juanbetancurm` (root cause =
-  `argus-lab-cache`, the api the victim), but the output was not archived, so it is **reported, not verified**:
-  [`execution/history/demo-SC03/step-01/evidence.md`](execution/history/demo-SC03/step-01/evidence.md).
+- **SC-03 on the LangGraph runner: verified 2026-10-06** on the final `main` code (DEPLOY-MAIN D.5): `DIAGNOSED`,
+  root cause `vm-166/container:argus-lab-cache`, confidence high, the api the victim; H-1 `HEALTHY` before (after
+  restoring the lab) and after: [`execution/history/DEPLOY-MAIN/step-01/evidence.md`](execution/history/DEPLOY-MAIN/step-01/evidence.md)
+  (the 2026-10-05 class demo record: [`execution/history/demo-SC03/step-01/evidence.md`](execution/history/demo-SC03/step-01/evidence.md)).
 
 ## 5. Known gaps and decisions pending
 
@@ -73,6 +74,8 @@ T-0015 (API side) and T-0016 (frontend), planned.
 - Differences between the architecture text and the running system: [`architecture/SUMMARY.md`](architecture/SUMMARY.md).
 - Nothing resumes an interrupted run automatically yet (no worker recovery loop): that belongs to the
   api/worker/scheduler split.
+- The state probe does not check `argus-lab-*` health and `nonint-check.sh` does not cover Argus objects: a lab
+  left in a scenario state goes unnoticed (DEPLOY-MAIN found `argus-lab-cache` stopped for ~7 h). Small follow-up.
 - Postgres backup/restore drill not done. vm-095 says "System restart required" — do not reboot (team decision).
 
 ## 6. The shared-Brain setup

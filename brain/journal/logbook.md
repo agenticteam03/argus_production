@@ -245,3 +245,17 @@ end: vm-095 still runs `c87d76c`, older than `main` (no T-0013 review fix, no OP
 nothing to rebuild" was wrong; task DEPLOY-MAIN is ready in `execution/current/code.bash`. Lease released.
 Next: `NEXT_STEP.md` (reviews first, then DEPLOY-MAIN, then T-0015 to unblock the frontend).
 References: `CURRENT_STATE.md`, `NEXT_STEP.md`, `policies/main-exceptions.txt`.
+
+## 2026-10-06 — DEPLOY-MAIN: both VMs on main, SC-03 verified on LangGraph
+
+Type: deployment
+Who: conantkd (+ agent)
+Context: vm-095 ran `c87d76c` (T-0013 branch, without the review fix and OP-006); vm-166 ran `8eff994`.
+Decision / result: both VMs on `main` `09f5ab1`; the agent rebuilt (LangGraph, db check 15/15, no new migration).
+The first H-1 said DIAGNOSED `dependency_unavailable`: `argus-lab-cache` had been stopped for about 7 hours, so
+Argus was right. With the cache already down, SC-03 ran directly: DIAGNOSED, root cause the cache, the api the
+victim, reads on vm-166 only. Cache restarted, H-1 `HEALTHY`, NO INTERFERENCE on both VMs.
+Learned: `docker exec -i` in a pasted block reads the terminal and hangs; use `< /dev/null` and no `| tail`
+(TROUBLESHOOTING #18). Scenarios must end with their undo and a health check; the state probe should list
+`argus-lab-*` health (#19).
+References: `execution/history/DEPLOY-MAIN/step-01/evidence.md`.
