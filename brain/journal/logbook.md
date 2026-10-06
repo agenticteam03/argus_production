@@ -246,6 +246,42 @@ nothing to rebuild" was wrong; task DEPLOY-MAIN is ready in `execution/current/c
 Next: `NEXT_STEP.md` (reviews first, then DEPLOY-MAIN, then T-0015 to unblock the frontend).
 References: `CURRENT_STATE.md`, `NEXT_STEP.md`, `policies/main-exceptions.txt`.
 
+## 2026-10-06 — DEPLOY-MAIN: both VMs on main, SC-03 verified on LangGraph
+
+Type: deployment
+Who: conantkd (+ agent)
+Context: vm-095 ran `c87d76c` (T-0013 branch, without the review fix and OP-006); vm-166 ran `8eff994`.
+Decision / result: both VMs on `main` `09f5ab1`; the agent rebuilt (LangGraph, db check 15/15, no new migration).
+The first H-1 said DIAGNOSED `dependency_unavailable`: `argus-lab-cache` had been stopped for about 7 hours, so
+Argus was right. With the cache already down, SC-03 ran directly: DIAGNOSED, root cause the cache, the api the
+victim, reads on vm-166 only. Cache restarted, H-1 `HEALTHY`, NO INTERFERENCE on both VMs.
+Learned: `docker exec -i` in a pasted block reads the terminal and hangs; use `< /dev/null` and no `| tail`
+(TROUBLESHOOTING #18). Scenarios must end with their undo and a health check; the state probe should list
+`argus-lab-*` health (#19).
+References: `execution/history/DEPLOY-MAIN/step-01/evidence.md`.
+
+## 2026-10-06 — LAB-BASELINE: deploy.sh status reports the lab baseline
+
+Type: change
+Who: conantkd (+ agent)
+Context: DEPLOY-MAIN found `argus-lab-cache` stopped for ~7 hours and nothing flagged it.
+Decision / result: `deploy.sh status` lists every `argus-lab-*` container and ends with `LAB BASELINE OK` or
+`LAB BASELINE NOT OK: <names>`. 3 tests (red seen), suite 68 passed / 5 skipped. Deployed as the task branch on
+both VMs: `LAB BASELINE OK`, NO INTERFERENCE, nothing rebuilt. The state probe in `AGENT_PROTOCOL.md` uses it.
+References: `execution/history/LAB-BASELINE/step-01/evidence.md`.
+
+## 2026-10-06 — LGS: every plain-runner scenario now passes on LangGraph
+
+Type: verification
+Who: conantkd (+ agent)
+Context: on LangGraph only H-1, SC-09, SC-01 and SC-03 had real runs; the rest relied on parity tests.
+Decision / result: H-2, SC-02, the identity proof, SC-10, SC-11 and SC-12 re-run on the final `main` agent, one run
+each, all as expected (outcomes cross-checked in Postgres). SC-12 escalated at step 2 (plain runner: step 3).
+LAB BASELINE OK and NO INTERFERENCE on both VMs at the end. Note: SC-02's text called the worker a "read gateway"
+(wording slip; root cause and class right).
+Next: Phase 12 repeated runs (≥ 5 per scenario).
+References: `execution/history/LGS/step-01/evidence.md`.
+
 ## 2026-10-06 — After-merge review of fast-track PRs #9 and #13
 
 Type: review

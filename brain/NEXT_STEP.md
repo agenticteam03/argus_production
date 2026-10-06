@@ -1,5 +1,10 @@
 # Next step
 
+**Pending VM step after this PR merges (`conantkd`, 2026-10-06):** both VMs run the checkout of
+`task/lab-baseline-check` (only `ops/deploy.sh` differs from `main`). Once the PR is merged, whoever holds the VM
+lease puts them back on `main` with the block ready in `execution/current/code.bash` (AFTER-MERGE, ~5 min, no
+rebuild).
+
 **Handoff (2026-10-05, from `juanbetancurm`; read the latest journal entry first).** In this order:
 
 1. **Review (start of the session, `agents/REVIEW_PROTOCOL.md`):**
@@ -8,9 +13,8 @@
      same name counts from zero. Approve or request changes. Do **not** fast-track it.
    - ~~After-merge review of the fast-track PRs #9–#13~~ **done 2026-10-06** (`conantkd`, PR #16): no defects;
      reports posted as comments on each PR.
-2. **DEPLOY-MAIN (VM lease, ~25 min):** ready in `execution/current/code.bash`. vm-095 still runs `c87d76c`, which
-   lacks the T-0013 review fix and OP-006: deploy `main`, **rebuild the agent**, check H-1, and re-run SC-03 with
-   archived output (that upgrades the class demo from "reported" to "verified"). vm-166 only moves its checkout.
+2. ~~DEPLOY-MAIN~~ **done 2026-10-06** (`conantkd`): both VMs on `main` `09f5ab1`, agent rebuilt, H-1 `HEALTHY`,
+   SC-03 verified on LangGraph, NO INTERFERENCE ([evidence](execution/history/DEPLOY-MAIN/step-01/evidence.md)).
 
 **Then — the next tasks:**
 

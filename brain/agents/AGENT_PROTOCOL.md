@@ -32,7 +32,8 @@ Brain file.
 2. **Pull requests waiting for review come first.** Follow [`REVIEW_PROTOCOL.md`](REVIEW_PROTOCOL.md) before any new work.
 3. Read the Brain in the order of [`../README.md`](../README.md). Do not read everything; read what the task needs.
 4. **Reality check (state probe):** the first `code.bash` block of every session that touches the VMs is read-only:
-   deployed commit (`/opt/argus-v18/DEPLOYED`), `docker ps` for `argus-v18-*` / `argus-lab-*`, health, and
+   deployed commit and lab baseline (`sudo bash /opt/argus-v18/app/ops/deploy.sh status`: it ends with
+   `LAB BASELINE OK` or names the stopped/unhealthy `argus-lab-*`), `docker ps` for `argus-v18-*`, health, and
    `nonint-check.sh after`. If the VMs disagree with `CURRENT_STATE.md`, fix your understanding first — the VM wins.
 5. Create the task branch from `main` (`task/T-xxxx-short-slug`) or continue the branch named in the handoff.
 
