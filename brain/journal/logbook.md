@@ -258,3 +258,13 @@ exception without a teammate, so this review is their first one: accepted, no ob
 the `main-exceptions.txt` header no longer contradicts the fast-track lines, and `CURRENT_STATE.md` lists which
 after-merge reviews are done (#9, #13) and which are pending (#10, #11, #12).
 References: PR #9, PR #13, this pull request.
+
+## 2026-10-06 — conantkd asks to join the temporary fast-track
+
+Type: decision
+Who: conantkd (+ agent)
+Context: the same deadline that motivated the fast-track (PR #9) applies to `conantkd`'s VM and Brain work.
+Decision / result: `conantkd` is added to the fast-track "Who" list in `REVIEW_PROTOCOL.md`, with the same
+conditions and the same end date (2026-10-12). It is a change to the review rule, so it takes effect only when
+`juanbetancurm` approves PR #16; it is not self-merged.
+References: PR #9, PR #16.

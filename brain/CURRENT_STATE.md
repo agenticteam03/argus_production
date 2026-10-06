@@ -67,7 +67,7 @@ T-0015 (API side) and T-0016 (frontend), planned.
   change: OP-006). PR #8 (OP-005) was approved by `conantkd` on 2026-10-06 and waits for its author's merge.
 - **After-merge reviews done:** #9 and #13 by `conantkd` (2026-10-06): no defects. The fast-track rule is accepted;
   the header of `policies/main-exceptions.txt` now says that fast-track lines are reviewed after the merge.
-- **Temporary fast-track until 2026-10-12:** `juanbetancurm` may merge their own pull requests under the conditions
+- **Temporary fast-track until 2026-10-12:** `juanbetancurm` and `conantkd` may merge their own pull requests under the conditions
   of `agents/REVIEW_PROTOCOL.md` ("Temporary fast-track"); each one is listed in `main-exceptions.txt` and reviewed
   by a teammate after the merge.
 - Pending team decision **D-001** (cross-host path and alert direction) and open problems OP-001…OP-003:

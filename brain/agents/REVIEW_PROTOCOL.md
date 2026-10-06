@@ -45,7 +45,7 @@ before anyone reviewed, A continues on the same branch.
 **Why:** the course presentation came earlier than planned; waiting for a review on every pull request would block
 the work. Decided by `juanbetancurm` on 2026-10-05 (journal). Teammates may object in any PR; an objection ends it.
 
-**Who:** `juanbetancurm`. **Until:** 2026-10-12 inclusive. After that date no new fast-track line may be added.
+**Who:** `juanbetancurm`, `conantkd` (added 2026-10-06 by PR #16, approved by `juanbetancurm`). **Until:** 2026-10-12 inclusive. After that date no new fast-track line may be added.
 
 A fast-track pull request may be merged by its author when **all** of these hold:
 - it is still a pull request from a task branch (no direct push to `main`; the pre-push hook stays);
