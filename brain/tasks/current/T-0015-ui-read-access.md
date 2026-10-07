@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | `executed` (steps 1-5 on the branch; ACR-0001 proposed, awaiting review; step 6 needs the VM lease) |
+| Status | `done` 2026-10-07 (steps 1-5 merged in PR #22, ACR-0001 accepted; step 6 proved on vm-095) |
 | Phase | 10 — output modes ([`../../IMPLEMENTATION_PLAN.md`](../../IMPLEMENTATION_PLAN.md)) |
 | Architecture | §7.1 (HTTP API), §17.3 (authentication), §25 OD-10 ("dedicated UI: not needed for this release") → ACR first |
 | Branch | `task/T-0015-ui-read-access` |
@@ -63,3 +63,8 @@ step 6 archived; Brain updated (`CURRENT_STATE.md`, `tdd/CURRENT_TEST_STATE.md`,
 - **How the tests ran:** Windows Smart App Control on the main laptop blocks a native LangGraph dependency
   (`uuid_utils`), so the offline suite ran in Docker (`python:3.12`, repository mounted): **81 passed, 5 skipped**
   (the Postgres tests; CI runs them).
+- **Step 6 (2026-10-07): proved on vm-095.** No deploy and no rebuild: the running agent image already carries
+  T-0015. Through the loopback API: `scope=read` login → a token with `access=read`; `GET /api/v1/me` → operator,
+  `access=read`, `view_incidents,view_timeline,view_evidence`; `GET /api/v1/incidents` → 200; `POST
+  /api/v1/investigations` → **403**; no token → 401; NO INTERFERENCE.
+  [Evidence](../../execution/history/T-0015/step-06/evidence.md).

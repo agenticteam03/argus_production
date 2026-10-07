@@ -490,3 +490,15 @@ own code path; NO INTERFERENCE. Also: OP-007 fixed and deployed (PR #29), AFTER-
 proposed (PR #31).
 References: `tasks/current/T-0019-db-probe.md`, `execution/history/T-0019/`, OPEN_PROBLEMS OP-007, OP-008.
 
+## 2026-10-07 — SC-07 class demo; T-0015 step 6 proved (T-0015)
+
+Type: deployment
+Who: juanbetancurm (+ agent)
+Context: class demo of SC-07 on the VMs (conantkd's lease released, both VMs on `task/T-0020-sc04-pg-connections`),
+then the last open step of T-0015 while holding the lease.
+Decision: SC-07 run live twice (`inc_bc5efb15381f` and the replay): DIAGNOSED as a network misattachment, no
+restart advised; the advised human fix (`docker network connect argus-lab-app argus-lab-backend`) followed by
+`--check` gave HEALTHY; lab reset, LAB BASELINE OK, NO INTERFERENCE. T-0015 step 6: a `scope=read` token reads (200)
+and is refused on `POST /api/v1/investigations` (403) on the deployed API; no rebuild needed.
+Consequences: T-0015 is done. The demo showed the ACT results cut on a narrow terminal: fixed in PR #34.
+References: `brain/execution/history/T-0015/step-06/evidence.md`, PR #34.
