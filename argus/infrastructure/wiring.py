@@ -23,7 +23,7 @@ from argus.tooling.dispatch import DirectProvider, Dispatcher
 from argus.tooling.executors import ExecutorRegistry, KnowledgeClient, PrometheusClient, TargetAgentClient
 from argus.tooling.model_harness import ModelHarness
 
-EXECUTOR_KINDS = ("docker_read", "host_probe", "network_probe", "prometheus", "argus_internal")   # last: in-worker
+EXECUTOR_KINDS = ("docker_read", "host_probe", "network_probe", "db_probe", "prometheus", "argus_internal")   # last: in-worker
 
 
 def _read(path: Path) -> str | None:
@@ -137,7 +137,7 @@ def build(settings: Settings | None = None, llm=None, metrics=None, executors: E
     redactor = Redactor()
     if executors is None:
         executors = ExecutorRegistry()
-        for kind in ("docker_read", "host_probe", "network_probe"):
+        for kind in ("docker_read", "host_probe", "network_probe", "db_probe"):
             executors.register(kind, lambda url, tok: TargetAgentClient(url, tok))
         executors.register("prometheus", lambda url, tok: PrometheusClient(url, tok, signals))
     knowledge = TfidfRunbooks(str(s.runbooks_dir), s.runbooks_commit and f"commit {s.runbooks_commit}")

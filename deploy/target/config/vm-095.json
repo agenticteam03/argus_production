@@ -13,5 +13,6 @@
   "probes": [],
   "mounts": [
     "/"
-  ]
+  ],
+  "databases": []
 }

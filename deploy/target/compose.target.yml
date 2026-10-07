@@ -46,6 +46,18 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - ./config/${ARGUS_HOST}.json:/etc/argus-v18/target.json:ro
     networks: [argus-v18-mon, argus-lab-app]
+  argus-v18-db-probe:                   # T-0019: only on hosts with a database (COMPOSE_PROFILES=db in <host>.env)
+    <<: *common
+    build: {context: ../../services/target, target: db}     # + the pinned PostgreSQL driver
+    image: argus-v18-target-db:1
+    container_name: argus-v18-db-probe
+    profiles: [db]
+    environment: {<<: *env, ROLE: db_probe}
+    volumes:                            # no Docker socket, no host mounts
+      - ./config/${ARGUS_HOST}.json:/etc/argus-v18/target.json:ro
+      - /opt/argus-v18/secrets/db_probe_token:/run/argus-v18/db_probe_token:ro
+      - /opt/argus-v18/secrets/lab-db/monitor_password:/run/argus-v18/db_monitor_password:ro
+    networks: [argus-v18-mon, argus-lab-app]                # reaches the database by name on the app network
 networks:
   argus-v18-mon:
     name: argus-v18-mon

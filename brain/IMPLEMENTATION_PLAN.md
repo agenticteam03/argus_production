@@ -16,7 +16,7 @@ calls); the phases below replace each simplification.
 | 0 | Discovery | facts about both VMs | never assume; protect the existing deployment | ✅ done | — |
 | 1 | Project init | v1.8 code layout, tests | a clean, testable core | ✅ 90 % | tidy as later phases touch it |
 | 2 | Inventory & identity | `vm-095` / `vm-166` as real hosts | the same name on two hosts must never be confused | ✅ done | — |
-| 3 | Target services | read gateway, probes, exporter per VM | Argus reads hosts only through narrow, audited services | ✅ 90 % | DB probe (with SC-04) |
+| 3 | Target services | read gateway, probes, exporter per VM | Argus reads hosts only through narrow, audited services | ✅ 95 % | DB probe done (T-0019 batch 1); the other §4.6 verbs in T-0019 batches 2–3 |
 | 4 | Tools & guarded execution | every tool call through `InvokeCapability` | policy, audit and host isolation on every read | 🟡 50 % | MCP tools child, UID `argus-tools`, credential-isolation test |
 | 5 | Postgres | system of record (incidents, evidence, audit) | durable insert-only evidence; LangGraph checkpoints need it | ✅ 100 % | — (backup/restore drill done 2026-10-06, T-0017) |
 | 6 | Runbooks | the library drives recall | diagnoses traceable to a runbook version | ✅ 85 % | recall-quality checks per class |
@@ -80,7 +80,7 @@ operator and transport channel, never an Argus executor** (an `ssh_verbs` execut
 | `argus-v18-read-gateway` | vm-166 | `127.0.0.1:18701` | the tunnel |
 | `argus-v18-host-probe` | vm-166 | `127.0.0.1:18702` | the tunnel |
 | `argus-v18-network-probe` | vm-166 | `127.0.0.1:18703` | the tunnel |
-| `argus-v18-db-probe` (planned) | vm-166 | `127.0.0.1:18704` | the tunnel |
+| `argus-v18-db-probe` (T-0019; profile `db`) | vm-166 | `127.0.0.1:18704` | the tunnel |
 | `argus-v18-prometheus` | vm-166 | `127.0.0.1:18090` | the tunnel |
 
 Networks: `argus-v18-core` 172.30.0.0/24, `argus-v18-mon` 172.30.1.0/24, `argus-lab-app` 172.30.2.0/24,
@@ -125,7 +125,8 @@ Argus **adds** objects; it never modifies, reuses or depends on objects it did n
 
 ## 7. Synthetic incidents
 
-Hybrid operation: a tiny always-on baseline (vm-166: `argus-lab-api` + `argus-lab-cache`; vm-095: the healthy twin
+Hybrid operation: a tiny always-on baseline (vm-166: `argus-lab-api` + `argus-lab-cache` + `argus-lab-db` (testing
+only, T-0019); vm-095: the healthy twin
 `argus-lab-api`), and every failure started only for its own test, one at a time:
 `prepare → start → induce → wait for the signal (readiness gate, not a sleep) → diagnose → verify → reset → nonint-check`.
 

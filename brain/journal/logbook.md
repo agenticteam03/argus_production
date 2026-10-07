@@ -474,3 +474,19 @@ only Level 3 capability in the policy, so every future Level 3 line in `policy.y
 the backup's before/after fingerprint differ often. One question on #27 became **OP-007**: a dependency probe
 disappears while its owner restarts, which can hide the cause of a crash loop; to fix with T-0019 (same service).
 References: PR #27, PR #25, PR #26, `OPEN_PROBLEMS.md` OP-007.
+
+## 2026-10-07 — T-0019 batch 1: the db-probe and database.health deployed (T-0019)
+
+Type: capability
+Who: conantkd (+ agent)
+Context: phase 3 lacked the database probe of ARCHITECTURE §4.6, and SC-04 (connection exhaustion, RB-004) needs it.
+`conantkd` split the remaining §4.6 verbs into 3 batches, one PR each (db-probe; host-probe Level 2; deep reads +
+network connectivity, which also closes the SC-07 network-probe gap).
+Decision / result: `ROLE=db_probe` reads only system views through `argus_monitor` (`pg_monitor`, limit 3), in a
+read-only session, never rows or SQL text; own token and image target (`pg8000` pinned by hash). `database.health`
+(`inspect_database_health`) at Level 3, policy max 3. `argus-lab-db` on vm-166 is **for testing only**. Tests 15/15
+red then green (119 passed); deployed on both VMs over SSH; `phase3_check` 33/33; the agent reads it through its
+own code path; NO INTERFERENCE. Also: OP-007 fixed and deployed (PR #29), AFTER-MERGE T-0018 done (PR #30), OP-008
+proposed (PR #31).
+References: `tasks/current/T-0019-db-probe.md`, `execution/history/T-0019/`, OPEN_PROBLEMS OP-007, OP-008.
+

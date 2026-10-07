@@ -12,7 +12,7 @@ import textwrap
 
 _COLORS = {"b": "\033[1m", "d": "\033[2m", "r": "\033[31m", "g": "\033[32m", "y": "\033[33m",
            "bl": "\033[34m", "m": "\033[35m", "c": "\033[36m", "x": "\033[0m"}
-EXECUTOR_TAG = {"docker_read": ("bl", "docker"), "host_probe": ("m", "host"), "network_probe": ("c", "net"),
+EXECUTOR_TAG = {"docker_read": ("bl", "docker"), "host_probe": ("m", "host"), "network_probe": ("c", "net"), "db_probe": ("g", "db"),
                 "prometheus": ("y", "metric"), "argus_internal": ("d", "argus"), "none": ("r", "policy")}
 OUTCOME = {"diagnosed": ("g", "DIAGNOSED"), "no_incident": ("g", "HEALTHY — nothing to do"),
            "unsupported_escalated": ("y", "UNSUPPORTED → escalated to a human with evidence"),

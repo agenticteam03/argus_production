@@ -73,6 +73,20 @@ for host, ep in HOSTS.items():
     c, _ = call(f"{n}/tcp?host=example.com&port=443", tok["network_probe"])
     check(host, "network probe: non-allowlisted target (400)", c == 400, str(c))
 
+    if host == "vm-166":                  # T-0019: the db-probe exists only where a database is declared
+        dbt, db = open(f"/s/{host}/db_probe_token").read().strip(), "http://argus-v18-tunnel:18704"
+        c, d = call(f"{db}/database/health?name=argus-lab-db", dbt)
+        check(host, "db probe: health of argus-lab-db", c == 200 and d.get("host") == host and d.get("ok") is True,
+              f"{c} {d.get('client_connections')}/{d.get('usable_connections')} max={d.get('max_connections')} "
+              f"states={d.get('by_state')} locks={d.get('lock_waits')}")
+        check(host, "db probe: no SQL text in the answer", "query" not in json.dumps(d))
+        c, _ = call(f"{db}/database/health?name=postgres", dbt)
+        check(host, "db probe: database outside allowlist (400)", c == 400, str(c))
+        c, _ = call(f"{db}/database/health?name=argus-lab-db", tok["network_probe"])
+        check(host, "db probe: another service's token refused (401)", c == 401, str(c))
+        c, _ = call(f"{db}/database/health?name=argus-lab-db", dbt, method="POST")
+        check(host, "db probe: POST refused (405, read-only)", c == 405, str(c))
+
     c, d = call(f"{ep['prometheus']}/api/v1/query?query=argus_container_running")
     series = d.get("data", {}).get("result", []) if isinstance(d, dict) else []
     labels = sorted({s["metric"].get("argus_host") for s in series})
