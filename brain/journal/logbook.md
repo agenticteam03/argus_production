@@ -490,3 +490,18 @@ own code path; NO INTERFERENCE. Also: OP-007 fixed and deployed (PR #29), AFTER-
 proposed (PR #31).
 References: `tasks/current/T-0019-db-probe.md`, `execution/history/T-0019/`, OPEN_PROBLEMS OP-007, OP-008.
 
+## 2026-10-07 — T-0014 steps 1-4: api, worker and scheduler from one image (T-0014)
+
+Type: implementation
+Who: juanbetancurm (+ agent)
+Context: one container ran the API and the investigations; a crash took both down, and a restart took back every
+running run. Phase 9 needs a real worker and scheduler (ARCHITECTURE §3, §6.2, §6.5, §6.6, §7.3).
+Decision: the worker's claim is a renewable lease (migration 003); `argus api`, `argus worker` and `argus scheduler`
+run from the one agent image as three containers on vm-095; the scheduler is a driver only (rule 15 import guard),
+reads `deploy/scheduler/schedules.yaml` (shipped with no enabled schedule) and gets only the database credential.
+`argus serve` stays as the rollback (`ARGUS_AGENT_CMD=serve`). The backup quiet window is not needed: OP-008 (PR #31)
+fixes the backup check with one exported snapshot.
+Consequences: deploying it needs migration 003 before the worker starts; step 5 (vm-095, VM lease) proves a killed
+worker's run resumes and a schedule is submitted once and coalesced while busy. 161 passed, 1 skipped.
+References: `brain/tasks/current/T-0014-worker-scheduler.md`, `deploy/vm-095/compose.core.yml`,
+`deploy/migrations/003_worker_lease.sql`, PR #31 (OP-008).

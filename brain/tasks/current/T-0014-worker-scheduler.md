@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | `in progress` (2026-10-07): steps 1-3 done |
+| Status | `in progress` (2026-10-07): steps 1-4 done; step 5 (VM) waits for the VM lease |
 | Phase | 9 — agent workflow ([`../../IMPLEMENTATION_PLAN.md`](../../IMPLEMENTATION_PLAN.md)): "a real worker and scheduler" |
 | Architecture | no change (no ACR): implements ARCHITECTURE §6.2 (intake claim + lease recovery), §6.5 (skip-if-active, maximum queued age), §6.6 (scheduled identity), §7.3 (scheduler), §3 containers `argus-api` / `argus-worker` / `argus-scheduler` |
 | Branch | `task/T-0014-worker-scheduler` |
@@ -28,10 +28,9 @@ one by one, holds a renewable claim on each, and resumes an interrupted run from
   it).
 - **`argus serve` stays** (api + webhook + worker thread in one process) as the rollback; `argus api`, `argus worker`
   and `argus scheduler` are the split.
-- **Backup quiet window** (from the PR #25 review): writes by the scheduler and worker change the database while
-  `ops/db-backup.sh` takes its before/after fingerprint. Proposed: the backup stops `argus-v18-scheduler` for the
-  drill and starts it again (the worker drains nothing new without it). `ops/db-backup.sh` is `conantkd`'s script:
-  agree the change with him in the PR.
+- **No backup quiet window** (changed 2026-10-07): writes by the worker and scheduler would break the before/after
+  fingerprint of `ops/db-backup.sh`; OP-008 (PR #31, accepted) fixes it in the backup script with one exported
+  snapshot, so T-0014 does not touch `ops/db-backup.sh`.
 
 ## Design
 
@@ -66,12 +65,12 @@ one by one, holds a renewable claim on each, and resumes an interrupted run from
    SIGTERM (finishes or releases the claim); `argus serve` unchanged.
 3. **Red: the scheduler.** With a fake clock: due slots submit exactly once (restart included), skip-if-active,
    stale skip, invalid files refused, the import guard.
-4. **Compose + ops:** the three containers; `ops/deploy.sh` status lists them; backup quiet window agreed with
-   `conantkd`; `docs/` and Brain updated.
+4. **Compose + ops:** the three containers; `ops/deploy.sh` status lists them; `docs/` and Brain updated (the backup
+   quiet window moved to OP-008).
 5. **VM (vm-095, lease):** state probe → deploy → migrate 003 → rebuild → H-1 through the worker (no model call) →
    kill the worker mid-run, the new worker resumes it → enable one lab schedule for ~30 minutes, see healthy runs and
-   one `coalesced`, disable it → NO INTERFERENCE. Rollback: `argus serve` in the agent container, scheduler and
-   worker stopped.
+   one `coalesced`, disable it → NO INTERFERENCE. Rollback: `ARGUS_AGENT_CMD=serve` for `argus-v18-agent`, scheduler
+   and worker stopped. Order: migrate 003 **before** the worker starts (its claim writes `claimed_by`).
 
 ## Done when
 
@@ -107,3 +106,13 @@ one by one, holds a renewable claim on each, and resumes an interrupted run from
   added (pure Python wheel, so the ARM64 image needs no compiler). Rule 15 import guard passes. Suite: 140 passed,
   1 skipped (Docker-in-Docker), Postgres included. Note for step 4: the image does not contain `deploy/`, so the
   scheduler container mounts `deploy/scheduler/` read-only.
+- **Step 4 (2026-10-07): compose and ops.** `main` merged in first (#29-#32). `tests/test_compose_split.py` (4 tests)
+  and `test_status_lists_the_argus_programs_and_the_command_each_runs` in `tests/test_deploy.py`. Red seen: 5 failed
+  on the old files (`KeyError: 'argus-v18-worker'`, no `argus:` lines in `status`). Then
+  `deploy/vm-095/compose.core.yml`: `argus-v18-agent` runs `${ARGUS_AGENT_CMD:-api}` (same name, the only host port
+  `127.0.0.1:18000`); new `argus-v18-worker` (same image, no port, lease 300 s, maximum queued age 900 s,
+  `stop_grace_period` 120 s) and `argus-v18-scheduler` (same image, no port, Postgres only, mounts
+  `deploy/scheduler` read-only and **only** the `db_password` secret: no executor tokens, no model key).
+  `ops/deploy.sh status` prints one `argus:` line per program with its command; the rebuild hint names all three, and
+  a change in `deploy/scheduler/` hints a scheduler restart. `docker compose config` valid. Suite: 161 passed,
+  1 skipped (Docker-in-Docker), Postgres included.
