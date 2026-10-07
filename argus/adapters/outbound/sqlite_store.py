@@ -129,6 +129,12 @@ class SqliteStore:
             self.update_incident(inc)
         return len(rows)
 
+    def active_incident(self, target: TargetRef) -> Incident | None:
+        """The target's queued or running incident, if any (T-0014: the scheduler's skip-if-active, §6.5)."""
+        row = self._q("SELECT body FROM incident WHERE target=? AND status IN (?,?) ORDER BY opened_at LIMIT 1",
+                      (str(target), IncidentStatus.queued.value, IncidentStatus.running.value))
+        return Incident.model_validate_json(row[0][0]) if row else None
+
     def similar_incidents(self, target: TargetRef, incident_class: str, k: int) -> list[Incident]:
         rows = self._q("SELECT body FROM incident WHERE target=? ORDER BY opened_at DESC LIMIT 20", (str(target),))
         out = [Incident.model_validate_json(r[0]) for r in rows]

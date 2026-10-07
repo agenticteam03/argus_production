@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | `in progress` (2026-10-07): steps 1-2 done |
+| Status | `in progress` (2026-10-07): steps 1-3 done |
 | Phase | 9 — agent workflow ([`../../IMPLEMENTATION_PLAN.md`](../../IMPLEMENTATION_PLAN.md)): "a real worker and scheduler" |
 | Architecture | no change (no ACR): implements ARCHITECTURE §6.2 (intake claim + lease recovery), §6.5 (skip-if-active, maximum queued age), §6.6 (scheduled identity), §7.3 (scheduler), §3 containers `argus-api` / `argus-worker` / `argus-scheduler` |
 | Branch | `task/T-0014-worker-scheduler` |
@@ -95,3 +95,15 @@ one by one, holds a renewable claim on each, and resumes an interrupted run from
   in `argus/__main__.py` the commands `argus api` (API + webhook, no worker) and `argus worker` (lease
   `ARGUS_WORKER_LEASE_S`, default 300 s; SIGTERM stops after the current run); `argus serve` unchanged (rollback).
   Suite: 118 passed, 7 skipped (6 Postgres tests without a database here, unchanged since step 1; 1 Docker-in-Docker).
+- **Step 3 (2026-10-07): the scheduler.** `tests/test_scheduler.py` (16 tests) + `active_incident` in
+  `tests/test_postgres.py`. Red seen: collection error, no module `argus.infrastructure.scheduler`. Then
+  `argus/infrastructure/scheduler.py` (`load_schedules`: unknown field / duplicate id / target not in the inventory /
+  invalid cron / faster than `ARGUS_SCHEDULE_MIN_INTERVAL_S` (default 300 s) ⇒ refused; `Scheduler.tick`: the latest
+  due slot only, identity `sched:<id>:<slot>`, busy target ⇒ audit `schedule.coalesced` on the active incident),
+  `active_incident()` in both stores, the worker's maximum queued age (`ARGUS_SCHEDULE_MAX_QUEUED_AGE_S`, default
+  900 s: a scheduled request that waited longer is closed `stale_skipped` without running, audit
+  `schedule.stale_skipped`; manual requests never go stale), `argus scheduler` (`ARGUS_SCHEDULES`, default
+  `deploy/scheduler/schedules.yaml`), and the shipped file with one example, `enabled: false`. `croniter` 6.2.4
+  added (pure Python wheel, so the ARM64 image needs no compiler). Rule 15 import guard passes. Suite: 140 passed,
+  1 skipped (Docker-in-Docker), Postgres included. Note for step 4: the image does not contain `deploy/`, so the
+  scheduler container mounts `deploy/scheduler/` read-only.

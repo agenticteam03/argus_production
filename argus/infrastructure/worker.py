@@ -10,14 +10,21 @@ import logging
 import os
 import socket
 import threading
+import uuid
+from datetime import datetime, timedelta
+from typing import Callable
+
+from argus.domain.model import AuditRecord, Incident, IncidentStatus, TriggerKind, utcnow
 
 log = logging.getLogger("argus.worker")
 
 
 class Worker:
     def __init__(self, app, worker_id: str | None = None, lease_s: int = 300, renew_every_s: float | None = None,
-                 idle_s: float = 1.0):
+                 idle_s: float = 1.0, max_queued_age_s: int = 900, now: Callable[[], datetime] = utcnow):
         self.app = app
+        self.max_queued_age_s = max_queued_age_s
+        self.now = now
         self.worker_id = worker_id or f"{socket.gethostname()}:{os.getpid()}"
         self.lease_s = lease_s
         self.renew_every_s = renew_every_s if renew_every_s is not None else lease_s / 3
@@ -34,6 +41,9 @@ class Worker:
         inc = self.app.store.claim_next_queued(self.worker_id, lease_s=self.lease_s)
         if inc is None:
             return None
+        if stale(inc, self.now(), self.max_queued_age_s):
+            self._skip_stale(inc)
+            return inc.id
         done = threading.Event()
         renewer = threading.Thread(target=self._renew, args=(inc.id, done), daemon=True)
         renewer.start()
@@ -53,8 +63,25 @@ class Worker:
             if self.run_once() is None:
                 stop.wait(self.idle_s)
 
+    def _skip_stale(self, inc: Incident) -> None:
+        waited = int((self.now() - inc.opened_at).total_seconds())
+        inc.status = IncidentStatus.closed
+        inc.closed_at = utcnow()
+        inc.diagnosis = (f"stale_skipped: the scheduled check waited {waited} s in the queue "
+                         f"(maximum {self.max_queued_age_s} s); not run")
+        self.app.store.update_incident(inc)
+        self.app.store.append(AuditRecord(audit_id=f"aud_{uuid.uuid4().hex[:16]}", incident_id=inc.id, at=utcnow(),
+                                          category="incident", event="schedule.stale_skipped", actor=self.worker_id,
+                                          detail={"waited_s": waited, "max_queued_age_s": self.max_queued_age_s}))
+        log.warning("skipped %s: scheduled check waited %d s", inc.id, waited)
+
     def _renew(self, incident_id: str, done: threading.Event) -> None:
         while not done.wait(self.renew_every_s):
             if not self.app.store.renew_claim(incident_id, self.worker_id, lease_s=self.lease_s):
                 log.error("lost the claim on %s (lease expired); another worker may resume it", incident_id)
                 return
+
+
+def stale(inc: Incident, now: datetime, max_queued_age_s: int) -> bool:
+    """§6.5 maximum queued age: only scheduled requests go stale; manual, alert and peer requests never do."""
+    return inc.trigger_kind == TriggerKind.scheduled and now - inc.opened_at > timedelta(seconds=max_queued_age_s)

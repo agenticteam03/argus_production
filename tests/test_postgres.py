@@ -89,6 +89,9 @@ def test_worker_lease(store):
     assert store.get_incident(first.id).status == IncidentStatus.running
     assert store.claim_next_queued("worker-c", lease_s=60).id == second.id
     assert store.renew_claim(second.id, "worker-b", lease_s=60) is False          # worker-b lost it
+    busy = store.active_incident(first.target)                                    # T-0014 step 3: skip-if-active
+    assert busy is not None and busy.status in (IncidentStatus.queued, IncidentStatus.running)
+    assert store.active_incident(_incident(target="vm-095/container:t0014-never-used").target) is None
 
 
 def test_evidence_audit_events_principals(store):

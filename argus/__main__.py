@@ -1,4 +1,4 @@
-"""argus serve | api | worker | user add|disable | db import-sqlite PATH|check | diagnose TARGET [--raw] | incident ID [--raw]"""
+"""argus serve | api | worker | scheduler | user add|disable | db import-sqlite PATH|check | diagnose TARGET [--raw] | incident ID [--raw]"""
 from __future__ import annotations
 
 import argparse
@@ -51,7 +51,28 @@ def worker() -> None:
     stop = threading.Event()
     signal.signal(signal.SIGTERM, lambda *_: stop.set())
     signal.signal(signal.SIGINT, lambda *_: stop.set())
-    Worker(build(), lease_s=int(os.getenv("ARGUS_WORKER_LEASE_S", "300"))).run_forever(stop)
+    Worker(build(), lease_s=int(os.getenv("ARGUS_WORKER_LEASE_S", "300")),
+           max_queued_age_s=int(os.getenv("ARGUS_SCHEDULE_MAX_QUEUED_AGE_S", "900"))).run_forever(stop)
+
+
+def scheduler() -> None:
+    """T-0014: submits the scheduled checks of ARGUS_SCHEDULES; never runs detectors, the model or the graph."""
+    from pathlib import Path
+
+    from argus.adapters.outbound.config_adapters import YamlInventory
+    from argus.infrastructure.scheduler import Scheduler, load_schedules
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
+    s = Settings()
+    inventory = YamlInventory((s.config_dir / "inventory.yaml").read_text(encoding="utf-8"))
+    path = Path(os.getenv("ARGUS_SCHEDULES", "deploy/scheduler/schedules.yaml"))
+    schedules = load_schedules(path.read_text(encoding="utf-8"), inventory,
+                               min_interval_s=int(os.getenv("ARGUS_SCHEDULE_MIN_INTERVAL_S", "300")))
+    logging.getLogger("argus.scheduler").info("%d schedules, %d enabled", len(schedules),
+                                              sum(x.enabled for x in schedules))
+    stop = threading.Event()
+    signal.signal(signal.SIGTERM, lambda *_: stop.set())
+    signal.signal(signal.SIGINT, lambda *_: stop.set())
+    Scheduler(make_store(s), schedules).run_forever(stop)
 
 
 def serve() -> None:
@@ -115,6 +136,7 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("serve")
     sub.add_parser("api")
     sub.add_parser("worker")
+    sub.add_parser("scheduler")
     u = sub.add_parser("user")
     u.add_argument("action", choices=["add", "disable"])
     u.add_argument("name")
@@ -137,6 +159,8 @@ def main() -> None:
         api()
     elif a.cmd == "worker":
         worker()
+    elif a.cmd == "scheduler":
+        scheduler()
     elif a.cmd == "user":
         user(a)
     elif a.cmd == "db":
