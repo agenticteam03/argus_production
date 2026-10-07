@@ -8,7 +8,7 @@ export function AuthProvider({ children }) {
   const [session, setSession] = useState(null);
   const value = useMemo(
     () => ({
-      user: session?.user ?? null, // { email, role: "viewer" | "operator" | "admin" }
+      user: session?.user ?? null, // GET /api/v1/me: { name, role: "viewer" | "operator" | "approver", access: "read", actions }
       login: async (credentials) => setSession(await auth.signIn(credentials)),
       logout: async () => { await auth.signOut(); setSession(null); },
     }),

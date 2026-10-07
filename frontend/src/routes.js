@@ -1,25 +1,23 @@
-// Single source of truth for the menu and the router. `roles` limits who sees/opens an item.
-export const ROLES = { viewer: "Viewer", operator: "Operator", admin: "Admin" };
+// Single source of truth for the menu and the router. `action` hides an item unless GET /api/v1/me lists it:
+// the server decides what a user may see, the UI never derives permissions from the role (ACR-0001).
+// Read-only in this release: no page starts an investigation or answers an approval (that needs a new ACR).
+export const ROLES = { viewer: "Viewer", operator: "Operator", approver: "Approver" };
 export const ROLE_INFO = {
-  viewer: "Read-only: ask for diagnostics and browse incidents.",
-  operator: "Can launch investigations and approve remediations.",
-  admin: "Full access: users, token budget and scheduler.",
+  viewer: "Reads incidents and their timelines.",
+  operator: "Reads incidents, timelines and evidence.",
+  approver: "Reads incidents, timelines and evidence.",
 };
 
 export const routes = [
   { path: "/", label: "Dashboard" },
-  { path: "/incidents", label: "Incidents" },
-  { path: "/approvals", label: "Approvals", roles: ["admin"] },
-  { path: "/agent", label: "Agent" },
+  { path: "/incidents", label: "Incidents", action: "view_incidents" },
   {
     label: "Tools",
     children: [
-      { path: "/tools/simulator", label: "Alert Simulator", desc: "Simulate container stress or send a test webhook", roles: ["operator", "admin"] },
       { path: "/tools/runbooks", label: "Runbooks", desc: "Browse remediation guides" },
-      { path: "/tools/scheduler", label: "Scheduler", desc: "Edit recurring health checks", roles: ["admin"] },
     ],
   },
 ];
 
 export const flat = routes.flatMap((r) => r.children ?? [r]);
-export const canSee = (item, role) => !item.roles || item.roles.includes(role);
+export const canSee = (item, user) => !item.action || user.actions.includes(item.action);

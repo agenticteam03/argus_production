@@ -27,7 +27,7 @@ function AppRoutes() {
     <Routes>
       <Route element={<Shell />}>
         <Route index element={<Dashboard />} />
-        {flat.filter((r) => r.path !== "/" && canSee(r, user.role)).map((r) => (
+        {flat.filter((r) => r.path !== "/" && canSee(r, user)).map((r) => (
           <Route key={r.path} path={r.path} element={r.path === "/tools/runbooks" ? <Runbooks /> : <Placeholder title={r.label} />} />
         ))}
         <Route path="*" element={<Navigate to="/" replace />} />
