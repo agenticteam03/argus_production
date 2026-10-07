@@ -13,7 +13,7 @@ When a problem is fixed, set its status to `fixed` with the date, and add a jour
 | OP-004 | LangGraph checkpoints grow forever; checkpoints of failed runs are orphaned | accepted 2026-10-05 — to implement | 2026-10-05 |
 | **OP-005** | The `restarts_10m` signal undercounts restarts of a container younger than its window | accepted 2026-10-06 (PR #8, approved by `conantkd`) — to implement | 2026-10-05 |
 | OP-006 | LangGraph `recursion_limit` is fixed at 100 and can be too small for larger step budgets | fixed 2026-10-05 | 2026-10-05 |
-| **OP-007** | A dependency probe disappears while its owner is restarting, hiding the cause of a crash loop | code fixed on `task/op-007-restarting-probe-fix` (`owner_active`: running or restarting); vm-166 exporter redeploy pending | 2026-10-07 |
+| **OP-007** | A dependency probe disappears while its owner is restarting, hiding the cause of a crash loop | fixed 2026-10-07 (`owner_active`: running or restarting; deployed on vm-166) | 2026-10-07 |
 
 ---
 
@@ -259,10 +259,10 @@ create a huge budget (cost of model calls and reads).
 
 ## OP-007 — A dependency probe disappears while its owner is restarting
 
-**Status:** code fixed 2026-10-07 on `task/op-007-restarting-probe-fix` (analysis confirmed by `conantkd`: in a crash loop Docker
+**Status:** fixed 2026-10-07; code on `task/op-007-restarting-probe-fix` (analysis confirmed by `conantkd`: in a crash loop Docker
 reports `State.Restarting` during the back-off wait, so most 10-second samples dropped the probe; test
-`test_exporter_keeps_the_probe_of_an_owner_in_a_restart_loop`, red seen); `fixed` after the vm-166 exporter redeploy
-and its verification · **Opened:** 2026-10-07 · **Found by:** `juanbetancurm` (review of PR #27, T-0018) ·
+`test_exporter_keeps_the_probe_of_an_owner_in_a_restart_loop`, red seen); deployed on vm-166 (`9c04e90`,
+[evidence](execution/history/OP-007/step-01/evidence.md)) · **Opened:** 2026-10-07 · **Found by:** `juanbetancurm` (review of PR #27, T-0018) ·
 **Fix with:** its own small task (`task/op-007-restarting-probe-fix`), independent of T-0019
 
 **Problem.** T-0018 changed `probe_lines` in `services/target/service.py`: a dependency probe is published only
