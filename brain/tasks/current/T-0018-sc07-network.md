@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | `in progress` — started 2026-10-06; step 2 done, step 1 (vm-166 probe) waiting for its output |
+| Status | `in progress` — started 2026-10-06; steps 1–4 done; step 5 (run SC-07) next |
 | Phase | 11 — synthetic incidents ([`../../IMPLEMENTATION_PLAN.md`](../../IMPLEMENTATION_PLAN.md) §7, SC-07) |
 | Architecture | no change (no ACR): lab workloads, one more read-only field, one more Argus lab network |
 | Branch | `task/T-0018-sc07-network` |
@@ -65,3 +65,8 @@ incident. Restarting the backend would fix nothing; a good diagnosis says which 
     `networks=` in the capability text, no client→backend probe in `vm-166.json`, no `sc07` profile); then the
     probe-gating test failed (`no attribute 'probe_lines'`);
   - **green:** 6/6; full offline suite 95 passed, 6 skipped (101).
+- **2026-10-06 — step 1 (vm-166, read-only):** `SUBNET FREE: 172.30.3.0/24` (non-Argus networks use
+  `172.17`–`172.21`); NO INTERFERENCE. [Evidence](../../execution/history/T-0018/step-01/evidence.md).
+- **2026-10-07 — step 4 (deploy, `df267ce`):** vm-166 target services rebuilt (the gateway answers
+  `networks=['argus-lab-app']`), vm-095 agent rebuilt (sees the SC-07 targets), H-1 on vm-166's api `HEALTHY`,
+  NO INTERFERENCE on both. [Evidence](../../execution/history/T-0018/step-04/evidence.md).

@@ -1,4 +1,4 @@
-# T-0018 step 04 — evidence (2026-10-07 04:55–04:57 UTC, run by the agent over SSH for conantkd, session 796fd4f3bf61)
+# T-0018 step 04 — evidence (2026-10-07 04:55–05:05 UTC, run by the agent over SSH for conantkd, session 796fd4f3bf61)
 
 Goal: deploy the SC-07 code on both VMs (no scenario yet): the target services on vm-166 return `networks` and
 probe a dependency only while its owner runs; the agent on vm-095 reads the SC-07 targets and shows `networks`.
@@ -20,7 +20,7 @@ its own container and never printed.
 | T.2 agent rebuild | agent recreated, health 200, postgres untouched | `argus-v18-agent Recreated … Started`; `health 000` then `health 200`; agent `Up 5 seconds`, postgres `Up 24 hours (healthy)` | OK |
 | T.2 agent content | new capability text; SC-07 targets loaded | `agent image has networks text: True`; `agent sees SC-07 targets: ['vm-166/container:argus-lab-client', 'vm-166/container:argus-lab-backend']` | OK |
 | T.2 status + after | `ref=task/T-0018-sc07-network`, `LAB BASELINE OK`, NO INTERFERENCE | `commit=df267cea20af…`, `ref=task/T-0018-sc07-network`; `LAB BASELINE OK`; `NO INTERFERENCE: non-Argus objects unchanged` | OK |
-| T.2 H-1 on vm-166's api | outcome `HEALTHY` | **pending**: needs the user's Argus password (run by `conantkd`) | — |
+| T.2 H-1 on vm-166's api (run by `conantkd`, password prompted) | outcome `HEALTHY` | `incident inc_117167cc3354`; `outcome: HEALTHY — nothing to do` | OK |
 
 nonint-check: NO INTERFERENCE on vm-166 (yes) and vm-095 (yes).
 
