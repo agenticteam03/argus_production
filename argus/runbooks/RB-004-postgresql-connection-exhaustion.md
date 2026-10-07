@@ -7,11 +7,11 @@ id: RB-004
 title: PostgreSQL connection exhaustion
 status: draft
 owner: Argus Team
-version: 1.0.1
+version: 1.0.2
 created: 2026-09-29
 last_reviewed: 2026-10-07
 source_review_date: 2026-09-29
-last_tested: null
+last_tested: 2026-10-07
 detector: postgresql_connection_exhaustion
 parent_detector: dependency_unavailable
 ```

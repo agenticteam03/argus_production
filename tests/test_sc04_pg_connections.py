@@ -120,7 +120,8 @@ def test_rb004_names_its_detector_and_is_bumped():
     text = (ROOT / "argus" / "runbooks" / "RB-004-postgresql-connection-exhaustion.md").read_text(encoding="utf-8")
     meta = yaml.safe_load(re.search(r"```yaml\n(.*?)```", text, re.S).group(1))
     assert meta["detector"] == "postgresql_connection_exhaustion"
-    assert meta["version"] == "1.0.1" and str(meta["last_reviewed"]) == "2026-10-07"
+    assert meta["version"] == "1.0.2" and str(meta["last_reviewed"]) == "2026-10-07"
+    assert str(meta["last_tested"]) == "2026-10-07"                       # SC-04 run 2 (inc_075fb0006098)
 
 
 def test_database_health_is_read_only_sensitive_as_rb004_says():
@@ -146,6 +147,9 @@ def test_sc04_leaker_is_a_bounded_lab_workload():
     sessions = int(s["environment"]["SESSIONS"])
     assert s["pids_limit"] >= 3 * sessions + 8
     assert int(s["mem_limit"].rstrip("m")) >= 8 * sessions
+    # SC-04 run 2: the image declares VOLUME /var/lib/postgresql/data, so each start left an anonymous volume that
+    # nonint-check reported as a non-Argus difference; a tmpfs there means no volume at all
+    assert "/var/lib/postgresql/data" in s["tmpfs"]
     assert any("app_password" in v for v in s["volumes"])
     script = (ROOT / "deploy" / "lab" / "workloads" / "leaker.sh").read_text(encoding="utf-8")
     assert "BEGIN" in script and "SESSIONS:-16" in script and "\r\n" not in script

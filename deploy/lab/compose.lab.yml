@@ -63,6 +63,7 @@ services:
       - ./workloads:/w:ro
       - /opt/argus-v18/secrets/lab-db/app_password:/run/secrets/app_password:ro
     networks: [argus-lab-app]
+    tmpfs: [/var/lib/postgresql/data]   # the image declares a VOLUME there: no anonymous Docker volume (run 2)
     pids_limit: 64                      # ~3 processes per session (subshell, sleep, psql); 32 failed with "can't fork"
     mem_limit: 192m                     # ~5 MiB per psql
     memswap_limit: 192m
