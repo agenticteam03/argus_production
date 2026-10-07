@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | `in progress` (2026-10-07): step 1 done |
+| Status | `in progress` (2026-10-07): steps 1-2 done |
 | Phase | 9 — agent workflow ([`../../IMPLEMENTATION_PLAN.md`](../../IMPLEMENTATION_PLAN.md)): "a real worker and scheduler" |
 | Architecture | no change (no ACR): implements ARCHITECTURE §6.2 (intake claim + lease recovery), §6.5 (skip-if-active, maximum queued age), §6.6 (scheduled identity), §7.3 (scheduler), §3 containers `argus-api` / `argus-worker` / `argus-scheduler` |
 | Branch | `task/T-0014-worker-scheduler` |
@@ -89,3 +89,9 @@ one by one, holds a renewable claim on each, and resumes an interrupted run from
   open; `requeue_running()` kept for the single-process `argus serve`. A dead worker's run is requeued only after its
   lease expires and resumes from its checkpoint without repeating the completed read. Suite: 117 passed, 1 skipped
   (Docker-in-Docker backup test), Postgres tests included (throwaway `postgres:16-alpine`).
+- **Step 2 (2026-10-07): the commands.** `tests/test_worker_loop.py` (7 tests). Red seen: collection error, no
+  module `argus.infrastructure.worker`. Then `argus/infrastructure/worker.py` (`Worker`: `recover()` = expired claims
+  only, `run_once()` with a renewal thread every lease/3, a failing run logged and skipped, `run_forever(stop)`), and
+  in `argus/__main__.py` the commands `argus api` (API + webhook, no worker) and `argus worker` (lease
+  `ARGUS_WORKER_LEASE_S`, default 300 s; SIGTERM stops after the current run); `argus serve` unchanged (rollback).
+  Suite: 118 passed, 7 skipped (6 Postgres tests without a database here, unchanged since step 1; 1 Docker-in-Docker).
