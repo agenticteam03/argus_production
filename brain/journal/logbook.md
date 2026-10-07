@@ -414,3 +414,16 @@ restarted, `LAB BASELINE OK`, NO INTERFERENCE. `deploy.sh` hinted an agent rebui
 left for T-0015 step 6. Also today: PR #22 (ACR-0001 accepted) and PR #24 (UI prototype) reviewed and merged; a future
 ACR for UI actions is recorded in `NEXT_STEP.md`.
 References: PR #25, PR #22, PR #24, `execution/history/AFTER-MERGE-T-0017/step-01/evidence.md`.
+
+## 2026-10-07 — Reviews of PR #27, #25, #26; OP-007 opened
+
+Type: review
+Who: juanbetancurm (+ agent)
+Context: `conantkd` asked for a review of PR #27 (T-0018, SC-07 and `knowledge.runbook`); PRs #25 and #26 were
+fast-tracked and owed after-merge reviews.
+Decision / result: PR #27 approved. `max_tool_level: 3` follows ARCHITECTURE §12.2, and `knowledge.runbook` is the
+only Level 3 capability in the policy, so every future Level 3 line in `policy.yaml` needs a careful review. #25 and
+#26: no defects. Notes for later: backup retention once backups are scheduled, and the scheduler (T-0014) will make
+the backup's before/after fingerprint differ often. One question on #27 became **OP-007**: a dependency probe
+disappears while its owner restarts, which can hide the cause of a crash loop; to fix with T-0019 (same service).
+References: PR #27, PR #25, PR #26, `OPEN_PROBLEMS.md` OP-007.

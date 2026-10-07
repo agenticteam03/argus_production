@@ -13,6 +13,7 @@ When a problem is fixed, set its status to `fixed` with the date, and add a jour
 | OP-004 | LangGraph checkpoints grow forever; checkpoints of failed runs are orphaned | accepted 2026-10-05 — to implement | 2026-10-05 |
 | **OP-005** | The `restarts_10m` signal undercounts restarts of a container younger than its window | accepted 2026-10-06 (PR #8, approved by `conantkd`) — to implement | 2026-10-05 |
 | OP-006 | LangGraph `recursion_limit` is fixed at 100 and can be too small for larger step budgets | fixed 2026-10-05 | 2026-10-05 |
+| **OP-007** | A dependency probe disappears while its owner is restarting, hiding the cause of a crash loop | open — fix with T-0019 (same service) | 2026-10-07 |
 
 ---
 
@@ -253,3 +254,29 @@ Separate, optional: refuse to start when `ARGUS_MAX_STEPS` is above a sane ceili
 create a huge budget (cost of model calls and reads).
 
 **Done when.** The limit is derived from the budgets, both tests pass, and this item is set to `fixed`.
+
+---
+
+## OP-007 — A dependency probe disappears while its owner is restarting
+
+**Status:** open · **Opened:** 2026-10-07 · **Found by:** `juanbetancurm` (review of PR #27, T-0018) ·
+**Fix with:** T-0019 (db-probe), which changes the same target service; or earlier, as its own small task
+
+**Problem.** T-0018 changed `probe_lines` in `services/target/service.py`: a dependency probe is published only
+while its owner container is `running`. The reason is good: the SC-07 client exists only during its scenario, and
+its probe (client → backend on the wrong network) would otherwise fail all the time and keep
+`DependencyProbeFailed` firing for a container that is not there.
+
+But "not running" also covers an owner that crashes and restarts **because** its dependency is down, a common
+pattern (an app that exits at startup when it cannot reach its cache or database). In the lab, `argus-lab-api`
+probes `argus-lab-cache`. While the owner restarts, its probe disappears, so `dependency_unavailable` loses the
+signal that names the real cause at exactly the moment it matters. The incident would look like a plain restart loop.
+
+**Proposed fix.** Publish the probe when the owner is `running` **or restarting** (Docker `State.Restarting`, or a
+recent restart). Keep skipping owners that are missing or exited by design. That still removes the SC-07 false alarm.
+
+**Test (red first).** In `tests/test_sc07_network.py` or a new test: an owner in a restart loop keeps its probe line
+(`argus_probe_success ... 0`); an absent owner still has none.
+
+**Done when.** The probe survives an owner's restart loop, the SC-07 false alarm stays fixed, the target service is
+redeployed on vm-166, and this item is set to `fixed`.
