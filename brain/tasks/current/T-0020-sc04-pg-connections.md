@@ -63,3 +63,12 @@ worker as the root cause without proposing to restart the database.
     scripted diagnosis did not get the class);
   - **green:** 12/12 (+ 15 db-probe tests); full suite 131 passed, 6 skipped (137).
   - The db-probe's health and metrics share one read (`db_health`); `/metrics` sits behind the same token.
+- **Step 2 (2026-10-07, both VMs):** deployed `a102bd5`; vm-166 Prometheus scrapes the db-probe (`up=1`, `0/17`); the
+  agent has the 4 classes; LAB BASELINE OK, NO INTERFERENCE ([evidence](../../execution/history/T-0020/step-02/evidence.md)).
+- **Step 3, run 1 (2026-10-07 ~17:05, not valid):** the leaker stopped at about 10 sessions with
+  `can't fork: Resource temporarily unavailable`: the lab's common `pids_limit: 32` is too small for ~3 processes per
+  session. The diagnosis `inc_b8370349ce57` ran before the gate: signals `db_up=1`, `db_connection_usage=0.0`, no class
+  matched, `UNSUPPORTED` with an evidence pack and **no diagnosis claimed** (correct for what it saw). Reset by
+  `conantkd` (leaker gone, used 0, LAB BASELINE OK, NO INTERFERENCE).
+  - **red:** the leaker test now asks `pids_limit >= 3 × SESSIONS + 8` (`32 >= 56` failed); **green:** the leaker
+    has its own limits (`pids_limit: 64`, `mem_limit: 192m`).

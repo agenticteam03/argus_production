@@ -63,6 +63,9 @@ services:
       - ./workloads:/w:ro
       - /opt/argus-v18/secrets/lab-db/app_password:/run/secrets/app_password:ro
     networks: [argus-lab-app]
+    pids_limit: 64                      # ~3 processes per session (subshell, sleep, psql); 32 failed with "can't fork"
+    mem_limit: 192m                     # ~5 MiB per psql
+    memswap_limit: 192m
     restart: "no"
   argus-lab-api-twin:                   # vm-095 baseline: SAME container name, no dependency, healthy
     <<: *lim

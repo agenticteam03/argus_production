@@ -142,6 +142,10 @@ def test_sc04_leaker_is_a_bounded_lab_workload():
     assert s["image"] == "postgres:16-alpine" and s["profiles"] == ["sc04"]
     assert s["mem_limit"] and s["cpus"] and s["pids_limit"] and "ports" not in s
     assert s["networks"] == ["argus-lab-app"] and s["environment"]["PGAPPNAME"] == "argus-lab-leaker"
+    # SC-04 run 1: "can't fork" at pids_limit 32 - each session costs a subshell, sleep and psql (~3 processes, ~5 MiB)
+    sessions = int(s["environment"]["SESSIONS"])
+    assert s["pids_limit"] >= 3 * sessions + 8
+    assert int(s["mem_limit"].rstrip("m")) >= 8 * sessions
     assert any("app_password" in v for v in s["volumes"])
     script = (ROOT / "deploy" / "lab" / "workloads" / "leaker.sh").read_text(encoding="utf-8")
     assert "BEGIN" in script and "SESSIONS:-16" in script and "\r\n" not in script
