@@ -1,15 +1,11 @@
 {
   "holder": "conantkd",
-  "session_id": "796fd4f3bf61",
+  "session_id": "3307114120d3",
   "task": "AFTER-MERGE",
-  "branch": "task/T-0017-pg-backup-drill",
-  "base_commit": "5f6a90db89dcafe4f613562b3ba59f2b80555523",
-  "started_at": "2026-10-07T02:04:36+00:00",
-  "expires_at": "2026-10-07T07:50:35+00:00",
-  "released": true,
-  "handoff": {
-    "note": "done: T-0018 SC-07 verified 4 runs + knowledge.runbook (Level 3, max_tool_level 3), PR #27 waiting for juanbetancurm's review; T-0019 (db-probe, phase 3) planned on task/T-0019-db-probe (on top of T-0018, task file only); next: after #27 merges run the AFTER-MERGE block in code.bash on T-0018 (both VMs back to main, checkout only), then T-0019 step 1 (read-only vm-166 checks: PyPI for pg8000, port 18704, memory); open question for conantkd: phase 3 scope (only db-probe or all target probes in 3 batches); environment: vm-095 on task/T-0018-sc07-network 65eb9f1 (agent rebuilt; a90400e level fix not deployed), vm-166 on df267ce (target services rebuilt), lab at baseline, NO INTERFERENCE",
-    "branch": "task/T-0019-db-probe",
-    "at": "2026-10-07T06:47:17+00:00"
-  }
+  "branch": "task/T-0019-db-probe",
+  "base_commit": "4813fd121b638ee449dfaf40da624a0ab05cf808",
+  "started_at": "2026-10-07T14:58:26+00:00",
+  "expires_at": "2026-10-07T15:58:26+00:00",
+  "released": false,
+  "handoff": null
 }
