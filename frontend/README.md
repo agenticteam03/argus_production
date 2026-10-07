@@ -16,16 +16,16 @@ npm test          # unit tests (Vitest)
 npm run build     # production build → dist/ (never committed; gitignored)
 ```
 
-Mock logins (no real API): `viewer`, `operator`, `approver` — password `argus-demo`.
+Mock logins (no real API): `admin@argus.dev`, `operator@argus.dev`, `viewer@argus.dev` — password `argus-demo`.
 They live in `src/services/mockAuthAdapter.js` and are demo-only client-side data, not real credentials.
 
 ## Structure
 
 | Path | What it is |
 |---|---|
-| `src/routes.js` | Single source of truth for menu + router; `action` shows an item only when `/api/v1/me` lists it |
-| `src/pages/` | Login, Dashboard, Runbooks (Incidents is an explicit "Coming soon" placeholder) |
-| `src/components/` | Header, RunbookCard, RunbookDrawer, `ui.jsx` primitives |
+| `src/routes.js` | Single source of truth for menu + router; `roles` limits who sees/opens an item |
+| `src/pages/` | Login, Dashboard, Runbooks (other routes are explicit "Coming soon" placeholders) |
+| `src/components/` | Header, AgentChat, RunbookCard, RunbookDrawer, `ui.jsx` primitives |
 | `src/context/AuthContext.jsx` | Session in memory only — never `localStorage`, cookies or the URL |
 | `src/services/` | **Ports & adapters**: `index.js` is the single swap point (mocks today, HTTP tomorrow); `AuthPort.js` documents the shape |
 | `src/hooks/` | `useLiveOverview` (5 s poll), `useRunbooks` (10 s poll) |

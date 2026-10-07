@@ -24,7 +24,7 @@ export default function Header() {
     return () => document.removeEventListener("click", close);
   }, []);
 
-  const items = routes.filter((r) => (r.children ? r.children.some((c) => canSee(c, user)) : canSee(r, user)));
+  const items = routes.filter((r) => (r.children ? r.children.some((c) => canSee(c, user.role)) : canSee(r, user.role)));
 
   return (
     <header className="relative z-30 mx-auto mt-4 flex w-[calc(100%-2rem)] max-w-[1200px] flex-wrap items-center justify-between gap-3 rounded-2xl border border-line bg-card/80 p-2.5 backdrop-blur sm:w-[calc(100%-3rem)] md:flex-nowrap">
@@ -40,7 +40,7 @@ export default function Header() {
                 {r.label} <Chevron width="14" height="14" />
               </summary>
               <div className={`${menu} left-1/2 -translate-x-1/2`}>
-                {r.children.filter((c) => canSee(c, user)).map((c) => (
+                {r.children.filter((c) => canSee(c, user.role)).map((c) => (
                   <Link key={c.path} to={c.path} onClick={closeMenu} className="block rounded-lg px-3 py-2 hover:bg-white/5">
                     <span className="text-sm">{c.label}</span>
                     <span className="block text-xs text-muted">{c.desc}</span>
@@ -62,12 +62,12 @@ export default function Header() {
         </button>
         <details className="relative">
           <summary className={summary} aria-label="Account menu">
-            <span className="grid size-10 place-items-center rounded-full bg-accent/20 text-sm font-medium text-accent-hover">{user.name[0].toUpperCase()}</span>
+            <span className="grid size-10 place-items-center rounded-full bg-accent/20 text-sm font-medium text-accent-hover">{user.email[0].toUpperCase()}</span>
             <Chevron width="14" height="14" className="text-muted" />
           </summary>
           <div className={`${menu} right-0`}>
             <div className="px-3 py-2">
-              <p className="truncate text-sm">{user.name}</p>
+              <p className="truncate text-sm">{user.email}</p>
               <p className="text-xs text-muted">{ROLES[user.role]}</p>
             </div>
             <button onClick={logout} className="w-full cursor-pointer rounded-lg px-3 py-2 text-left text-sm hover:bg-white/5">Log out</button>

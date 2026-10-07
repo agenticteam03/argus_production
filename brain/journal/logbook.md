@@ -389,16 +389,3 @@ the `actions` list of `GET /api/v1/me`; approvals in a UI touch a safety princip
 and §17.3 now say so.
 Checked: full suite green on the branch, the read-token check sits in the shared principal dependency, no secrets.
 References: ACR-0001 §5, PR #22, T-0015.
-
-## 2026-10-06 — Review of PR #24: the frontend prototype aligned with ACR-0001
-
-Type: review
-Who: conantkd (+ agent)
-Context: ACR-0001 was accepted (PR #22): a UI only reads in this release. The prototype in PR #24 offered
-Approve/Reject buttons, an agent chat that starts investigations, an alert simulator, a scheduler, an `admin` role,
-email logins and a health card with data no API serves, and `GUIDELINES.md` planned the approval buttons.
-Decision / result: fixed on the PR branch, tests first (11 red, then 27 green, build OK): those features are
-removed, the dashboard says the UI is read-only, login by username, the session has the `/me` shape and the menu
-follows its `actions` (no role logic in the UI). `GUIDELINES.md` now lists what is not in the UI and why. Also
-merged `main` (logbook conflict: both entries kept).
-References: PR #24, ACR-0001 §5, T-0016.

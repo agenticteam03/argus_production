@@ -3,6 +3,7 @@ const icon = (paths) => (props) => (
 );
 export const Bell = icon(<><path d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9" /><path d="M10.3 21a1.9 1.9 0 0 0 3.4 0" /></>);
 export const Chevron = icon(<path d="m6 9 6 6 6-6" />);
+export const Send = icon(<path d="m22 2-7 20-4-9-9-4Zm0 0L11 13" />);
 export const Arrow = icon(<path d="M5 12h14m-6-6 6 6-6 6" />);
 export const Inbox = icon(<path d="M22 12h-6l-2 3h-4l-2-3H2M5.5 5.1 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.5-6.9A2 2 0 0 0 16.7 4H7.3a2 2 0 0 0-1.8 1.1Z" />);
 export const Shield = icon(<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z" />);

@@ -3,7 +3,7 @@ import { argus } from "../services/index.js";
 
 // Short polling today. When the SSE endpoint exists, subscribe here instead and keep the same return shape.
 export function useLiveOverview(intervalMs = 5000) {
-  const [data, setData] = useState({ incidents: [] });
+  const [data, setData] = useState({ incidents: [], approvals: [], health: null });
   const [live, setLive] = useState(true);
 
   const refresh = useCallback(async () => {

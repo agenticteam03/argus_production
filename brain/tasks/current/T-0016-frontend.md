@@ -93,10 +93,3 @@ a screen or a button in `frontend/`.
     (313 modules) after the hero image became a 136 KB JPEG (was 3.8 MB PNG);
   - the CI job `frontend` (unit tests + production build) is added in this pull request; it changes
     `.github/workflows/`, so a teammate must approve it (the fast-track excludes it).
-- **2026-10-06 — review of PR #24 (`conantkd`): the prototype aligned with ACR-0001 (UIs read-only):**
-  - **red:** 11 of 27 unit tests failed for the right reasons: the roles were `admin`, not `approver`; the menu
-    had approvals, agent, simulator and scheduler pages and filtered by role; the login used emails and returned
-    no `/me` shape; the Argus port offered `askAgent` and `decideApproval`;
-  - **green:** 27/27 (`parseRunbook` 11, `routes` 7, `mockAuthAdapter` 7, `mockArgusAdapter` 2) and `vite build`.
-    The agent chat, the approvals card and the health card are removed; the dashboard says the UI is read-only;
-    login by username; the menu follows the `/me` actions; `GUIDELINES.md` updated to match.

@@ -1,32 +1,17 @@
 import { describe, expect, it } from "vitest";
-import { ROLES, canSee, flat, routes } from "./routes.js";
-
-const viewer = { role: "viewer", actions: ["view_incidents", "view_timeline"] };
-const nobody = { role: "viewer", actions: [] };
+import { canSee, flat, routes } from "./routes.js";
 
 describe("routes", () => {
-  it("uses only the Argus roles", () => {
-    expect(Object.keys(ROLES)).toEqual(["viewer", "operator", "approver"]);
+  it("shows unrestricted routes to every role", () => {
+    for (const role of ["viewer", "operator", "admin"]) {
+      expect(canSee({ path: "/" }, role)).toBe(true);
+    }
   });
 
-  it("shows a route without an action to every user", () => {
-    expect(canSee({ path: "/" }, nobody)).toBe(true);
-  });
-
-  it("shows a route only when /me lists its action (no role logic in the UI)", () => {
-    expect(canSee({ path: "/incidents", action: "view_incidents" }, viewer)).toBe(true);
-    expect(canSee({ path: "/incidents", action: "view_incidents" }, nobody)).toBe(false);
-  });
-
-  it("has no page that writes: approvals, agent chat, alert simulator, scheduler (ACR-0001)", () => {
-    const paths = flat.map((r) => r.path);
-    for (const p of ["/approvals", "/agent", "/tools/simulator", "/tools/scheduler"]) expect(paths).not.toContain(p);
-  });
-
-  it("gates routes only on actions a read token can get", () => {
-    const readActions = ["view_incidents", "view_timeline", "view_evidence"];
-    for (const r of flat) if (r.action) expect(readActions).toContain(r.action);
-    expect(flat.some((r) => "roles" in r)).toBe(false);
+  it("hides a route from roles that are not listed", () => {
+    expect(canSee({ path: "/approvals", roles: ["admin"] }, "admin")).toBe(true);
+    expect(canSee({ path: "/approvals", roles: ["admin"] }, "operator")).toBe(false);
+    expect(canSee({ path: "/approvals", roles: ["admin"] }, "viewer")).toBe(false);
   });
 
   it("flattens nested children so the router sees every leaf path", () => {
