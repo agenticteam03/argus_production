@@ -3,17 +3,25 @@
   "containers": [
     "argus-lab-worker",
     "argus-lab-api",
-    "argus-lab-cache"
+    "argus-lab-cache",
+    "argus-lab-client",
+    "argus-lab-backend"
   ],
   "dns_names": [
     "argus-lab-worker",
     "argus-lab-api",
-    "argus-lab-cache"
+    "argus-lab-cache",
+    "argus-lab-client",
+    "argus-lab-backend"
   ],
   "tcp": [
     [
       "argus-lab-cache",
       6379
+    ],
+    [
+      "argus-lab-backend",
+      8080
     ]
   ],
   "http_endpoints": [
@@ -25,6 +33,12 @@
       "dependency": "argus-lab-cache",
       "host": "argus-lab-cache",
       "port": 6379
+    },
+    {
+      "owner": "argus-lab-client",
+      "dependency": "argus-lab-backend",
+      "host": "argus-lab-backend",
+      "port": 8080
     }
   ],
   "mounts": [

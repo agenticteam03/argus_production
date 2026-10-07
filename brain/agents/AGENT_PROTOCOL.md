@@ -100,7 +100,7 @@ go in the same pull request.
 
 - Never touch the protected objects listed in [`../infrastructure/environment.md`](../infrastructure/environment.md).
 - Argus objects only: names `argus-v18-*` / `argus-lab-*`, directory `/opt/argus-v18`, ports 18000–18799,
-  networks 172.30.0–2.0/24.
+  networks 172.30.0–3.0/24 (`3` = `argus-lab-iso`, SC-07 only, T-0018).
 - Every mutating block has a rollback line and is safe to re-run.
 - Read-only: no write capability is released; the write gate stays empty.
 - Never ask for a secret to be pasted anywhere. Use hidden prompts (`read -rsp`). Never print secrets.

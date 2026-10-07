@@ -1,5 +1,5 @@
 # Synthetic workloads (argus-lab-*). Profiles: base (always-on baseline), sc01, sc02, … (one failure at a time).
-# Only on the argus-lab-app network; hard limits; no published ports.
+# On the argus-lab-app network (SC-07's backend: argus-lab-iso); hard limits; no published ports.
 name: argus-lab-workloads
 x-lim: &lim {mem_limit: 48m, memswap_limit: 48m, cpus: 0.2, pids_limit: 32}
 services:
@@ -61,5 +61,32 @@ services:
     volumes: ["./workloads:/w:ro"]
     networks: [argus-lab-app]
     restart: on-failure
+  argus-lab-backend:                    # SC-07 (vm-166): healthy, but ONLY on argus-lab-iso (the wrong network)
+    <<: *lim
+    image: python:3.12-alpine
+    container_name: argus-lab-backend
+    profiles: [sc07]
+    environment: {CACHE_HOST: none}
+    command: ["python", "-u", "/w/api.py"]
+    volumes: ["./workloads:/w:ro"]
+    networks: [argus-lab-iso]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8080/health', timeout=2).status == 200 else 1)"]
+      interval: 15s
+      timeout: 4s
+      retries: 2
+    restart: unless-stopped
+  argus-lab-client:                     # SC-07 (vm-166): on argus-lab-app, cannot resolve argus-lab-backend
+    <<: *lim
+    image: python:3.12-alpine
+    container_name: argus-lab-client
+    profiles: [sc07]
+    command: ["python", "-u", "/w/client.py"]
+    volumes: ["./workloads:/w:ro"]
+    networks: [argus-lab-app]
+    restart: unless-stopped
 networks:
   argus-lab-app: {external: true, name: argus-lab-app}
+  argus-lab-iso:                        # SC-07 only: created with the profile, removed by its `down`
+    name: argus-lab-iso
+    ipam: {config: [{subnet: 172.30.3.0/24}]}

@@ -83,7 +83,8 @@ operator and transport channel, never an Argus executor** (an `ssh_verbs` execut
 | `argus-v18-db-probe` (planned) | vm-166 | `127.0.0.1:18704` | the tunnel |
 | `argus-v18-prometheus` | vm-166 | `127.0.0.1:18090` | the tunnel |
 
-Networks: `argus-v18-core` 172.30.0.0/24, `argus-v18-mon` 172.30.1.0/24, `argus-lab-app` 172.30.2.0/24. Range
+Networks: `argus-v18-core` 172.30.0.0/24, `argus-v18-mon` 172.30.1.0/24, `argus-lab-app` 172.30.2.0/24,
+`argus-lab-iso` 172.30.3.0/24 (SC-07 only, vm-166). Range
 18000–18799. Nothing binds to `0.0.0.0` or a public address.
 
 **Cross-host transport — decided and verified 2026-10-01:** a restricted SSH tunnel over port 22, because every other
@@ -136,7 +137,7 @@ Hybrid operation: a tiny always-on baseline (vm-166: `argus-lab-api` + `argus-la
 | SC-04 | vm-166 | a worker leaks idle-in-transaction sessions on `argus-lab-db` | `postgresql_connection_exhaustion` · RB-004 | root cause the worker | ⬜ |
 | SC-05 | vm-166 | a filler fills a 256 MiB loop-mounted file to 92 % | `disk_pressure` · RB-005 | fill rate, time to full | ⬜ |
 | SC-06 | vm-166 | CPU burner capped at `cpus: 0.3` for 3 min | `cpu_saturation` · RB-006 | throttled at quota; vm-095 unaffected | ⬜ |
-| SC-07 | vm-095 | client and backend on different networks | `dns_network_failure` · RB-009 | network misconfiguration, not a failed service | ⬜ |
+| SC-07 | vm-166 | client on `argus-lab-app`, healthy backend only on `argus-lab-iso` (T-0018) | `dependency_unavailable` → RB-009 (a `dns_network_failure` class later) | network misconfiguration, not a failed service | ⬜ |
 | SC-08 | vm-166 | nginx → slow upstream with 502s | `http_errors_latency` → `nginx_upstream_failure` · RB-011/RB-015 | upstream exceeds the nginx timeout | ⬜ |
 | SC-09 | vm-095 | none: "users see stale data" on a healthy api | none → evidence pack | `unsupported_escalated`, **no model call** | ✅ |
 | SC-10 | vm-095 | vm-095 exporter stopped | `monitoring_blind_spot` · RB-014 | vm-095 undiagnosable; vm-166 unaffected | ✅ |

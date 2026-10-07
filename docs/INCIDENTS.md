@@ -227,7 +227,7 @@ such as `"target": "container:argus-lab-api"`, is rejected with **422** before a
 | SC-04 | PostgreSQL connection exhaustion | vm-166 | db + db-probe + class |
 | SC-05 | disk almost full (256 MiB loop mount) | vm-166 | loop mount + `disk_pressure` class |
 | SC-06 | CPU saturation (capped burner) | vm-166 | `cpu_saturation` class |
-| SC-07 | DNS / network misattachment | vm-095 | workloads + `dns_network_failure` class |
+| SC-07 | DNS / network misattachment | vm-166 | in progress (T-0018): lab profile `sc07` and the `networks` field are in the code; not yet run on the VM |
 | SC-08 | nginx upstream failure | vm-166 | nginx + slow api + class |
 | SC-10 | monitoring blind spot (exporter stopped) | vm-095 | scripted in code.bash Task 10, not yet verified |
 | SC-12 | executor partition (gateway stopped) | vm-166 | scripted in code.bash Task 10, not yet verified |
