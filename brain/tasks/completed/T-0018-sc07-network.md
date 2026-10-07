@@ -102,3 +102,11 @@ incident. Restarting the backend would fix nothing; a good diagnosis says which 
   (`get_container_network`). Now: on Docker, a name that does not resolve first leads to comparing the `networks`
   of source and destination (no shared network → wrong attachment, name both networks, no restart); the tool table
   points to `get_container_status` → `networks`; the lab-validation section records SC-07. Not run yet with 1.1.0.
+- **2026-10-07 — SC-07 run 3 and the analysis (`conantkd`):** run 3 (`inc_dbd9ba0253a7`) did not read RB-009 nor any
+  container status. The stored evidence of the three runs shows the precise diagnosis (run 1) came only when the
+  model happened to read the status of **both** sides; the tool description did not say it returns networks.
+  Of the suggestions (network-named probe text, tool description, RB-003 step 2, detector finding naming the edge
+  and layer, "Decide now"), `conantkd` chose only the tool description.
+  - **red:** `test_container_status_tool_tells_the_model_it_returns_networks` (`'network' in 'container state, …'`);
+  - **green:** the description names the attached Docker networks and the use-when says to compare a victim's and
+    its dependency's networks when a name does not resolve; full suite 101 passed, 6 skipped (107).

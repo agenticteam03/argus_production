@@ -100,3 +100,11 @@ def test_exporter_probes_a_dependency_only_while_its_owner_runs(tmp_path, monkey
     assert not any("argus-lab-client" in ln for ln in lines)
     lines = svc.probe_lines(probes, running={"argus-lab-api", "argus-lab-client"})
     assert 'argus_probe_success{owner="argus-lab-client",dependency="argus-lab-backend"} 0' in lines
+
+
+def test_container_status_tool_tells_the_model_it_returns_networks():
+    """SC-07 runs 2-3: the model never compared both sides' networks; the tool description did not say it has them."""
+    from argus.capabilities.catalog import build_catalog
+    spec = next(s for s in build_catalog() if s.name == "container.status")
+    assert "network" in spec.description.lower()
+    assert "network" in spec.use_when.lower()

@@ -220,8 +220,10 @@ def build_catalog() -> list[CapabilitySpec]:
                        "discovering what runs on a host", NoArgs, C | H, 1, "READ_ONLY_SAFE",
                        frozenset({"container", "discovery"}), "docker_read", container_list),
         CapabilitySpec("container.status", "get_container_status",
-                       "Container state, health, restart count, OOMKilled flag, exit code, start time, memory limit.",
-                       "any container incident; first check", NoArgs, C, 1, "READ_ONLY_SAFE",
+                       "Container state, health, restart count, OOMKilled flag, exit code, start time, memory limit, "
+                       "and the names of the Docker networks it is attached to.",
+                       "any container incident; first check; compare the networks of a victim and its dependency "
+                       "when a name does not resolve", NoArgs, C, 1, "READ_ONLY_SAFE",
                        frozenset({"container", "stability", "memory"}), "docker_read", container_status),
         CapabilitySpec("container.resources", "get_container_resources",
                        "Current memory usage vs limit, CPU percent and process count of a container.",

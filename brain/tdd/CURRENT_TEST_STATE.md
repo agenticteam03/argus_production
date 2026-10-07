@@ -4,7 +4,7 @@
 
 | Stage | Result | Where / when |
 |---|---|---|
-| 3. Offline suite | **100 passed**, 6 skipped (106; the 5 Postgres tests and the real-Docker backup test): 89 before + 6 `test_sc07_network.py` + 5 `test_knowledge_runbook.py` (T-0018: `query_runbook` reads the library in-worker, refuses unknown/malformed ids, is limited by policy, and the context names the branch runbooks) | laptop, 2026-10-07 (T-0018) |
+| 3. Offline suite | **101 passed**, 6 skipped (107; the 5 Postgres tests and the real-Docker backup test): 89 before + 7 `test_sc07_network.py` + 5 `test_knowledge_runbook.py` (T-0018: `query_runbook` reads the library in-worker, refuses unknown/malformed ids, is limited by policy, and the context names the branch runbooks) | laptop, 2026-10-07 (T-0018) |
 | 3. Frontend unit tests | **20 passed** (Vitest: `parseRunbook` 11, `routes` 4, `mockAuthAdapter` 5) and `vite build` OK | CI job `frontend` (T-0016, PR #24) |
 | 4. Postgres integration | **95 passed, 0 skipped** (full suite with `ARGUS_TEST_PG_OWNER_DSN` against a throwaway `postgres:16-alpine` and `ARGUS_TEST_DOCKER=1`: the 5 Postgres tests and the real-Docker backup test included) on `task/T-0017-pg-backup-drill` after merging `main`; container removed afterwards | laptop, 2026-10-06 (T-0017, PR #25) |
 | 5. CI | first run on `9ccc61d`: audit, lint, gitleaks ✓; tests ✗ (runbook library not available in CI) → fixed in PR #1 (pinned runbooks checkout with a read-only deploy key) | GitHub, 2026-10-02 |
