@@ -20,8 +20,8 @@ and repeated end-to-end runs.
 
 | VM | Argus containers | Published ports | Code (`deploy.sh status`) |
 |---|---|---|---|
-| vm-095 | `argus-v18-agent` (LangGraph runner), `argus-v18-postgres` (healthy), `argus-v18-tunnel`, `argus-v18-read-gateway`, `-host-probe`, `-network-probe`, `-exporter`, `-prometheus`, `argus-lab-api` | `127.0.0.1:18000` only | `main` `f126272` (checkout, 2026-10-06 AFTER-MERGE T-0017); the agent image is from `2097eb1` and lacks T-0015 until its step 6 rebuilds it |
-| vm-166 | `argus-v18-read-gateway`, `-host-probe`, `-network-probe`, `-exporter`, `-prometheus`, `argus-lab-api` (healthy), `argus-lab-cache` | `127.0.0.1:18701-18703`, `127.0.0.1:18090` | `main` `2097eb1` (checkout only; its services' code is unchanged) |
+| vm-095 | `argus-v18-agent` (LangGraph runner), `argus-v18-postgres` (healthy), `argus-v18-tunnel`, `argus-v18-read-gateway`, `-host-probe`, `-network-probe`, `-exporter`, `-prometheus`, `argus-lab-api` | `127.0.0.1:18000` only | `main` `974d1d7` (checkout, 2026-10-07 AFTER-MERGE T-0018); the agent image is from `65eb9f1` (T-0018 + T-0015), without `a90400e` (`knowledge.runbook` Level 3) until the next agent rebuild |
+| vm-166 | `argus-v18-read-gateway`, `-host-probe`, `-network-probe`, `-exporter`, `-prometheus`, `argus-lab-api` (healthy), `argus-lab-cache` | `127.0.0.1:18701-18703`, `127.0.0.1:18090` | `main` `974d1d7` (checkout, 2026-10-07 AFTER-MERGE T-0018); target services built from T-0018 (same code as `main`) |
 
 - `/opt/argus-v18/app` is a **git checkout** on both VMs (read-only deploy key per VM); the old tarball folder is kept
   as `/opt/argus-v18/app.pre-git-<time>`. Only the agent on vm-095 was rebuilt; the other containers still run the
@@ -41,7 +41,14 @@ and repeated end-to-end runs.
   yet. Evidence: [`execution/history/T-0017/step-03/evidence.md`](execution/history/T-0017/step-03/evidence.md).
   vm-095's checkout was on `task/T-0017-pg-backup-drill` for the drill; back on `main` `f126272` after the merge
   (AFTER-MERGE T-0017, below).
-- **Latest (OBSERVED 2026-10-07, T-0018 step 7):** vm-095 runs `task/T-0018-sc07-network` `68d4963`: the agent has
+- **Latest (OBSERVED 2026-10-07, OP-007, `conantkd`):** vm-166 runs `task/op-007-restarting-probe-fix` `9c04e90`:
+  the 4 target services rebuilt; a dependency probe now stays while its owner restarts; api -> cache probe 1, no
+  series for the absent SC-07 client; `LAB BASELINE OK`, NO INTERFERENCE. Back to `main` after the merge (checkout
+  only). Evidence: [`execution/history/OP-007/step-01/evidence.md`](execution/history/OP-007/step-01/evidence.md).
+- **Earlier (OBSERVED 2026-10-07, AFTER-MERGE T-0018, `conantkd`):** both VMs on `main` `974d1d7` (checkout only,
+  nothing restarted), `LAB BASELINE OK`, NO INTERFERENCE on both. Evidence:
+  [`execution/history/AFTER-MERGE-T-0018/step-01/evidence.md`](execution/history/AFTER-MERGE-T-0018/step-01/evidence.md).
+- **Earlier (OBSERVED 2026-10-07, T-0018 step 7):** vm-095 runs `task/T-0018-sc07-network` `68d4963`: the agent has
   `knowledge.runbook` (`query_runbook`, in-worker); SC-07 run 2 `inc_21f900ee6139` DIAGNOSED with RB-009 read during
   the investigation; vm-166 stays on `df267ce` (its services did not change). NO INTERFERENCE on both.
 - **T-0018 steps 1–5 (OBSERVED 2026-10-07):** both VMs run the checkout of `task/T-0018-sc07-network` (`df267ce`):
