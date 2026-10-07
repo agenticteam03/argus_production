@@ -95,7 +95,7 @@ incident. Restarting the backend would fix nothing; a good diagnosis says which 
 - **2026-10-07 — step 7 on the VMs (agent `68d4963`, SC-07 run 2):** `inc_21f900ee6139` DIAGNOSED; after the TCP
   probe failed the model called **`query_runbook` → RB-009** (3 sections) and then checked name resolution first, as
   RB-009 prescribes; "do not restart the backend". Root-cause target the host (less precise than run 1, still
-  correct). RB-009: `last_tested: 2026-10-07`, version 1.0.1, still `draft` (promotion needs more cases and a
+  correct). RB-009: `last_tested: 2026-10-07` (the run read version 1.0.0; metadata bumped to 1.0.1 for `last_tested`), still `draft` (promotion needs more cases and a
   reviewer). [Evidence](../../execution/history/T-0018/step-07/evidence.md).
 - **2026-10-07 — RB-009 adapted to 1.1.0 (`conantkd`):** run 2 stopped at "name resolution" because RB-009's decision
   tree sent a DNS failure straight to "resolver/record" and its step 3 named a tool that does not exist

@@ -445,6 +445,6 @@ Decision / result: `query_runbook` (executor `argus_internal`, `runs_in="worker"
 InvokeCapability like every read; the context names the class's branch runbooks. The orchestration flow did not
 change. Tests first (5 red, then green; 100 passed). The redactor masked full sha256 values as high-entropy secrets,
 so passages carry a 16-character prefix. SC-07 run 2 (`inc_21f900ee6139`): the model read RB-009 after the TCP probe
-failed and diagnosed the name-resolution layer, no restart. RB-009 `last_tested: 2026-10-07` (version 1.0.1, still
+failed and diagnosed the name-resolution layer, no restart. RB-009 `last_tested: 2026-10-07` (read in version 1.0.0; the metadata then became 1.0.1; still
 draft). Next agreed: enable more classes under the §3 "Enablement" rule.
 References: T-0018 step 7, `execution/history/T-0018/step-07/evidence.md`, ARCHITECTURE §10.5, §12.

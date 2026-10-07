@@ -19,10 +19,10 @@ nonint-check: NO INTERFERENCE on vm-095 (yes) and vm-166 (yes).
 | Run | Agent | RB-009 read | Backend status read | Networks named | Root-cause target |
 |---|---|---|---|---|---|
 | 1 `inc_fb92d115abb2` | no `query_runbook` | no | yes (step 1) | **yes** | backend |
-| 2 `inc_21f900ee6139` | `query_runbook`, RB-009 1.0.1 | **yes** (step 2) | yes (step 3) | no | host |
+| 2 `inc_21f900ee6139` | `query_runbook`, RB-009 1.0.0 | **yes** (step 2) | yes (step 3) | no | host |
 | 3 `inc_dbd9ba0253a7` | `query_runbook`, RB-009 1.1.0 | no | no | no | host |
 
 All three: DIAGNOSED, the network/name layer, the client a victim, no restart. **Reading RB-009 is the model's
 choice** (1 of 2 runs since it became possible), so the 1.1.0 change was not exercised in run 3. What the model sees
 every time is the parent runbook RB-003's "Diagnostic workflow" (recalled in all three runs), whose step 2 reads
-"DNS failure → H1/RB-009" and so stops at the name layer, the same gap RB-009 1.0.1 had.
+"DNS failure → H1/RB-009" and so stops at the name layer, the same gap RB-009 1.0.0 had.
