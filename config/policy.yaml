@@ -1,6 +1,6 @@
 # Argus v1.8 policy (data) for the two-VM deployment. The engine is argus/policy/engine.py; policy_version = SHA-256 of this file.
 profile: production
-max_tool_level: 2
+max_tool_level: 3          # Level 3 (ARCHITECTURE §12.2): knowledge.runbook now, database.health next
 allowed_safety_classes: [READ_ONLY_SAFE, READ_ONLY_SENSITIVE]
 
 capabilities:

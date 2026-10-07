@@ -114,3 +114,10 @@ incident. Restarting the backend would fix nothing; a good diagnosis says which 
   read RB-009 **1.1.0**, and the diagnosis names both networks ("the client is on argus-lab-app while the backend is
   on argus-lab-iso … wrong network attachment … do not restart"). First run with all three; one run is not a
   quality claim. [Evidence](../../execution/history/T-0018/step-09/evidence.md).
+- **2026-10-07 — level fixed before review (`conantkd`):** `knowledge.runbook` had been registered at Level 1 so it
+  would be offered under `max_tool_level: 2`; ARCHITECTURE §12.2 lists it at **Level 3**. Now Level 3,
+  `max_tool_level: 3` (the architecture's own policy example, §13.1), and the classes with branch runbooks carry the
+  tag `knowledge`, because tools above Level 1 are offered by class tag (§10.4).
+  - **red:** the level test (`assert 1 == 3`), then the scripted diagnosis escalated (tool no longer offered) and
+    the tag test failed;
+  - **green:** full suite 103 passed, 6 skipped (109).

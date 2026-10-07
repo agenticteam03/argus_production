@@ -265,6 +265,6 @@ def build_catalog() -> list[CapabilitySpec]:
         CapabilitySpec("knowledge.runbook", "query_runbook",
                        "Read sections of a runbook of the library (id, version, status, section).",
                        "the evidence points to a cause another runbook covers (e.g. a branch runbook of the class)",
-                       RunbookArgs, C | H, 1, "READ_ONLY_SAFE", frozenset({"knowledge"}), "argus_internal",
+                       RunbookArgs, C | H, 3, "READ_ONLY_SAFE", frozenset({"knowledge"}), "argus_internal",
                        knowledge_runbook, runs_in="worker", max_output_bytes=16384),
     ]

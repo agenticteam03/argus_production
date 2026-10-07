@@ -76,3 +76,22 @@ def test_branch_runbooks_are_offered_and_read_in_a_diagnosis(make_app):
     assert "branch runbooks" in first and "RB-009 DNS/network connectivity failure" in first and "query_runbook" in first
     caps = [e.capability for e in app.store.list_evidence(inc.id)]
     assert "knowledge.runbook" in caps
+
+
+def test_query_runbook_is_level_3_and_offered_under_the_policy_limit():
+    """ARCHITECTURE §12.2 lists query_runbook at Level 3; the policy must allow Level 3 for it to be offered."""
+    import yaml
+    from argus.capabilities.catalog import build_catalog
+    from test_core import ROOT
+    spec = next(s for s in build_catalog() if s.name == "knowledge.runbook")
+    assert spec.level == 3
+    policy = yaml.safe_load((ROOT / "config" / "policy.yaml").read_text(encoding="utf-8"))
+    assert policy["max_tool_level"] >= spec.level
+
+
+def test_classes_with_branch_runbooks_are_offered_query_runbook():
+    """Tools above Level 1 are offered by class tag (ARCHITECTURE §10.4): a class with branch runbooks needs `knowledge`."""
+    from argus.detectors.classes import CLASSES
+    for c in CLASSES:
+        if c.branch_runbook_ids:
+            assert "knowledge" in c.tool_tags, c.name
