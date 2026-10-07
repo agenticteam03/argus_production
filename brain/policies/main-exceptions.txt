@@ -14,3 +14,4 @@ pr 13  2026-10-05  juanbetancurm  fast-track: remove practice-lab files committe
 pr 18  2026-10-06  juanbetancurm  fast-track: AFTER-MERGE commands + OP-005 accepted (documentation only)
 pr 20  2026-10-06  juanbetancurm  fast-track: AFTER-MERGE record (vm-166 pending) + laptop-switch guide (documentation only)
 pr 21  2026-10-06  juanbetancurm  fast-track: AFTER-MERGE done + remove personal laptop guide (documentation only)
+pr 25  2026-10-06  conantkd  fast-track: T-0017 Postgres backup/restore drill (ops script, tests, Brain; live database only read)

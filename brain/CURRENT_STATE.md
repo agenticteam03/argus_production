@@ -1,6 +1,6 @@
 # Current state — the last verified shared state
 
-**As of:** 2026-10-06 (DEPLOY-MAIN by `conantkd`) · **Architecture:** v1.8.0 · **Status:** `verified` on
+**As of:** 2026-10-06 (T-0017 backup/restore drill by `conantkd`) · **Architecture:** v1.8.1 (ACR-0001) · **Status:** `verified` on
 the VMs; T-0013 (LangGraph + Postgres checkpoints) merged and **deployed: both VMs run `main` `09f5ab1`** (§2) ·
 shared-Brain setup B1–B8 under way (three developers).
 
@@ -34,6 +34,13 @@ and repeated end-to-end runs.
   disabled. Login test per user (legacy step 12b.2) **done 2026-10-05**: all three log in and get `outcome: HEALTHY`
   on a `--check` of `vm-095/container:argus-lab-api`.
 - Last `nonint-check.sh after`: **NO INTERFERENCE** on both VMs (2026-10-06).
+- **Postgres backup proved restorable (T-0017, OBSERVED 2026-10-06):** `ops/db-backup.sh backup` wrote
+  `/opt/argus-v18/backups/argus-20261006T185011Z.dump` (11 tables, 4603 rows; folder and files root-only, the dump
+  holds password hashes and never leaves the VM); `verify latest` restored it into a throwaway, network-less
+  `argus-lab-pgrestore`: `VERIFY OK: 11 tables, 4603 rows match`; the live database was only read. Not scheduled
+  yet. Evidence: [`execution/history/T-0017/step-03/evidence.md`](execution/history/T-0017/step-03/evidence.md).
+  vm-095's checkout was on `task/T-0017-pg-backup-drill` for the drill (ops/tests/brain only): back on `main`
+  after the merge (`execution/current/code.bash`).
 - **Latest (OBSERVED 2026-10-06, AFTER-MERGE):** both VMs `commit=2097eb1…`, `ref=main`, `LAB BASELINE OK`,
   NO INTERFERENCE; the vm-095 agent rebuilt (image = deployed commit). Evidence:
   [`execution/history/AFTER-MERGE/step-01/evidence.md`](execution/history/AFTER-MERGE/step-01/evidence.md).
@@ -50,7 +57,8 @@ and repeated end-to-end runs.
 See [`IMPLEMENTATION_PLAN.md`](IMPLEMENTATION_PLAN.md) §1. Done or nearly done: 0, 1, 2, 3, 5, 6, 8, 10.
 In progress: 4 (50 %), 7 (50 %), **9 (55 %: LangGraph + checkpoints + OP-006 done; api/worker/scheduler split
 next)**, 11 (50 %), 12 (30 %), 13 (35 %). Not started: 14. Phase 10 (90 %) gets a read-only web UI as new scope:
-T-0015 (API side) and T-0016 (frontend), planned.
+T-0015 (API side: steps 1-5 merged, PR #22; step 6 deploy pending) and T-0016 (frontend: steps 1-2 merged, PR #24,
+mock-only); UI actions beyond reading need a future ACR (`NEXT_STEP.md`).
 
 ## 4. Scenarios verified on the real VMs
 
@@ -85,7 +93,7 @@ T-0015 (API side) and T-0016 (frontend), planned.
   api/worker/scheduler split.
 - Lab baseline: `deploy.sh status` now ends with `LAB BASELINE OK` or names the stopped/unhealthy `argus-lab-*`
   (DEPLOY-MAIN found `argus-lab-cache` stopped for ~7 h; `nonint-check.sh` does not cover Argus objects).
-- Postgres backup/restore drill not done. vm-095 says "System restart required" — do not reboot (team decision).
+- vm-095 says "System restart required" — do not reboot (team decision).
 
 ## 6. The shared-Brain setup
 
