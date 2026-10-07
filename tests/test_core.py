@@ -323,6 +323,24 @@ def test_formatted_and_raw_views_render_the_same_run(make_app):
     assert len(raw) == len(events) and all(_json.loads(r)["node"] for r in raw)
 
 
+def test_formatted_act_line_shows_the_whole_result_on_a_narrow_terminal():
+    """The SC-07 class demo (2026-10-07) printed `vm-166/container:arg`: the result was cut to fit one line. The result
+    now wraps under the tool line (at most 4 lines, then an ellipsis) and no line is wider than the terminal."""
+    from argus.adapters.inbound.cli.render import Formatter
+    result = ("vm-166/container:argus-lab-backend: running, health healthy, restarts=0, exit=0, oom_killed=false, "
+              "networks=argus-lab-iso")
+    ev = {"node": "act", "phase": "step", "data": {"executor": "docker_read", "host": "vm-166",
+                                                    "tool": "get_container_status", "status": "ok", "result": result}}
+    lines = Formatter(color=False, width=64).event(ev)
+    text = " ".join(ln.strip() for ln in lines)
+    tool = [ln for ln in lines if "get_container_status" in ln]
+    assert len(tool) == 1 and "✓" in tool[0]
+    assert "networks=argus-lab-iso" in text and "health healthy" in text
+    assert all(len(ln) <= 64 for ln in lines)
+    long = Formatter(color=False, width=64).event({**ev, "data": {**ev["data"], "result": "x " * 400}})
+    assert len(long) <= 2 + 1 + 4 and long[-1].rstrip().endswith("…")       # header (2) + tool line + 4
+
+
 def test_runbooks_are_loaded_with_versions(make_app):
     app = make_app()
     kb = app.runner.knowledge
