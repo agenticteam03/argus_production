@@ -1,14 +1,14 @@
 # Next step
 
-**Now (2026-10-06):** both VMs run `main` `2097eb1` (AFTER-MERGE done), vm-095 on the T-0017 branch (below).
-Merged today: PR #22 (T-0015 steps 1-5, **ACR-0001 accepted** by `conantkd`: UIs read-only in this release) and
+**Now (2026-10-06):** both VMs on `main` (vm-095 `f126272`, agent image from `2097eb1`; see below).
+Merged today: PR #25 (T-0017), PR #22 (T-0015 steps 1-5, **ACR-0001 accepted** by `conantkd`: UIs read-only in this release) and
 PR #24 (T-0016 steps 1-2, the mock-driven UI prototype, approved by `juanbetancurm` and `conantkd`). Next for them:
 T-0015 step 6 (deploy on vm-095, after it is back on `main`) and T-0016 step 3 (connect the read parts to the API).
 
-**Pending VM step after the T-0017 PR merges (`conantkd`, 2026-10-06):** vm-095 runs the checkout of
-`task/T-0017-pg-backup-drill`. Once merged, whoever holds the VM lease puts it back on `main` with the block in
-`execution/current/code.bash` (~2 min, checkout only). `main` now also holds T-0015, so `deploy.sh` will hint an
-agent rebuild: that rebuild is T-0015 step 6 (`juanbetancurm`), not part of this block. vm-166 is already on `main`. Phase 5 is complete (backup/restore drill, T-0017).
+**VMs (2026-10-06, `conantkd`):** PR #25 (T-0017) merged by fast-track; vm-095 is back on `main` `f126272`
+(checkout only, NO INTERFERENCE). The agent image is still from `2097eb1`: **T-0015 step 6** (`juanbetancurm`)
+rebuilds it and proves a read token is refused on `POST`. vm-166 is on `main`. Phase 5 is complete. PR #25 waits
+for its after-merge review by a teammate (fast-track rule).
 
 **Handoff (2026-10-05, from `juanbetancurm`; read the latest journal entry first).** In this order:
 

@@ -20,7 +20,7 @@ and repeated end-to-end runs.
 
 | VM | Argus containers | Published ports | Code (`deploy.sh status`) |
 |---|---|---|---|
-| vm-095 | `argus-v18-agent` (LangGraph runner), `argus-v18-postgres` (healthy), `argus-v18-tunnel`, `argus-v18-read-gateway`, `-host-probe`, `-network-probe`, `-exporter`, `-prometheus`, `argus-lab-api` | `127.0.0.1:18000` only | `main` `2097eb1` — agent rebuilt 2026-10-06 (AFTER-MERGE; the image matches the deployed commit) |
+| vm-095 | `argus-v18-agent` (LangGraph runner), `argus-v18-postgres` (healthy), `argus-v18-tunnel`, `argus-v18-read-gateway`, `-host-probe`, `-network-probe`, `-exporter`, `-prometheus`, `argus-lab-api` | `127.0.0.1:18000` only | `main` `f126272` (checkout, 2026-10-06 AFTER-MERGE T-0017); the agent image is from `2097eb1` and lacks T-0015 until its step 6 rebuilds it |
 | vm-166 | `argus-v18-read-gateway`, `-host-probe`, `-network-probe`, `-exporter`, `-prometheus`, `argus-lab-api` (healthy), `argus-lab-cache` | `127.0.0.1:18701-18703`, `127.0.0.1:18090` | `main` `2097eb1` (checkout only; its services' code is unchanged) |
 
 - `/opt/argus-v18/app` is a **git checkout** on both VMs (read-only deploy key per VM); the old tarball folder is kept
@@ -39,9 +39,12 @@ and repeated end-to-end runs.
   holds password hashes and never leaves the VM); `verify latest` restored it into a throwaway, network-less
   `argus-lab-pgrestore`: `VERIFY OK: 11 tables, 4603 rows match`; the live database was only read. Not scheduled
   yet. Evidence: [`execution/history/T-0017/step-03/evidence.md`](execution/history/T-0017/step-03/evidence.md).
-  vm-095's checkout was on `task/T-0017-pg-backup-drill` for the drill (ops/tests/brain only): back on `main`
-  after the merge (`execution/current/code.bash`).
-- **Latest (OBSERVED 2026-10-06, AFTER-MERGE):** both VMs `commit=2097eb1…`, `ref=main`, `LAB BASELINE OK`,
+  vm-095's checkout was on `task/T-0017-pg-backup-drill` for the drill; back on `main` `f126272` after the merge
+  (AFTER-MERGE T-0017, below).
+- **Latest (OBSERVED 2026-10-06, AFTER-MERGE T-0017):** vm-095 `commit=f126272…`, `ref=main`, `LAB BASELINE OK`,
+  no restart (agent and postgres kept their uptime), NO INTERFERENCE. `deploy.sh` hints an agent rebuild (T-0015
+  step 6). Evidence: [`execution/history/AFTER-MERGE-T-0017/step-01/evidence.md`](execution/history/AFTER-MERGE-T-0017/step-01/evidence.md).
+- **Earlier (OBSERVED 2026-10-06, AFTER-MERGE):** both VMs `commit=2097eb1…`, `ref=main`, `LAB BASELINE OK`,
   NO INTERFERENCE; the vm-095 agent rebuilt (image = deployed commit). Evidence:
   [`execution/history/AFTER-MERGE/step-01/evidence.md`](execution/history/AFTER-MERGE/step-01/evidence.md).
 - **Deployed code (OBSERVED earlier on 2026-10-06, `/opt/argus-v18/DEPLOYED`):** both VMs `commit=09f5ab1…`, `ref=main`
