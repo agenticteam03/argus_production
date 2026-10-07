@@ -5,7 +5,7 @@
   "branch": "task/T-0014-worker-scheduler",
   "base_commit": "e4be0f949676b722f72d2325a4d6f1d597991df7",
   "started_at": "2026-10-07T21:19:05+00:00",
-  "expires_at": "2026-10-07T22:19:05+00:00",
+  "expires_at": "2026-10-07T23:29:04+00:00",
   "released": false,
   "handoff": null
 }
