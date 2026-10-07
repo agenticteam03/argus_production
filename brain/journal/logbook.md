@@ -402,3 +402,15 @@ the `actions` list of `GET /api/v1/me`; approvals in a UI touch a safety princip
 and §17.3 now say so.
 Checked: full suite green on the branch, the read-token check sits in the shared principal dependency, no secrets.
 References: ACR-0001 §5, PR #22, T-0015.
+
+## 2026-10-06 — PR #25 (T-0017) fast-tracked; vm-095 back on main
+
+Type: deployment
+Who: conantkd (+ agent)
+Context: T-0017 (Postgres backup/restore drill) was finished; vm-095 still ran the T-0017 branch checkout.
+Decision / result: PR #25 merged by fast-track (`main-exceptions.txt` line, review report posted, CI green; full
+suite 95/95 locally with Postgres and real Docker). AFTER-MERGE: vm-095 checkout on `main` `f126272`, nothing
+restarted, `LAB BASELINE OK`, NO INTERFERENCE. `deploy.sh` hinted an agent rebuild because `main` now holds T-0015;
+left for T-0015 step 6. Also today: PR #22 (ACR-0001 accepted) and PR #24 (UI prototype) reviewed and merged; a future
+ACR for UI actions is recorded in `NEXT_STEP.md`.
+References: PR #25, PR #22, PR #24, `execution/history/AFTER-MERGE-T-0017/step-01/evidence.md`.
