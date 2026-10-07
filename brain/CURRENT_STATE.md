@@ -50,6 +50,9 @@ and repeated end-to-end runs.
   the 4 target services rebuilt; a dependency probe now stays while its owner restarts; api -> cache probe 1, no
   series for the absent SC-07 client; `LAB BASELINE OK`, NO INTERFERENCE. Back to `main` after the merge (checkout
   only). Evidence: [`execution/history/OP-007/step-01/evidence.md`](execution/history/OP-007/step-01/evidence.md).
+- **Earlier (OBSERVED 2026-10-07, AFTER-MERGE T-0018, `conantkd`):** both VMs on `main` `974d1d7` (checkout only,
+  nothing restarted), `LAB BASELINE OK`, NO INTERFERENCE on both. Evidence:
+  [`execution/history/AFTER-MERGE-T-0018/step-01/evidence.md`](execution/history/AFTER-MERGE-T-0018/step-01/evidence.md).
 - **Earlier (OBSERVED 2026-10-07, T-0018 step 7):** vm-095 runs `task/T-0018-sc07-network` `68d4963`: the agent has
   `knowledge.runbook` (`query_runbook`, in-worker); SC-07 run 2 `inc_21f900ee6139` DIAGNOSED with RB-009 read during
   the investigation; vm-166 stays on `df267ce` (its services did not change). NO INTERFERENCE on both.
