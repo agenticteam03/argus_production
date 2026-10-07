@@ -23,3 +23,7 @@ argus.egg-info/
 
 # VM-local host addresses (template: deploy/hosts.env.example)
 hosts.env
+
+# Frontend (Node) — dependencies and build output are never committed
+node_modules/
+frontend/dist/
