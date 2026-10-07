@@ -7,11 +7,11 @@ id: RB-009
 title: DNS/network connectivity failure
 status: draft
 owner: Argus Team
-version: 1.0.1
+version: 1.1.0
 created: 2026-09-29
 last_reviewed: 2026-10-07
 source_review_date: 2026-09-29
-last_tested: 2026-10-07   # SC-07 lab run on vm-166, incident inc_21f900ee6139 (T-0018); still draft
+last_tested: 2026-10-07   # v1.0.1 in SC-07 on vm-166 (inc_21f900ee6139, T-0018); v1.1.0 not run yet; still draft
 detector: null
 ```
 
@@ -50,7 +50,7 @@ Topology/version, source vantage, resolver answers/errors/time, expected address
 | `check_dns(name)` | Approved service-name resolution and addresses | `READ_ONLY_SENSITIVE` |
 | `check_tcp_connection(host, port, attempts=3, timeout_s=2)` | Success ratio/errors, at most 5 attempts and 10 seconds each | `READ_ONLY_SAFE` |
 | `check_http_endpoint(url, timeout_s=3)` | Allowlisted protocol check, no arbitrary redirect expansion | `READ_ONLY_SENSITIVE` |
-| `get_container_network(container)` | Attachments, aliases, published ports | `READ_ONLY_SENSITIVE` |
+| `get_container_status(container)` → `networks` | Names of the attached Docker networks of source and destination (replaces the planned `get_container_network`; aliases and published ports still missing) | `READ_ONLY_SAFE` |
 | `get_socket_summary(container)` | Namespace socket states/listeners | `READ_ONLY_SENSITIVE` |
 | `get_network_history(container, minutes=30)` | Traffic/error/drop trends, subject to missing-value defect | `READ_ONLY_SAFE` |
 | `get_detailed_logs(container, since_minutes=15, max_lines=100)` | Application-side network errors | `READ_ONLY_SENSITIVE` |
@@ -64,8 +64,8 @@ Topology/version, source vantage, resolver answers/errors/time, expected address
 | Step | Action / purpose | Interpretation / next step |
 |---|---|---|
 | 1 | Match error to declared edge and actual probe origin | Unknown edge/origin → insufficient_evidence. Known → 2. |
-| 2 | DNS result against expected registry addresses | Missing/wrong answer → H1. Valid answer → 3; success from another resolver is counterevidence only for that resolver. |
-| 3 | Inspect network membership and request route metadata | Wrong attachment supports H2. Missing route evidence leaves H2/H3 unresolved; proceed with bounded TCP check. |
+| 2 | DNS result against expected registry addresses | Missing answer and the source is a Docker container → 3 first: Docker's embedded DNS answers only for containers that share a network with the source. Otherwise missing/wrong answer → H1. Valid answer → 3; success from another resolver is counterevidence only for that resolver. |
+| 3 | Compare the network membership of source and destination (`networks` of both), then route metadata | No shared network while the destination runs → wrong attachment (H2): name the networks of each side; do not restart either. Shared network but no answer → back to H1. Missing route evidence leaves H2/H3 unresolved; proceed with bounded TCP check. |
 | 4 | Connect to configured port; inspect listener/socket evidence | Refusal supports no listener or active rejection; timeout leaves filtering/routing/overload open. TCP success → 5. |
 | 5 | TLS then expected protocol | TLS issue → RB-016; protocol/capacity failure → RB-003. Successful transport cannot clear these layers. |
 | 6 | Correlate intermittent failures with family, traffic and socket states | Saturated sockets → RB-012; retries/overload → RB-021. Preserve missing/drop-query defect rather than trusting zero. |
@@ -73,7 +73,10 @@ Topology/version, source vantage, resolver answers/errors/time, expected address
 ## Decision tree
 
 ```text
-DNS correct? no -> resolver/record
+DNS correct? no -> Docker source? yes -> source and destination share a network?
+                                          no  -> wrong attachment (H2): name both networks
+                                          yes -> resolver/record (H1)
+                     no  -> resolver/record (H1)
   yes -> source network/route correct? unknown -> missing route evidence
          TCP succeeds? no -> listener / policy / path / saturation
            yes -> TLS valid? no -> RB-016
@@ -83,7 +86,7 @@ DNS correct? no -> resolver/record
 
 ## Evidence interpretation
 
-Blackbox supports HTTP/TCP/DNS probes but the module and vantage define what each result proves. [Blackbox Exporter](https://github.com/prometheus/blackbox_exporter) The existing Argus network history reports missing error-query results as zero: that output cannot establish absence of errors until fixed. Address-family differences and intermittent samples require multiple bounded observations.
+Blackbox supports HTTP/TCP/DNS probes but the module and vantage define what each result proves. [Blackbox Exporter](https://github.com/prometheus/blackbox_exporter) The existing Argus network history reports missing error-query results as zero: that output cannot establish absence of errors until fixed. Address-family differences and intermittent samples require multiple bounded observations. On Docker networks a container name that does not resolve from the source's network, while the destination runs and is healthy, points to a network attachment mistake, not to a broken resolver or a failed destination: compare the `networks` of both sides before blaming DNS.
 
 ## False positives and edge cases
 
@@ -143,7 +146,7 @@ Contract-test discovery/network changes, monitor client vantages/address familie
 
 ## Lab validation
 
-Disposable app-network pair: operator changes a fixture alias to a nonexistent name, then restores it and separately stops its listener; third case keeps TCP open but serves a protocol failure. Each fault lasts at most 2 minutes; topology and baseline are saved. Expect RB-003 parent→RB-009, DNS/listener/protocol distinction and zero victim restarts. A public/unknown endpoint and forged redirect must be refused. Denied config change produces no Argus action; operator restores exact fixture settings. Verify all layers, preserve the eight lifecycle artifacts, and replay absent error metrics to require unknown rather than healthy. Not executed.
+Disposable app-network pair: operator changes a fixture alias to a nonexistent name, then restores it and separately stops its listener; third case keeps TCP open but serves a protocol failure. Each fault lasts at most 2 minutes; topology and baseline are saved. Expect RB-003 parent→RB-009, DNS/listener/protocol distinction and zero victim restarts. A public/unknown endpoint and forged redirect must be refused. Denied config change produces no Argus action; operator restores exact fixture settings. Verify all layers, preserve the eight lifecycle artifacts, and replay absent error metrics to require unknown rather than healthy. These three cases are not executed. Executed: SC-07 on vm-166 (2026-10-07, T-0018), a healthy destination attached only to another Docker network (`inc_fb92d115abb2`; `inc_21f900ee6139` with v1.0.1 read through `query_runbook`).
 
 ## References
 
@@ -162,7 +165,7 @@ Shared route/TLS/external-probe contracts.
 
 ### Tool improvements
 
-Fix missing-errors-as-zero; return chosen IP/family and source timestamps; enforce redirect destination policy.
+Fix missing-errors-as-zero; return chosen IP/family and source timestamps; enforce redirect destination policy. Done 2026-10-07: the container status returns the names of its attached networks.
 
 ### Detector improvements
 

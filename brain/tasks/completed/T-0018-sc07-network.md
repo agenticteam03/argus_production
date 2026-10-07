@@ -97,3 +97,8 @@ incident. Restarting the backend would fix nothing; a good diagnosis says which 
   RB-009 prescribes; "do not restart the backend". Root-cause target the host (less precise than run 1, still
   correct). RB-009: `last_tested: 2026-10-07`, version 1.0.1, still `draft` (promotion needs more cases and a
   reviewer). [Evidence](../../execution/history/T-0018/step-07/evidence.md).
+- **2026-10-07 — RB-009 adapted to 1.1.0 (`conantkd`):** run 2 stopped at "name resolution" because RB-009's decision
+  tree sent a DNS failure straight to "resolver/record" and its step 3 named a tool that does not exist
+  (`get_container_network`). Now: on Docker, a name that does not resolve first leads to comparing the `networks`
+  of source and destination (no shared network → wrong attachment, name both networks, no restart); the tool table
+  points to `get_container_status` → `networks`; the lab-validation section records SC-07. Not run yet with 1.1.0.
