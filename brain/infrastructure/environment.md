@@ -30,10 +30,17 @@ vm-095                                               vm-166
   ├─ argus-v18-agent   API 127.0.0.1:18000             ├─ argus-v18-read-gateway   127.0.0.1:18701
   ├─ argus-v18-postgres (no host port)                 ├─ argus-v18-host-probe     127.0.0.1:18702
   ├─ argus-v18-read-gateway / -host-probe /            ├─ argus-v18-network-probe  127.0.0.1:18703
-  │  -network-probe / -exporter (no host ports)        ├─ argus-v18-exporter       (internal only)
-  ├─ argus-v18-prometheus (vm-095 metrics)             ├─ argus-v18-prometheus     127.0.0.1:18090
-  └─ argus-lab-api (healthy twin)                      └─ argus-lab-api + argus-lab-cache (baseline)
+  │  -network-probe / -exporter (no host ports)        ├─ argus-v18-db-probe       127.0.0.1:18704 (T-0019)
+  ├─ argus-v18-prometheus (vm-095 metrics)             ├─ argus-v18-exporter       (internal only)
+  └─ argus-lab-api (healthy twin)                      ├─ argus-v18-prometheus     127.0.0.1:18090
+                                                       └─ argus-lab-api + argus-lab-cache + argus-lab-db (baseline)
 ```
+
+- **`argus-lab-db` is for testing only** (T-0019): a lab PostgreSQL (`postgres:16-alpine`, tmpfs, 20 connection
+  slots) that gives `argus-v18-db-probe` a database to measure and SC-04 something to exhaust. A production
+  deployment does not need it: the probe points at the real database through the inventory (`database` on a
+  target). The probe logs in as `argus_monitor` (`pg_monitor` only, connection limit 3); its password and the
+  probe's token are in `/opt/argus-v18/secrets/` on vm-166 (the agent's copy of the token on vm-095).
 
 - The agent reaches vm-095's executors by container name on `argus-v18-core`, and vm-166's through the tunnel
   sidecar (`http://argus-v18-tunnel:18701` …). See `config/inventory.yaml`.

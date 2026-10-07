@@ -59,6 +59,7 @@ A model-driven run takes about 1 to 3 minutes. Re-run GET until `status` is `clo
 |---|---|---|---|
 | `vm-166/container:argus-lab-api` | VM 0.166 | small HTTP api; **depends on** `argus-lab-cache` (TCP 6379) | always on, healthy |
 | `vm-166/container:argus-lab-cache` | VM 0.166 | redis (memory only, tmpfs) | always on |
+| `vm-166/container:argus-lab-db` | VM 0.166 | PostgreSQL, **for testing only** (a production deployment points the db-probe at its real database instead); 20 connection slots, memory only. Read by `inspect_database_health`; used by **SC-04** | always on, healthy |
 | `vm-166/container:argus-lab-client` | VM 0.166 | calls its backend every 5 s; **depends on** `argus-lab-backend` (TCP 8080). Used by **SC-07** | absent until the scenario starts |
 | `vm-166/container:argus-lab-backend` | VM 0.166 | small HTTP api on the network `argus-lab-iso`. Used by **SC-07** | absent until the scenario starts |
 | `vm-166/container:argus-lab-worker` | VM 0.166 | worker used by **SC-01** | absent until the scenario starts |

@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | `in progress` — 2026-10-07 (batch 1) |
+| Status | `in progress` — batch 1 `verified` 2026-10-07 (PR open); batches 2–3 `planned` |
 | Phase | 3 — target services ([`../../IMPLEMENTATION_PLAN.md`](../../IMPLEMENTATION_PLAN.md): "DB probe (with SC-04)") |
 | Architecture | no change (no ACR): §4.6 (target-side probe services), §4.7 (inspection policy), §12.2 (catalogue) |
 | Branch | batch 1: `task/T-0019-db-probe` (PR #27 merged; `main` merged in). Batches 2 and 3: their own branches from `main` |

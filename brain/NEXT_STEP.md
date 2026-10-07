@@ -1,11 +1,11 @@
 # Next step
 
-**Now (2026-10-07):** both VMs run `task/T-0018-sc07-network` (`df267ce`): SC-07 verified on vm-166 (T-0018,
-`conantkd`). After its PR merges, whoever holds the VM lease runs the AFTER-MERGE block in
-`execution/current/code.bash` (both VMs back on `main`, checkout only, no rebuild). The vm-095 agent image already
-carries T-0015, so **T-0015 step 6** only needs its read-token proof (no rebuild). T-0018 also added
-**`knowledge.runbook` (`query_runbook`)**, the in-worker capability of ARCHITECTURE §10.5: branch runbooks are now
-reachable during an investigation (RB-009 read in SC-07 run 2, `last_tested` set).
+**Now (2026-10-07, `conantkd`):** T-0019 batch 1 (the db-probe and `database.health`) is deployed on both VMs
+from `task/T-0019-db-probe`; its PR waits for review (after PR #29, OP-007, which it includes). After the merge:
+AFTER-MERGE (both VMs back on `main`, checkout only). Next: **T-0019 batch 2** (host-probe load, io, top
+processes, sockets, directory sizes, kernel OOM records; [task file](tasks/current/T-0019-db-probe.md)), or
+**SC-04** (`postgresql_connection_exhaustion`, RB-004) which now has its probe. Open PRs: #29 (OP-007), #30
+(AFTER-MERGE T-0018 record), #31 (OP-008 proposal).
 
 **Next, agreed by `conantkd`: enable more incident classes** (ARCHITECTURE §3 lists 20, 3 are implemented). A class
 is enabled only when its detector exists, its runbook is tested in the lab and the §21.2 evaluation passes (§3

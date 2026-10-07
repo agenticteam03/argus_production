@@ -1,6 +1,6 @@
 # Current state — the last verified shared state
 
-**As of:** 2026-10-06 (T-0017 backup/restore drill by `conantkd`) · **Architecture:** v1.8.1 (ACR-0001) · **Status:** `verified` on
+**As of:** 2026-10-07 (T-0019 batch 1, the db-probe, by `conantkd`) · **Architecture:** v1.8.1 (ACR-0001) · **Status:** `verified` on
 the VMs; T-0013 (LangGraph + Postgres checkpoints) merged and **deployed: both VMs run `main` `09f5ab1`** (§2) ·
 shared-Brain setup B1–B8 under way (three developers).
 
@@ -20,8 +20,8 @@ and repeated end-to-end runs.
 
 | VM | Argus containers | Published ports | Code (`deploy.sh status`) |
 |---|---|---|---|
-| vm-095 | `argus-v18-agent` (LangGraph runner), `argus-v18-postgres` (healthy), `argus-v18-tunnel`, `argus-v18-read-gateway`, `-host-probe`, `-network-probe`, `-exporter`, `-prometheus`, `argus-lab-api` | `127.0.0.1:18000` only | `main` `f126272` (checkout, 2026-10-06 AFTER-MERGE T-0017); the agent image is from `2097eb1` and lacks T-0015 until its step 6 rebuilds it |
-| vm-166 | `argus-v18-read-gateway`, `-host-probe`, `-network-probe`, `-exporter`, `-prometheus`, `argus-lab-api` (healthy), `argus-lab-cache` | `127.0.0.1:18701-18703`, `127.0.0.1:18090` | `main` `2097eb1` (checkout only; its services' code is unchanged) |
+| vm-095 | `argus-v18-agent` (LangGraph runner), `argus-v18-postgres` (healthy), `argus-v18-tunnel`, `argus-v18-read-gateway`, `-host-probe`, `-network-probe`, `-exporter`, `-prometheus`, `argus-lab-api` | `127.0.0.1:18000` only | `task/T-0019-db-probe` `78afa31` (agent rebuilt from it: `database.health`, `knowledge.runbook` Level 3); back to `main` after its PR merges (checkout only) |
+| vm-166 | `argus-v18-read-gateway`, `-host-probe`, `-network-probe`, `-db-probe`, `-exporter`, `-prometheus`, `argus-lab-api` (healthy), `argus-lab-cache`, `argus-lab-db` (healthy, testing only) | `127.0.0.1:18701-18704`, `127.0.0.1:18090` | `task/T-0019-db-probe` `78afa31` (target services rebuilt, OP-007 included); back to `main` after its PR merges (checkout only) |
 
 - `/opt/argus-v18/app` is a **git checkout** on both VMs (read-only deploy key per VM); the old tarball folder is kept
   as `/opt/argus-v18/app.pre-git-<time>`. Only the agent on vm-095 was rebuilt; the other containers still run the
@@ -41,7 +41,12 @@ and repeated end-to-end runs.
   yet. Evidence: [`execution/history/T-0017/step-03/evidence.md`](execution/history/T-0017/step-03/evidence.md).
   vm-095's checkout was on `task/T-0017-pg-backup-drill` for the drill; back on `main` `f126272` after the merge
   (AFTER-MERGE T-0017, below).
-- **Latest (OBSERVED 2026-10-07, OP-007, `conantkd`):** vm-166 runs `task/op-007-restarting-probe-fix` `9c04e90`:
+- **Latest (OBSERVED 2026-10-07, T-0019 batch 1, `conantkd`):** both VMs on `task/T-0019-db-probe` `78afa31`.
+  vm-166: `argus-lab-db` (testing only) healthy with the `argus_monitor` role (`pg_monitor`, limit 3),
+  `argus-v18-db-probe` on `127.0.0.1:18704`; vm-095: agent rebuilt with `database.health` (Level 3) and the
+  `vm-166/db_probe` token; `phase3_check` 33/33; `inspect_database_health` ok; LAB BASELINE OK and NO INTERFERENCE
+  on both. Evidence: [`execution/history/T-0019/step-03/evidence.md`](execution/history/T-0019/step-03/evidence.md).
+- **Earlier (OBSERVED 2026-10-07, OP-007, `conantkd`):** vm-166 runs `task/op-007-restarting-probe-fix` `9c04e90`:
   the 4 target services rebuilt; a dependency probe now stays while its owner restarts; api -> cache probe 1, no
   series for the absent SC-07 client; `LAB BASELINE OK`, NO INTERFERENCE. Back to `main` after the merge (checkout
   only). Evidence: [`execution/history/OP-007/step-01/evidence.md`](execution/history/OP-007/step-01/evidence.md).
