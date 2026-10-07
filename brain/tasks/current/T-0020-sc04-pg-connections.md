@@ -76,6 +76,6 @@ worker as the root cause without proposing to restart the database.
   **DIAGNOSED** `postgresql_connection_exhaustion`, root cause `argus-lab-leaker`, confidence high, the model read
   `inspect_database_health` and the leaker's status, no database restart. RB-004 `last_tested: 2026-10-07` (1.0.2).
   Reset: leaker gone, used 0, LAB BASELINE OK, but **nonint-check: DIFFERENCES** — two anonymous volumes left by the
-  leaker's image `VOLUME` (runs 1 and 2). Fix: tmpfs on the leaker (red `KeyError: 'tmpfs'`, then green). Cleanup of
-  the two volumes pending ([evidence](../../execution/history/T-0020/step-03/evidence.md)).
+  leaker's image `VOLUME` (runs 1 and 2). Fix: tmpfs on the leaker (red `KeyError: 'tmpfs'`, then green). The two
+  volumes were removed by ID after `conantkd`'s go (snapshot back to the pre-scenario baseline) ([evidence](../../execution/history/T-0020/step-03/evidence.md)).
 

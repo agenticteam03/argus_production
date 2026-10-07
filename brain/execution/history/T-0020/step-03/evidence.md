@@ -28,7 +28,11 @@ the two leaker starts (17:04:18 and 17:17:29 UTC), dangling, label `com.docker.v
 not touched. nonint-check lists them as non-Argus because anonymous volumes carry no name.
 
 - Fix (test first): the leaker mounts a tmpfs on `/var/lib/postgresql/data` (red: `KeyError: 'tmpfs'`).
-- Cleanup: remove exactly those two volumes by ID (pending `conantkd`'s go; see the handoff).
+- Cleanup (approved by `conantkd`, run by the agent): each volume checked unused (`used_by=0`) and created at a
+  leaker start, then removed by ID: `removed 9eb4c297c164`, `removed c6c11e54143f`; "anonymous volumes created
+  today: 0". nonint-check against the 17:17 baseline (taken when run 1's volume already existed) shows only that
+  volume's absence; the snapshot is back to 87 lines, the same as the baseline before the scenario (D.1). No other
+  object changed.
 
 **Result:** SC-04 diagnosed on the first valid run: detection from the metric, RB-004, the database read, the leaker
 named, no restart of the database proposed. RB-004 `last_tested: 2026-10-07` (version 1.0.2). One run is not a

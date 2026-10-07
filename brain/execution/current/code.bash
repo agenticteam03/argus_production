@@ -9,4 +9,4 @@
 # and tell the agent "output.bash updated".
 # =====================================================================================
 
-# (no block yet: next is the cleanup of the two anonymous volumes of SC-04 runs 1-2, see the handoff)
+# (no block yet: next is T-0020 step 4, Brain + PR; the leaker's tmpfs fix reaches vm-166 with the next checkout)
