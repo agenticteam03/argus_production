@@ -252,6 +252,7 @@ class TargetInfo(BaseModel):
     http_endpoints: list[str] = []
     tcp_ports: list[int] = []
     mounts: list[str] = []
+    database: str | None = None          # dbname read by the db-probe (inventory `database`)
 
 
 # ---------------------------------------------------------------------------------------------

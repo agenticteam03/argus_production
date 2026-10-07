@@ -76,4 +76,10 @@ redaction, bounds) in `config/policy.yaml` first. Every new Level 3 line in `pol
 - **Batch 1 step 1 (2026-10-07, read-only, over SSH):** PyPI 200, Docker Hub reachable (postgres image to pull),
   port 18704 free, `argus-lab-app` present, 4.4 GB memory available, docker disk 27 %, NO INTERFERENCE
   ([evidence](../../execution/history/T-0019/step-01/evidence.md)). The tunnel already forwards 18704.
+- **Batch 1 step 2 (2026-10-07, code, tests first):** `tests/test_db_probe.py`, 15 tests:
+  - **red:** 15 of 15 failed for the right reasons (no `pg_connect` / `DB_QUERIES` / `db_health` / `render_host`,
+    `db_probe` not an executor kind, the capability refused as unknown, no compose service, no requirements file,
+    no `argus-lab-db`); one test was itself wrong (its regex read `extract(epoch FROM now())` as a table) and was fixed;
+  - **green:** 15/15; full suite 118 passed, 6 skipped (124). The driver (`pg8000` 1.31.5 + 4 dependencies, pure
+    Python) is pinned with hashes; the db-probe has its own image target (`db`), the other roles stay stdlib-only.
 (filled in as the steps run)

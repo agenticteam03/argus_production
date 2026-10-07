@@ -16,6 +16,7 @@ hosts:
       docker_read:   http://argus-v18-tunnel:18701
       host_probe:    http://argus-v18-tunnel:18702
       network_probe: http://argus-v18-tunnel:18703
+      db_probe:      http://argus-v18-tunnel:18704     # T-0019: only hosts with a database have one
       prometheus:    http://argus-v18-tunnel:18090
 
 targets:
@@ -37,3 +38,5 @@ targets:
     depends_on: [vm-166/container:argus-lab-backend]
   - ref: vm-166/container:argus-lab-backend       # SC-07: healthy, but only on argus-lab-iso (the wrong network)
     tcp_ports: [8080]
+  - ref: vm-166/container:argus-lab-db            # T-0019 / SC-04: lab PostgreSQL, TESTING ONLY (see compose.lab.yml)
+    database: {dbname: argus_lab, port: 5432}     # read by argus-v18-db-probe with the argus_monitor role

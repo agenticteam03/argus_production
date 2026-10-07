@@ -3,6 +3,7 @@
   ROLE=read_gateway   exact GET routes over this host's Docker socket          (token: docker_read)
   ROLE=host_probe     verbs over this host's /proc and allowlisted mounts       (token: host_probe)
   ROLE=network_probe  dns / tcp / http from the argus-lab-app network            (token: network_probe)
+  ROLE=db_probe       health of allowlisted PostgreSQL databases, read-only role (token: db_probe)
   ROLE=exporter       /metrics for this host's Prometheus (no token, internal network only)
 
 Exact routes only; allowlists from the rendered config (ops/render_target_config.py, from the inventory);
@@ -29,9 +30,11 @@ HOST = CONFIG["host"]
 CONTAINERS = set(CONFIG.get("containers", []))
 PROC = os.environ.get("TA_PROC", "/host/proc")
 ROOTFS = os.environ.get("TA_ROOTFS", "/rootfs")
+SECRETS = os.environ.get("TA_SECRETS", "/run/argus-v18")
 SOCK = "/var/run/docker.sock"
-TOKEN_NAME = {"read_gateway": "docker_read", "host_probe": "host_probe", "network_probe": "network_probe"}.get(ROLE)
-TOKEN = open(f"/run/argus-v18/{TOKEN_NAME}_token").read().strip() if TOKEN_NAME else None
+TOKEN_NAME = {"read_gateway": "docker_read", "host_probe": "host_probe", "network_probe": "network_probe",
+              "db_probe": "db_probe"}.get(ROLE)
+TOKEN = open(f"{SECRETS}/{TOKEN_NAME}_token").read().strip() if TOKEN_NAME else None
 
 
 def now() -> str:
@@ -264,6 +267,64 @@ def network_probe(parts: list[str], q: dict) -> dict:
     raise Err(404, "no such route")
 
 
+# --- db_probe: PostgreSQL health through a monitoring role (pg_monitor only) -----------------------
+# System views only; never business rows, never the `query` column (SQL text can hold data and secrets).
+_CLIENTS = "backend_type = 'client backend' AND pid <> pg_backend_pid()"
+DB_QUERIES = {
+    "settings": "SELECT name, setting FROM pg_settings WHERE name IN "
+                "('max_connections', 'superuser_reserved_connections', 'reserved_connections')",
+    "by_state": f"SELECT coalesce(state, 'unknown'), count(*) FROM pg_stat_activity WHERE {_CLIENTS} GROUP BY 1",
+    "by_client": "SELECT coalesce(nullif(application_name, ''), '(none)'), usename, count(*) FROM pg_stat_activity "
+                 f"WHERE {_CLIENTS} GROUP BY 1, 2 ORDER BY 3 DESC LIMIT 10",
+    "longest": "SELECT pid, coalesce(nullif(application_name, ''), '(none)'), state, wait_event_type, wait_event, "
+               "extract(epoch FROM now() - xact_start)::float FROM pg_stat_activity "
+               f"WHERE {_CLIENTS} AND xact_start IS NOT NULL ORDER BY xact_start LIMIT 5",
+    "locks": "SELECT (SELECT count(*) FROM pg_locks WHERE NOT granted), "
+             "(SELECT count(*) FROM pg_stat_activity WHERE cardinality(pg_blocking_pids(pid)) > 0)",
+}
+
+
+def pg_connect(db: dict):
+    import pg8000.native                     # only the db image (Dockerfile target `db`) carries the driver
+    password = open(f"{SECRETS}/db_monitor_password").read().strip()
+    return pg8000.native.Connection(user=db.get("user", "argus_monitor"), password=password, host=db["host"],
+                                    port=db["port"], database=db["dbname"], timeout=5,
+                                    application_name="argus-db-probe")
+
+
+def db_probe(parts: list[str], q: dict) -> dict:
+    if parts != ["database", "health"]:
+        raise Err(404, "no such route")
+    name = q.get("name", [""])[0]
+    db = next((d for d in CONFIG.get("databases", []) if d["name"] == name), None)
+    if db is None:
+        raise Err(400, "database not allowlisted")
+    try:
+        conn = pg_connect(db)
+    except Exception as e:
+        raise Err(502, f"database unreachable: {type(e).__name__}")
+    try:
+        conn.run("SET SESSION CHARACTERISTICS AS TRANSACTION READ ONLY")
+        conn.run("SET statement_timeout = '3s'")
+        r = {k: conn.run(sql) for k, sql in DB_QUERIES.items()}
+    finally:
+        conn.close()
+    st = {k: int(v) for k, v in r["settings"]}
+    reserved = st.get("superuser_reserved_connections", 0) + st.get("reserved_connections", 0)
+    usable = st["max_connections"] - reserved
+    by_state = {s: int(n) for s, n in r["by_state"]}
+    total = sum(by_state.values())
+    waits, blocked = r["locks"][0]
+    return {"database": name, "ok": True, "max_connections": st["max_connections"], "reserved_connections": reserved,
+            "usable_connections": usable, "client_connections": total,
+            "usage_percent": round(total * 100 / usable, 1) if usable > 0 else None, "by_state": by_state,
+            "by_client": [{"application_name": a, "role": u, "connections": int(n)} for a, u, n in r["by_client"]],
+            "longest_transactions": [{"pid": p, "application_name": a, "state": s, "wait_event_type": wt,
+                                      "wait_event": we, "age_s": round(float(age), 1)}
+                                     for p, a, s, wt, we, age in r["longest"]],
+            "lock_waits": int(waits), "blocked_sessions": int(blocked), "collected_at": now()}
+
+
 _metrics = "# no data yet\n"
 _lock = threading.Lock()
 
@@ -316,7 +377,7 @@ def collect() -> None:
         time.sleep(10)
 
 
-ROUTES = {"read_gateway": read_gateway, "host_probe": host_probe, "network_probe": network_probe}
+ROUTES = {"read_gateway": read_gateway, "host_probe": host_probe, "network_probe": network_probe, "db_probe": db_probe}
 
 
 class Handler(BaseHTTPRequestHandler):

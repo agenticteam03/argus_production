@@ -31,7 +31,8 @@ class YamlInventory:
             self._targets[ref] = TargetInfo(ref=ref, scope=t.get("scope", "lab"),
                                             depends_on=[TargetRef.parse(d) for d in t.get("depends_on", [])],
                                             http_endpoints=t.get("http_endpoints", []),
-                                            tcp_ports=t.get("tcp_ports", []), mounts=t.get("mounts", []))
+                                            tcp_ports=t.get("tcp_ports", []), mounts=t.get("mounts", []),
+                                            database=(t.get("database") or {}).get("dbname"))
         for info in self._targets.values():
             for d in info.depends_on:
                 if d not in self._targets:

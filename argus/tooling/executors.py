@@ -16,7 +16,7 @@ from argus.domain.model import TargetRef
 
 
 class TargetAgentClient:
-    """docker_read / host_probe / network_probe: one target-agent prefix per executor, one token each."""
+    """docker_read / host_probe / network_probe / db_probe: one target-agent prefix per executor, one token each."""
 
     def __init__(self, base_url: str, token: str | None, timeout_s: float = 10.0):
         self.base_url = base_url.rstrip("/")

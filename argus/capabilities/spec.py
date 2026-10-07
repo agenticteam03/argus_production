@@ -45,7 +45,7 @@ class CapabilitySpec:
     level: int
     safety_class: Literal["READ_ONLY_SAFE", "READ_ONLY_SENSITIVE"]
     tags: frozenset[str]
-    executor: str                      # "docker_read" | "host_probe" | "network_probe" | "prometheus"
+    executor: str                      # "docker_read" | "host_probe" | "network_probe" | "db_probe" | "prometheus" | ...
     impl: Impl
     runs_in: Literal["tools_child", "worker"] = "tools_child"
     timeout_s: float = 10.0
