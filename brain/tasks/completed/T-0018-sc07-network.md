@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | `in progress` — started 2026-10-06; steps 1–4 done; step 5 (run SC-07) next |
+| Status | `verified` on vm-166 (2026-10-07); merged by this pull request |
 | Phase | 11 — synthetic incidents ([`../../IMPLEMENTATION_PLAN.md`](../../IMPLEMENTATION_PLAN.md) §7, SC-07) |
 | Architecture | no change (no ACR): lab workloads, one more read-only field, one more Argus lab network |
 | Branch | `task/T-0018-sc07-network` |
@@ -70,3 +70,8 @@ incident. Restarting the backend would fix nothing; a good diagnosis says which 
 - **2026-10-07 — step 4 (deploy, `df267ce`):** vm-166 target services rebuilt (the gateway answers
   `networks=['argus-lab-app']`), vm-095 agent rebuilt (sees the SC-07 targets), H-1 on vm-166's api `HEALTHY`,
   NO INTERFERENCE on both. [Evidence](../../execution/history/T-0018/step-04/evidence.md).
+- **2026-10-07 — step 5 (SC-07 on vm-166):** `inc_fb92d115abb2` **DIAGNOSED**, `dependency_unavailable`, root cause
+  `vm-166/container:argus-lab-backend`, confidence high: *"not attached to the client's application network … the
+  client is on argus-lab-app while the backend is only on argus-lab-iso … do not restart containers"*. Reset done,
+  LAB BASELINE OK, NO INTERFERENCE. RB-009 was **not** recalled (branch runbook): its `last_tested` stays `null`
+  (follow-up). [Evidence](../../execution/history/T-0018/step-05/evidence.md).

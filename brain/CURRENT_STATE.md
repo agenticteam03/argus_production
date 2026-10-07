@@ -41,7 +41,14 @@ and repeated end-to-end runs.
   yet. Evidence: [`execution/history/T-0017/step-03/evidence.md`](execution/history/T-0017/step-03/evidence.md).
   vm-095's checkout was on `task/T-0017-pg-backup-drill` for the drill; back on `main` `f126272` after the merge
   (AFTER-MERGE T-0017, below).
-- **Latest (OBSERVED 2026-10-06, AFTER-MERGE T-0017):** vm-095 `commit=f126272…`, `ref=main`, `LAB BASELINE OK`,
+- **Latest (OBSERVED 2026-10-07, T-0018):** both VMs run the checkout of `task/T-0018-sc07-network` (`df267ce`):
+  vm-166's 4 target services rebuilt (the container status now carries `networks`; a dependency is probed only
+  while its owner runs), vm-095's agent rebuilt from it (the image also carries T-0015 from `main`). H-1 on vm-166
+  `HEALTHY`. **SC-07 verified** on vm-166 (`inc_fb92d115abb2`, DIAGNOSED: healthy backend on the wrong network, no
+  restart advised); lab reset, `LAB BASELINE OK`, NO INTERFERENCE on both. Back on `main` after the merge
+  (AFTER-MERGE block in `execution/current/code.bash`, checkout only). Evidence:
+  [`execution/history/T-0018/`](execution/history/T-0018/).
+- **Earlier (OBSERVED 2026-10-06, AFTER-MERGE T-0017):** vm-095 `commit=f126272…`, `ref=main`, `LAB BASELINE OK`,
   no restart (agent and postgres kept their uptime), NO INTERFERENCE. `deploy.sh` hints an agent rebuild (T-0015
   step 6). Evidence: [`execution/history/AFTER-MERGE-T-0017/step-01/evidence.md`](execution/history/AFTER-MERGE-T-0017/step-01/evidence.md).
 - **Earlier (OBSERVED 2026-10-06, AFTER-MERGE):** both VMs `commit=2097eb1…`, `ref=main`, `LAB BASELINE OK`,
@@ -59,7 +66,7 @@ and repeated end-to-end runs.
 
 See [`IMPLEMENTATION_PLAN.md`](IMPLEMENTATION_PLAN.md) §1. Done or nearly done: 0, 1, 2, 3, 5, 6, 8, 10.
 In progress: 4 (50 %), 7 (50 %), **9 (55 %: LangGraph + checkpoints + OP-006 done; api/worker/scheduler split
-next)**, 11 (50 %), 12 (30 %), 13 (35 %). Not started: 14. Phase 10 (90 %) gets a read-only web UI as new scope:
+next)**, 11 (60 %: SC-07 done, T-0018), 12 (30 %), 13 (35 %). Not started: 14. Phase 10 (90 %) gets a read-only web UI as new scope:
 T-0015 (API side: steps 1-5 merged, PR #22; step 6 deploy pending) and T-0016 (frontend: steps 1-2 merged, PR #24,
 mock-only); UI actions beyond reading need a future ACR (`NEXT_STEP.md`).
 

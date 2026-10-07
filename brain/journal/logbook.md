@@ -414,3 +414,21 @@ restarted, `LAB BASELINE OK`, NO INTERFERENCE. `deploy.sh` hinted an agent rebui
 left for T-0015 step 6. Also today: PR #22 (ACR-0001 accepted) and PR #24 (UI prototype) reviewed and merged; a future
 ACR for UI actions is recorded in `NEXT_STEP.md`.
 References: PR #25, PR #22, PR #24, `execution/history/AFTER-MERGE-T-0017/step-01/evidence.md`.
+
+## 2026-10-07 — T-0018: SC-07 verified on vm-166 (a healthy backend on the wrong network)
+
+Type: implementation
+Who: conantkd (+ agent)
+Context: SC-07 was planned on vm-095 with a new class. `conantkd` moved it to vm-166 (Host T, the lab host) and chose
+a second lab network over a backend with no network, because it is the realistic mistake.
+Decision / result:
+- New Argus lab network `argus-lab-iso` `172.30.3.0/24`, after a read-only check that it is free on vm-166 (the
+  protected deployment uses `172.17`–`172.21`). The Argus network rule is now `172.30.0–3.0/24`; the teammates are
+  tagged in the PR.
+- The read gateway's container status carries `networks` (names only), and the model sees it. Dependency probes run
+  only while their owner runs, so the SC-07 probe does not keep `DependencyProbeFailed` firing outside the scenario.
+- Tests first (6 red, then green; 95 passed). Deployed on both VMs (the agent steps were run over SSH by the agent at
+  `conantkd`'s request; the password-protected checks by `conantkd`).
+- SC-07 `inc_fb92d115abb2`: DIAGNOSED, root cause the backend "not attached to the client's application network",
+  no restart advised. RB-009 was not recalled (branch runbook), so its `last_tested` stays `null`: follow-up.
+References: T-0018, `execution/history/T-0018/`, `docs/INCIDENTS.md` SC-07.

@@ -1,14 +1,14 @@
 # Current test state
 
-**Last updated:** 2026-10-06 · **Commit:** `task/T-0017-pg-backup-drill` (T-0017) with `main` merged (T-0015, T-0016)
+**Last updated:** 2026-10-07 · **Commit:** `task/T-0018-sc07-network` (T-0018, SC-07)
 
 | Stage | Result | Where / when |
 |---|---|---|
-| 3. Offline suite | **89 passed**, 6 skipped (the 5 Postgres tests and the real-Docker backup test, which passed with `ARGUS_TEST_DOCKER=1`): 68 before + 8 `db-backup.sh` (T-0017) + 10 `test_ui_access.py` + 3 `test_ui_contract.py` (T-0015) | laptop, 2026-10-06 (T-0017 after merging `main`) |
+| 3. Offline suite | **95 passed**, 6 skipped (101; the 5 Postgres tests and the real-Docker backup test): 89 before + 6 `test_sc07_network.py` (T-0018: `networks` in the gateway status and the capability text, the client→backend probe rendered from the inventory, probes only while the owner runs, the `sc07` lab profile) | laptop, 2026-10-07 (T-0018) |
 | 3. Frontend unit tests | **20 passed** (Vitest: `parseRunbook` 11, `routes` 4, `mockAuthAdapter` 5) and `vite build` OK | CI job `frontend` (T-0016, PR #24) |
 | 4. Postgres integration | **95 passed, 0 skipped** (full suite with `ARGUS_TEST_PG_OWNER_DSN` against a throwaway `postgres:16-alpine` and `ARGUS_TEST_DOCKER=1`: the 5 Postgres tests and the real-Docker backup test included) on `task/T-0017-pg-backup-drill` after merging `main`; container removed afterwards | laptop, 2026-10-06 (T-0017, PR #25) |
 | 5. CI | first run on `9ccc61d`: audit, lint, gitleaks ✓; tests ✗ (runbook library not available in CI) → fixed in PR #1 (pinned runbooks checkout with a read-only deploy key) | GitHub, 2026-10-02 |
-| 7. Deployment validation | T-0017 on vm-095 (2026-10-06): `BACKUP OK`, `VERIFY OK: 11 tables, 4603 rows match`, NO INTERFERENCE. T-0013 on vm-095 (2026-10-04): `argus db check` 15/15; H-1, SC-09, SC-01 on LangGraph, each checkpointed in Postgres; NO INTERFERENCE on both VMs. Earlier: `phase3_check` 28/28 (2026-10-01) | VMs |
+| 7. Deployment validation | T-0018 on both VMs (2026-10-07): H-1 on vm-166 `HEALTHY`; **SC-07 DIAGNOSED** (`inc_fb92d115abb2`), NO INTERFERENCE. T-0017 on vm-095 (2026-10-06): `BACKUP OK`, `VERIFY OK: 11 tables, 4603 rows match`, NO INTERFERENCE. T-0013 on vm-095 (2026-10-04): `argus db check` 15/15; H-1, SC-09, SC-01 on LangGraph, each checkpointed in Postgres; NO INTERFERENCE on both VMs. Earlier: `phase3_check` 28/28 (2026-10-01) | VMs |
 
 ## Currently red
 
