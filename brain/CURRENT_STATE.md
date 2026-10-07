@@ -1,6 +1,6 @@
 # Current state — the last verified shared state
 
-**As of:** 2026-10-06 (T-0017 backup/restore drill by `conantkd`) · **Architecture:** v1.8.0 · **Status:** `verified` on
+**As of:** 2026-10-06 (T-0017 backup/restore drill by `conantkd`) · **Architecture:** v1.8.1 (ACR-0001) · **Status:** `verified` on
 the VMs; T-0013 (LangGraph + Postgres checkpoints) merged and **deployed: both VMs run `main` `09f5ab1`** (§2) ·
 shared-Brain setup B1–B8 under way (three developers).
 
@@ -57,7 +57,8 @@ and repeated end-to-end runs.
 See [`IMPLEMENTATION_PLAN.md`](IMPLEMENTATION_PLAN.md) §1. Done or nearly done: 0, 1, 2, 3, 5, 6, 8, 10.
 In progress: 4 (50 %), 7 (50 %), **9 (55 %: LangGraph + checkpoints + OP-006 done; api/worker/scheduler split
 next)**, 11 (50 %), 12 (30 %), 13 (35 %). Not started: 14. Phase 10 (90 %) gets a read-only web UI as new scope:
-T-0015 (API side) and T-0016 (frontend), planned.
+T-0015 (API side: steps 1-5 merged, PR #22; step 6 deploy pending) and T-0016 (frontend: steps 1-2 merged, PR #24,
+mock-only); UI actions beyond reading need a future ACR (`NEXT_STEP.md`).
 
 ## 4. Scenarios verified on the real VMs
 

@@ -1,0 +1,64 @@
+@import "tailwindcss";
+
+/* Argus design tokens: each one becomes a Tailwind utility
+   (bg-card, border-line, text-muted, bg-accent, font-sans...). */
+@theme {
+  --color-page: #05070b;
+  --color-card: #090b10;
+  --color-line: #1c212b;
+  --color-muted: #8a92a3;
+  --color-field: #0d1017;
+  --color-field-line: #232a37;
+  --color-accent: #3b82f6;
+  --color-accent-hover: #5b9bff;
+  --color-danger: #f87171;
+  --font-sans: "Inter Variable", Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  html {
+    color-scheme: dark;
+  }
+
+  body {
+    color: #f2f4f8;
+    background-color: var(--color-page);
+    background-image: radial-gradient(120% 80% at 50% 0%, #0e1d42 0%, #070b16 45%, #020306 100%);
+    background-attachment: fixed;
+    -webkit-font-smoothing: antialiased;
+  }
+}
+
+/* GitHub-dark style rendering for runbooks (used by RunbookDrawer). */
+.markdown-body { font-size: 15px; line-height: 1.6; color: #e6edf3; overflow-wrap: break-word; }
+.markdown-body > :first-child { margin-top: 0 !important; }
+.markdown-body > :last-child { margin-bottom: 0 !important; }
+.markdown-body h1, .markdown-body h2, .markdown-body h3, .markdown-body h4 { margin: 28px 0 16px; font-weight: 600; line-height: 1.25; color: #f0f6fc; }
+.markdown-body h1 { font-size: 2em; padding-bottom: 0.3em; border-bottom: 1px solid #3d444d; }
+.markdown-body h2 { font-size: 1.5em; padding-bottom: 0.3em; border-bottom: 1px solid #3d444d; }
+.markdown-body h3 { font-size: 1.25em; }
+.markdown-body h4 { font-size: 1em; }
+.markdown-body p, .markdown-body ul, .markdown-body ol, .markdown-body table, .markdown-body pre, .markdown-body blockquote { margin: 0 0 16px; }
+.markdown-body ul, .markdown-body ol { padding-left: 2em; }
+.markdown-body ul { list-style: disc; }
+.markdown-body ol { list-style: decimal; }
+.markdown-body li + li { margin-top: 0.25em; }
+.markdown-body a { color: #4493f8; text-decoration: none; }
+.markdown-body a:hover { text-decoration: underline; }
+.markdown-body strong { font-weight: 600; color: #f0f6fc; }
+.markdown-body code { padding: 0.2em 0.4em; font-size: 85%; font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace; background: rgba(110, 118, 129, 0.4); border-radius: 6px; }
+.markdown-body pre { padding: 16px; overflow: auto; font-size: 85%; line-height: 1.45; background: #151b23; border-radius: 6px; }
+.markdown-body pre code { padding: 0; font-size: 100%; background: transparent; white-space: pre; }
+.markdown-body table { display: block; width: max-content; max-width: 100%; overflow: auto; border-collapse: collapse; }
+.markdown-body th, .markdown-body td { padding: 6px 13px; border: 1px solid #3d444d; }
+.markdown-body th { font-weight: 600; }
+.markdown-body tr { background: #0d1117; border-top: 1px solid #3d444d; }
+.markdown-body tr:nth-child(2n) { background: #151b23; }
+.markdown-body blockquote { padding: 0 1em; color: #9198a1; border-left: 0.25em solid #3d444d; }
+.markdown-body hr { height: 0.25em; margin: 24px 0; background: #3d444d; border: 0; }

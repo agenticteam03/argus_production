@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | `planned` (starts after T-0015 steps 1–5 are merged) |
+| Status | `in progress` — steps 1–2 started 2026-10-06, **before T-0015 merged** (deviation: the UI is mock-only and needs nothing from `contracts/` yet; the HTTP/contract work still waits for T-0015) |
 | Phase | 10 — output modes |
 | Architecture | ACR-0001 (from T-0015) |
 | Branch | `task/T-0016-frontend` (one PR per step is fine) |
@@ -84,4 +84,12 @@ a screen or a button in `frontend/`.
 
 ## Red seen / evidence
 
-(empty — fill in at each step)
+- **2026-10-06 — integration of the pre-existing prototype (steps 1–2, this pull request):**
+  - **red:** `npm test` → exit 1 (`Missing script: "test"`) — no test harness existed;
+  - **red:** a `parseRunbook` fixture test failed (`expected +0 to be 2`) — the fixture used mixed-case wording
+    instead of the exact `MISSING TOOL REQUIREMENT` marker that real runbooks use; the fixture was corrected to
+    match reality and the parser code stayed unchanged;
+  - **green:** 20/20 Vitest unit tests (`parseRunbook` 11, `routes` 4, `mockAuthAdapter` 5) and `vite build`
+    (313 modules) after the hero image became a 136 KB JPEG (was 3.8 MB PNG);
+  - the CI job `frontend` (unit tests + production build) is added in this pull request; it changes
+    `.github/workflows/`, so a teammate must approve it (the fast-track excludes it).

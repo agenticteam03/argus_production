@@ -341,3 +341,64 @@ INTERFERENCE. Lesson: `sudo ls folder/*.dump` fails on a root-only folder becaus
 glob before sudo; the script now offers `verify latest`. Dumps hold password hashes: root-only, never off the VM.
 Follow-ups: schedule + retention; an encrypted off-VM copy.
 References: `tasks/completed/T-0017-pg-backup-drill.md`, `execution/history/T-0017/`.
+
+## 2026-10-06 — juanes6554's pre-existing UI prototype integrated into `frontend/` (T-0016 steps 1–2)
+
+Type: implementation
+Who: juanes6554 (+ agent)
+Context: `juanes6554` had already built a mock-driven React UI outside the repository (with Claude on the web).
+T-0016 starts with his guidelines; its official gate is T-0015 steps 1–5 merged, and PR #22 (T-0015) is still a
+draft. The prototype touches nothing outside its own folder and makes no network calls.
+Decision / result: integrated on `task/T-0016-frontend` as steps 1–2: `frontend/GUIDELINES.md` (drafted by the
+agent from his code, approved by him), 20 Vitest unit tests with red seen (missing test harness; one fixture
+corrected to match the parser), the CI job `frontend` (unit tests + production build; the workflow change needs
+a teammate and is excluded from the fast-track), `frontend/README.md`, `.gitignore` entries (`node_modules/`,
+`frontend/dist/`), stray files removed, login hero image 3.8 MB PNG → 136 KB JPEG. Deviation recorded in the
+task file: the task started before T-0015 merged because the UI is mock-only; the HTTP/contract work still
+waits for T-0015. Known follow-ups in `frontend/README.md` (react-router 6→7 audit findings, `demoRunbooks/`
+removal with the mock adapter).
+Consequences: `frontend/` is tracked with tests; the `frontend` CI job runs on every push; Playwright
+acceptance tests and the fake API from `contracts/samples/` are the next steps of T-0016.
+References: `tasks/current/T-0016-frontend.md`, `frontend/GUIDELINES.md`, `frontend/README.md`, this pull request.
+
+## 2026-10-06 — T-0015 steps 2-5: read-only tokens, /me, UI origins, the UI contract
+
+Type: implementation
+Who: juanbetancurm (+ agent)
+Context: ACR-0001 (proposed, PR #22) lets user interfaces use the API with read-only tokens.
+Decision / result: `scope=read` at login gives a token with the claim `access: read`, refused on every non-GET route
+whatever the role (403, audited). `GET /api/v1/me` lists the actions a token may use; a UI shows only those.
+`ARGUS_UI_ORIGINS` enables CORS for listed origins only (none by default). The UI contract is
+`contracts/ui-api.json` plus sample responses, guarded by `tests/test_ui_contract.py` and described in
+`docs/API-FOR-UI.md`. Red seen in every step. The main laptop now runs the offline suite in Docker because Windows
+Smart App Control blocks a native LangGraph dependency. Step 6 (deploy on vm-095) needs the VM lease.
+References: ACR-0001, T-0015, PR #22.
+
+## 2026-10-06 — Review of PR #24 (T-0016 steps 1-2) and the UI runbooks decision
+
+Type: review
+Who: juanbetancurm (+ agent)
+Context: the frontend is mock-only. Its fake API assumes routes Argus does not have: email login, an `admin` role,
+approvals, a simulator, a scheduler, chat and health.
+Decision / result:
+- PR #24 approved. The CI job `frontend` uses no secrets and doesn't touch other jobs.
+- The review lists the smallest change set to connect to the real API (T-0016 step 3): username login with
+  `scope=read`, then `/me`; token in memory only; roles viewer/operator/approver; pages without routes hidden; a Vite
+  proxy to `127.0.0.1:18000`, so no CORS.
+- **Runbooks:** the UI reads the reviewed library in `argus/runbooks/` at build time, instead of its demo copies,
+  which are byte-identical. `parseRunbook` parses all 21 runbooks. No API route and no ACR change are needed.
+References: PR #24, PR #22, ACR-0001, `docs/API-FOR-UI.md`.
+
+## 2026-10-06 — Review of PR #22: ACR-0001 accepted, UIs read-only in this release
+
+Type: review
+Who: conantkd (+ agent)
+Context: ACR-0001 said a UI "may" hold a read-only token, while its alternative A rejected full tokens for a UI. The
+architecture allowed both readings.
+Decision / result: ACR-0001 accepted. In this release a UI holds only read-only tokens: it shows incidents,
+timelines, evidence and escalations, and never starts an investigation or answers an approval. This is not a
+permanent limit: a later ACR may add UI actions (for example starting investigations or answering approvals), using
+the `actions` list of `GET /api/v1/me`; approvals in a UI touch a safety principle and need a second approval. OD-10
+and §17.3 now say so.
+Checked: full suite green on the branch, the read-token check sits in the shared principal dependency, no secrets.
+References: ACR-0001 §5, PR #22, T-0015.
