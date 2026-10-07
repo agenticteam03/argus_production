@@ -29,7 +29,12 @@ batch deployed and verified on vm-166 before the next one starts:
 | **3** | `host-probe`: `journal`, `read_file`, `process_details` (+ `service_config`) under the inspection policy (§4.7); `network-probe`: `connectivity`, `listening_ports`, repeated `tcp_connection` → `host.journal`, `host.read_file`, `host.service_config`, `host.process_details`, `network.connectivity`, `network.tcp_connection`, `network.listening_ports` | 2–3 | SC-08 (nginx upstream), deep diagnosis |
 
 Batch 3 goes last because it reads files and logs: it needs the §4.7 inspection policy (deny patterns win,
-redaction, bounds) in `config/policy.yaml` first. Every new Level 3 line in `policy.yaml` is reviewed on its own
+redaction, bounds) in `config/policy.yaml` first. It also closes the network-probe gap seen in SC-07 (T-0018 runs 2–3): the
+`network-probe` only reports that DNS/TCP fails from the app network, not why, and the model stopped at "DNS failure"
+unless it happened to read both sides' status. **Goal for `network.connectivity` (decided 2026-10-07, `conantkd`):**
+for a source → destination pair of the inventory, answer the networks of each side, whether they share one, and
+DNS/TCP from the source's network — so every "cannot reach" case is explained, not only SC-07 (the general mechanism
+of §4.6/§12.2 instead of the tool-description fix of T-0018). Every new Level 3 line in `policy.yaml` is reviewed on its own
 (PR #27 note). The detailed design of batches 2 and 3 is written when each starts.
 
 ## Decisions for batch 1 (2026-10-07, `conantkd`)
