@@ -41,7 +41,10 @@ and repeated end-to-end runs.
   yet. Evidence: [`execution/history/T-0017/step-03/evidence.md`](execution/history/T-0017/step-03/evidence.md).
   vm-095's checkout was on `task/T-0017-pg-backup-drill` for the drill; back on `main` `f126272` after the merge
   (AFTER-MERGE T-0017, below).
-- **Latest (OBSERVED 2026-10-07, T-0018):** both VMs run the checkout of `task/T-0018-sc07-network` (`df267ce`):
+- **Latest (OBSERVED 2026-10-07, T-0018 step 7):** vm-095 runs `task/T-0018-sc07-network` `68d4963`: the agent has
+  `knowledge.runbook` (`query_runbook`, in-worker); SC-07 run 2 `inc_21f900ee6139` DIAGNOSED with RB-009 read during
+  the investigation; vm-166 stays on `df267ce` (its services did not change). NO INTERFERENCE on both.
+- **T-0018 steps 1–5 (OBSERVED 2026-10-07):** both VMs run the checkout of `task/T-0018-sc07-network` (`df267ce`):
   vm-166's 4 target services rebuilt (the container status now carries `networks`; a dependency is probed only
   while its owner runs), vm-095's agent rebuilt from it (the image also carries T-0015 from `main`). H-1 on vm-166
   `HEALTHY`. **SC-07 verified** on vm-166 (`inc_fb92d115abb2`, DIAGNOSED: healthy backend on the wrong network, no

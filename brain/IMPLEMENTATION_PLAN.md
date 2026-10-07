@@ -137,7 +137,7 @@ Hybrid operation: a tiny always-on baseline (vm-166: `argus-lab-api` + `argus-la
 | SC-04 | vm-166 | a worker leaks idle-in-transaction sessions on `argus-lab-db` | `postgresql_connection_exhaustion` · RB-004 | root cause the worker | ⬜ |
 | SC-05 | vm-166 | a filler fills a 256 MiB loop-mounted file to 92 % | `disk_pressure` · RB-005 | fill rate, time to full | ⬜ |
 | SC-06 | vm-166 | CPU burner capped at `cpus: 0.3` for 3 min | `cpu_saturation` · RB-006 | throttled at quota; vm-095 unaffected | ⬜ |
-| SC-07 | vm-166 | client on `argus-lab-app`, healthy backend only on `argus-lab-iso` (T-0018) | `dependency_unavailable` · RB-003 (RB-009 not recalled yet; a `dns_network_failure` class later) | network misconfiguration, not a failed service | ✅ |
+| SC-07 | vm-166 | client on `argus-lab-app`, healthy backend only on `argus-lab-iso` (T-0018) | `dependency_unavailable` · RB-003, RB-009 read via `query_runbook` (its own class `dns_network_failure` later) | network misconfiguration, not a failed service | ✅ |
 | SC-08 | vm-166 | nginx → slow upstream with 502s | `http_errors_latency` → `nginx_upstream_failure` · RB-011/RB-015 | upstream exceeds the nginx timeout | ⬜ |
 | SC-09 | vm-095 | none: "users see stale data" on a healthy api | none → evidence pack | `unsupported_escalated`, **no model call** | ✅ |
 | SC-10 | vm-095 | vm-095 exporter stopped | `monitoring_blind_spot` · RB-014 | vm-095 undiagnosable; vm-166 unaffected | ✅ |

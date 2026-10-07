@@ -432,3 +432,19 @@ Decision / result:
 - SC-07 `inc_fb92d115abb2`: DIAGNOSED, root cause the backend "not attached to the client's application network",
   no restart advised. RB-009 was not recalled (branch runbook), so its `last_tested` stays `null`: follow-up.
 References: T-0018, `execution/history/T-0018/`, `docs/INCIDENTS.md` SC-07.
+
+## 2026-10-07 — T-0018: branch runbooks through `knowledge.runbook` (RB-009 tested in SC-07)
+
+Type: implementation
+Who: conantkd (+ agent)
+Context: in the first SC-07 run RB-009 was not recalled. Recall is one TF-IDF search at the start; the
+architecture's way to reach a branch runbook later (§3, §10.5: the in-worker capability `knowledge.runbook`) was not
+implemented. `conantkd` chose the general mechanism over a per-case class, so every class with branch runbooks
+(11 of the 20 in §3) benefits.
+Decision / result: `query_runbook` (executor `argus_internal`, `runs_in="worker"`, max 3 per incident) goes through
+InvokeCapability like every read; the context names the class's branch runbooks. The orchestration flow did not
+change. Tests first (5 red, then green; 100 passed). The redactor masked full sha256 values as high-entropy secrets,
+so passages carry a 16-character prefix. SC-07 run 2 (`inc_21f900ee6139`): the model read RB-009 after the TCP probe
+failed and diagnosed the name-resolution layer, no restart. RB-009 `last_tested: 2026-10-07` (version 1.0.1, still
+draft). Next agreed: enable more classes under the §3 "Enablement" rule.
+References: T-0018 step 7, `execution/history/T-0018/step-07/evidence.md`, ARCHITECTURE §10.5, §12.

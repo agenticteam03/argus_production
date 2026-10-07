@@ -217,11 +217,12 @@ cd /opt/argus-v18/app/deploy/lab && sudo docker compose -f compose.lab.yml --pro
 ```
 **Expected:**
 - detect: `dependency_unavailable`;
-- recall: RB-003 (RB-009, the DNS/network runbook, is a branch and was not recalled in the first run);
+- recall: RB-003; during the investigation the model can read the branch runbook RB-009 with `query_runbook`;
 - investigate: the container status shows each side's `networks`; DNS and TCP to the backend fail from vm-166's
   app network;
 - record: `diagnosed`, root cause `vm-166/container:argus-lab-backend` not attached to the client's network, and
-  **no restart advised**. Verified 2026-10-07 (T-0018, `inc_fb92d115abb2`).
+  **no restart advised**. Verified 2026-10-07 (T-0018): `inc_fb92d115abb2`, and `inc_21f900ee6139` with RB-009
+  read through `query_runbook`.
 
 **Reset** [VM 0.166 · bash]:
 ```bash

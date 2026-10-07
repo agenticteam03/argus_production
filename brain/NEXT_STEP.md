@@ -3,9 +3,15 @@
 **Now (2026-10-07):** both VMs run `task/T-0018-sc07-network` (`df267ce`): SC-07 verified on vm-166 (T-0018,
 `conantkd`). After its PR merges, whoever holds the VM lease runs the AFTER-MERGE block in
 `execution/current/code.bash` (both VMs back on `main`, checkout only, no rebuild). The vm-095 agent image already
-carries T-0015, so **T-0015 step 6** only needs its read-token proof (no rebuild). Follow-up from T-0018: RB-009 was
-not recalled in SC-07 (branch runbook), so its `last_tested` stays `null`; a `dns_network_failure` class, or branch
-retrieval on network findings, would exercise it.
+carries T-0015, so **T-0015 step 6** only needs its read-token proof (no rebuild). T-0018 also added
+**`knowledge.runbook` (`query_runbook`)**, the in-worker capability of ARCHITECTURE §10.5: branch runbooks are now
+reachable during an investigation (RB-009 read in SC-07 run 2, `last_tested` set).
+
+**Next, agreed by `conantkd`: enable more incident classes** (ARCHITECTURE §3 lists 20, 3 are implemented). A class
+is enabled only when its detector exists, its runbook is tested in the lab and the §21.2 evaluation passes (§3
+"Enablement"); `query_runbook` lets the scenarios exercise the branch runbooks first. Candidates with a scenario
+planned: `dns_network_failure` (RB-009, SC-07 exists), `postgresql_connection_exhaustion` (RB-004, SC-04),
+`disk_pressure` (RB-005, SC-05), `cpu_saturation` (RB-006, SC-06), `nginx_upstream_failure` (RB-015, SC-08).
 
 **Earlier (2026-10-06):** both VMs on `main` (vm-095 `f126272`, agent image from `2097eb1`; see below).
 Merged today: PR #25 (T-0017), PR #22 (T-0015 steps 1-5, **ACR-0001 accepted** by `conantkd`: UIs read-only in this release) and
@@ -35,7 +41,7 @@ for its after-merge review by a teammate (fast-track rule).
 | **T-0014 — worker + scheduler** (recommended next; `juanbetancurm`) | 9 | split the agent into api / worker / scheduler; the worker claims queued incidents and **resumes interrupted runs from their checkpoint**; the scheduler runs periodic checks and pulls firing alerts | T-0013 merged |
 | **T-0015 — read access for user interfaces** (`juanbetancurm`) | 10 | read-only tokens, `GET /api/v1/me`, the UI contract: [`tasks/current/T-0015-ui-read-access.md`](tasks/current/T-0015-ui-read-access.md) | nothing (starts with ACR-0001 for OD-10) |
 | **T-0016 — the web frontend** (`juanes6554`; say *"I want to implement the frontend"*) | 10 | his own framework in `frontend/`, test-driven (the agent writes the tests from his guidelines): [`tasks/current/T-0016-frontend.md`](tasks/current/T-0016-frontend.md) | T-0015 steps 1–5 merged |
-| ~~SC-07 — network/DNS scenario~~ **done 2026-10-07** (T-0018, `conantkd`) | 11 | verified on vm-166; follow-up: RB-009 recall / a `dns_network_failure` class | — |
+| ~~SC-07 — network/DNS scenario~~ **done 2026-10-07** (T-0018, `conantkd`) | 11 | verified on vm-166, twice; RB-009 read via `query_runbook` | — |
 | MCP tools child | 4 | tool calls through a separate stdio process under its own user | nothing (independent) |
 | *Future:* ACR for UI actions | 10 | give the UI the scope its prototype shows (approvals, starting investigations, simulator, scheduler, health data): a new ACR; approvals touch a safety principle and need a second approval (PR #24 comment, ACR-0001 §5) | the API routes the UI would act on exist (approvals, scheduler T-0014, a health read route) |
 

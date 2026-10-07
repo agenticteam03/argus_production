@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | `in progress` — SC-07 passed (2026-10-07); now step 7: `knowledge.runbook` (branch runbooks), then SC-07 again |
+| Status | `verified` on vm-166 (2026-10-07); merged by this pull request |
 | Phase | 11 — synthetic incidents ([`../../IMPLEMENTATION_PLAN.md`](../../IMPLEMENTATION_PLAN.md) §7, SC-07) |
 | Architecture | no change (no ACR): lab workloads, one more read-only field, one more Argus lab network |
 | Branch | `task/T-0018-sc07-network` |
@@ -92,3 +92,8 @@ incident. Restarting the backend would fix nothing; a good diagnosis says which 
     high-entropy secret (the redactor is right; the capability now returns a 16-character prefix, like the recall
     timeline), and the test's own first-step condition was wrong (detect already stores evidence);
   - **green:** 5/5; full offline suite 100 passed, 6 skipped (106).
+- **2026-10-07 — step 7 on the VMs (agent `68d4963`, SC-07 run 2):** `inc_21f900ee6139` DIAGNOSED; after the TCP
+  probe failed the model called **`query_runbook` → RB-009** (3 sections) and then checked name resolution first, as
+  RB-009 prescribes; "do not restart the backend". Root-cause target the host (less precise than run 1, still
+  correct). RB-009: `last_tested: 2026-10-07`, version 1.0.1, still `draft` (promotion needs more cases and a
+  reviewer). [Evidence](../../execution/history/T-0018/step-07/evidence.md).
