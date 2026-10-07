@@ -7,6 +7,7 @@ after a Postgres restart.
 from __future__ import annotations
 
 import json
+from datetime import datetime
 from typing import Any
 
 from psycopg.types.json import Jsonb
@@ -71,15 +72,33 @@ class PostgresStore:
         rows = self._q("SELECT body FROM incident ORDER BY opened_at DESC LIMIT %s", (limit,))
         return [Incident.model_validate(r[0]) for r in rows]
 
-    def claim_next_queued(self) -> Incident | None:
-        """Atomic claim (FOR UPDATE SKIP LOCKED): safe with several workers."""
-        row = self._q("UPDATE incident SET status = 'running', body = jsonb_set(body, '{status}', '\"running\"') "
+    def claim_next_queued(self, worker_id: str = "local", lease_s: int = 300) -> Incident | None:
+        """Atomic claim (FOR UPDATE SKIP LOCKED) for `lease_s` seconds: safe with several workers (T-0014, §6.2)."""
+        row = self._q("UPDATE incident SET status = 'running', body = jsonb_set(body, '{status}', '\"running\"'), "
+                      "claimed_by = %s, claimed_until = now() + make_interval(secs => %s) "
                       "WHERE id = (SELECT id FROM incident WHERE status = 'queued' ORDER BY opened_at "
-                      "            FOR UPDATE SKIP LOCKED LIMIT 1) RETURNING body")
+                      "            FOR UPDATE SKIP LOCKED LIMIT 1) RETURNING body", (worker_id, lease_s))
         return Incident.model_validate(row[0][0]) if row else None
 
+    def renew_claim(self, incident_id: str, worker_id: str, lease_s: int = 300,
+                    now: datetime | None = None) -> bool:
+        """Extend a live claim. False: the claim is no longer this worker's (expired and taken), so it must stop."""
+        now = now or utcnow()
+        row = self._q("UPDATE incident SET claimed_until = %s + make_interval(secs => %s) "
+                      "WHERE id = %s AND status = 'running' AND claimed_by = %s AND claimed_until >= %s RETURNING id",
+                      (now, lease_s, incident_id, worker_id, now))
+        return bool(row)
+
+    def requeue_expired(self, now: datetime | None = None) -> int:
+        """Crash recovery: running incidents whose claim expired (or that never had one) go back to the queue."""
+        rows = self._q("UPDATE incident SET status = 'queued', body = jsonb_set(body, '{status}', '\"queued\"'), "
+                       "claimed_by = NULL, claimed_until = NULL "
+                       "WHERE status = 'running' AND (claimed_until IS NULL OR claimed_until < %s) RETURNING id",
+                       (now or utcnow(),))
+        return len(rows)
+
     def requeue_running(self) -> int:
-        """Crash recovery: runs that were in progress when the process died start again from intake."""
+        """Crash recovery for the single-process `argus serve`: every run in progress starts again from intake."""
         rows = self._q("UPDATE incident SET status = 'queued', body = jsonb_set(body, '{status}', '\"queued\"') "
                        "WHERE status = 'running' RETURNING id")
         return len(rows)

@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | `planned` (2026-10-07) |
+| Status | `in progress` (2026-10-07): step 1 done |
 | Phase | 9 — agent workflow ([`../../IMPLEMENTATION_PLAN.md`](../../IMPLEMENTATION_PLAN.md)): "a real worker and scheduler" |
 | Architecture | no change (no ACR): implements ARCHITECTURE §6.2 (intake claim + lease recovery), §6.5 (skip-if-active, maximum queued age), §6.6 (scheduled identity), §7.3 (scheduler), §3 containers `argus-api` / `argus-worker` / `argus-scheduler` |
 | Branch | `task/T-0014-worker-scheduler` |
@@ -82,4 +82,10 @@ one by one, holds a renewable claim on each, and resumes an interrupted run from
 
 ## Red seen / evidence
 
-- *(empty: the task has not started)*
+- **Step 1 (2026-10-07): the lease.** `tests/test_worker_lease.py` (8 tests, SQLite) and `test_worker_lease` in
+  `tests/test_postgres.py`. Red seen: all 8 failed with `claim_next_queued() got an unexpected keyword argument
+  'lease_s'`. Then: migration `003_worker_lease.sql` (`claimed_by`, `claimed_until`, index), `claim_next_queued(worker_id,
+  lease_s)`, `renew_claim()`, `requeue_expired()` in both stores and the port; an old SQLite file gets the columns on
+  open; `requeue_running()` kept for the single-process `argus serve`. A dead worker's run is requeued only after its
+  lease expires and resumes from its checkpoint without repeating the completed read. Suite: 117 passed, 1 skipped
+  (Docker-in-Docker backup test), Postgres tests included (throwaway `postgres:16-alpine`).
