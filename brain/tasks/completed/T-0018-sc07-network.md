@@ -110,3 +110,7 @@ incident. Restarting the backend would fix nothing; a good diagnosis says which 
   - **red:** `test_container_status_tool_tells_the_model_it_returns_networks` (`'network' in 'container state, …'`);
   - **green:** the description names the attached Docker networks and the use-when says to compare a victim's and
     its dependency's networks when a name does not resolve; full suite 101 passed, 6 skipped (107).
+- **2026-10-07 — SC-07 run 4 (`65eb9f1`):** `inc_6a1511e19269` DIAGNOSED: step 1 read the status of both sides, step 2
+  read RB-009 **1.1.0**, and the diagnosis names both networks ("the client is on argus-lab-app while the backend is
+  on argus-lab-iso … wrong network attachment … do not restart"). First run with all three; one run is not a
+  quality claim. [Evidence](../../execution/history/T-0018/step-09/evidence.md).

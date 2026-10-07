@@ -11,7 +11,7 @@ version: 1.1.0
 created: 2026-09-29
 last_reviewed: 2026-10-07
 source_review_date: 2026-09-29
-last_tested: 2026-10-07   # v1.0.0 read in SC-07 on vm-166 (inc_21f900ee6139, T-0018); v1.1.0 not run yet; still draft
+last_tested: 2026-10-07   # SC-07 on vm-166 (T-0018): v1.0.0 in inc_21f900ee6139, v1.1.0 in inc_6a1511e19269; still draft
 detector: null
 ```
 
@@ -146,7 +146,7 @@ Contract-test discovery/network changes, monitor client vantages/address familie
 
 ## Lab validation
 
-Disposable app-network pair: operator changes a fixture alias to a nonexistent name, then restores it and separately stops its listener; third case keeps TCP open but serves a protocol failure. Each fault lasts at most 2 minutes; topology and baseline are saved. Expect RB-003 parent→RB-009, DNS/listener/protocol distinction and zero victim restarts. A public/unknown endpoint and forged redirect must be refused. Denied config change produces no Argus action; operator restores exact fixture settings. Verify all layers, preserve the eight lifecycle artifacts, and replay absent error metrics to require unknown rather than healthy. These three cases are not executed. Executed: SC-07 on vm-166 (2026-10-07, T-0018), a healthy destination attached only to another Docker network (`inc_fb92d115abb2`; `inc_21f900ee6139` with v1.0.0 read through `query_runbook`).
+Disposable app-network pair: operator changes a fixture alias to a nonexistent name, then restores it and separately stops its listener; third case keeps TCP open but serves a protocol failure. Each fault lasts at most 2 minutes; topology and baseline are saved. Expect RB-003 parent→RB-009, DNS/listener/protocol distinction and zero victim restarts. A public/unknown endpoint and forged redirect must be refused. Denied config change produces no Argus action; operator restores exact fixture settings. Verify all layers, preserve the eight lifecycle artifacts, and replay absent error metrics to require unknown rather than healthy. These three cases are not executed. Executed: SC-07 on vm-166 (2026-10-07, T-0018), a healthy destination attached only to another Docker network (`inc_fb92d115abb2`; `inc_21f900ee6139` with v1.0.0 and `inc_6a1511e19269` with v1.1.0 read through `query_runbook`).
 
 ## References
 

@@ -448,3 +448,16 @@ so passages carry a 16-character prefix. SC-07 run 2 (`inc_21f900ee6139`): the m
 failed and diagnosed the name-resolution layer, no restart. RB-009 `last_tested: 2026-10-07` (read in version 1.0.0; the metadata then became 1.0.1; still
 draft). Next agreed: enable more classes under the §3 "Enablement" rule.
 References: T-0018 step 7, `execution/history/T-0018/step-07/evidence.md`, ARCHITECTURE §10.5, §12.
+
+## 2026-10-07 — T-0018: SC-07 runs 3-4, what the model needs to see
+
+Type: analysis
+Who: conantkd (+ agent)
+Context: run 3 (RB-009 1.1.0) read neither RB-009 nor any container status. The stored evidence of runs 1-3 showed the
+precise diagnosis came only when the model read the status of both sides, and the tool description did not say it
+returns networks.
+Decision / result: of five suggestions (network-named probe text, tool description, RB-003 step 2, a detector finding
+naming the failing edge and layer, "Decide now" in the context), `conantkd` chose only the tool description. Run 4
+(`inc_6a1511e19269`): status of both sides in step 1, RB-009 1.1.0 read, misattachment named with both networks, no
+restart. The other suggestions stay open (recorded in the T-0018 task file); quality needs ≥ 5 runs (Phase 12).
+References: `execution/history/T-0018/step-08/`, `step-09/`.
