@@ -5,3 +5,8 @@ scrape_configs:
     static_configs:
       - targets: ["argus-v18-exporter:8700"]
         labels: {argus_host: vm-166}
+  - job_name: argus-v18-db-probe          # T-0020: slot usage of the allowlisted databases (argus_db_*)
+    authorization: {type: Bearer, credentials_file: /etc/prometheus/secrets/db_probe_token}
+    static_configs:
+      - targets: ["argus-v18-db-probe:8700"]
+        labels: {argus_host: vm-166}

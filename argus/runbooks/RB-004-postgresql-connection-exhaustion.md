@@ -7,18 +7,18 @@ id: RB-004
 title: PostgreSQL connection exhaustion
 status: draft
 owner: Argus Team
-version: 1.0.0
+version: 1.0.1
 created: 2026-09-29
-last_reviewed: 2026-09-29
+last_reviewed: 2026-10-07
 source_review_date: 2026-09-29
 last_tested: null
-detector: null
+detector: postgresql_connection_exhaustion
 parent_detector: dependency_unavailable
 ```
 
 ## Scope
 
-PostgreSQL 16 and declared application clients on Host T. For other majors review matching admission/role settings. Distinguish pooler capacity from server capacity; this procedure assumes direct PostgreSQL observations and needs pooler telemetry when one intervenes. Apply [common contracts](../RUNBOOK-CONVENTIONS.md). No standalone RB-004 detector exists in inspected code.
+PostgreSQL 16 and declared application clients on Host T. For other majors review matching admission/role settings. Distinguish pooler capacity from server capacity; this procedure assumes direct PostgreSQL observations and needs pooler telemetry when one intervenes. Apply [common contracts](../RUNBOOK-CONVENTIONS.md). Argus registers the standalone detector `postgresql_connection_exhaustion` (T-0020): ordinary-slot usage at or above 90 % for 5 minutes, from the db-probe's metrics.
 
 ## Incident definition
 

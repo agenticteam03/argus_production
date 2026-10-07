@@ -12,3 +12,7 @@ groups:
         expr: argus_probe_success == 0
         for: 1m
         annotations: {summary: "a declared dependency is not reachable"}
+      - alert: DbConnectionsExhausted      # T-0020 / RB-004: ordinary slots above 90 % for 5 minutes
+        expr: argus_db_connections_used / (argus_db_connections_usable > 0) >= 0.9
+        for: 5m
+        annotations: {summary: "a database has used 90 %+ of its usable connection slots for 5 minutes"}

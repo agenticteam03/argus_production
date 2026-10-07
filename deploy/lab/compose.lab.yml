@@ -37,6 +37,7 @@ services:
     volumes:
       - /opt/argus-v18/secrets/lab-db/postgres_password:/run/secrets/postgres_password:ro
       - /opt/argus-v18/secrets/lab-db/monitor_password:/run/secrets/monitor_password:ro
+      - /opt/argus-v18/secrets/lab-db/app_password:/run/secrets/app_password:ro          # SC-04's ordinary role
       - ./db-init:/docker-entrypoint-initdb.d:ro                # creates argus_monitor (pg_monitor only)
     tmpfs: ["/var/lib/postgresql/data:size=96m"]              # no Docker volume; a restart starts empty
     networks: [argus-lab-app]
@@ -50,6 +51,19 @@ services:
       timeout: 4s
       retries: 3
     restart: unless-stopped
+  argus-lab-leaker:                     # SC-04 (vm-166): opens sessions on argus-lab-db and never ends their transaction
+    <<: *lim
+    image: postgres:16-alpine           # only for psql; no server runs here
+    container_name: argus-lab-leaker
+    profiles: [sc04]
+    entrypoint: ["sh", "/w/leaker.sh"]
+    environment: {PGHOST: argus-lab-db, PGDATABASE: argus_lab, PGUSER: argus_lab_app, PGAPPNAME: argus-lab-leaker,
+                  SESSIONS: "16"}       # 16 of 17 usable slots = 94 % (the monitoring role still gets in)
+    volumes:
+      - ./workloads:/w:ro
+      - /opt/argus-v18/secrets/lab-db/app_password:/run/secrets/app_password:ro
+    networks: [argus-lab-app]
+    restart: "no"
   argus-lab-api-twin:                   # vm-095 baseline: SAME container name, no dependency, healthy
     <<: *lim
     image: python:3.12-alpine

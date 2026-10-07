@@ -300,6 +300,31 @@ def db_probe(parts: list[str], q: dict) -> dict:
     db = next((d for d in CONFIG.get("databases", []) if d["name"] == name), None)
     if db is None:
         raise Err(400, "database not allowlisted")
+    return db_health(db)
+
+
+def db_metrics() -> str:
+    """Slot usage of every allowlisted database for Prometheus (T-0020). Computed at scrape time: one short
+    connection per database. A database that cannot be read has only `argus_db_up 0` (unknown, never zero)."""
+    lines = []
+    for db in CONFIG.get("databases", []):
+        lab = f'container="{db["name"]}"'
+        try:
+            h = db_health(db)
+        except Err:
+            lines.append(f"argus_db_up{{{lab}}} 0")
+            continue
+        oldest = max([t["age_s"] for t in h["longest_transactions"]], default=0)
+        lines += [f"argus_db_up{{{lab}}} 1", f"argus_db_connections_max{{{lab}}} {h['max_connections']}",
+                  f"argus_db_connections_usable{{{lab}}} {h['usable_connections']}",
+                  f"argus_db_connections_used{{{lab}}} {h['client_connections']}",
+                  *(f'argus_db_connections{{{lab},state="{s}"}} {n}' for s, n in sorted(h["by_state"].items())),
+                  f"argus_db_oldest_xact_seconds{{{lab}}} {oldest}", f"argus_db_lock_waits{{{lab}}} {h['lock_waits']}"]
+    return "\n".join(lines) + "\n"
+
+
+def db_health(db: dict) -> dict:
+    name = db["name"]
     try:
         conn = pg_connect(db)
     except Exception as e:
@@ -415,6 +440,8 @@ class Handler(BaseHTTPRequestHandler):
             given = (self.headers.get("Authorization") or "").removeprefix("Bearer ").strip()
             if not hmac.compare_digest(given, TOKEN):
                 raise Err(401, "unauthorized")
+            if ROLE == "db_probe" and parts == ["metrics"]:      # scraped by this host's Prometheus with the token
+                return self._send(200, db_metrics().encode(), "text/plain; version=0.0.4")
             body = ROUTES[ROLE](parts, urllib.parse.parse_qs(u.query))
             self._send(200, json.dumps({**body, "host": HOST, "role": ROLE}, default=str).encode())
         except Err as e:

@@ -290,5 +290,5 @@ def build_catalog() -> list[CapabilitySpec]:
                        "usable, connections by state and by client (application/role), the longest open transactions "
                        "(age, state, wait event) and lock waits. No rows and no SQL text.",
                        "a database may be out of connections, slow, or blocking its clients", NoArgs, C, 3,
-                       "READ_ONLY_SAFE", frozenset({"database"}), "db_probe", db_health),
+                       "READ_ONLY_SENSITIVE", frozenset({"database"}), "db_probe", db_health),   # RB-004: client names
     ]
