@@ -5,6 +5,7 @@ authorization, read configuration or write audit (v1.8 §12.3).
 """
 from __future__ import annotations
 
+import hashlib
 from datetime import datetime, timezone
 from typing import Any
 
@@ -40,6 +41,11 @@ class PortArgs(_Args):
 
 class UrlArgs(_Args):
     url: str = Field(..., description="an allowlisted HTTP endpoint of the target")
+
+
+class RunbookArgs(_Args):
+    runbook_id: str = Field(..., pattern=r"^RB-[0-9]{3}$", description="a runbook of the library, e.g. RB-009")
+    query: str = Field(..., min_length=1, max_length=200, description="what to look for in that runbook")
 
 
 class HistoryArgs(_Args):
@@ -177,6 +183,18 @@ def net_http(args: UrlArgs, target: TargetRef, info: TargetInfo | None, client) 
                             source_time=_ts(d.get("collected_at")), units={"duration_ms": "ms"})
 
 
+# --- argus_internal (in-worker) ------------------------------------------------------------------
+def knowledge_runbook(args: RunbookArgs, target: TargetRef, info, client) -> CapabilityResult:
+    passages = client.runbook(args.runbook_id, args.query)
+    rows = [{"runbook_id": p.runbook_id, "version": p.runbook_version, "status": p.runbook_status, "section": p.section,
+             # a prefix, as in the recall timeline: a full 64-hex hash reads as a secret to the redactor
+             "sha256_prefix": hashlib.sha256(p.text.encode()).hexdigest()[:16], "text": p.text} for p in passages]
+    text = "\n".join(f'<passage runbook="{r["runbook_id"]}" version="{r["version"]}" status="{r["status"]}" '
+                      f'section="{r["section"]}">\n{r["text"]}\n</passage>' for r in rows)
+    return CapabilityResult(values={"runbook_id": args.runbook_id, "passages": rows},
+                            model_text=f"{args.runbook_id}: {len(rows)} section(s) for {args.query!r}\n{text}")
+
+
 # --- prometheus ----------------------------------------------------------------------------------
 def _history(signal: str, label: str):
     def impl(args: HistoryArgs, target: TargetRef, info, client) -> CapabilityResult:
@@ -242,4 +260,9 @@ def build_catalog() -> list[CapabilitySpec]:
         CapabilitySpec("metrics.restart_history", "get_restart_history", "Container restart count over a time window.",
                        "is it a restart loop and since when", HistoryArgs, C, 2, "READ_ONLY_SAFE",
                        frozenset({"stability"}), "prometheus", _history("container_restart_count", "restart count")),
+        CapabilitySpec("knowledge.runbook", "query_runbook",
+                       "Read sections of a runbook of the library (id, version, status, section).",
+                       "the evidence points to a cause another runbook covers (e.g. a branch runbook of the class)",
+                       RunbookArgs, C | H, 1, "READ_ONLY_SAFE", frozenset({"knowledge"}), "argus_internal",
+                       knowledge_runbook, runs_in="worker", max_output_bytes=16384),
     ]

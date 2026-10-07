@@ -139,6 +139,7 @@ class TfidfRunbooks:
         self.library_version = library_version or self._index_version(home / "RUNBOOK-INDEX.md")
         self.pinned_text = self._pinned(home / "RUNBOOK-CONVENTIONS.md")
         self.ids: set[str] = set()
+        self.titles: dict[str, str] = {}                                  # id → title (metadata)
         self.sections: list[tuple[str, str, str, str, list[str]]] = []   # (id, version, status, section, text)
         for path in sorted(root.glob("RB-*.md")):
             text = path.read_text(encoding="utf-8")
@@ -148,6 +149,7 @@ class TfidfRunbooks:
             if not rid:
                 continue
             self.ids.add(rid)
+            self.titles[rid] = str(meta.get("title") or "")
             for chunk in re.split(r"\n(?=## )", text):
                 title = chunk.splitlines()[0].lstrip("# ").strip() if chunk.strip() else ""
                 if title.lower() in {"metadata", ""} or len(chunk) > self.MAX_SECTION_CHARS:

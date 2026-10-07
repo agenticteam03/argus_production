@@ -19,6 +19,7 @@ capabilities:
   network.http_probe:      {max_per_incident: 4}
   metrics.memory_history:  {max_per_incident: 4}
   metrics.restart_history: {max_per_incident: 4}
+  knowledge.runbook:       {max_per_incident: 3}   # in-worker: reads the runbook library (branch runbooks)
 
 write_gate:
   open: []          # write gate closed (v1.8 §13.3); a non-empty list refuses startup in this phase

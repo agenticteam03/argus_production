@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | `verified` on vm-166 (2026-10-07); merged by this pull request |
+| Status | `in progress` — SC-07 passed (2026-10-07); now step 7: `knowledge.runbook` (branch runbooks), then SC-07 again |
 | Phase | 11 — synthetic incidents ([`../../IMPLEMENTATION_PLAN.md`](../../IMPLEMENTATION_PLAN.md) §7, SC-07) |
 | Architecture | no change (no ACR): lab workloads, one more read-only field, one more Argus lab network |
 | Branch | `task/T-0018-sc07-network` |
@@ -31,6 +31,15 @@ incident. Restarting the backend would fix nothing; a good diagnosis says which 
   permanently, so outside SC-07 it would report 0 and keep `DependencyProbeFailed` firing on vm-166. The exporter
   now skips the probes of owners that are not running (SC-03 is unchanged: its owner, the api, keeps running).
 
+- **Branch runbooks through `knowledge.runbook` (2026-10-07, after the first SC-07 run):** RB-009 was not recalled,
+  because recall is one TF-IDF search at the start and the architecture's way to reach a branch runbook later
+  (§3: "retrieved when the investigation points to that cause"; §10.5: "a strategy may request more through the
+  in-worker capabilities `knowledge.runbook`") was not implemented. `conantkd` chose the general mechanism over a
+  per-case class (`dns_network_failure`), so every class with branches benefits, and the per-class detectors can
+  be enabled later once their runbooks are tested (§3 "Enablement"). No orchestration flow changes: a capability
+  (`query_runbook`, executor `argus_internal`, `runs_in="worker"`), its policy limit (3 per incident), and one
+  context line that names the class's branch runbooks.
+
 ## Design
 
 - **Lab (profile `sc07`, `deploy/lab/compose.lab.yml`):** `argus-lab-backend` (the lab api, standalone, healthy)
@@ -55,6 +64,8 @@ incident. Restarting the backend would fix nothing; a good diagnosis says which 
    Brain widened to `0–3`.
 4. **Deploy on vm-166:** checkout of this branch, rebuild the target services (the new field), NO INTERFERENCE.
 5. **Run SC-07:** induce → wait for the probe signal → diagnose → verify → reset → NO INTERFERENCE; evidence.
+7. **`knowledge.runbook`** (tests first), deploy the agent on vm-095, run SC-07 again: RB-009 is tested only if
+   the model actually reads it.
 6. **Brain and PR:** plan (SC-07 ✅, host vm-166), `docs/INCIDENTS.md`, RB-009 `last_tested`, journal; PR with the
    teammates tagged about the network rule.
 
@@ -75,3 +86,9 @@ incident. Restarting the backend would fix nothing; a good diagnosis says which 
   client is on argus-lab-app while the backend is only on argus-lab-iso … do not restart containers"*. Reset done,
   LAB BASELINE OK, NO INTERFERENCE. RB-009 was **not** recalled (branch runbook): its `last_tested` stays `null`
   (follow-up). [Evidence](../../execution/history/T-0018/step-05/evidence.md).
+- **2026-10-07 — step 7 (code, tests first): `knowledge.runbook`:**
+  - **red:** `tests/test_knowledge_runbook.py` 5 of 5 failed (the capability did not exist: `refused`);
+  - then 2 failures that taught something: the full sha256 of a passage was masked by the redactor as a
+    high-entropy secret (the redactor is right; the capability now returns a 16-character prefix, like the recall
+    timeline), and the test's own first-step condition was wrong (detect already stores evidence);
+  - **green:** 5/5; full offline suite 100 passed, 6 skipped (106).
