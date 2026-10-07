@@ -41,7 +41,11 @@ and repeated end-to-end runs.
   yet. Evidence: [`execution/history/T-0017/step-03/evidence.md`](execution/history/T-0017/step-03/evidence.md).
   vm-095's checkout was on `task/T-0017-pg-backup-drill` for the drill; back on `main` `f126272` after the merge
   (AFTER-MERGE T-0017, below).
-- **Latest (OBSERVED 2026-10-07, AFTER-MERGE T-0018, `conantkd`):** both VMs on `main` `974d1d7` (checkout only,
+- **Latest (OBSERVED 2026-10-07, OP-007, `conantkd`):** vm-166 runs `task/op-007-restarting-probe-fix` `9c04e90`:
+  the 4 target services rebuilt; a dependency probe now stays while its owner restarts; api -> cache probe 1, no
+  series for the absent SC-07 client; `LAB BASELINE OK`, NO INTERFERENCE. Back to `main` after the merge (checkout
+  only). Evidence: [`execution/history/OP-007/step-01/evidence.md`](execution/history/OP-007/step-01/evidence.md).
+- **Earlier (OBSERVED 2026-10-07, AFTER-MERGE T-0018, `conantkd`):** both VMs on `main` `974d1d7` (checkout only,
   nothing restarted), `LAB BASELINE OK`, NO INTERFERENCE on both. Evidence:
   [`execution/history/AFTER-MERGE-T-0018/step-01/evidence.md`](execution/history/AFTER-MERGE-T-0018/step-01/evidence.md).
 - **Earlier (OBSERVED 2026-10-07, T-0018 step 7):** vm-095 runs `task/T-0018-sc07-network` `68d4963`: the agent has
