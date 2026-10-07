@@ -1,0 +1,10 @@
+{
+  "access": "read",
+  "actions": [
+    "view_incidents",
+    "view_timeline",
+    "view_evidence"
+  ],
+  "role": "operator",
+  "user": "alice"
+}

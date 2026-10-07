@@ -9,12 +9,14 @@ from datetime import timedelta
 from typing import Annotated, Literal
 
 import jwt
-from fastapi import Depends, FastAPI, Header, HTTPException, status
+from fastapi import Depends, FastAPI, Header, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from pwdlib import PasswordHash
 from pydantic import BaseModel, ConfigDict
 
-from argus.domain.model import Incident, Principal, RequestKind, TargetRef, TriggerKind, utcnow
+from argus.domain.model import AuditRecord, Incident, Principal, RequestKind, TargetRef, TriggerKind, utcnow
+
+READ_METHODS = ("GET", "HEAD")          # a read-only token (ACR-0001) may use only these
 
 hasher = PasswordHash.recommended()
 oauth2 = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/token")
@@ -35,7 +37,7 @@ def new_incident(target: TargetRef, trigger: TriggerKind, request: RequestKind, 
 
 
 def _principal_dep(app_ctx):
-    def dep(token: Annotated[str, Depends(oauth2)]) -> Principal:
+    def dep(request: Request, token: Annotated[str, Depends(oauth2)]) -> Principal:
         try:
             claims = jwt.decode(token, app_ctx.jwt_key, algorithms=["HS256"], audience="argus-api")
         except jwt.PyJWTError:
@@ -44,6 +46,15 @@ def _principal_dep(app_ctx):
         row = app_ctx.store.get_principal(claims["sub"])
         if row is None or row["disabled"]:          # disabling takes effect before token expiry
             raise HTTPException(status.HTTP_401_UNAUTHORIZED, "principal disabled")
+        # ACR-0001: a read-only token only narrows what the role allows; tokens without the claim are full
+        access = claims.get("access", "full")
+        request.state.access = access
+        if access == "read" and request.method not in READ_METHODS:
+            app_ctx.store.append(AuditRecord(
+                audit_id=f"aud_{uuid.uuid4().hex[:16]}", incident_id=None, at=utcnow(), category="access",
+                event="access.read_only_refused", actor=row["id"],
+                detail={"method": request.method, "path": request.url.path}))
+            raise HTTPException(status.HTTP_403_FORBIDDEN, "this token is read-only")
         return Principal(id=row["id"], kind=row["kind"], role=row["role"], scopes=frozenset(row["scopes"]))
     return dep
 
@@ -53,6 +64,10 @@ def build_api(app_ctx) -> FastAPI:
                   description="Read-only SRE diagnosis agent on two hosts (vm-095, vm-166). "
                               "Log in with **Authorize**. Targets and incidents: docs/INCIDENTS.md.")
     current = _principal_dep(app_ctx)
+    if app_ctx.settings.ui_origins:          # ACR-0001: only the listed browser origins; none by default
+        from fastapi.middleware.cors import CORSMiddleware
+        api.add_middleware(CORSMiddleware, allow_origins=app_ctx.settings.ui_origins, allow_methods=["GET", "POST"],
+                           allow_headers=["Authorization", "Content-Type"], allow_credentials=False)
 
     def require(*roles: str):
         def dep(p: Annotated[Principal, Depends(current)]) -> Principal:
@@ -67,11 +82,27 @@ def build_api(app_ctx) -> FastAPI:
         ok = row is not None and not row["disabled"] and hasher.verify(form.password, row["password_hash"])
         if not ok:
             raise HTTPException(status.HTTP_401_UNAUTHORIZED, "bad credentials")
+        if form.scopes and form.scopes != ["read"]:        # ACR-0001: the only scope a login may ask for is "read"
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, "unknown scope (only 'read' is accepted)")
+        access = "read" if form.scopes == ["read"] else "full"
         now = utcnow()
         claims = {"sub": row["id"], "kind": row["kind"], "role": row["role"], "scopes": row["scopes"],
-                  "iat": now, "exp": now + timedelta(minutes=app_ctx.settings.jwt_ttl_min),
+                  "access": access, "iat": now, "exp": now + timedelta(minutes=app_ctx.settings.jwt_ttl_min),
                   "jti": uuid.uuid4().hex, "aud": "argus-api"}
-        return {"access_token": jwt.encode(claims, app_ctx.jwt_key, algorithm="HS256"), "token_type": "bearer"}
+        return {"access_token": jwt.encode(claims, app_ctx.jwt_key, algorithm="HS256"), "token_type": "bearer",
+                "access": access}
+
+    @api.get("/api/v1/me", tags=["auth"])
+    def me(request: Request, p: Annotated[Principal, Depends(current)]):
+        """Who is logged in, and the actions this token may use (ACR-0001). A UI shows a control only when its
+        action is listed: new features add actions here, never permission logic in the UI."""
+        access = request.state.access
+        actions = ["view_incidents", "view_timeline"]
+        if p.role in ("operator", "approver"):
+            actions.append("view_evidence")
+            if access == "full":
+                actions.append("start_investigation")
+        return {"user": p.id, "role": p.role, "access": access, "actions": actions}
 
     @api.post("/api/v1/investigations", status_code=202, tags=["incidents"])
     def investigate(body: InvestigationIn, p: Annotated[Principal, Depends(require("operator", "approver"))]):

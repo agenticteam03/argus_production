@@ -1,0 +1,5 @@
+{
+  "access": "read",
+  "access_token": "<a JWT>",
+  "token_type": "bearer"
+}
