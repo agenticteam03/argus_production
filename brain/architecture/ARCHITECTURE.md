@@ -2256,7 +2256,8 @@ stored as evidence or sent to the model.
   carries `access: "read"` (otherwise `access: "full"`). This claim is separate from `scopes` (the target-scope
   names) and can only **narrow** what the role allows: a read token is refused with 403 on every route that is
   not a `GET`, whatever the role, and the refusal is audited (`access.read_only_refused`). User interfaces are
-  separate clients of the API and hold only the user's own short-lived token, never a server secret.
+  separate clients of the API and hold only the user's own short-lived token, never a server secret; in this
+  release that token is always a read token (a UI write action needs a new ACR).
 - Every request re-reads the principal's `disabled` flag, so disabling a user takes effect before the
   token expires.
 - The JWT only proves **who** is calling. What the caller may do is decided server-side by the use
@@ -2651,7 +2652,7 @@ The goal of this architecture is that Argus's diagnostic reach grows **without c
 | OD-7 | Numeric values for `MAX_STEPS`, `MAX_TOKENS_PER_INCIDENT`, `MAX_MODEL_COST_PER_DAY`, per-principal quotas, approval expiry, `METRICS_MAX_STALENESS`, `VERIFY_TIMEOUT`, `RESUME_MAX_ATTEMPTS`, evidence retention per kind | set from measurements and the project model budget |
 | OD-8 | Schedule cadence per target | derived from the measured p95 investigation duration (§6.5) |
 | OD-9 | Plain SQL vs SQLAlchemy; migration tooling | adopt SQLAlchemy only if schema complexity justifies it |
-| OD-10 | A dedicated approval/incident UI beyond Swagger, CLI and (later) Slack links | **decided by ACR-0001 (2026-10-06):** user interfaces are allowed as separate clients of the HTTP API, never inside the core; a UI may hold a read-only token; the team's frontend lives in `frontend/` and runs as `argus-v18-ui` (static files + a proxy to the API) on a loopback port of Host A; answering approvals stays in Swagger/CLI in this release |
+| OD-10 | A dedicated approval/incident UI beyond Swagger, CLI and (later) Slack links | **decided by ACR-0001 (2026-10-06):** user interfaces are allowed as separate clients of the HTTP API, never inside the core; in this release a UI holds only read-only tokens, and any UI write action needs a new ACR; the team's frontend lives in `frontend/` and runs as `argus-v18-ui` (static files + a proxy to the API) on a loopback port of Host A; answering approvals stays in Swagger/CLI in this release |
 | OD-11 | Model fine-tuning | explicitly undecided |
 | OD-12 | Consolidating gateways and probes into one target agent per host | revisit at the second monitored host; privilege separation argues for keeping them separate |
 | OD-13 | Automatic merging of related incidents | linked only in this release; decide from operational experience |

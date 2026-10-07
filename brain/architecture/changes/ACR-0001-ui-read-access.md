@@ -5,12 +5,12 @@ fast-tracked: this one needs a teammate's approval in its pull request.
 
 | Field | Value |
 |---|---|
-| Status | `proposed` |
+| Status | `accepted` |
 | Proposed by | juanbetancurm (+ agent) · 2026-10-06 |
-| Accepted by | — (awaiting review: conantkd) |
+| Accepted by | conantkd (+ agent) · 2026-10-06 |
 | Second approval (safety principle only) | not required — see §4 (no safety principle is changed; access is narrowed) |
 | Architecture version | from `1.8.0` → `1.8.1` |
-| Task / PR | T-0015 (step 1) · PR to be opened |
+| Task / PR | T-0015 (step 1) · PR #22 |
 
 ## 1. Detect and explain
 
@@ -38,7 +38,8 @@ silent architecture change — which the change process forbids.
 > before: `not needed for this release`
 >
 > after: **decided by ACR-0001 (2026-10-06):** dedicated user interfaces are allowed as **separate clients of the
-> HTTP API**, never inside the core. A UI may hold a **read-only token**. The team's web frontend lives in
+> HTTP API**, never inside the core. In this release a UI holds **only read-only tokens**; a UI write action needs a
+> new ACR (§5). The team's web frontend lives in
 > `frontend/` and runs as container `argus-v18-ui` (static files + a proxy to the API) on a **loopback port of
 > Host A**, reached like Swagger (SSH tunnel). Answering approvals stays in Swagger/CLI in this release.
 
@@ -96,10 +97,23 @@ routes documented · ACR-0001`.
 
 ## 5. Decision
 
-*(filled in by the reviewer)* — plain-language summary of what was decided, and by whom.
+**Accepted by `conantkd` (reviewer of PR #22), 2026-10-06.**
+
+- **Read-only in this release.** User interfaces are allowed as separate clients of the HTTP API, and a UI logs in
+  with `scope=read` only. It shows incidents, timelines, evidence and escalations; it never starts an
+  investigation and never answers an approval. Starting investigations stays in the CLI and Swagger.
+- **Open for more, through a new ACR.** This is the scope of this release, not a permanent limit. A later ACR may
+  let a UI do more, for example starting investigations or answering approvals. The mechanism is already in
+  place: `GET /api/v1/me` lists the actions a token may use, and a UI shows a control only when its action is
+  listed, so a new UI action is a change on the API side (a new action, a new kind of token) plus that ACR, never
+  permission logic in the UI.
+- **Approvals stay out of user interfaces** until an ACR says otherwise. Answering an approval releases a write,
+  so that ACR touches a safety principle and needs a second approval.
+- Clarification of alternative A: a UI holding the user's full token is not adopted **in this release**; it is
+  not ruled out forever.
 
 ## 6. Applied
 
-- [ ] `ARCHITECTURE.md` updated to `1.8.1` (§2.4, §7.1, §17.3, §25 OD-10), changelog line added with this ACR's link
-- [ ] journal entry
-- [ ] the ACR, the architecture change and the first code that needs it are in the same pull request (T-0015)
+- [x] `ARCHITECTURE.md` updated to `1.8.1` (§2.4, §7.1, §17.3, §25 OD-10), changelog line added with this ACR's link
+- [x] journal entry
+- [x] the ACR, the architecture change and the first code that needs it are in the same pull request (T-0015)
