@@ -95,11 +95,28 @@ def test_exporter_probes_a_dependency_only_while_its_owner_runs(tmp_path, monkey
     probes = [{"owner": "argus-lab-api", "dependency": "argus-lab-cache", "host": "argus-lab-cache", "port": 6379},
               {"owner": "argus-lab-client", "dependency": "argus-lab-backend", "host": "argus-lab-backend", "port": 8080}]
     monkeypatch.setattr(svc, "tcp", lambda host, port: {"ok": host == "argus-lab-cache", "duration_ms": 1.0})
-    lines = svc.probe_lines(probes, running={"argus-lab-api"})
+    lines = svc.probe_lines(probes, active={"argus-lab-api"})
     assert 'argus_probe_success{owner="argus-lab-api",dependency="argus-lab-cache"} 1' in lines
     assert not any("argus-lab-client" in ln for ln in lines)
-    lines = svc.probe_lines(probes, running={"argus-lab-api", "argus-lab-client"})
+    lines = svc.probe_lines(probes, active={"argus-lab-api", "argus-lab-client"})
     assert 'argus_probe_success{owner="argus-lab-client",dependency="argus-lab-backend"} 0' in lines
+
+
+def test_exporter_keeps_the_probe_of_an_owner_in_a_restart_loop(tmp_path, monkeypatch):
+    """OP-007: an app that crash-loops because its dependency is down spends most samples in Docker's `restarting`
+    state; its probe (the real cause) must stay published. A missing or stopped owner still has none."""
+    svc = _target_service(tmp_path, monkeypatch)
+    state = {"argus-lab-api": {"running": False, "restarting": True},       # crash loop: waiting to restart
+             "argus-lab-client": {"running": False, "restarting": False}}   # stopped by design (SC-07 over)
+    assert svc.owner_active(state["argus-lab-api"]) and not svc.owner_active(state["argus-lab-client"])
+    assert svc.owner_active({"running": True, "restarting": False})
+    probes = [{"owner": "argus-lab-api", "dependency": "argus-lab-cache", "host": "argus-lab-cache", "port": 6379},
+              {"owner": "argus-lab-client", "dependency": "argus-lab-backend", "host": "argus-lab-backend", "port": 8080}]
+    monkeypatch.setattr(svc, "tcp", lambda host, port: {"ok": False, "duration_ms": 1.0})
+    active = {n for n, d in state.items() if svc.owner_active(d)}
+    lines = svc.probe_lines(probes, active)
+    assert 'argus_probe_success{owner="argus-lab-api",dependency="argus-lab-cache"} 0' in lines
+    assert not any("argus-lab-client" in ln for ln in lines)
 
 
 def test_container_status_tool_tells_the_model_it_returns_networks():
