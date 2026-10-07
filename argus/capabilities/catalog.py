@@ -183,6 +183,24 @@ def net_http(args: UrlArgs, target: TargetRef, info: TargetInfo | None, client) 
                             source_time=_ts(d.get("collected_at")), units={"duration_ms": "ms"})
 
 
+# --- db_probe ------------------------------------------------------------------------------------
+def db_health(args: NoArgs, target: TargetRef, info: TargetInfo | None, client) -> CapabilityResult:
+    if not (info and info.database):
+        raise ExecutorError("invalid_args", f"{target} has no database in the inventory")
+    d = client.get("/database/health", {"name": target.name})
+    states = ", ".join(f"{k}={v}" for k, v in sorted((d.get("by_state") or {}).items())) or "none"
+    clients = ", ".join(f"{c['application_name']}/{c['role']}={c['connections']}" for c in (d.get("by_client") or [])[:5])
+    tx = (d.get("longest_transactions") or [None])[0]
+    longest = (f"{tx['age_s']} s ({tx['application_name']}, {tx['state']}, wait={tx['wait_event_type']}/{tx['wait_event']})"
+               if tx else "none")
+    text = (f"database {target.name} ({info.database}): {_fmt(d.get('client_connections'))}/"
+            f"{_fmt(d.get('usable_connections'))} client connections ({_fmt(d.get('usage_percent'))}% of usable; "
+            f"max_connections={_fmt(d.get('max_connections'))}, reserved={_fmt(d.get('reserved_connections'))}); "
+            f"by state: {states}; top clients: {clients or 'none'}; longest open transaction: {longest}; "
+            f"lock waits={_fmt(d.get('lock_waits'))}, blocked sessions={_fmt(d.get('blocked_sessions'))}")
+    return CapabilityResult(values=d, model_text=text, source_time=_ts(d.get("collected_at")), units={"age_s": "s"})
+
+
 # --- argus_internal (in-worker) ------------------------------------------------------------------
 def knowledge_runbook(args: RunbookArgs, target: TargetRef, info, client) -> CapabilityResult:
     passages = client.runbook(args.runbook_id, args.query)
@@ -267,4 +285,10 @@ def build_catalog() -> list[CapabilitySpec]:
                        "the evidence points to a cause another runbook covers (e.g. a branch runbook of the class)",
                        RunbookArgs, C | H, 3, "READ_ONLY_SAFE", frozenset({"knowledge"}), "argus_internal",
                        knowledge_runbook, runs_in="worker", max_output_bytes=16384),
+        CapabilitySpec("database.health", "inspect_database_health",
+                       "PostgreSQL health read on the target host with a monitoring role: connection slots used vs "
+                       "usable, connections by state and by client (application/role), the longest open transactions "
+                       "(age, state, wait event) and lock waits. No rows and no SQL text.",
+                       "a database may be out of connections, slow, or blocking its clients", NoArgs, C, 3,
+                       "READ_ONLY_SAFE", frozenset({"database"}), "db_probe", db_health),
     ]

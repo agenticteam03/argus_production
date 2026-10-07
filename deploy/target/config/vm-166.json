@@ -5,14 +5,16 @@
     "argus-lab-api",
     "argus-lab-cache",
     "argus-lab-client",
-    "argus-lab-backend"
+    "argus-lab-backend",
+    "argus-lab-db"
   ],
   "dns_names": [
     "argus-lab-worker",
     "argus-lab-api",
     "argus-lab-cache",
     "argus-lab-client",
-    "argus-lab-backend"
+    "argus-lab-backend",
+    "argus-lab-db"
   ],
   "tcp": [
     [
@@ -44,5 +46,13 @@
   "mounts": [
     "/",
     "/srv/argus-lab-fill"
+  ],
+  "databases": [
+    {
+      "name": "argus-lab-db",
+      "host": "argus-lab-db",
+      "port": 5432,
+      "dbname": "argus_lab"
+    }
   ]
 }

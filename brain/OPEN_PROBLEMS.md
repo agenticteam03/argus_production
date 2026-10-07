@@ -13,7 +13,8 @@ When a problem is fixed, set its status to `fixed` with the date, and add a jour
 | OP-004 | LangGraph checkpoints grow forever; checkpoints of failed runs are orphaned | accepted 2026-10-05 — to implement | 2026-10-05 |
 | **OP-005** | The `restarts_10m` signal undercounts restarts of a container younger than its window | accepted 2026-10-06 (PR #8, approved by `conantkd`) — to implement | 2026-10-05 |
 | OP-006 | LangGraph `recursion_limit` is fixed at 100 and can be too small for larger step budgets | fixed 2026-10-05 | 2026-10-05 |
-| **OP-007** | A dependency probe disappears while its owner is restarting, hiding the cause of a crash loop | open — fix with T-0019 (same service) | 2026-10-07 |
+| **OP-007** | A dependency probe disappears while its owner is restarting, hiding the cause of a crash loop | fixed 2026-10-07 (`owner_active`: running or restarting; deployed on vm-166) | 2026-10-07 |
+| **OP-008** | Postgres backups are never rotated, and the backup's consistency check will stop once the scheduler writes often | accepted 2026-10-07 (PR #31, approved by `juanbetancurm`) — to implement; independent of T-0014 | 2026-10-07 |
 
 ---
 
@@ -259,8 +260,11 @@ create a huge budget (cost of model calls and reads).
 
 ## OP-007 — A dependency probe disappears while its owner is restarting
 
-**Status:** open · **Opened:** 2026-10-07 · **Found by:** `juanbetancurm` (review of PR #27, T-0018) ·
-**Fix with:** T-0019 (db-probe), which changes the same target service; or earlier, as its own small task
+**Status:** fixed 2026-10-07; code on `task/op-007-restarting-probe-fix` (analysis confirmed by `conantkd`: in a crash loop Docker
+reports `State.Restarting` during the back-off wait, so most 10-second samples dropped the probe; test
+`test_exporter_keeps_the_probe_of_an_owner_in_a_restart_loop`, red seen); deployed on vm-166 (`9c04e90`,
+[evidence](execution/history/OP-007/step-01/evidence.md)) · **Opened:** 2026-10-07 · **Found by:** `juanbetancurm` (review of PR #27, T-0018) ·
+**Fix with:** its own small task (`task/op-007-restarting-probe-fix`), independent of T-0019
 
 **Problem.** T-0018 changed `probe_lines` in `services/target/service.py`: a dependency probe is published only
 while its owner container is `running`. The reason is good: the SC-07 client exists only during its scenario, and
@@ -280,3 +284,51 @@ recent restart). Keep skipping owners that are missing or exited by design. That
 
 **Done when.** The probe survives an owner's restart loop, the SC-07 false alarm stays fixed, the target service is
 redeployed on vm-166, and this item is set to `fixed`.
+
+---
+
+## OP-008 — Backup retention, and a consistency check that survives a busy database
+
+**Status:** accepted 2026-10-07 (PR #31, approved by `juanbetancurm`; snapshot approach, scheduling decided later) · **Opened:** 2026-10-07 · **Found by:** `juanbetancurm` (after-merge review
+of PR #25, T-0017) · **Proposal by:** `conantkd` (+ agent) · **Fix with:** its own task, with or after T-0014
+(scheduler)
+
+**Problem 1 — no retention.** Every `ops/db-backup.sh backup` leaves `argus-<UTC>.dump` (+ `.dump.sha256`,
+`.fingerprint`) in `/opt/argus-v18/backups`, and nothing removes them. Harmless while backups are manual; once they
+are scheduled the folder grows without limit.
+
+**Problem 2 — the check assumes a quiet database.** `backup` fingerprints every table (rows and a content hash)
+before and after `pg_dump` and discards the dump when they differ. Today the database is quiet, so they match. Once
+the T-0014 worker and scheduler write often, they will rarely match and the backup will end `BACKUP STOP`, although
+`pg_dump` itself is consistent (it reads one snapshot).
+
+**Proposed fix.**
+
+1. **One snapshot for the fingerprint and the dump (general; no quiet window).** Open a session on the live database
+   with `BEGIN ISOLATION LEVEL REPEATABLE READ; SELECT pg_export_snapshot();`, compute the fingerprint inside that
+   session, and run `pg_dump --snapshot=<id>` while it stays open; then end the session. The fingerprint and the dump
+   see exactly the same data however busy the database is, so `verify` keeps comparing the restored copy against it
+   as today. Cost: the script keeps a `psql` session open in the background (a coprocess or a FIFO) during the dump.
+   The live database is still only read.
+2. **Retention: `db-backup.sh prune --as <handle> [--apply]`.**
+   - Dry-run by default: it lists what it would delete; `--apply` deletes. Deleting backups is a stop condition
+     (`agents/AGENT_PROTOCOL.md` §6), so the first runs on vm-095 are dry-runs (the same rule as OP-004).
+   - Keeps the newest N backups (`ARGUS_BACKUP_KEEP`, default 7) and **never deletes the newest verified one**, even
+     if it is older than the N kept.
+   - `verify` writes `<base>.verified` after `VERIFY OK`, so `prune` knows which backups are proven restorable.
+   - Deletes all the files of one backup together (`.dump`, `.dump.sha256`, `.fingerprint`, `.verified`), never a
+     dump alone.
+3. **Scheduling (decision for the team, not part of this fix).** The script refuses to run unless
+   `/opt/argus-v18/SESSION` is the caller's, and a timer has no session. A scheduled backup needs an explicit mode
+   (for example `--as scheduler`) accepted only for `backup` and `verify` (they only read the live database);
+   `prune --apply` keeps requiring a person. This changes who may operate the VMs, so the team decides it with T-0014.
+
+**Alternative to 1.** A quiet window: pause the worker and scheduler during the backup. Simpler, but it stops Argus and
+depends on how T-0014 is built.
+
+**Tests (red first).** A database written to during the dump still ends `BACKUP OK`, and `verify` of that dump ends
+`VERIFY OK` (real Postgres, `ARGUS_TEST_DOCKER=1`); `prune` dry-run deletes nothing; `prune --apply` keeps the newest
+N and the newest verified one, and removes every file of a pruned backup; `verify` writes `.verified` only on success.
+
+**Done when.** The team accepts this proposal (or the alternative); then a task implements 1 and 2 with the tests
+above, runs `prune` as a dry-run on vm-095 first, and sets this item to `fixed`.

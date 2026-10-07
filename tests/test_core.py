@@ -53,6 +53,10 @@ class FakeTargetAgent:
             return {"total_mib": 5800, "available_mib": 4000, "cpu_busy_percent": 12, "load1": 0.2, "cpus": 1}
         if self.kind == "network_probe":
             return {"ok": False, "error": "ConnectionRefusedError"}
+        if self.kind == "db_probe":
+            return {"database": "argus-lab-db", "ok": True, "max_connections": 20, "reserved_connections": 3,
+                    "usable_connections": 17, "client_connections": 2, "usage_percent": 11.8, "by_state": {"idle": 2},
+                    "by_client": [], "longest_transactions": [], "lock_waits": 0, "blocked_sessions": 0}
         try:
             return self.data[self.url][path]
         except KeyError:
@@ -80,7 +84,7 @@ def make_app(tmp_path, monkeypatch):
 
     def _make(llm=None, metrics=None):
         reg = ExecutorRegistry()
-        for k in ("docker_read", "host_probe", "network_probe"):
+        for k in ("docker_read", "host_probe", "network_probe", "db_probe"):
             reg.register(k, lambda url, tok, k=k: FakeTargetAgent(url, tok, k))
         reg.register("prometheus", FakeTargetAgent)
         s = Settings(config_dir=ROOT / "config", secrets_dir=tmp_path / "none", runbooks_dir=RUNBOOKS,
