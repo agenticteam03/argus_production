@@ -85,6 +85,7 @@ def inspect(name: str) -> dict:
     d = djson(f"/containers/{urllib.parse.quote(name)}/json")
     st, hc = d.get("State", {}), d.get("HostConfig", {})
     return {"id": d.get("Id", "")[:12], "name": name, "state": st.get("Status"), "running": st.get("Running"),
+            "restarting": st.get("Restarting"),
             "restart_count": d.get("RestartCount"), "oom_killed": st.get("OOMKilled"), "exit_code": st.get("ExitCode"),
             "started_at": st.get("StartedAt"), "finished_at": st.get("FinishedAt"), "error": st.get("Error") or None,
             "health": (st.get("Health") or {}).get("Status", "none"), "image": d.get("Config", {}).get("Image"),
@@ -268,12 +269,18 @@ _metrics = "# no data yet\n"
 _lock = threading.Lock()
 
 
-def probe_lines(probes: list[dict], running: set[str]) -> list[str]:
-    """Dependency probes of running owners only: a dependency of a container that does not run (an SC-07 client
-    outside its scenario) is irrelevant, and a 0 would keep DependencyProbeFailed firing."""
+def owner_active(d: dict) -> bool:
+    """Running, or restarting (OP-007): an owner that crash-loops because its dependency is down waits in Docker's
+    `restarting` state most of the time, and its probe is then the evidence of the real cause."""
+    return bool(d.get("running") or d.get("restarting"))
+
+
+def probe_lines(probes: list[dict], active: set[str]) -> list[str]:
+    """Dependency probes of active owners only (owner_active): a dependency of a container that is missing or stopped
+    (an SC-07 client outside its scenario) is irrelevant, and a 0 would keep DependencyProbeFailed firing."""
     lines = []
     for p in probes:
-        if p["owner"] not in running:
+        if p["owner"] not in active:
             continue
         r = tcp(p["host"], p["port"])
         lab = f'owner="{p["owner"]}",dependency="{p["dependency"]}"'
@@ -285,7 +292,7 @@ def probe_lines(probes: list[dict], running: set[str]) -> list[str]:
 def collect() -> None:
     global _metrics
     while True:
-        lines, running = [], set()
+        lines, active = [], set()
         for name in sorted(CONTAINERS):
             try:
                 d = inspect(name)
@@ -302,15 +309,16 @@ def collect() -> None:
                       f"argus_container_running{{{lab}}} {1 if d['running'] else 0}"]
             if d["health"] in ("healthy", "unhealthy", "starting"):
                 lines.append(f"argus_container_health_unhealthy{{{lab}}} {1 if d['health'] == 'unhealthy' else 0}")
+            if owner_active(d):
+                active.add(name)
             if d["running"]:
-                running.add(name)
                 try:
                     s = stats(name, one_shot=True)
                     if s["memory_usage_bytes"] is not None:
                         lines.append(f"argus_container_memory_bytes{{{lab}}} {s['memory_usage_bytes']}")
                 except Exception:
                     pass
-        lines += probe_lines(CONFIG.get("probes", []), running)
+        lines += probe_lines(CONFIG.get("probes", []), active)
         with _lock:
             _metrics = "\n".join(lines) + "\n"
         time.sleep(10)
