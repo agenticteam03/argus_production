@@ -24,6 +24,10 @@ target-side service of phase 3 and the evidence SC-04 (connection exhaustion, RB
   (`infrastructure/environment.md`, `docs/INCIDENTS.md` targets table, the compose file comment).
 - **Driver: `pg8000`** (pure Python, no compiler in the Alpine image), version pinned with hashes.
 - **Tool levels:** `database.health` is Level 3; `max_tool_level` is already 3 (fixed in PR #27).
+- **Review note from PR #27 (`juanbetancurm`):** with `max_tool_level: 3` the level no longer stops a Level 3
+  capability, so every Level 3 line in `config/policy.yaml` deserves its own careful review. `database.health` is the
+  first new one: its limit per incident and its allowed targets (only allowlisted databases) are reviewed on their
+  own in this task's PR.
 - **Branch:** on top of T-0018, as above.
 
 ## Design (to confirm step by step)
