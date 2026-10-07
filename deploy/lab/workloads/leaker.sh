@@ -1,7 +1,7 @@
 #!/bin/sh
 # SC-04 (T-0020): a defective worker that leaks database sessions. It opens $SESSIONS sessions on argus-lab-db as the
 # ordinary role, starts a transaction in each and never ends it ("idle in transaction"), so the connection slots stay
-# taken until the container stops (`compose --profile sc04 down` closes them). The password is read from a file and
+# taken until the container stops (`docker rm -f argus-lab-leaker` closes them). The password is read from a file and
 # never printed. Connection settings come from PGHOST / PGDATABASE / PGUSER / PGAPPNAME.
 set -eu
 PGPASSWORD="$(cat /run/secrets/app_password)"

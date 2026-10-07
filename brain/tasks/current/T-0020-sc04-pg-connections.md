@@ -42,8 +42,8 @@ worker as the root cause without proposing to restart the database.
   `database.health` becomes `READ_ONLY_SENSITIVE`, as RB-004's tool table says (application and role names).
 - **Lab (`sc04` profile, vm-166):** `argus-lab-leaker` (image `postgres:16-alpine`, only `psql`): opens 16 sessions as
   the ordinary role `argus_lab_app`, each `BEGIN; SELECT 1;` and then waits (idle in transaction). 16 of 17 usable
-  slots = 94 %; the monitoring role still gets in. The app role's password is generated on vm-166. Reset: `down`
-  of the profile closes the sessions.
+  slots = 94 %; the monitoring role still gets in. The app role's password is generated on vm-166. Reset:
+  `docker rm -f argus-lab-leaker` closes the sessions (never `compose down`: it would remove the whole lab).
 - **Inventory:** `argus-lab-db` gets `tcp_ports: [5432]`; `vm-166/container:argus-lab-leaker` depends on it.
 
 ## Steps
