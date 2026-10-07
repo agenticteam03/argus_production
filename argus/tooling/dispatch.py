@@ -27,7 +27,7 @@ class Dispatcher:
         base = dict(observation_id=f"obs_{uuid.uuid4().hex[:16]}", capability=spec.name, target=target,
                     host=target.host, executor=spec.executor, collected_at=utcnow())
         host = self.inventory.host(target.host)
-        url = host.executors.get(spec.executor) if host else None
+        url = "in-worker" if spec.runs_in == "worker" else (host.executors.get(spec.executor) if host else None)
         if not url:
             # Never fall back to another host (v1.8 §4.6, §12.3).
             return Observation(**base, status="refused", error_category="not_found",

@@ -70,6 +70,22 @@ class PrometheusClient:
         return [(float(t), float(v)) for t, v in result[0]["values"]]
 
 
+class KnowledgeClient:
+    """argus_internal executor (in-worker, ARCHITECTURE §10.5): reads the runbook library through the KnowledgePort.
+    No network, no token. A query with no matching words still returns the runbook's working sections."""
+
+    FALLBACK_QUERY = "diagnostic workflow decision tree evidence interpretation"
+
+    def __init__(self, knowledge):
+        self.knowledge = knowledge
+
+    def runbook(self, runbook_id: str, query: str, k: int = 3) -> list:
+        if runbook_id not in getattr(self.knowledge, "ids", set()):
+            raise ExecutorError("not_found", f"runbook {runbook_id} is not in the library")
+        return (self.knowledge.search(query, k, [runbook_id])
+                or self.knowledge.search(self.FALLBACK_QUERY, k, [runbook_id]))
+
+
 ClientFactory = Callable[[str, str | None], object]
 
 

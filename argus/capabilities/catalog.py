@@ -5,6 +5,7 @@ authorization, read configuration or write audit (v1.8 §12.3).
 """
 from __future__ import annotations
 
+import hashlib
 from datetime import datetime, timezone
 from typing import Any
 
@@ -42,6 +43,11 @@ class UrlArgs(_Args):
     url: str = Field(..., description="an allowlisted HTTP endpoint of the target")
 
 
+class RunbookArgs(_Args):
+    runbook_id: str = Field(..., pattern=r"^RB-[0-9]{3}$", description="a runbook of the library, e.g. RB-009")
+    query: str = Field(..., min_length=1, max_length=200, description="what to look for in that runbook")
+
+
 class HistoryArgs(_Args):
     minutes: int = Field(30, ge=2, le=240, description="window in minutes")
 
@@ -73,7 +79,8 @@ def container_status(args: NoArgs, target: TargetRef, info, client) -> Capabilit
     text = (f"{target}: state={_fmt(d.get('state'))} health={_fmt(d.get('health'))} "
             f"restarts={_fmt(d.get('restart_count'))} oom_killed={_fmt(d.get('oom_killed'))} "
             f"exit_code={_fmt(d.get('exit_code'))} started_at={_fmt(d.get('started_at'))} "
-            f"memory_limit_bytes={_fmt(d.get('memory_limit_bytes'))}")
+            f"memory_limit_bytes={_fmt(d.get('memory_limit_bytes'))} "
+            f"networks={','.join(d['networks']) if d.get('networks') is not None else 'unknown'}")
     ident = {"container_id": d["id"]} if d.get("id") else {}
     return CapabilityResult(values=d, model_text=text, source_time=_ts(d.get("collected_at")),
                             identities=ident, units={"memory_limit_bytes": "bytes"})
@@ -176,6 +183,18 @@ def net_http(args: UrlArgs, target: TargetRef, info: TargetInfo | None, client) 
                             source_time=_ts(d.get("collected_at")), units={"duration_ms": "ms"})
 
 
+# --- argus_internal (in-worker) ------------------------------------------------------------------
+def knowledge_runbook(args: RunbookArgs, target: TargetRef, info, client) -> CapabilityResult:
+    passages = client.runbook(args.runbook_id, args.query)
+    rows = [{"runbook_id": p.runbook_id, "version": p.runbook_version, "status": p.runbook_status, "section": p.section,
+             # a prefix, as in the recall timeline: a full 64-hex hash reads as a secret to the redactor
+             "sha256_prefix": hashlib.sha256(p.text.encode()).hexdigest()[:16], "text": p.text} for p in passages]
+    text = "\n".join(f'<passage runbook="{r["runbook_id"]}" version="{r["version"]}" status="{r["status"]}" '
+                      f'section="{r["section"]}">\n{r["text"]}\n</passage>' for r in rows)
+    return CapabilityResult(values={"runbook_id": args.runbook_id, "passages": rows},
+                            model_text=f"{args.runbook_id}: {len(rows)} section(s) for {args.query!r}\n{text}")
+
+
 # --- prometheus ----------------------------------------------------------------------------------
 def _history(signal: str, label: str):
     def impl(args: HistoryArgs, target: TargetRef, info, client) -> CapabilityResult:
@@ -201,8 +220,10 @@ def build_catalog() -> list[CapabilitySpec]:
                        "discovering what runs on a host", NoArgs, C | H, 1, "READ_ONLY_SAFE",
                        frozenset({"container", "discovery"}), "docker_read", container_list),
         CapabilitySpec("container.status", "get_container_status",
-                       "Container state, health, restart count, OOMKilled flag, exit code, start time, memory limit.",
-                       "any container incident; first check", NoArgs, C, 1, "READ_ONLY_SAFE",
+                       "Container state, health, restart count, OOMKilled flag, exit code, start time, memory limit, "
+                       "and the names of the Docker networks it is attached to.",
+                       "any container incident; first check; compare the networks of a victim and its dependency "
+                       "when a name does not resolve", NoArgs, C, 1, "READ_ONLY_SAFE",
                        frozenset({"container", "stability", "memory"}), "docker_read", container_status),
         CapabilitySpec("container.resources", "get_container_resources",
                        "Current memory usage vs limit, CPU percent and process count of a container.",
@@ -241,4 +262,9 @@ def build_catalog() -> list[CapabilitySpec]:
         CapabilitySpec("metrics.restart_history", "get_restart_history", "Container restart count over a time window.",
                        "is it a restart loop and since when", HistoryArgs, C, 2, "READ_ONLY_SAFE",
                        frozenset({"stability"}), "prometheus", _history("container_restart_count", "restart count")),
+        CapabilitySpec("knowledge.runbook", "query_runbook",
+                       "Read sections of a runbook of the library (id, version, status, section).",
+                       "the evidence points to a cause another runbook covers (e.g. a branch runbook of the class)",
+                       RunbookArgs, C | H, 3, "READ_ONLY_SAFE", frozenset({"knowledge"}), "argus_internal",
+                       knowledge_runbook, runs_in="worker", max_output_bytes=16384),
     ]

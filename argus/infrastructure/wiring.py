@@ -20,10 +20,10 @@ from argus.orchestration.runner import SkeletonRunner
 from argus.orchestration.strategies import EvidencePackStrategy, ModelLoopStrategy, PlanThenReasonStrategy
 from argus.policy.engine import PolicyEngine
 from argus.tooling.dispatch import DirectProvider, Dispatcher
-from argus.tooling.executors import ExecutorRegistry, PrometheusClient, TargetAgentClient
+from argus.tooling.executors import ExecutorRegistry, KnowledgeClient, PrometheusClient, TargetAgentClient
 from argus.tooling.model_harness import ModelHarness
 
-EXECUTOR_KINDS = ("docker_read", "host_probe", "network_probe", "prometheus")
+EXECUTOR_KINDS = ("docker_read", "host_probe", "network_probe", "prometheus", "argus_internal")   # last: in-worker
 
 
 def _read(path: Path) -> str | None:
@@ -140,6 +140,9 @@ def build(settings: Settings | None = None, llm=None, metrics=None, executors: E
         for kind in ("docker_read", "host_probe", "network_probe"):
             executors.register(kind, lambda url, tok: TargetAgentClient(url, tok))
         executors.register("prometheus", lambda url, tok: PrometheusClient(url, tok, signals))
+    knowledge = TfidfRunbooks(str(s.runbooks_dir), s.runbooks_commit and f"commit {s.runbooks_commit}")
+    if "argus_internal" not in executors.names():              # in-worker capabilities (knowledge.runbook)
+        executors.register("argus_internal", lambda url, tok: KnowledgeClient(knowledge))
     store = store or make_store(s)
     catalogue = DirectProvider(specs, Dispatcher(inventory, executors, creds, redactor))
     invoke = InvokeCapability(catalogue, policy, inventory, store, store, redactor)
@@ -164,7 +167,6 @@ def build(settings: Settings | None = None, llm=None, metrics=None, executors: E
     for c in CLASSES:
         if c.strategy not in strategies:
             raise SystemExit(f"class {c.name} names unknown strategy {c.strategy}")
-    knowledge = TfidfRunbooks(str(s.runbooks_dir), s.runbooks_commit and f"commit {s.runbooks_commit}")
     for c in CLASSES:
         missing = [r for r in c.runbook_ids + c.branch_runbook_ids if r not in knowledge.ids]
         if missing:
