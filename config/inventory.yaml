@@ -33,3 +33,7 @@ targets:
     http_endpoints: ["http://argus-lab-api:8080/health"]
   - ref: vm-166/container:argus-lab-cache
     tcp_ports: [6379]
+  - ref: vm-166/container:argus-lab-client        # SC-07 victim: cannot reach its backend (only on argus-lab-app)
+    depends_on: [vm-166/container:argus-lab-backend]
+  - ref: vm-166/container:argus-lab-backend       # SC-07: healthy, but only on argus-lab-iso (the wrong network)
+    tcp_ports: [8080]

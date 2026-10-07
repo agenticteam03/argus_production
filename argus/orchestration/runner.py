@@ -236,6 +236,11 @@ class SkeletonRunner:
         if view.incident_class:
             parts.append(f"incident class: {view.incident_class.name} ({view.incident_class.family}); "
                          f"runbooks {', '.join(view.incident_class.runbook_ids)}")
+            if view.incident_class.branch_runbook_ids:
+                titles = getattr(self.knowledge, "titles", {})
+                parts.append("branch runbooks (read one with query_runbook when the evidence points to its cause): "
+                             + "; ".join(f"{r} {titles.get(r, '')}".strip()
+                                         for r in view.incident_class.branch_runbook_ids))
         parts.append("findings: " + ("; ".join(view.findings) or "none"))
         parts.append("targets in scope: " + ", ".join(str(t) for t in view.scope))
         pinned = getattr(self.knowledge, "pinned_text", "")

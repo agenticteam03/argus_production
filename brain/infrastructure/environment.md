@@ -48,7 +48,7 @@ vm-095                                               vm-166
 | Container / compose names | `argus-v18-*` (platform), `argus-lab-*` (synthetic workloads) | nothing else is ours |
 | Directories | `/opt/argus-v18/app` (code, 0755), `/opt/argus-v18/secrets` (0700 root), `/opt/argus-v18/baseline` (non-interference snapshots), `/opt/argus-v18/hosts.env`; legacy `/opt/argus-runbooks/056b36e` (vm-095, unused after the next agent redeploy) | nothing outside them |
 | Ports | 18000–18799, bound to `127.0.0.1` only | never `0.0.0.0` or a public address |
-| Docker networks | `argus-v18-core` 172.30.0.0/24 (vm-095), `argus-v18-mon` 172.30.1.0/24, `argus-lab-app` 172.30.2.0/24 | explicit subnets |
+| Docker networks | `argus-v18-core` 172.30.0.0/24 (vm-095), `argus-v18-mon` 172.30.1.0/24, `argus-lab-app` 172.30.2.0/24, `argus-lab-iso` 172.30.3.0/24 (vm-166, exists only while SC-07 runs; T-0018) | explicit subnets; a new range only after a read-only check that it is free on that VM |
 | Volumes | `argus-v18-*` (e.g. `argus-v18-pgdata`, `argus-v18-agent-data`) | — |
 | Markers (from B6) | `/opt/argus-v18/DEPLOYED` (deployed commit), `/opt/argus-v18/SESSION` (lease holder) | written by `ops/deploy.sh` / the `brain.py start` marker line |
 | Deploy key (from B6d) | `/opt/argus-v18/secrets/deploy/` (read-only key for this repository + pinned GitHub host key) | one per VM; registered on GitHub as read-only |

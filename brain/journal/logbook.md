@@ -414,3 +414,50 @@ restarted, `LAB BASELINE OK`, NO INTERFERENCE. `deploy.sh` hinted an agent rebui
 left for T-0015 step 6. Also today: PR #22 (ACR-0001 accepted) and PR #24 (UI prototype) reviewed and merged; a future
 ACR for UI actions is recorded in `NEXT_STEP.md`.
 References: PR #25, PR #22, PR #24, `execution/history/AFTER-MERGE-T-0017/step-01/evidence.md`.
+
+## 2026-10-07 — T-0018: SC-07 verified on vm-166 (a healthy backend on the wrong network)
+
+Type: implementation
+Who: conantkd (+ agent)
+Context: SC-07 was planned on vm-095 with a new class. `conantkd` moved it to vm-166 (Host T, the lab host) and chose
+a second lab network over a backend with no network, because it is the realistic mistake.
+Decision / result:
+- New Argus lab network `argus-lab-iso` `172.30.3.0/24`, after a read-only check that it is free on vm-166 (the
+  protected deployment uses `172.17`–`172.21`). The Argus network rule is now `172.30.0–3.0/24`; the teammates are
+  tagged in the PR.
+- The read gateway's container status carries `networks` (names only), and the model sees it. Dependency probes run
+  only while their owner runs, so the SC-07 probe does not keep `DependencyProbeFailed` firing outside the scenario.
+- Tests first (6 red, then green; 95 passed). Deployed on both VMs (the agent steps were run over SSH by the agent at
+  `conantkd`'s request; the password-protected checks by `conantkd`).
+- SC-07 `inc_fb92d115abb2`: DIAGNOSED, root cause the backend "not attached to the client's application network",
+  no restart advised. RB-009 was not recalled (branch runbook), so its `last_tested` stays `null`: follow-up.
+References: T-0018, `execution/history/T-0018/`, `docs/INCIDENTS.md` SC-07.
+
+## 2026-10-07 — T-0018: branch runbooks through `knowledge.runbook` (RB-009 tested in SC-07)
+
+Type: implementation
+Who: conantkd (+ agent)
+Context: in the first SC-07 run RB-009 was not recalled. Recall is one TF-IDF search at the start; the
+architecture's way to reach a branch runbook later (§3, §10.5: the in-worker capability `knowledge.runbook`) was not
+implemented. `conantkd` chose the general mechanism over a per-case class, so every class with branch runbooks
+(11 of the 20 in §3) benefits.
+Decision / result: `query_runbook` (executor `argus_internal`, `runs_in="worker"`, max 3 per incident) goes through
+InvokeCapability like every read; the context names the class's branch runbooks. The orchestration flow did not
+change. Tests first (5 red, then green; 100 passed). The redactor masked full sha256 values as high-entropy secrets,
+so passages carry a 16-character prefix. SC-07 run 2 (`inc_21f900ee6139`): the model read RB-009 after the TCP probe
+failed and diagnosed the name-resolution layer, no restart. RB-009 `last_tested: 2026-10-07` (read in version 1.0.0; the metadata then became 1.0.1; still
+draft). Next agreed: enable more classes under the §3 "Enablement" rule.
+References: T-0018 step 7, `execution/history/T-0018/step-07/evidence.md`, ARCHITECTURE §10.5, §12.
+
+## 2026-10-07 — T-0018: SC-07 runs 3-4, what the model needs to see
+
+Type: analysis
+Who: conantkd (+ agent)
+Context: run 3 (RB-009 1.1.0) read neither RB-009 nor any container status. The stored evidence of runs 1-3 showed the
+precise diagnosis came only when the model read the status of both sides, and the tool description did not say it
+returns networks.
+Decision / result: of five suggestions (network-named probe text, tool description, RB-003 step 2, a detector finding
+naming the failing edge and layer, "Decide now" in the context), `conantkd` chose only the tool description. Run 4
+(`inc_6a1511e19269`): status of both sides in step 1, RB-009 1.1.0 read, misattachment named with both networks, no
+restart. The other suggestions stay open (recorded in the T-0018 task file); quality needs ≥ 5 runs (Phase 12).
+References: `execution/history/T-0018/step-08/`, `step-09/`.

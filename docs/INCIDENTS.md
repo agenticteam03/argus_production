@@ -59,6 +59,8 @@ A model-driven run takes about 1 to 3 minutes. Re-run GET until `status` is `clo
 |---|---|---|---|
 | `vm-166/container:argus-lab-api` | VM 0.166 | small HTTP api; **depends on** `argus-lab-cache` (TCP 6379) | always on, healthy |
 | `vm-166/container:argus-lab-cache` | VM 0.166 | redis (memory only, tmpfs) | always on |
+| `vm-166/container:argus-lab-client` | VM 0.166 | calls its backend every 5 s; **depends on** `argus-lab-backend` (TCP 8080). Used by **SC-07** | absent until the scenario starts |
+| `vm-166/container:argus-lab-backend` | VM 0.166 | small HTTP api on the network `argus-lab-iso`. Used by **SC-07** | absent until the scenario starts |
 | `vm-166/container:argus-lab-worker` | VM 0.166 | worker used by **SC-01** | absent until the scenario starts |
 | `vm-166/host:vm-166` | VM 0.166 | the host itself (mounts `/`, `/srv/argus-lab-fill`) | up |
 | `vm-095/container:argus-lab-api` | VM 0.95 | the **twin**: same name as vm-166's api, but no dependency | always on, healthy |
@@ -199,6 +201,36 @@ sudo docker start argus-lab-cache
 
 ---
 
+### SC-07: a healthy backend on the wrong network (vm-166)
+
+`argus-lab-client` (network `argus-lab-app`) calls `argus-lab-backend`, which is healthy but attached **only** to
+`argus-lab-iso` (172.30.3.0/24). Docker's DNS on the client's network does not know the backend's name. Restarting
+anything would not help: the fix is the network attachment.
+
+**Start** [VM 0.166 · bash], then wait about 1 minute for the probe to fail:
+```bash
+cd /opt/argus-v18/app/deploy/lab && sudo docker compose -f compose.lab.yml --profile sc07 up -d
+```
+**Investigate:**
+```json
+{"target": "vm-166/container:argus-lab-client", "reason": "the client cannot reach its backend", "request_kind": "report"}
+```
+**Expected:**
+- detect: `dependency_unavailable`;
+- recall: RB-003; during the investigation the model can read the branch runbook RB-009 with `query_runbook`;
+- investigate: the container status shows each side's `networks`; DNS and TCP to the backend fail from vm-166's
+  app network;
+- record: `diagnosed`, root cause `vm-166/container:argus-lab-backend` not attached to the client's network, and
+  **no restart advised**. Verified 2026-10-07 (T-0018): `inc_fb92d115abb2`, and `inc_21f900ee6139` with RB-009
+  read through `query_runbook`.
+
+**Reset** [VM 0.166 · bash]:
+```bash
+sudo docker rm -f argus-lab-client argus-lab-backend && sudo docker network rm argus-lab-iso
+```
+
+---
+
 ### SC-09: report with no matching class (healthy target)
 
 **Investigate:**
@@ -227,7 +259,6 @@ such as `"target": "container:argus-lab-api"`, is rejected with **422** before a
 | SC-04 | PostgreSQL connection exhaustion | vm-166 | db + db-probe + class |
 | SC-05 | disk almost full (256 MiB loop mount) | vm-166 | loop mount + `disk_pressure` class |
 | SC-06 | CPU saturation (capped burner) | vm-166 | `cpu_saturation` class |
-| SC-07 | DNS / network misattachment | vm-095 | workloads + `dns_network_failure` class |
 | SC-08 | nginx upstream failure | vm-166 | nginx + slow api + class |
 | SC-10 | monitoring blind spot (exporter stopped) | vm-095 | scripted in code.bash Task 10, not yet verified |
 | SC-12 | executor partition (gateway stopped) | vm-166 | scripted in code.bash Task 10, not yet verified |

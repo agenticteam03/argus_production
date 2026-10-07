@@ -1,6 +1,6 @@
 # Argus v1.8 policy (data) for the two-VM deployment. The engine is argus/policy/engine.py; policy_version = SHA-256 of this file.
 profile: production
-max_tool_level: 2
+max_tool_level: 3          # Level 3 (ARCHITECTURE §12.2): knowledge.runbook now, database.health next
 allowed_safety_classes: [READ_ONLY_SAFE, READ_ONLY_SENSITIVE]
 
 capabilities:
@@ -19,6 +19,7 @@ capabilities:
   network.http_probe:      {max_per_incident: 4}
   metrics.memory_history:  {max_per_incident: 4}
   metrics.restart_history: {max_per_incident: 4}
+  knowledge.runbook:       {max_per_incident: 3}   # in-worker: reads the runbook library (branch runbooks)
 
 write_gate:
   open: []          # write gate closed (v1.8 §13.3); a non-empty list refuses startup in this phase

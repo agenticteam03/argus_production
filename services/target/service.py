@@ -89,7 +89,10 @@ def inspect(name: str) -> dict:
             "started_at": st.get("StartedAt"), "finished_at": st.get("FinishedAt"), "error": st.get("Error") or None,
             "health": (st.get("Health") or {}).get("Status", "none"), "image": d.get("Config", {}).get("Image"),
             "memory_limit_bytes": hc.get("Memory") or None, "restart_policy": (hc.get("RestartPolicy") or {}).get("Name"),
-            "tty": d.get("Config", {}).get("Tty"), "collected_at": now()}
+            "tty": d.get("Config", {}).get("Tty"),
+            # network names only (SC-07: which network is each side on?); addresses never leave the gateway
+            "networks": sorted(((d.get("NetworkSettings") or {}).get("Networks") or {}).keys()),
+            "collected_at": now()}
 
 
 def demux(raw: bytes, tty: bool) -> list[str]:
@@ -265,10 +268,24 @@ _metrics = "# no data yet\n"
 _lock = threading.Lock()
 
 
+def probe_lines(probes: list[dict], running: set[str]) -> list[str]:
+    """Dependency probes of running owners only: a dependency of a container that does not run (an SC-07 client
+    outside its scenario) is irrelevant, and a 0 would keep DependencyProbeFailed firing."""
+    lines = []
+    for p in probes:
+        if p["owner"] not in running:
+            continue
+        r = tcp(p["host"], p["port"])
+        lab = f'owner="{p["owner"]}",dependency="{p["dependency"]}"'
+        lines += [f"argus_probe_success{{{lab}}} {1 if r['ok'] else 0}",
+                  f"argus_probe_duration_seconds{{{lab}}} {r['duration_ms'] / 1000:.4f}"]
+    return lines
+
+
 def collect() -> None:
     global _metrics
     while True:
-        lines = []
+        lines, running = [], set()
         for name in sorted(CONTAINERS):
             try:
                 d = inspect(name)
@@ -286,17 +303,14 @@ def collect() -> None:
             if d["health"] in ("healthy", "unhealthy", "starting"):
                 lines.append(f"argus_container_health_unhealthy{{{lab}}} {1 if d['health'] == 'unhealthy' else 0}")
             if d["running"]:
+                running.add(name)
                 try:
                     s = stats(name, one_shot=True)
                     if s["memory_usage_bytes"] is not None:
                         lines.append(f"argus_container_memory_bytes{{{lab}}} {s['memory_usage_bytes']}")
                 except Exception:
                     pass
-        for p in CONFIG.get("probes", []):
-            r = tcp(p["host"], p["port"])
-            lab = f'owner="{p["owner"]}",dependency="{p["dependency"]}"'
-            lines += [f"argus_probe_success{{{lab}}} {1 if r['ok'] else 0}",
-                      f"argus_probe_duration_seconds{{{lab}}} {r['duration_ms'] / 1000:.4f}"]
+        lines += probe_lines(CONFIG.get("probes", []), running)
         with _lock:
             _metrics = "\n".join(lines) + "\n"
         time.sleep(10)
