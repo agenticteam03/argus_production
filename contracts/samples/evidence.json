@@ -1,0 +1,21 @@
+{
+  "caller": "alice",
+  "capability": null,
+  "collected_at": "2026-10-06T15:45:55.615537Z",
+  "evidence_id": "ev_f5de798421654c48",
+  "executor": null,
+  "host": "vm-166",
+  "incident_id": "inc_7e49840f50fa",
+  "kind": "reported_symptom",
+  "model_text": "reported by alice: UI contract sample",
+  "partial": false,
+  "redactions": 0,
+  "sha256": "f8846528be9165aa7f8f554991df87b05f81118523eb93dff1677aa35daa8615",
+  "source_time": null,
+  "status": "ok",
+  "target": "vm-166/container:argus-lab-worker",
+  "truncated": false,
+  "values": {
+    "reason": "UI contract sample"
+  }
+}

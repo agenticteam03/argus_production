@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | `planned` |
+| Status | `executed` (steps 1-5 on the branch; ACR-0001 proposed, awaiting review; step 6 needs the VM lease) |
 | Phase | 10 — output modes ([`../../IMPLEMENTATION_PLAN.md`](../../IMPLEMENTATION_PLAN.md)) |
 | Architecture | §7.1 (HTTP API), §17.3 (authentication), §25 OD-10 ("dedicated UI: not needed for this release") → ACR first |
 | Branch | `task/T-0015-ui-read-access` |
@@ -48,4 +48,18 @@ step 6 archived; Brain updated (`CURRENT_STATE.md`, `tdd/CURRENT_TEST_STATE.md`,
 
 ## Red seen / evidence
 
-(empty — fill in at each step)
+- **Step 1 (2026-10-06):** ACR-0001 drafted ([`../../architecture/changes/ACR-0001-ui-read-access.md`](../../architecture/changes/ACR-0001-ui-read-access.md)) and applied to `ARCHITECTURE.md` as v1.8.1 on this branch (§2.4, §7.1, §17.3, §25 OD-10, changelog). Status `proposed` until a teammate approves the PR. Design notes: the read-only flag is a new JWT claim `access`, separate from the existing `scopes` claim (target scopes); three read routes the code already serves (`/events`, `/evidence/{id}`, `/escalations`) were missing from §7.1 and are now documented.
+- **Steps 2-4 (2026-10-06):** `tests/test_ui_access.py`, 10 tests. Red seen for each step before the code:
+  step 2, the login ignored `scope=read` (no `access` claim) and `POST /api/v1/investigations` with a read token
+  returned 202; step 3, `GET /api/v1/me` returned 404; step 4, `Settings` had no `ui_origins`. Code: the read-only
+  check sits in the one principal dependency (`argus/adapters/inbound/http.py`), so every route, including future
+  ones, is covered; the test walks all registered non-GET routes. A token without the `access` claim (issued before
+  this change) counts as full. Refusals are audited as `access.read_only_refused` (incident-less audit row).
+- **Step 5 (2026-10-06):** `tests/test_ui_contract.py`, 3 tests; `contracts/ui-api.json`, `contracts/samples/*.json`
+  (7 files), `docs/API-FOR-UI.md`. Red seen: the contract and the 7 samples were missing. The snapshot guards paths,
+  parameters, authentication and the login form; the read routes declare no response models, so the samples guard
+  the response shapes (keys and value types). Regenerate with `ARGUS_UPDATE_UI_CONTRACT=1`. Samples never hold a
+  usable token.
+- **How the tests ran:** Windows Smart App Control on the main laptop blocks a native LangGraph dependency
+  (`uuid_utils`), so the offline suite ran in Docker (`python:3.12`, repository mounted): **81 passed, 5 skipped**
+  (the Postgres tests; CI runs them).

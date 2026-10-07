@@ -328,3 +328,45 @@ conditions and end date. The rule now names `.github/workflows/` as enforcement,
 `frontend` still needs a teammate, and so does any change to `contracts/` (shared with the API side). A change to the
 review rule, so it is not self-merged: it takes effect when `conantkd` approves this pull request.
 References: `agents/REVIEW_PROTOCOL.md`, `tasks/current/T-0016-frontend.md`, PR #16 (same precedent).
+
+## 2026-10-06 — T-0015 steps 2-5: read-only tokens, /me, UI origins, the UI contract
+
+Type: implementation
+Who: juanbetancurm (+ agent)
+Context: ACR-0001 (proposed, PR #22) lets user interfaces use the API with read-only tokens.
+Decision / result: `scope=read` at login gives a token with the claim `access: read`, refused on every non-GET route
+whatever the role (403, audited). `GET /api/v1/me` lists the actions a token may use; a UI shows only those.
+`ARGUS_UI_ORIGINS` enables CORS for listed origins only (none by default). The UI contract is
+`contracts/ui-api.json` plus sample responses, guarded by `tests/test_ui_contract.py` and described in
+`docs/API-FOR-UI.md`. Red seen in every step. The main laptop now runs the offline suite in Docker because Windows
+Smart App Control blocks a native LangGraph dependency. Step 6 (deploy on vm-095) needs the VM lease.
+References: ACR-0001, T-0015, PR #22.
+
+## 2026-10-06 — Review of PR #24 (T-0016 steps 1-2) and the UI runbooks decision
+
+Type: review
+Who: juanbetancurm (+ agent)
+Context: the frontend is mock-only. Its fake API assumes routes Argus does not have: email login, an `admin` role,
+approvals, a simulator, a scheduler, chat and health.
+Decision / result:
+- PR #24 approved. The CI job `frontend` uses no secrets and doesn't touch other jobs.
+- The review lists the smallest change set to connect to the real API (T-0016 step 3): username login with
+  `scope=read`, then `/me`; token in memory only; roles viewer/operator/approver; pages without routes hidden; a Vite
+  proxy to `127.0.0.1:18000`, so no CORS.
+- **Runbooks:** the UI reads the reviewed library in `argus/runbooks/` at build time, instead of its demo copies,
+  which are byte-identical. `parseRunbook` parses all 21 runbooks. No API route and no ACR change are needed.
+References: PR #24, PR #22, ACR-0001, `docs/API-FOR-UI.md`.
+
+## 2026-10-06 — Review of PR #22: ACR-0001 accepted, UIs read-only in this release
+
+Type: review
+Who: conantkd (+ agent)
+Context: ACR-0001 said a UI "may" hold a read-only token, while its alternative A rejected full tokens for a UI. The
+architecture allowed both readings.
+Decision / result: ACR-0001 accepted. In this release a UI holds only read-only tokens: it shows incidents,
+timelines, evidence and escalations, and never starts an investigation or answers an approval. This is not a
+permanent limit: a later ACR may add UI actions (for example starting investigations or answering approvals), using
+the `actions` list of `GET /api/v1/me`; approvals in a UI touch a safety principle and need a second approval. OD-10
+and §17.3 now say so.
+Checked: full suite green on the branch, the read-token check sits in the shared principal dependency, no secrets.
+References: ACR-0001 §5, PR #22, T-0015.
