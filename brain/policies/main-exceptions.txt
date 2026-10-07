@@ -16,3 +16,4 @@ pr 20  2026-10-06  juanbetancurm  fast-track: AFTER-MERGE record (vm-166 pending
 pr 21  2026-10-06  juanbetancurm  fast-track: AFTER-MERGE done + remove personal laptop guide (documentation only)
 pr 25  2026-10-06  conantkd  fast-track: T-0017 Postgres backup/restore drill (ops script, tests, Brain; live database only read)
 pr 26  2026-10-06  conantkd  fast-track: AFTER-MERGE T-0017 record, vm-095 back on main (documentation only)
+pr 28  2026-10-07  juanbetancurm  fast-track: OP-007 recorded (documentation only)
