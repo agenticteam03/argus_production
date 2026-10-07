@@ -1,8 +1,8 @@
 # Next step
 
-**Now (2026-10-07):** both VMs run `task/T-0018-sc07-network` (`df267ce`): SC-07 verified on vm-166 (T-0018,
-`conantkd`). After its PR merges, whoever holds the VM lease runs the AFTER-MERGE block in
-`execution/current/code.bash` (both VMs back on `main`, checkout only, no rebuild). The vm-095 agent image already
+**Now (2026-10-07):** both VMs are back on `main` `974d1d7` (AFTER-MERGE T-0018 done, `conantkd`). Next for
+`conantkd`: OP-007 (`task/op-007-restarting-probe-fix`, code done; vm-166 exporter redeploy + verification), then
+T-0019 (db-probe). SC-07 was verified on vm-166 in T-0018. The vm-095 agent image already
 carries T-0015, so **T-0015 step 6** only needs its read-token proof (no rebuild). T-0018 also added
 **`knowledge.runbook` (`query_runbook`)**, the in-worker capability of ARCHITECTURE §10.5: branch runbooks are now
 reachable during an investigation (RB-009 read in SC-07 run 2, `last_tested` set).
