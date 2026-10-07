@@ -87,4 +87,10 @@ of §4.6/§12.2 instead of the tool-description fix of T-0018). Every new Level 
     no `argus-lab-db`); one test was itself wrong (its regex read `extract(epoch FROM now())` as a table) and was fixed;
   - **green:** 15/15; full suite 118 passed, 6 skipped (124). The driver (`pg8000` 1.31.5 + 4 dependencies, pure
     Python) is pinned with hashes; the db-probe has its own image target (`db`), the other roles stay stdlib-only.
+- **Batch 1 step 3 (2026-10-07, both VMs, over SSH):** secrets generated on vm-166 (never printed), the agent's
+  copy through a pipe (`TOKEN COPY MATCH`); `argus-lab-db` healthy, `argus_monitor` not superuser, `pg_monitor`,
+  limit 3; probe health `0/17`, no SQL text, outside allowlist 400; agent rebuilt, `phase3_check` 33/33;
+  `inspect_database_health` status ok through the agent's own code path; LAB BASELINE OK, NO INTERFERENCE on both
+  ([evidence](../../execution/history/T-0019/step-03/evidence.md)). A model choosing the tool comes with SC-04 (no
+  enabled class has the tag `database` yet).
 (filled in as the steps run)
