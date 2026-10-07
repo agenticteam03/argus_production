@@ -1,11 +1,11 @@
-# T-0019 — Phase 3: the database probe (`db-probe`) and `database.health`
+# T-0019 — Phase 3: the target-side probe verbs, in 3 batches (first: `db-probe` and `database.health`)
 
 | Field | Value |
 |---|---|
-| Status | `planned` — 2026-10-07 |
+| Status | `in progress` — 2026-10-07 (batch 1) |
 | Phase | 3 — target services ([`../../IMPLEMENTATION_PLAN.md`](../../IMPLEMENTATION_PLAN.md): "DB probe (with SC-04)") |
-| Architecture | no change (no ACR): §4.6 `db-probe`, §12.2 `inspect_database_health` → `database.health` (Level 3) |
-| Branch | `task/T-0019-db-probe`, **on top of `task/T-0018-sc07-network`** (PR #27 open; the VMs run its code). Its PR opens after #27 merges, with `main` merged in first |
+| Architecture | no change (no ACR): §4.6 (target-side probe services), §4.7 (inspection policy), §12.2 (catalogue) |
+| Branch | batch 1: `task/T-0019-db-probe` (PR #27 merged; `main` merged in). Batches 2 and 3: their own branches from `main` |
 | Owner | `conantkd` (+ agent) |
 | Needs the VM lease | the read-only checks, the deploy and the verification (vm-166 target side, vm-095 agent) |
 
@@ -16,7 +16,23 @@ clients hold them and in which state, long transactions and lock waits — throu
 host** with a **read-only monitoring role** and never reads business rows or SQL text. It is the last missing
 target-side service of phase 3 and the evidence SC-04 (connection exhaustion, RB-004) will need.
 
-## Decisions (2026-10-07, `conantkd`)
+## Scope: 3 batches (decided 2026-10-07, `conantkd`)
+
+ARCHITECTURE §4.6 lists the verbs of the three target-side probes. Implemented today: `host-probe` cpu, memory,
+disk, uptime; `network-probe` dns, tcp, http. The rest come in three batches, **one pull request each**, every
+batch deployed and verified on vm-166 before the next one starts:
+
+| Batch | Probe verbs (§4.6) → capabilities (§12.2) | Level | Serves |
+|---|---|---|---|
+| **1** | new `db-probe`: `database_health` → `database.health` | 3 | SC-04 (RB-004, connection exhaustion) |
+| **2** | `host-probe`: `load`, `io`, `top_processes`, `socket_summary`, `directory_sizes`, `kernel_oom_records` → `host.load`, `host.io`, `host.top_cpu`, `host.top_memory`, `host.socket_summary`, `host.directory_sizes`, `host.kernel_oom_records` | 2 | SC-05 (disk pressure), SC-06 (CPU saturation), OOM classes |
+| **3** | `host-probe`: `journal`, `read_file`, `process_details` (+ `service_config`) under the inspection policy (§4.7); `network-probe`: `connectivity`, `listening_ports`, repeated `tcp_connection` → `host.journal`, `host.read_file`, `host.service_config`, `host.process_details`, `network.connectivity`, `network.tcp_connection`, `network.listening_ports` | 2–3 | SC-08 (nginx upstream), deep diagnosis |
+
+Batch 3 goes last because it reads files and logs: it needs the §4.7 inspection policy (deny patterns win,
+redaction, bounds) in `config/policy.yaml` first. Every new Level 3 line in `policy.yaml` is reviewed on its own
+(PR #27 note). The detailed design of batches 2 and 3 is written when each starts.
+
+## Decisions for batch 1 (2026-10-07, `conantkd`)
 
 - **`argus-lab-db` is always on** (lab baseline on vm-166), **for testing only**: it gives the probe something to
   measure and a healthy reference before SC-04. A production deployment does not need it — the probe points at the
@@ -46,7 +62,7 @@ target-side service of phase 3 and the evidence SC-04 (connection exhaustion, RB
   tunnel), the agent's `db_probe` token (generated on the VMs, never printed). Ordering matters: the agent refuses
   to start when a host executor has no token, so the secrets come before the agent restart.
 
-## Steps
+## Steps (batch 1)
 
 1. Read-only checks on vm-166: PyPI reachable for the image build; nothing on `127.0.0.1:18704`; memory headroom.
 2. Tests first, then code (probe, capability, inventory, compose, policy).
@@ -57,4 +73,7 @@ target-side service of phase 3 and the evidence SC-04 (connection exhaustion, RB
 
 ## Red seen / evidence
 
+- **Batch 1 step 1 (2026-10-07, read-only, over SSH):** PyPI 200, Docker Hub reachable (postgres image to pull),
+  port 18704 free, `argus-lab-app` present, 4.4 GB memory available, docker disk 27 %, NO INTERFERENCE
+  ([evidence](../../execution/history/T-0019/step-01/evidence.md)). The tunnel already forwards 18704.
 (filled in as the steps run)

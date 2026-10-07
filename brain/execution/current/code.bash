@@ -26,3 +26,5 @@ sudo bash /opt/argus-v18/app/ops/deploy.sh status | grep -E '^(commit|ref)=|LAB 
 sudo bash /opt/argus-v18/app/ops/nonint-check.sh after | tail -1
 # Expected: DEPLOY OK: <main head> (main); its rebuild hints can be ignored (the same code already runs); ref=main;
 #           LAB BASELINE OK; NO INTERFERENCE.
+
+# (no block yet: next is T-0019 batch 1 step 3, deploy)
