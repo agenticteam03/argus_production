@@ -134,3 +134,23 @@ def test_an_investigation_is_the_same_through_mcp(make_app, monkeypatch):
         assert viamcp.catalogue.tools.calls > 0
     finally:
         viamcp.catalogue.tools.close()
+
+
+def test_benchmark_compares_direct_and_mcp_on_the_same_read(child_env, monkeypatch, capfd):
+    """T-0021 step 5d (§25 OD-3): the same read, alternately in-process and through a tools process."""
+    from argus.tooling.mcp import benchmark
+    for k, v in child_env.items():
+        monkeypatch.setenv(k, v)
+    assert benchmark.main(["4", str(API), "container.status"]) == 0
+    out = capfd.readouterr().out.splitlines()            # capfd: the child inherits the real stderr
+    assert any(ln.startswith("direct ") for ln in out) and any(ln.startswith("mcp ") for ln in out)
+    assert any(ln.startswith("overhead ") for ln in out) and "not ok: 0" in "\n".join(out)
+    assert out[-1] == "OD-3 OK"
+    assert len(_Gateway.seen) == 2 * (4 + 1)                          # 4 measured pairs + 1 warm-up pair, all reads
+
+
+def test_benchmark_verdict():
+    from argus.tooling.mcp.benchmark import report
+    assert report([10.0] * 20, [40.0] * 20, 0)[1] is True               # 30 ms overhead
+    assert report([10.0] * 20, [150.0] * 20, 0)[1] is False             # 140 ms: above the 100 ms budget
+    assert report([10.0] * 20, [40.0] * 20, 1)[1] is False              # a failed read is never OK

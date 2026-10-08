@@ -123,6 +123,17 @@ stay in the worker (`InvokeCapability`). This is the main safety condition befor
   launcher; the tools process lists 16 capabilities). SC-02 `inc_757f21772cef` DIAGNOSED through the tools process
   (`container.status`, `container.logs`: ok); `docker top`: `python -m argus worker` as uid 10010 and
   `python -m argus.tooling.mcp.tools_server` as uid 10011. Lab reset, LAB BASELINE OK, NO INTERFERENCE.
+- **Step 5c.6 (2026-10-08, vm-095).** `DEPLOY OK: 58720d0`, the three programs rebuilt, the worker still
+  `catalogue=mcp`, no errors; `isolation_check` inside the worker: none readable (7 expected by the inventory), the
+  sudo launcher, sudo refuses `cat` of a token, an extra argument and `true`, the tools process lists 16
+  capabilities: **TOOLS ISOLATION OK**; NO INTERFERENCE.
+- **The OD-3 benchmark (code, 2026-10-08).** `python -m argus.tooling.mcp.benchmark [N] [TARGET] [CAPABILITY]`, run
+  as `argus-tools` (`docker exec -u argus-tools`), the only user that can read the tokens, so the same read goes both
+  ways: in-process (`direct`) and through a tools process over stdio (`mcp`), alternating, after one unmeasured
+  warm-up pair; it prints p50/p95 of each way and of the per-pair overhead and ends `OD-3 OK` (p95 overhead < 100 ms,
+  every read ok) or `OD-3 STOP`. Tests in `tests/test_mcp_child.py` (an end-to-end run against a fake gateway, and
+  the verdict); red seen (`No module named 'argus.tooling.mcp.benchmark'`). Suite: 183 passed, 2 skipped (Postgres
+  included).
 
 ## Step 5 procedure (vm-095, with the lease)
 
