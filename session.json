@@ -6,6 +6,10 @@
   "base_commit": "4267fdefce9f31b39579091a1e30309f4c675989",
   "started_at": "2026-10-08T15:47:56+00:00",
   "expires_at": "2026-10-08T17:52:48+00:00",
-  "released": false,
-  "handoff": null
+  "released": true,
+  "handoff": {
+    "note": "For conantkd. vm-095: task/T-0021-tool-isolation a5f330a, worker in mcp mode (ARGUS_TOOL_CATALOGUE=mcp in /opt/argus-v18/hosts.env), executor tokens owned by argus-tools (10011); TOOLS ISOLATION OK, OD-3 OK. Do NOT deploy main on vm-095 before PR #36 merges without the rollback first (block R in brain/execution/history/T-0021/step-05/ on that branch): main api and worker would not start. vm-166 untouched on task/T-0020-sc04-pg-connections. Please review #36 (normal review, safety model), #34, #35, and do the after-merge reviews of #33 (T-0014) and #37. Start from brain/NEXT_STEP.md on the T-0021 branch.",
+    "branch": "main",
+    "at": "2026-10-08T17:19:37+00:00"
+  }
 }
