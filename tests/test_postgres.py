@@ -69,6 +69,31 @@ def test_incident_lifecycle_and_forward_only(store):
         store.update_incident(inc)                         # a closed incident never reopens
 
 
+def test_worker_lease(store):
+    """T-0014: a claim is a lease; only expired claims go back to the queue (tests/test_worker_lease.py, SQLite)."""
+    from argus.domain.model import IncidentStatus, utcnow
+    store.requeue_expired(now=utcnow() + timedelta(days=1))        # the module's earlier rows: out of the way
+    while store.claim_next_queued("drain", lease_s=86400 * 30):
+        pass
+    first, second = _incident(minutes_ago=10), _incident(minutes_ago=9)
+    store.create_incident(first, None)
+    store.create_incident(second, None)
+    assert store.claim_next_queued("worker-a", lease_s=60).id == first.id
+    assert store.claim_next_queued("worker-b", lease_s=60).id == second.id
+    assert store.claim_next_queued("worker-c", lease_s=60) is None
+    later = utcnow() + timedelta(seconds=50)
+    assert store.renew_claim(first.id, "worker-a", lease_s=60, now=later) is True
+    assert store.renew_claim(first.id, "worker-b", lease_s=60, now=later) is False
+    assert store.requeue_expired(now=later + timedelta(seconds=30)) == 1          # second expired, first renewed
+    assert store.get_incident(second.id).status == IncidentStatus.queued
+    assert store.get_incident(first.id).status == IncidentStatus.running
+    assert store.claim_next_queued("worker-c", lease_s=60).id == second.id
+    assert store.renew_claim(second.id, "worker-b", lease_s=60) is False          # worker-b lost it
+    busy = store.active_incident(first.target)                                    # T-0014 step 3: skip-if-active
+    assert busy is not None and busy.status in (IncidentStatus.queued, IncidentStatus.running)
+    assert store.active_incident(_incident(target="vm-095/container:t0014-never-used").target) is None
+
+
 def test_evidence_audit_events_principals(store):
     import psycopg
     from argus.domain.model import AuditRecord, EvidenceRecord, utcnow

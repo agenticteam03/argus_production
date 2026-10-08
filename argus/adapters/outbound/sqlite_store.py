@@ -7,7 +7,7 @@ from __future__ import annotations
 import json
 import sqlite3
 import threading
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any
 
 from argus.domain.model import (AuditRecord, EvidenceRecord, Incident, IncidentStatus, TargetRef, utcnow)
@@ -16,7 +16,7 @@ SCHEMA = """
 PRAGMA journal_mode=WAL;
 CREATE TABLE IF NOT EXISTS incident (
   id TEXT PRIMARY KEY, target TEXT NOT NULL, status TEXT NOT NULL, opened_at TEXT NOT NULL,
-  idempotency_key TEXT UNIQUE, body TEXT NOT NULL);
+  idempotency_key TEXT UNIQUE, body TEXT NOT NULL, claimed_by TEXT, claimed_until TEXT);
 CREATE INDEX IF NOT EXISTS incident_status ON incident(status, opened_at);
 CREATE TABLE IF NOT EXISTS evidence (
   evidence_id TEXT PRIMARY KEY, incident_id TEXT NOT NULL, collected_at TEXT NOT NULL,
@@ -48,6 +48,10 @@ class SqliteStore:
         self._lock = threading.RLock()
         self._db = sqlite3.connect(path, check_same_thread=False, isolation_level=None)
         self._db.executescript(SCHEMA)
+        cols = {r[1] for r in self._db.execute("PRAGMA table_info(incident)")}
+        for col in ("claimed_by", "claimed_until"):              # T-0014: files created before the worker lease
+            if col not in cols:
+                self._db.execute(f"ALTER TABLE incident ADD COLUMN {col} TEXT")
 
     def _q(self, sql: str, params: tuple = ()) -> list[tuple]:
         with self._lock:
@@ -77,7 +81,8 @@ class SqliteStore:
         rows = self._q("SELECT body FROM incident ORDER BY opened_at DESC LIMIT ?", (limit,))
         return [Incident.model_validate_json(r[0]) for r in rows]
 
-    def claim_next_queued(self) -> Incident | None:
+    def claim_next_queued(self, worker_id: str = "local", lease_s: int = 300) -> Incident | None:
+        """Claim the oldest queued incident for `lease_s` seconds (T-0014: the claim is a lease, §6.2)."""
         with self._lock:
             row = self._q("SELECT body FROM incident WHERE status=? ORDER BY opened_at LIMIT 1",
                           (IncidentStatus.queued.value,))
@@ -86,16 +91,49 @@ class SqliteStore:
             inc = Incident.model_validate_json(row[0][0])
             inc.status = IncidentStatus.running
             self.update_incident(inc)
+            self._q("UPDATE incident SET claimed_by=?, claimed_until=? WHERE id=?",
+                    (worker_id, (utcnow() + timedelta(seconds=lease_s)).isoformat(), inc.id))
             return inc
 
+    def renew_claim(self, incident_id: str, worker_id: str, lease_s: int = 300,
+                    now: datetime | None = None) -> bool:
+        """Extend a live claim. False: the claim is no longer this worker's (expired and taken), so it must stop."""
+        now = now or utcnow()
+        with self._lock:
+            row = self._q("SELECT 1 FROM incident WHERE id=? AND status=? AND claimed_by=? AND claimed_until>=?",
+                          (incident_id, IncidentStatus.running.value, worker_id, now.isoformat()))
+            if row:
+                self._q("UPDATE incident SET claimed_until=? WHERE id=?",
+                        ((now + timedelta(seconds=lease_s)).isoformat(), incident_id))
+            return bool(row)
+
+    def requeue_expired(self, now: datetime | None = None) -> int:
+        """Crash recovery: running incidents whose claim expired (or that never had one) go back to the queue."""
+        now = now or utcnow()
+        with self._lock:
+            rows = self._q("SELECT body FROM incident WHERE status=? AND (claimed_until IS NULL OR claimed_until<?)",
+                           (IncidentStatus.running.value, now.isoformat()))
+            for (body,) in rows:
+                inc = Incident.model_validate_json(body)
+                inc.status = IncidentStatus.queued
+                self.update_incident(inc)
+                self._q("UPDATE incident SET claimed_by=NULL, claimed_until=NULL WHERE id=?", (inc.id,))
+            return len(rows)
+
     def requeue_running(self) -> int:
-        """Crash recovery: runs that were in progress when the process died start again from intake."""
+        """Crash recovery for the single-process `argus serve`: every run in progress starts again from intake."""
         rows = self._q("SELECT body FROM incident WHERE status=?", (IncidentStatus.running.value,))
         for (body,) in rows:
             inc = Incident.model_validate_json(body)
             inc.status = IncidentStatus.queued
             self.update_incident(inc)
         return len(rows)
+
+    def active_incident(self, target: TargetRef) -> Incident | None:
+        """The target's queued or running incident, if any (T-0014: the scheduler's skip-if-active, §6.5)."""
+        row = self._q("SELECT body FROM incident WHERE target=? AND status IN (?,?) ORDER BY opened_at LIMIT 1",
+                      (str(target), IncidentStatus.queued.value, IncidentStatus.running.value))
+        return Incident.model_validate_json(row[0][0]) if row else None
 
     def similar_incidents(self, target: TargetRef, incident_class: str, k: int) -> list[Incident]:
         rows = self._q("SELECT body FROM incident WHERE target=? ORDER BY opened_at DESC LIMIT 20", (str(target),))
