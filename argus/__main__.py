@@ -1,14 +1,17 @@
-"""argus serve | user add|disable | db import-sqlite PATH|check | diagnose TARGET [--raw] | incident ID [--raw]"""
+"""argus serve | api | worker | scheduler | user add|disable | db import-sqlite PATH|check | diagnose TARGET [--raw] | incident ID [--raw]"""
 from __future__ import annotations
 
 import argparse
 import asyncio
 import getpass
 import logging
+import os
+import signal
 import threading
 import time
 
 from argus.infrastructure.wiring import Settings, build, make_store
+from argus.infrastructure.worker import Worker
 
 
 def _worker(app, stop: threading.Event) -> None:
@@ -25,7 +28,55 @@ def _worker(app, stop: threading.Event) -> None:
         app.runner.run(inc.id)
 
 
+def _servers(app):
+    import uvicorn
+    from argus.adapters.inbound.http import build_api, build_webhook
+    return [uvicorn.Server(uvicorn.Config(build_api(app), host="0.0.0.0", port=8000, log_level="info")),
+            uvicorn.Server(uvicorn.Config(build_webhook(app), host="0.0.0.0", port=8001, log_level="info"))]
+
+
+def api() -> None:
+    """T-0014: the API and the webhook only; investigations run in `argus worker`."""
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
+    servers = _servers(build())
+
+    async def main():
+        await asyncio.gather(*(s.serve() for s in servers))
+    asyncio.run(main())
+
+
+def worker() -> None:
+    """T-0014: claims queued incidents (with a lease) and runs them; SIGTERM stops it after the current run."""
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
+    stop = threading.Event()
+    signal.signal(signal.SIGTERM, lambda *_: stop.set())
+    signal.signal(signal.SIGINT, lambda *_: stop.set())
+    Worker(build(), lease_s=int(os.getenv("ARGUS_WORKER_LEASE_S", "300")),
+           max_queued_age_s=int(os.getenv("ARGUS_SCHEDULE_MAX_QUEUED_AGE_S", "900"))).run_forever(stop)
+
+
+def scheduler() -> None:
+    """T-0014: submits the scheduled checks of ARGUS_SCHEDULES; never runs detectors, the model or the graph."""
+    from pathlib import Path
+
+    from argus.adapters.outbound.config_adapters import YamlInventory
+    from argus.infrastructure.scheduler import Scheduler, load_schedules
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
+    s = Settings()
+    inventory = YamlInventory((s.config_dir / "inventory.yaml").read_text(encoding="utf-8"))
+    path = Path(os.getenv("ARGUS_SCHEDULES", "deploy/scheduler/schedules.yaml"))
+    schedules = load_schedules(path.read_text(encoding="utf-8"), inventory,
+                               min_interval_s=int(os.getenv("ARGUS_SCHEDULE_MIN_INTERVAL_S", "300")))
+    logging.getLogger("argus.scheduler").info("%d schedules, %d enabled", len(schedules),
+                                              sum(x.enabled for x in schedules))
+    stop = threading.Event()
+    signal.signal(signal.SIGTERM, lambda *_: stop.set())
+    signal.signal(signal.SIGINT, lambda *_: stop.set())
+    Scheduler(make_store(s), schedules).run_forever(stop)
+
+
 def serve() -> None:
+    """Single process (api + webhook + worker thread): the rollback for the T-0014 split."""
     import uvicorn
     from argus.adapters.inbound.http import build_api, build_webhook
 
@@ -79,10 +130,13 @@ def db(args) -> None:
             raise SystemExit(1)
 
 
-def main() -> None:
+def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="argus")
     sub = p.add_subparsers(dest="cmd", required=True)
     sub.add_parser("serve")
+    sub.add_parser("api")
+    sub.add_parser("worker")
+    sub.add_parser("scheduler")
     u = sub.add_parser("user")
     u.add_argument("action", choices=["add", "disable"])
     u.add_argument("name")
@@ -91,16 +145,28 @@ def main() -> None:
     d = sub.add_parser("db", help="Postgres system of record: import the lab SQLite history, prove the guarantees")
     d.add_argument("action", choices=["import-sqlite", "check"])
     d.add_argument("path", nargs="?", default="/data/argus.db")
-    from argus.adapters.inbound.cli.main import add_parsers, run
+    from argus.adapters.inbound.cli.main import add_parsers
     add_parsers(sub)
+    return p
+
+
+def main() -> None:
+    p = build_parser()
     a = p.parse_args()
     if a.cmd == "serve":
         serve()
+    elif a.cmd == "api":
+        api()
+    elif a.cmd == "worker":
+        worker()
+    elif a.cmd == "scheduler":
+        scheduler()
     elif a.cmd == "user":
         user(a)
     elif a.cmd == "db":
         db(a)
     else:
+        from argus.adapters.inbound.cli.main import run
         raise SystemExit(run(a))
 
 

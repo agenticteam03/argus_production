@@ -1,0 +1,13 @@
+# Scheduled health checks (T-0014, ARCHITECTURE §7.3), read by `argus scheduler`.
+# Each due slot submits a `check` investigation of the target (identity: id + slot time, so never twice).
+# A healthy check ends after detection with no model call. A busy target is coalesced, not run twice.
+# Fields: id, cron (5 fields, UTC), target (must be in config/inventory.yaml), reason, enabled.
+# The minimum interval is ARGUS_SCHEDULE_MIN_INTERVAL_S (default 300 s); the scheduler refuses a faster cron.
+#
+# Shipped with no active schedule: a deploy changes nothing until a schedule is enabled on purpose.
+schedules:
+  - id: lab-worker-health
+    cron: "*/15 * * * *"
+    target: "vm-166/container:argus-lab-worker"
+    reason: "scheduled health investigation"
+    enabled: false

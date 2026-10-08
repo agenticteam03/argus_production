@@ -153,6 +153,19 @@ def test_status_flags_a_stopped_or_unhealthy_lab_container(env):
     assert "argus-lab-cache" in r.stdout and "argus-lab-api" in r.stdout.split("LAB BASELINE NOT OK")[1]
 
 
+def test_status_lists_the_argus_programs_and_the_command_each_runs(env):
+    """T-0014: one image, three programs on vm-095; status shows which command each container runs."""
+    r = status(env, fake_docker(env, 'argus-v18-agent running "python -m argus api"\n'
+                                     'argus-v18-worker running "python -m argus worker"\n'
+                                     'argus-v18-scheduler running "python -m argus scheduler"\n'
+                                     "argus-v18-postgres running Up 3 hours (healthy)\n"
+                                     "argus-lab-api running Up 3 hours (healthy)\n"))
+    assert r.returncode == 0, r.stdout + r.stderr
+    argus = [ln for ln in r.stdout.splitlines() if ln.startswith("argus: ")]
+    assert [ln.split()[1] for ln in argus] == ["argus-v18-agent", "argus-v18-worker", "argus-v18-scheduler"]
+    assert "argus api" in argus[0] and "argus worker" in argus[1]
+
+
 def test_status_without_docker_says_so_instead_of_claiming_ok(env):
     r = status(env, "no-such-docker-binary")
     assert r.returncode == 0
