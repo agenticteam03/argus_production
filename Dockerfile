@@ -1,5 +1,6 @@
-# argus-v18-agent (vm-095): one process = API (8000) + webhook (8001) + worker. Config is mounted read-only at run
-# time; the reviewed runbook library ships inside the package (argus/runbooks, D-002).
+# argus-v18-agent:1 (vm-095): one image for three programs (T-0014): `argus api` (API 8000 + webhook 8001),
+# `argus worker` and `argus scheduler`, chosen by the compose `command`. The default CMD `serve` is the single-process
+# rollback. Config is mounted read-only at run time; the runbook library ships inside the package (argus/runbooks, D-002).
 # T-0021 (§12.6): two users. `argus` runs the agent; `argus-tools` runs the MCP tools process, the only reader of the
 # executor tokens. sudo lets argus start exactly the tools-server launcher as argus-tools, without arguments.
 FROM python:3.12-slim

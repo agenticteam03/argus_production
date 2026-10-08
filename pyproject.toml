@@ -17,6 +17,7 @@ dependencies = [
   "psycopg-pool>=3.2",
   "langgraph>=1.2,<1.3",                        # T-0013: the v1.8 skeleton as a graph
   "langgraph-checkpoint-postgres>=3.1,<3.2",    # T-0013: resume an investigation after a crash
+  "croniter>=6,<7",                             # T-0014: the scheduler's cron expressions (pure Python)
   "mcp>=2.3,<2.4",                              # T-0021: the tools process (stdio MCP; pure Python)
 ]
 
