@@ -49,6 +49,12 @@ vm-095                                               vm-166
   `argus_db_monitor_slot_reserved` (1 = the prerequisite holds) and `inspect_database_health` says so when it does
   not. `argus-lab-db`: `reserved_connections=1`, so 16 ordinary slots.
 
+- **`/srv/argus-lab-fill` is for testing only** (T-0023, SC-05): a 256M ext4 image `/opt/argus-v18/lab/fill.img`,
+  loop-mounted (`nodev,nosuid,noexec`) by `ops/lab-fill-mount.sh`; not in `fstab`, so after a reboot it is absent until
+  the script runs again (node-exporter has no series for it, the host-probe answers 409, the filler refuses: unknown,
+  never the root disk's numbers). node-exporter and the host-probe bind `/` with `rslave` so they see it.
+  `--remove` unmounts it and deletes the image.
+
 - The agent reaches vm-095's executors by container name on `argus-v18-core`, and vm-166's through the tunnel
   sidecar (`http://argus-v18-tunnel:18701` …). See `config/inventory.yaml`.
 - **Transport profile `restricted-ssh`** (ACR-0002): alerts are **pulled**. The scheduler on vm-095 reads each

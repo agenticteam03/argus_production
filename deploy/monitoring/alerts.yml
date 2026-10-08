@@ -16,7 +16,7 @@ groups:
         expr: argus_db_connections_used / (argus_db_connections_usable > 0) >= 0.9
         for: 5m
         annotations: {summary: "a database has used 90 %+ of its usable connection slots for 5 minutes"}
-      - alert: HostDiskPressure            # T-0022 (node-exporter): the root filesystem above 90 % for 5 minutes
-        expr: max by (argus_host) (1 - node_filesystem_avail_bytes{job="argus-v18-node-exporter",mountpoint="/"} / node_filesystem_size_bytes{job="argus-v18-node-exporter",mountpoint="/"}) >= 0.9
+      - alert: HostDiskPressure            # T-0022/T-0023 (node-exporter): any real filesystem above 90 % for 5 minutes
+        expr: max by (argus_host) (1 - node_filesystem_avail_bytes{job="argus-v18-node-exporter",fstype=~"ext4|xfs|btrfs"} / node_filesystem_size_bytes{job="argus-v18-node-exporter",fstype=~"ext4|xfs|btrfs"}) >= 0.9
         for: 5m
-        annotations: {summary: "the host's root filesystem is above 90 % used for 5 minutes"}
+        annotations: {summary: "a filesystem of the host is above 90 % used for 5 minutes"}

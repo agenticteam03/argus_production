@@ -64,7 +64,8 @@ A model-driven run takes about 1 to 3 minutes. Re-run GET until `status` is `clo
 | `vm-166/container:argus-lab-leaker` | VM 0.166 | holds database sessions idle in transaction; **depends on** `argus-lab-db` (TCP 5432). Used by **SC-04** | absent until the scenario starts |
 | `vm-166/container:argus-lab-backend` | VM 0.166 | small HTTP api on the network `argus-lab-iso`. Used by **SC-07** | absent until the scenario starts |
 | `vm-166/container:argus-lab-worker` | VM 0.166 | worker used by **SC-01** | absent until the scenario starts |
-| `vm-166/host:vm-166` | VM 0.166 | the host itself (mounts `/`, `/srv/argus-lab-fill`) | up |
+| `vm-166/container:argus-lab-filler` | VM 0.166 | writes to the lab filesystem `/srv/argus-lab-fill`; **depends on** the host. Used by **SC-05** | absent until the scenario starts |
+| `vm-166/host:vm-166` | VM 0.166 | the host itself (mounts `/` and `/srv/argus-lab-fill`, a 256 MiB lab filesystem, **testing only**, `ops/lab-fill-mount.sh`) | up |
 | `vm-095/container:argus-lab-api` | VM 0.95 | the **twin**: same name as vm-166's api, but no dependency | always on, healthy |
 | `vm-095/container:argus-lab-worker` | VM 0.95 | worker used by **SC-02** (same name as vm-166's!) | absent until the scenario starts |
 | `vm-095/host:vm-095` | VM 0.95 | the host itself (mount `/`) | up |
@@ -237,6 +238,34 @@ sudo docker rm -f argus-lab-leaker
 
 ---
 
+### SC-05: the disk almost full (vm-166)
+
+`argus-lab-filler` writes 2 MiB every 3 seconds to the lab filesystem `/srv/argus-lab-fill` (256 MiB, a loop-mounted
+file: the root disk is never filled; the filler refuses any filesystem larger than 512 MiB) until it is 92 % used,
+then holds. Deleting data would only hide the cause: the writer is the cause.
+
+**Start** [VM 0.166 · bash] (the lab filesystem must be mounted: `sudo sh /opt/argus-v18/app/ops/lab-fill-mount.sh`),
+then wait about 11 minutes (about 6 to reach 92 %, then 5 at 90 % or more):
+```bash
+cd /opt/argus-v18/app/deploy/lab && sudo docker compose -f compose.lab.yml --profile sc05 up -d argus-lab-filler
+```
+**Investigate:**
+```json
+{"target": "vm-166/host:vm-166", "reason": "the lab filesystem is filling up", "request_kind": "report"}
+```
+**Expected:**
+- detect: `disk_pressure` (a declared mount 90 % or more used for 5 minutes, and the time to full while it grows);
+- recall: RB-005 (branch RB-019);
+- investigate: `get_disk_usage` on `/srv/argus-lab-fill` (about 92 % used), the filler's logs (MiB written);
+- record: `diagnosed`, root cause `vm-166/container:argus-lab-filler`, and **no deletion advised**.
+
+**Reset** [VM 0.166 · bash] (the lab filesystem stays, empty):
+```bash
+sudo docker rm -f argus-lab-filler && sudo rm -f /srv/argus-lab-fill/argus-lab-filler.dat
+```
+
+---
+
 ### SC-07: a healthy backend on the wrong network (vm-166)
 
 `argus-lab-client` (network `argus-lab-app`) calls `argus-lab-backend`, which is healthy but attached **only** to
@@ -292,7 +321,6 @@ such as `"target": "container:argus-lab-api"`, is rejected with **422** before a
 
 | ID | Incident | Host | Missing piece |
 |---|---|---|---|
-| SC-05 | disk almost full (256 MiB loop mount) | vm-166 | loop mount + `disk_pressure` class |
 | SC-06 | CPU saturation (capped burner) | vm-166 | `cpu_saturation` class |
 | SC-08 | nginx upstream failure | vm-166 | nginx + slow api + class |
 | SC-10 | monitoring blind spot (exporter stopped) | vm-095 | scripted in code.bash Task 10, not yet verified |

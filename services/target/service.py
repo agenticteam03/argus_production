@@ -220,6 +220,8 @@ def host_probe(parts: list[str], q: dict) -> dict:
         mount = q.get("mount", ["/"])[0]
         if mount not in CONFIG.get("mounts", []):
             raise Err(400, "mount not allowlisted")
+        if mount != "/" and not os.path.ismount(ROOTFS + mount):
+            raise Err(409, f"{mount} is not mounted (unknown, not the root disk)")      # T-0023
         st = os.statvfs(ROOTFS + mount)
         total, free = st.f_blocks * st.f_frsize, st.f_bavail * st.f_frsize
         return {"mount": mount, "used_percent": round((1 - free / total) * 100, 1) if total else None,
