@@ -49,6 +49,23 @@ def health_check_failed(snap: MetricSnapshot) -> DetectorResult:
     return DetectorResult(matched=False)
 
 
+def postgresql_connection_exhaustion(snap: MetricSnapshot) -> DetectorResult:
+    """RB-004: ordinary-slot usage at or above 90 % for 5 minutes (the signal is the 5-minute minimum)."""
+    up = snap.values.get("db_up")
+    if up is None:
+        return DetectorResult(matched=False)          # no database metrics for this target (not a database)
+    if up < 1:
+        return DetectorResult(matched=False, findings=["database not readable by the db-probe (unknown, not healthy)"])
+    usage = snap.values.get("db_connection_usage")
+    if usage is None:
+        return DetectorResult(matched=False, findings=["signal missing (unknown, not healthy): db_connection_usage"])
+    if usage >= 0.9:
+        return DetectorResult(matched=True, findings=[
+            f"{round(usage * 100)}% of the usable connection slots in use for at least 5 minutes",
+            "connection capacity is almost exhausted: new ordinary clients may be rejected (SQLSTATE 53300)"])
+    return DetectorResult(matched=False)
+
+
 # Priority order: the first matching class becomes the incident class; others become findings.
 CLASSES: list[IncidentClassSpec] = [
     IncidentClassSpec(name="container_restart_loop", family="stability", target_kinds={"container"},
@@ -65,6 +82,11 @@ CLASSES: list[IncidentClassSpec] = [
                       branch_runbook_ids=["RB-003"], strategy="model_loop",
                       tool_tags={"availability", "logs", "dependency", "network", "container", "knowledge"},
                       detector=health_check_failed),
+    IncidentClassSpec(name="postgresql_connection_exhaustion", family="database", target_kinds={"container"},
+                      required_signals={"db_connection_usage", "db_up"}, runbook_ids=["RB-004"],
+                      branch_runbook_ids=["RB-013"], strategy="model_loop",
+                      tool_tags={"database", "logs", "container", "dependency", "knowledge"},
+                      detector=postgresql_connection_exhaustion),
 ]
 
 

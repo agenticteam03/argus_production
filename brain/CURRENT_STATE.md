@@ -1,6 +1,6 @@
 # Current state — the last verified shared state
 
-**As of:** 2026-10-08 (T-0014 step 5 on vm-095, by `juanbetancurm`) · **Architecture:** v1.8.1 (ACR-0001) · **Status:** `verified` on
+**As of:** 2026-10-08 (T-0020 SC-04 and the state probe of both VMs, by `conantkd`) · **Architecture:** v1.8.1 (ACR-0001) · **Status:** `verified` on
 the VMs; T-0013 (LangGraph + Postgres checkpoints) merged and **deployed: both VMs run `main` `09f5ab1`** (§2) ·
 shared-Brain setup B1–B8 under way (three developers).
 
@@ -41,7 +41,20 @@ and repeated end-to-end runs.
   yet. Evidence: [`execution/history/T-0017/step-03/evidence.md`](execution/history/T-0017/step-03/evidence.md).
   vm-095's checkout was on `task/T-0017-pg-backup-drill` for the drill; back on `main` `f126272` after the merge
   (AFTER-MERGE T-0017, below).
-- **Latest (OBSERVED 2026-10-08, T-0014 step 5, `juanbetancurm`):** vm-095 runs `task/T-0014-worker-scheduler`
+- **Latest (OBSERVED 2026-10-08, state probe, `conantkd`):** vm-095 runs `task/T-0021-tool-isolation` `a5f330a`
+  (deployed by `juanbetancurm`; worker in `mcp` mode, PR #36 changes requested): its agent does **not** carry T-0020
+  yet, so `postgresql_connection_exhaustion` is not enabled there until vm-095 runs a commit with T-0020 (`main`
+  after #36, or the rollback block R of T-0021 step 5 and then `main`). vm-166 runs `task/T-0020-sc04-pg-connections`
+  `b1e7176`: `argus-v18-db-probe` publishes `/metrics` (token), vm-166's Prometheus scrapes it; the SC-04 leaker is
+  not running. LAB BASELINE OK and NO INTERFERENCE on both. After PR T-0020 merges: vm-166 back on `main` (checkout
+  only).
+- **SC-04 (OBSERVED 2026-10-07, T-0020, `conantkd`):** both VMs on `a102bd5` (step 2): the db-probe's metrics,
+  the `db_connection_usage` signal, the `DbConnectionsExhausted` alert and the class `postgresql_connection_exhaustion`
+  (4 classes). Run 2 on vm-166: the leaker held 16 of 17 usable slots (94 % for 5 min, alert firing);
+  `inc_075fb0006098` **DIAGNOSED**, root cause `argus-lab-leaker`, RB-004, `inspect_database_health` read, no database
+  restart proposed. Two anonymous volumes left by the leaker's image were removed by ID (approved); the leaker now
+  uses a tmpfs. Evidence: [`execution/history/T-0020/`](execution/history/T-0020/).
+- **Earlier (OBSERVED 2026-10-08, T-0014 step 5, `juanbetancurm`):** vm-095 runs `task/T-0014-worker-scheduler`
   `169ca07` (migration `003_worker_lease` applied): `argus-v18-agent` runs `argus api`, plus `argus-v18-worker` and
   `argus-v18-scheduler` (no schedule enabled). A worker killed mid-run (SC-02) had its run taken back after the
   lease expired and **resumed from its checkpoint** (`incident.resumed`, DIAGNOSED); a temporary `*/5` schedule was
@@ -89,7 +102,7 @@ and repeated end-to-end runs.
 
 See [`IMPLEMENTATION_PLAN.md`](IMPLEMENTATION_PLAN.md) §1. Done or nearly done: 0, 1, 2, 3, 5, 6, 8, 10.
 In progress: 4 (50 %), 7 (50 %), **9 (75 %: LangGraph + checkpoints + OP-006 done; api/worker/scheduler split
-T-0014 verified on vm-095, PR #33 to merge)**, 11 (60 %: SC-07 done, T-0018), 12 (30 %), 13 (40 %). Not started: 14. Phase 10 (90 %) gets a read-only web UI as new scope:
+T-0014 verified on vm-095, PR #33 to merge)**, 11 (70 %: SC-07 done, T-0018; SC-04 done, T-0020), 12 (30 %), 13 (40 %). Not started: 14. Phase 10 (90 %) gets a read-only web UI as new scope:
 T-0015 (API side: done; step 6 proved on vm-095 2026-10-07, a read token gets 403 on a write) and T-0016 (frontend: steps 1-2 merged, PR #24,
 mock-only); UI actions beyond reading need a future ACR (`NEXT_STEP.md`).
 
@@ -103,6 +116,9 @@ mock-only); UI actions beyond reading need a future ACR (`NEXT_STEP.md`).
   SC-02, the identity proof, SC-10, SC-11, SC-12 (LGS), plus SC-03 (DEPLOY-MAIN). SC-12 escalates at step 2 (plain
   runner: step 3). Evidence: [`execution/history/LGS/step-01/evidence.md`](execution/history/LGS/step-01/evidence.md).
   Phase 12 still needs ≥ 5 runs per scenario.
+- **SC-04 on the LangGraph runner: verified 2026-10-07** (T-0020, one valid run): `postgresql_connection_exhaustion`
+  detected from the db-probe metric, RB-004, root cause `argus-lab-leaker`:
+  [`execution/history/T-0020/step-03/evidence.md`](execution/history/T-0020/step-03/evidence.md).
 - **SC-03 on the LangGraph runner: verified 2026-10-06** on the final `main` code (DEPLOY-MAIN D.5): `DIAGNOSED`,
   root cause `vm-166/container:argus-lab-cache`, confidence high, the api the victim; H-1 `HEALTHY` before (after
   restoring the lab) and after: [`execution/history/DEPLOY-MAIN/step-01/evidence.md`](execution/history/DEPLOY-MAIN/step-01/evidence.md)
@@ -122,8 +138,11 @@ mock-only); UI actions beyond reading need a future ACR (`NEXT_STEP.md`).
 - Pending team decision **D-001** (cross-host path and alert direction) and open problems OP-001…OP-003:
   [`OPEN_PROBLEMS.md`](OPEN_PROBLEMS.md).
 - Differences between the architecture text and the running system: [`architecture/SUMMARY.md`](architecture/SUMMARY.md).
-- An interrupted run is resumed automatically by the worker (T-0014, verified on vm-095 2026-10-08) once PR #33
-  merges; until then `main` still has the single-process agent, which takes back every running run at start.
+- **Classes enabled ahead of §21.2:** the 4 enabled classes have lab runs but no `tests/eval/` dataset yet (§3
+  "Enablement"); phase 12 and the evaluation close it (`NEXT_STEP.md`). OP-010: the db-probe is blind at 100 %
+  connection use.
+- An interrupted run is resumed automatically by the worker (T-0014, PR #33 merged). With more than one worker, a
+  lost lease renewal would let two workers run the same incident: OP-009 (fix before a second worker).
 - Lab baseline: `deploy.sh status` now ends with `LAB BASELINE OK` or names the stopped/unhealthy `argus-lab-*`
   (DEPLOY-MAIN found `argus-lab-cache` stopped for ~7 h; `nonint-check.sh` does not cover Argus objects).
 - vm-095 says "System restart required" — do not reboot (team decision).

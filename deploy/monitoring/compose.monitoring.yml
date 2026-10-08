@@ -1,4 +1,5 @@
-# One Argus-owned Prometheus PER target host (v1.8 §3.1). Scrapes only Argus's own exporter on argus-v18-mon.
+# One Argus-owned Prometheus PER target host (v1.8 §3.1). Scrapes only Argus's own exporter (and, where a database
+# is declared, the db-probe) on argus-v18-mon.
 name: argus-v18-monitoring
 services:
   argus-v18-prometheus:
@@ -9,6 +10,7 @@ services:
     volumes:
       - ./prometheus-${ARGUS_HOST}.yml:/etc/prometheus/prometheus.yml:ro
       - ./alerts.yml:/etc/prometheus/alerts.yml:ro
+      - /opt/argus-v18/secrets/prometheus:/etc/prometheus/secrets:ro    # scrape credentials (owner nobody, 400)
       - argus-v18-prometheus:/prometheus
     networks: [argus-v18-mon]
     mem_limit: 256m

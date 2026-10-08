@@ -1,6 +1,24 @@
 # Next step
 
-**Now (2026-10-08, `juanbetancurm`):** T-0014 (api / worker / scheduler) is done and verified on vm-095
+**Now (2026-10-08, `conantkd`; read as the state after the T-0020 PR merges):** T-0020 (SC-04,
+`postgresql_connection_exhaustion`, RB-004) is done: verified on vm-166 (`inc_075fb0006098` DIAGNOSED). Reviews done
+this session: #34 and #35 merged; **#36 (T-0021) changes requested** and handed back to `juanbetancurm` (launcher:
+`cd /` + `python -I`, with a test; an ACR for `setpriv` → `sudo`; the client timeout; the `mcp` default);
+after-merge reviews of #33 and #37 posted (OP-009 opened).
+
+1. **AFTER-MERGE T-0020 on vm-166** (checkout only, block in `execution/current/code.bash`). **Not on vm-095**: it
+   runs `task/T-0021-tool-isolation` and `main` would not start its api and worker before #36 merges (rollback block R
+   in `execution/history/T-0021/step-05/` first).
+2. **T-0021 (`juanbetancurm`):** the changes requested in #36; then re-review. When #36 merges, vm-095 goes to `main`
+   and its agent gets `postgresql_connection_exhaustion` (the class is in `main` from T-0020 on).
+3. Next work: OP-010 (the db-probe's reserved slot, SC-04 at 100 %); OP-009 before any second worker; OP-004
+   checkpoint cleanup; alerting (phase 7); more classes (SC-05 disk, SC-06 CPU, SC-08 nginx; below).
+4. **Evaluation (§21.2, `tests/eval/`) and phase 12 (≥ 5 runs per scenario):** §3 "Enablement" enables a class only
+   when its evaluation passes. The 4 classes enabled so far (including `postgresql_connection_exhaustion`) are
+   enabled ahead of it: they have lab runs (1-2 each), not the §21.2 dataset (≥ 5 labeled cases per class, ≥ 5
+   trials, compared with the deterministic baseline). This is the task that closes that gap.
+
+**Earlier (2026-10-08, `juanbetancurm`):** T-0014 (api / worker / scheduler) is done and verified on vm-095
 ([evidence](execution/history/T-0014/step-05/evidence.md)); PR #33 merged by fast-track (after-merge review by a
 teammate owed). vm-095 is back on `main` `5cdfd98` (checkout only; the images already run this code). vm-166
 stays on `task/T-0020-sc04-pg-connections` until that task's PR. Next: **T-0021** (MCP tools process under its own
