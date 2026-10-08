@@ -5,7 +5,7 @@
   "branch": "task/T-0020-sc04-pg-connections",
   "base_commit": "e96de25a72baded8125a6b1ff0661fe35522baef",
   "started_at": "2026-10-08T17:45:22+00:00",
-  "expires_at": "2026-10-08T23:24:10+00:00",
+  "expires_at": "2026-10-08T23:38:06+00:00",
   "released": false,
   "handoff": null
 }
