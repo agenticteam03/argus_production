@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | `in progress` — 2026-10-08 (step 1: ACR-0002 proposed) |
+| Status | `in progress` — 2026-10-08 (steps 1-4 done; step 5 waits for #36) |
 | Phase | 7 — monitoring & detection ([`../../IMPLEMENTATION_PLAN.md`](../../IMPLEMENTATION_PLAN.md): "Alertmanager, node-exporter, cAdvisor; pull firing alerts") |
 | Architecture | **ACR-0002** (transport profiles; alert delivery by profile; closes D-001) → 1.8.2. Touches host isolation: second approval required |
 | Branch | `task/T-0022-alerting`, **on top of `task/T-0020-sc04-pg-connections`** (#38): the monitoring files build on T-0020's. Its PR opens after #38 merges |
@@ -109,3 +109,7 @@ alert ever reaches Argus. After this task:
     counters; Alertmanager answers `/api/v2/alerts`; node-exporter needed `pid: host` to read the host mount table
     (without it: only its own mounts), and `rslave` was dropped (refused by Docker Desktop, not needed). The root
     filesystem `/` is an `overlay` on Docker Desktop (excluded by design): checked on vm-166 in step 4.
+- **Step 4 (2026-10-08, vm-166, mutating):** deploy `dde432f`; `permitopen` 18091 added (backup kept); the three
+  services Up, Prometheus recreated; every `argus-v18-*` job `up=1`; root filesystem present (disk 0.27 used);
+  cAdvisor sees `argus-lab-api`; 1 Alertmanager, nothing firing; ~55 MiB for the three new services; LAB BASELINE
+  OK; nonint: only the new listener `127.0.0.1:18091` ([evidence](../../execution/history/T-0022/step-04/evidence.md)).
