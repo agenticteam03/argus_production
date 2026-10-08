@@ -24,7 +24,7 @@ calls); the phases below replace each simplification.
 | 8 | Policies | scope, limits, closed write gate as data | safety is configuration, not code | ✅ 80 % | routing data; standing write-gate test on the VMs |
 | 9 | Agent workflow | the v1.8 skeleton in LangGraph | resume after a crash; a real worker and scheduler | 🟡 75 % | T-0013 (LangGraph + Postgres checkpoints) and OP-006 done; T-0014 done (lease, `argus api`/`worker`/`scheduler`, compose; on vm-095 a killed worker's run resumed from its checkpoint, a schedule coalesced while busy), PR #33 to merge; OP-004 checkpoint cleanup after it |
 | 10 | Output modes | formatted CLI and `--raw` | readable for humans, complete for developers | ✅ 90 % | ACT result column wraps instead of being cut (fixed 2026-10-07, seen in the SC-07 demo); new scope: read-only web UI (T-0015 API side, T-0016 frontend) |
-| 11 | Synthetic incidents | controlled failures on both VMs | proof needs reproducible failures | 🟡 60 % | SC-04 Postgres, SC-05 disk, SC-06 CPU, SC-08 nginx |
+| 11 | Synthetic incidents | controlled failures on both VMs | proof needs reproducible failures | 🟡 70 % | SC-05 disk, SC-06 CPU, SC-08 nginx (SC-04 done 2026-10-07, T-0020) |
 | 12 | End-to-end tests | every scenario through the CLI | quality claims need repeated runs | 🟡 30 % | scripted e2e suite; ≥ 5 runs per scenario |
 | 13 | Failure & recovery | behaviour under real faults | failures become escalations, never crashes | 🟡 40 % | restart Postgres, rotate tokens (kill the worker mid-run: done on vm-095, T-0014 step 5) |
 | 14 | Optional | swap-ability experiments | prove a new executor needs no core change | ⬜ 0 % | `ssh_verbs` executor, only if time allows |
@@ -135,7 +135,7 @@ only, T-0019); vm-095: the healthy twin
 | SC-01 | vm-166 | `argus-lab-worker` grows memory to its 64 MiB limit, restart on failure | `container_restart_loop` · RB-001 | OOM by its own limit on **vm-166** | ✅ |
 | SC-02 | vm-095 | `argus-lab-worker` (same name!) exits 1, config missing | `container_restart_loop` · RB-008 | non-OOM crash on **vm-095**, not confused with SC-01 | ✅ |
 | SC-03 | vm-166 | the cache stops; the api depends on it | `dependency_unavailable` · RB-003/RB-002 | root cause the cache; the api is a victim | ✅ |
-| SC-04 | vm-166 | a worker leaks idle-in-transaction sessions on `argus-lab-db` | `postgresql_connection_exhaustion` · RB-004 | root cause the worker | ⬜ |
+| SC-04 | vm-166 | a worker leaks idle-in-transaction sessions on `argus-lab-db` | `postgresql_connection_exhaustion` · RB-004 | root cause the worker | ✅ (T-0020) |
 | SC-05 | vm-166 | a filler fills a 256 MiB loop-mounted file to 92 % | `disk_pressure` · RB-005 | fill rate, time to full | ⬜ |
 | SC-06 | vm-166 | CPU burner capped at `cpus: 0.3` for 3 min | `cpu_saturation` · RB-006 | throttled at quota; vm-095 unaffected | ⬜ |
 | SC-07 | vm-166 | client on `argus-lab-app`, healthy backend only on `argus-lab-iso` (T-0018) | `dependency_unavailable` · RB-003, RB-009 read via `query_runbook` (its own class `dns_network_failure` later) | network misconfiguration, not a failed service | ✅ |

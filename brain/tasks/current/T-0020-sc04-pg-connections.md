@@ -2,10 +2,10 @@
 
 | Field | Value |
 |---|---|
-| Status | `in progress` — 2026-10-07 |
+| Status | `done` 2026-10-08 (verified on vm-166 2026-10-07; PR open, waits for review) |
 | Phase | 11 — synthetic incidents ([`../../IMPLEMENTATION_PLAN.md`](../../IMPLEMENTATION_PLAN.md) §7: SC-04) |
 | Architecture | no change (no ACR): §3 class table (`postgresql_connection_exhaustion` · RB-004 · branch RB-013 · `model_loop`), §3.x "Argus queries only Prometheus for metrics", §4.6 `db-probe` |
-| Branch | `task/T-0020-sc04-pg-connections`, **on top of `task/T-0019-db-probe`** (PR #32 open). Its PR opens after #32 merges, with `main` merged in first |
+| Branch | `task/T-0020-sc04-pg-connections` (started on top of `task/T-0019-db-probe`; PR #32 merged 2026-10-07; `main` merged in 2026-10-08) |
 | Owner | `conantkd` (+ agent) |
 | Needs the VM lease | the deploy, the scenario runs and their verification |
 
@@ -78,4 +78,8 @@ worker as the root cause without proposing to restart the database.
   Reset: leaker gone, used 0, LAB BASELINE OK, but **nonint-check: DIFFERENCES** — two anonymous volumes left by the
   leaker's image `VOLUME` (runs 1 and 2). Fix: tmpfs on the leaker (red `KeyError: 'tmpfs'`, then green). The two
   volumes were removed by ID after `conantkd`'s go (snapshot back to the pre-scenario baseline) ([evidence](../../execution/history/T-0020/step-03/evidence.md)).
-
+- **Step 4 (2026-10-08, Brain and PR):** `main` merged in (T-0014, T-0015 step 6, the CLI fix; only conflict
+  `execution/current/code.bash`, kept the empty template: both steps are archived). Full suite **169 passed, 7 skipped**
+  (176). State probe: vm-166 on `b1e7176`, vm-095 on `task/T-0021-tool-isolation` `a5f330a` (no T-0020 in its agent
+  yet), LAB BASELINE OK and NO INTERFERENCE on both. After the merge: AFTER-MERGE on vm-166 (checkout only, block in
+  `execution/current/code.bash`); vm-095 gets the class when it runs `main` again (after PR #36).
