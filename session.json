@@ -1,15 +1,11 @@
 {
   "holder": "juanbetancurm",
-  "session_id": "06c0f50a106f",
-  "task": "DEMO-SC07",
+  "session_id": "001732996b14",
+  "task": "T-0014-step5",
   "branch": "task/T-0014-worker-scheduler",
   "base_commit": "e4be0f949676b722f72d2325a4d6f1d597991df7",
-  "started_at": "2026-10-07T21:19:05+00:00",
-  "expires_at": "2026-10-07T23:29:04+00:00",
-  "released": true,
-  "handoff": {
-    "note": "done: SC-07 class demo x2 (DIAGNOSED, fix -> HEALTHY, lab reset, NO INTERFERENCE); T-0015 step 6 proved on vm-095 (read token GET 200, POST 403), PR #35; CLI ACT wrap PR #34; T-0014 steps 1-4 PR #33 (do not merge before step 5). VMs: both on task/T-0020-sc04-pg-connections, lab at baseline, SC-07 removed. Next: T-0020 PR + AFTER-MERGE (conantkd), then T-0014 step 5 on vm-095 (migrate 003 first), then OP-005, OP-004.",
-    "branch": "task/T-0014-worker-scheduler",
-    "at": "2026-10-07T23:08:58+00:00"
-  }
+  "started_at": "2026-10-08T11:13:10+00:00",
+  "expires_at": "2026-10-08T12:13:10+00:00",
+  "released": false,
+  "handoff": null
 }
