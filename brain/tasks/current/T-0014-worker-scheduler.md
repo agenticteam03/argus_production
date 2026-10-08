@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | `in progress` (2026-10-07): steps 1-4 done; step 5 (VM) waits for the VM lease |
+| Status | `in progress` (2026-10-08): steps 1-4 done; step 5 on vm-095 in progress (5a done) |
 | Phase | 9 — agent workflow ([`../../IMPLEMENTATION_PLAN.md`](../../IMPLEMENTATION_PLAN.md)): "a real worker and scheduler" |
 | Architecture | no change (no ACR): implements ARCHITECTURE §6.2 (intake claim + lease recovery), §6.5 (skip-if-active, maximum queued age), §6.6 (scheduled identity), §7.3 (scheduler), §3 containers `argus-api` / `argus-worker` / `argus-scheduler` |
 | Branch | `task/T-0014-worker-scheduler` |
@@ -116,3 +116,13 @@ one by one, holds a renewable claim on each, and resumes an interrupted run from
   `ops/deploy.sh status` prints one `argus:` line per program with its command; the rebuild hint names all three, and
   a change in `deploy/scheduler/` hints a scheduler restart. `docker compose config` valid. Suite: 161 passed,
   1 skipped (Docker-in-Docker), Postgres included.
+- **Step 5a (2026-10-08, vm-095 only; vm-166 left on `task/T-0020-sc04-pg-connections`, untouched).** `DEPLOY OK:
+  e4be0f9`; `+ 003_worker_lease applied`; the three containers run (`argus api`, `argus worker`, `argus scheduler`);
+  `api healthz: 200`; scheduler `1 schedules, 0 enabled`; H-1 `--check` of `vm-095/container:argus-lab-api` HEALTHY,
+  run by the worker (`running inc_4e1ae094267e`); LAB BASELINE OK; NO INTERFERENCE.
+- **Fix found before the crash test (2026-10-08).** The worker recovered expired claims only at start. Docker
+  restarts a crashed worker within seconds, while the dead worker's lease (300 s) is still live, so its run would
+  have stayed `running` forever. Test `test_a_running_worker_takes_back_a_claim_that_expires_later`, red seen
+  (`unexpected keyword argument 'recover_every_s'`); the worker now re-checks every `recover_every_s` (30 s) while it
+  runs. Suite: 162 passed, 1 skipped (Docker-in-Docker), Postgres included.
+

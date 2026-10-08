@@ -63,6 +63,29 @@ def test_start_recovers_only_expired_claims(make_app):
     assert app.store.get_incident(stale.id).status == IncidentStatus.queued
 
 
+def test_a_running_worker_takes_back_a_claim_that_expires_later(make_app):
+    """T-0014 step 5 (found before the VM test): Docker restarts a crashed worker within seconds, while the dead
+    worker's lease is still live, so recovering only at start would leave that run `running` forever. The worker
+    re-checks for expired claims while it runs."""
+    app = make_app()
+    orphan = incident(app, T)
+    app.store.claim_next_queued("dead-worker", lease_s=1)                         # its worker dies right now
+    app.runner = SlowRunner()
+    stop = threading.Event()
+    w = Worker(app, worker_id="w2", idle_s=0.05, recover_every_s=0.2)
+    assert w.recover() == 0                                                       # at start the lease is still live
+    t = threading.Thread(target=w.run_forever, args=(stop,))
+    t.start()
+    try:
+        deadline = time.monotonic() + 5
+        while orphan.id not in app.runner.ran and time.monotonic() < deadline:
+            time.sleep(0.05)
+        assert app.runner.ran == [orphan.id]                                      # taken back once it expired, and run
+    finally:
+        stop.set()
+        t.join(timeout=2)
+
+
 def test_a_failing_run_does_not_stop_the_worker(make_app):
     app = make_app()
     bad, good = incident(app, T), incident(app, T)

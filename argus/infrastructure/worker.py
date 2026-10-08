@@ -1,8 +1,9 @@
 """The worker loop (T-0014, ARCHITECTURE §6.2): claims queued incidents one at a time and runs them.
 
 A claim is a lease. The worker renews it while a run lasts; when the worker dies the lease expires and another worker
-(or this one after a restart) requeues the incident, and the graph runner resumes it from its checkpoint. At start the
-worker recovers only expired claims, so it never takes a run another live worker holds.
+(or this one after a restart) requeues the incident, and the graph runner resumes it from its checkpoint. The worker
+recovers only expired claims, so it never takes a run another live worker holds; it checks at start and every
+`recover_every_s` while it runs (a restarted worker comes back before the dead one's lease has expired).
 """
 from __future__ import annotations
 
@@ -10,6 +11,7 @@ import logging
 import os
 import socket
 import threading
+import time
 import uuid
 from datetime import datetime, timedelta
 from typing import Callable
@@ -21,7 +23,8 @@ log = logging.getLogger("argus.worker")
 
 class Worker:
     def __init__(self, app, worker_id: str | None = None, lease_s: int = 300, renew_every_s: float | None = None,
-                 idle_s: float = 1.0, max_queued_age_s: int = 900, now: Callable[[], datetime] = utcnow):
+                 idle_s: float = 1.0, max_queued_age_s: int = 900, now: Callable[[], datetime] = utcnow,
+                 recover_every_s: float = 30.0):
         self.app = app
         self.max_queued_age_s = max_queued_age_s
         self.now = now
@@ -29,6 +32,8 @@ class Worker:
         self.lease_s = lease_s
         self.renew_every_s = renew_every_s if renew_every_s is not None else lease_s / 3
         self.idle_s = idle_s
+        # A crashed worker is restarted within seconds while its lease is still live: re-check while running.
+        self.recover_every_s = recover_every_s
 
     def recover(self) -> int:
         n = self.app.store.requeue_expired()
@@ -59,7 +64,11 @@ class Worker:
 
     def run_forever(self, stop: threading.Event) -> None:
         self.recover()
+        next_recover = time.monotonic() + self.recover_every_s
         while not stop.is_set():
+            if time.monotonic() >= next_recover:
+                self.recover()
+                next_recover = time.monotonic() + self.recover_every_s
             if self.run_once() is None:
                 stop.wait(self.idle_s)
 
