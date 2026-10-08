@@ -139,7 +139,8 @@ def tools_dispatcher(s: Settings):
 
 
 def build(settings: Settings | None = None, llm=None, metrics=None, executors: ExecutorRegistry | None = None,
-          store=None, require_credentials: bool = True) -> App:
+          store=None, require_credentials: bool = True, load_credentials: bool = True) -> App:
+    """`load_credentials=False`: read no executor token (the api, which never investigates; T-0021 step 4)."""
     s = settings or Settings()
     inv_text = (s.config_dir / "inventory.yaml").read_text(encoding="utf-8")
     pol_text = (s.config_dir / "policy.yaml").read_text(encoding="utf-8")
@@ -164,7 +165,8 @@ def build(settings: Settings | None = None, llm=None, metrics=None, executors: E
                 errors.append(f"class {c.name} needs unknown signal {sig}")
     if s.tool_catalogue not in ("direct", "mcp"):
         errors.append(f"ARGUS_TOOL_CATALOGUE must be 'direct' or 'mcp', not {s.tool_catalogue!r}")
-    creds = _credentials(s, inventory, require_credentials, errors, load=s.tool_catalogue != "mcp")
+    creds = _credentials(s, inventory, require_credentials, errors,
+                         load=load_credentials and s.tool_catalogue != "mcp")
     if errors:
         raise SystemExit("startup validation failed:\n  " + "\n  ".join(errors))
 

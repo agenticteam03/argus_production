@@ -31,6 +31,17 @@ def test_in_mcp_mode_the_worker_needs_no_executor_token(tmp_path, monkeypatch):
                        db_path=str(tmp_path / "t2.db")), metrics=FakeMetrics(), require_credentials=True)
 
 
+def test_the_api_reads_no_executor_token_even_when_one_is_readable(tmp_path, monkeypatch):
+    """T-0021 step 4: the api never investigates, so it loads no executor token in either catalogue mode."""
+    monkeypatch.setenv("ARGUS_JWT_KEY", "x" * 40)
+    secrets = tmp_path / "secrets"
+    (secrets / "vm-095").mkdir(parents=True)
+    (secrets / "vm-095" / "docker_read_token").write_text("tok", encoding="utf-8")
+    s = Settings(config_dir=ROOT / "config", secrets_dir=secrets, runbooks_dir=RUNBOOKS, db_path=str(tmp_path / "t.db"))
+    app = build(s, metrics=FakeMetrics(), require_credentials=False, load_credentials=False)
+    assert app.catalogue.dispatcher.credentials == {}
+
+
 def test_the_tools_command_is_the_whole_command(monkeypatch):
     from argus.tooling.mcp.client import child_client
     launcher = "sudo -n -u argus-tools /usr/local/bin/argus-tools-server"

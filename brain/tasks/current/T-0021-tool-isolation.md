@@ -2,10 +2,10 @@
 
 | Field | Value |
 |---|---|
-| Status | `in progress` (2026-10-08): steps 1-3 done; step 4 after T-0014 merges |
+| Status | `in progress` (2026-10-08): steps 1-4 done; step 5 on vm-095 next |
 | Phase | 4 — tools and guarded execution ([`../../IMPLEMENTATION_PLAN.md`](../../IMPLEMENTATION_PLAN.md)): "MCP tools child, UID `argus-tools`, credential-isolation test" |
 | Architecture | no change (no ACR): implements §12.5 (`ToolCatalogue`, `McpChildProvider`, `InWorkerProvider`, `TOOL_CATALOGUE=mcp\|direct`), §12.6 (process identity), §25 OD-3 (benchmark) |
-| Branch | `task/T-0021-tool-isolation` (steps 1-3 from `main`; step 4 after T-0014 is merged) |
+| Branch | `task/T-0021-tool-isolation` (steps 1-3 from `main`; `main` with T-0014 merged in before step 4) |
 | Owner | `juanbetancurm` (+ agent) |
 | Needs the VM lease | step 5 only (vm-095) |
 
@@ -93,4 +93,28 @@ stay in the worker (`InvokeCapability`). This is the main safety condition befor
   tokens `0400 argus-tools`, run as `argus`): `TOOLS ISOLATION OK` — the worker reads no token; sudo refuses `cat` of
   a token, an argument to the launcher, and root; the tools process starts as `argus-tools` and lists its 16
   capabilities. With the tokens readable by the worker: `TOOLS ISOLATION STOP`. Suite: 135 passed, 7 skipped.
+- **Step 4 (2026-10-08): compose.** `main` (T-0014, PR #33) merged in first (conflicts in `Dockerfile` and
+  `pyproject.toml` comments/dependencies only; 178 passed). Tests: `test_the_api_reads_no_executor_token_even_when_one_is_readable`
+  (`tests/test_tool_isolation.py`), `test_only_the_worker_mounts_the_executor_tokens` (`tests/test_compose_split.py`),
+  and `argus api` builds with `require_credentials=False, load_credentials=False` (`tests/test_worker_loop.py`). Red
+  seen: 3 failed (`build() got an unexpected keyword argument 'load_credentials'`; the api still mounted the whole
+  secrets folder). Then `build(load_credentials=False)` reads no executor token in either catalogue mode; `argus api`
+  uses it; in `deploy/vm-095/compose.core.yml` the api mounts only `db_password`, `jwt_signing_key` and
+  `openai_api_key` (its status reports `llm_configured`), the worker keeps the folder and gets
+  `ARGUS_TOOL_CATALOGUE=${ARGUS_TOOL_CATALOGUE:-direct}`, the scheduler is unchanged (database only). `docker compose
+  config` valid. Suite: 180 passed, 2 skipped (Docker-in-Docker tests), Postgres included.
+
+## Step 5 procedure (vm-095, with the lease)
+
+1. Read-only checks: the three api files exist (a missing bind-mount source would be created as a folder);
+   list the token files with owner and mode; NO INTERFERENCE before.
+2. Deploy the branch; rebuild the agent image (`sudo`, user `argus-tools`); recreate api, worker, scheduler (still
+   `direct`): H-1 HEALTHY; the api container has no token folder.
+3. Token ownership: `chown 10011:10011` and `chmod 0400` on `secrets/agent/<host>/*_token` only (the api files stay
+   `argus`). From here `direct` cannot read them: the rollback to `direct` is `chown 10010:10010` back.
+4. `ARGUS_TOOL_CATALOGUE=mcp` for the worker; `docker exec argus-v18-worker python -m argus.tooling.isolation_check`
+   must print `TOOLS ISOLATION OK`; H-1 and SC-07 through the tools process; the OD-3 benchmark (p95 overhead per
+   call < 100 ms, `mcp` vs `direct`); NO INTERFERENCE.
+5. Rollback: `ARGUS_TOOL_CATALOGUE=direct` + tokens back to `10010`; `ARGUS_AGENT_CMD=serve` additionally needs the
+   api's secrets folder mount back (compose comment).
 
