@@ -38,9 +38,12 @@ if [ "$MODE" = status ]; then
   else
     echo "checkout: $APP is not a git clone yet"
   fi
+  D="${ARGUS_DOCKER:-docker}"
+  # T-0014: the Argus programs on this host (vm-095: agent = api, worker, scheduler), with the command each one runs.
+  $D ps -a --filter name=argus-v18- --format '{{.Names}} {{.State}} {{.Command}}' 2>/dev/null \
+    | grep -E '^argus-v18-(agent|worker|scheduler) ' | sed 's/^/argus: /'
   # Is the lab at its baseline (every argus-lab-* running, none unhealthy)? A scenario left half-done makes the
   # next --check say DIAGNOSED (DEPLOY-MAIN found argus-lab-cache stopped for ~7 h); nonint-check ignores Argus objects.
-  D="${ARGUS_DOCKER:-docker}"
   if ! LAB="$($D ps -a --filter name=argus-lab- --format '{{.Names}} {{.State}} {{.Status}}' 2>/dev/null)"; then
     echo "lab: docker not available"
   elif [ -z "$LAB" ]; then
@@ -97,9 +100,10 @@ else
 fi
 hint() { echo "$CHANGED" | grep -qE "$1" && echo "  - $2"; }
 echo "Rebuild what changed (NOT done by this script; wrap it in nonint-check before/after):"
-hint '^(argus/|Dockerfile|pyproject\.toml|deploy/vm-095/)' "agent (vm-095): cd $APP/deploy/vm-095 && sudo docker compose --env-file $HOME_DIR/hosts.env -f compose.core.yml up -d --build --no-deps argus-v18-agent"
+hint '^(argus/|Dockerfile|pyproject\.toml|deploy/vm-095/)' "agent, worker, scheduler (vm-095, one image; migrations first): cd $APP/deploy/vm-095 && sudo docker compose --env-file $HOME_DIR/hosts.env -f compose.core.yml up -d --build --no-deps argus-v18-agent argus-v18-worker argus-v18-scheduler"
 hint '^deploy/migrations/' "database migrations (vm-095): sudo bash $APP/ops/db-migrate.sh"
 hint '^(services/target/|deploy/target/)' "target services: cd $APP/deploy/target && sudo docker compose --env-file <vm>.env -f compose.target.yml -f <compose.loopback.yml|compose.core-join.yml> up -d --build"
 hint '^deploy/monitoring/' "monitoring: cd $APP/deploy/monitoring && sudo docker compose --env-file <vm>.env -f compose.monitoring.yml -f <compose.loopback.yml|compose.core-join.yml> up -d"
-hint '^config/' "config (agent reads it at start): restart argus-v18-agent after reviewing the change"
+hint '^config/' "config (read at start): restart argus-v18-agent argus-v18-worker argus-v18-scheduler after reviewing the change"
+hint '^deploy/scheduler/' "schedules (read at start): sudo docker restart argus-v18-scheduler after reviewing the change"
 echo "DEPLOY OK: ${SHA:0:12} ($REF) on $(hostname)"

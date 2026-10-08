@@ -502,3 +502,36 @@ restart advised; the advised human fix (`docker network connect argus-lab-app ar
 and is refused on `POST /api/v1/investigations` (403) on the deployed API; no rebuild needed.
 Consequences: T-0015 is done. The demo showed the ACT results cut on a narrow terminal: fixed in PR #34.
 References: `brain/execution/history/T-0015/step-06/evidence.md`, PR #34.
+
+## 2026-10-07 — T-0014 steps 1-4: api, worker and scheduler from one image (T-0014)
+
+Type: implementation
+Who: juanbetancurm (+ agent)
+Context: one container ran the API and the investigations; a crash took both down, and a restart took back every
+running run. Phase 9 needs a real worker and scheduler (ARCHITECTURE §3, §6.2, §6.5, §6.6, §7.3).
+Decision: the worker's claim is a renewable lease (migration 003); `argus api`, `argus worker` and `argus scheduler`
+run from the one agent image as three containers on vm-095; the scheduler is a driver only (rule 15 import guard),
+reads `deploy/scheduler/schedules.yaml` (shipped with no enabled schedule) and gets only the database credential.
+`argus serve` stays as the rollback (`ARGUS_AGENT_CMD=serve`). The backup quiet window is not needed: OP-008 (PR #31)
+fixes the backup check with one exported snapshot.
+Consequences: deploying it needs migration 003 before the worker starts; step 5 (vm-095, VM lease) proves a killed
+worker's run resumes and a schedule is submitted once and coalesced while busy. 161 passed, 1 skipped.
+References: `brain/tasks/current/T-0014-worker-scheduler.md`, `deploy/vm-095/compose.core.yml`,
+`deploy/migrations/003_worker_lease.sql`, PR #31 (OP-008).
+
+## 2026-10-08 — T-0014 step 5: a killed worker's run resumes; the scheduler coalesces (T-0014)
+
+Type: verification
+Who: juanbetancurm (+ agent)
+Context: steps 1-4 split the agent into `argus api`, `argus worker` and `argus scheduler`; step 5 had to prove it on
+vm-095 (vm-166 left untouched on `task/T-0020-sc04-pg-connections`).
+Decision / result: before the crash test, reading the loop showed the worker recovered expired claims only at start,
+so a run whose worker crashed would stay `running` forever (Docker restarts the worker before its lease expires);
+fixed with a periodic re-check (`recover_every_s`, 30 s, red then green, 162 passed). On vm-095: H-1 HEALTHY through
+the worker; the worker killed with `kill -9` in the middle of SC-02, the same incident requeued ~5 min later and
+**resumed from its checkpoint** (`incident.resumed`, nothing before the kill repeated), DIAGNOSED. A temporary
+`*/5` schedule: one incident per slot, none resubmitted after a scheduler restart, `schedule.coalesced` while the
+target was busy, the queued check run when the worker came back; shipped file restored. NO INTERFERENCE.
+Consequences: T-0014 is done and waits for review and merge (PR #33); then vm-095 back to `main` (checkout only),
+and T-0021 step 4 (compose for the tools process) can start. Phase 13 "kill the worker mid-run" is covered.
+References: `tasks/current/T-0014-worker-scheduler.md`, `execution/history/T-0014/step-05/evidence.md`.

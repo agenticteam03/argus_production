@@ -1,6 +1,6 @@
 # Current state — the last verified shared state
 
-**As of:** 2026-10-07 (T-0019 batch 1, the db-probe, by `conantkd`) · **Architecture:** v1.8.1 (ACR-0001) · **Status:** `verified` on
+**As of:** 2026-10-08 (T-0014 step 5 on vm-095, by `juanbetancurm`) · **Architecture:** v1.8.1 (ACR-0001) · **Status:** `verified` on
 the VMs; T-0013 (LangGraph + Postgres checkpoints) merged and **deployed: both VMs run `main` `09f5ab1`** (§2) ·
 shared-Brain setup B1–B8 under way (three developers).
 
@@ -41,7 +41,15 @@ and repeated end-to-end runs.
   yet. Evidence: [`execution/history/T-0017/step-03/evidence.md`](execution/history/T-0017/step-03/evidence.md).
   vm-095's checkout was on `task/T-0017-pg-backup-drill` for the drill; back on `main` `f126272` after the merge
   (AFTER-MERGE T-0017, below).
-- **Latest (OBSERVED 2026-10-07, T-0019 batch 1, `conantkd`):** both VMs on `task/T-0019-db-probe` `78afa31`.
+- **Latest (OBSERVED 2026-10-08, T-0014 step 5, `juanbetancurm`):** vm-095 runs `task/T-0014-worker-scheduler`
+  `169ca07` (migration `003_worker_lease` applied): `argus-v18-agent` runs `argus api`, plus `argus-v18-worker` and
+  `argus-v18-scheduler` (no schedule enabled). A worker killed mid-run (SC-02) had its run taken back after the
+  lease expired and **resumed from its checkpoint** (`incident.resumed`, DIAGNOSED); a temporary `*/5` schedule was
+  submitted once per slot, not resubmitted by a restarted scheduler, and coalesced while its target was busy.
+  LAB BASELINE OK, NO INTERFERENCE. vm-166 stays on `task/T-0020-sc04-pg-connections` (not touched). PR #33 merged;
+  vm-095 back on `main` `5cdfd98` (checkout only, nothing restarted; LAB BASELINE OK, NO INTERFERENCE). Evidence:
+  [`execution/history/T-0014/step-05/evidence.md`](execution/history/T-0014/step-05/evidence.md).
+- **Earlier (OBSERVED 2026-10-07, T-0019 batch 1, `conantkd`):** both VMs on `task/T-0019-db-probe` `78afa31`.
   vm-166: `argus-lab-db` (testing only) healthy with the `argus_monitor` role (`pg_monitor`, limit 3),
   `argus-v18-db-probe` on `127.0.0.1:18704`; vm-095: agent rebuilt with `database.health` (Level 3) and the
   `vm-166/db_probe` token; `phase3_check` 33/33; `inspect_database_health` ok; LAB BASELINE OK and NO INTERFERENCE
@@ -80,8 +88,8 @@ and repeated end-to-end runs.
 ## 3. Phase status
 
 See [`IMPLEMENTATION_PLAN.md`](IMPLEMENTATION_PLAN.md) §1. Done or nearly done: 0, 1, 2, 3, 5, 6, 8, 10.
-In progress: 4 (50 %), 7 (50 %), **9 (55 %: LangGraph + checkpoints + OP-006 done; api/worker/scheduler split
-next)**, 11 (60 %: SC-07 done, T-0018), 12 (30 %), 13 (35 %). Not started: 14. Phase 10 (90 %) gets a read-only web UI as new scope:
+In progress: 4 (50 %), 7 (50 %), **9 (75 %: LangGraph + checkpoints + OP-006 done; api/worker/scheduler split
+T-0014 verified on vm-095, PR #33 to merge)**, 11 (60 %: SC-07 done, T-0018), 12 (30 %), 13 (40 %). Not started: 14. Phase 10 (90 %) gets a read-only web UI as new scope:
 T-0015 (API side: done; step 6 proved on vm-095 2026-10-07, a read token gets 403 on a write) and T-0016 (frontend: steps 1-2 merged, PR #24,
 mock-only); UI actions beyond reading need a future ACR (`NEXT_STEP.md`).
 
@@ -114,8 +122,8 @@ mock-only); UI actions beyond reading need a future ACR (`NEXT_STEP.md`).
 - Pending team decision **D-001** (cross-host path and alert direction) and open problems OP-001…OP-003:
   [`OPEN_PROBLEMS.md`](OPEN_PROBLEMS.md).
 - Differences between the architecture text and the running system: [`architecture/SUMMARY.md`](architecture/SUMMARY.md).
-- Nothing resumes an interrupted run automatically yet (no worker recovery loop): that belongs to the
-  api/worker/scheduler split.
+- An interrupted run is resumed automatically by the worker (T-0014, verified on vm-095 2026-10-08) once PR #33
+  merges; until then `main` still has the single-process agent, which takes back every running run at start.
 - Lab baseline: `deploy.sh status` now ends with `LAB BASELINE OK` or names the stopped/unhealthy `argus-lab-*`
   (DEPLOY-MAIN found `argus-lab-cache` stopped for ~7 h; `nonint-check.sh` does not cover Argus objects).
 - vm-095 says "System restart required" — do not reboot (team decision).
