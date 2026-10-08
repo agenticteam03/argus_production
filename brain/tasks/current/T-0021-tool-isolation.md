@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | `planned` (2026-10-08) |
+| Status | `in progress` (2026-10-08): step 1 done |
 | Phase | 4 — tools and guarded execution ([`../../IMPLEMENTATION_PLAN.md`](../../IMPLEMENTATION_PLAN.md)): "MCP tools child, UID `argus-tools`, credential-isolation test" |
 | Architecture | no change (no ACR): implements §12.5 (`ToolCatalogue`, `McpChildProvider`, `InWorkerProvider`, `TOOL_CATALOGUE=mcp\|direct`), §12.6 (process identity), §25 OD-3 (benchmark) |
 | Branch | `task/T-0021-tool-isolation` (steps 1-3 from `main`; step 4 after T-0014 is merged) |
@@ -55,4 +55,14 @@ stay in the worker (`InvokeCapability`). This is the main safety condition befor
 
 ## Red seen / evidence
 
-(none yet)
+- **Step 1 (2026-10-08): the MCP tools server and client.** `tests/test_mcp_tools.py` (8 tests, in-memory
+  transport). Red seen: 7 errors, `No module named 'argus.tooling.mcp'`. Then `argus/tooling/mcp/tools_server.py`
+  (low-level MCP `Server`: lists the `tools_child` read capabilities with their argument schemas; `handle()` refuses
+  an unpublished name (`forbidden`), a bad or out-of-inventory target (`invalid_args` / `out_of_scope`) and invalid
+  arguments before executing, then calls the same `Dispatcher`; a refusal is an `is_error` result with its
+  category), `argus/tooling/mcp/client.py` (`McpToolsClient`: one background thread holds ONE MCP session task,
+  calls are queued to it; a dead or closed server raises `ToolsUnavailable`), `argus/tooling/providers.py`
+  (`McpCatalogue`: `runs_in="worker"` stays in-worker, the rest goes through MCP; `ToolsUnavailable` becomes an
+  `error` / `upstream_error` observation, never a crash). A read through MCP equals the direct read (status, values,
+  redaction, host). Rule 10 guard: only `argus/tooling/mcp/` imports the MCP SDK. `mcp` 2.3.0 added (pure Python
+  wheel). Suite: 127 passed, 6 skipped (Postgres and Docker-in-Docker tests skipped here).
