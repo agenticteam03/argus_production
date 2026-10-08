@@ -1,6 +1,6 @@
 # Current state — the last verified shared state
 
-**As of:** 2026-10-08 (T-0014 step 5 on vm-095, by `juanbetancurm`) · **Architecture:** v1.8.1 (ACR-0001) · **Status:** `verified` on
+**As of:** 2026-10-08 (T-0021 step 5 on vm-095, by `juanbetancurm`) · **Architecture:** v1.8.1 (ACR-0001) · **Status:** `verified` on
 the VMs; T-0013 (LangGraph + Postgres checkpoints) merged and **deployed: both VMs run `main` `09f5ab1`** (§2) ·
 shared-Brain setup B1–B8 under way (three developers).
 
@@ -41,7 +41,15 @@ and repeated end-to-end runs.
   yet. Evidence: [`execution/history/T-0017/step-03/evidence.md`](execution/history/T-0017/step-03/evidence.md).
   vm-095's checkout was on `task/T-0017-pg-backup-drill` for the drill; back on `main` `f126272` after the merge
   (AFTER-MERGE T-0017, below).
-- **Latest (OBSERVED 2026-10-08, T-0014 step 5, `juanbetancurm`):** vm-095 runs `task/T-0014-worker-scheduler`
+- **Latest (OBSERVED 2026-10-08, T-0021 step 5, `juanbetancurm`):** vm-095 runs `task/T-0021-tool-isolation`
+  `a5f330a` (T-0014 included): the worker runs in `mcp` mode (`ARGUS_TOOL_CATALOGUE=mcp` in `/opt/argus-v18/hosts.env`);
+  the 7 executor tokens and their host folders belong to `argus-tools` (uid 10011), so the worker (10010) and the
+  api (which now mounts only `db_password`, `jwt_signing_key`, `openai_api_key`) cannot read them; TOOLS ISOLATION
+  OK; SC-02 DIAGNOSED through the tools process; OD-3 p95 overhead ~45 ms per read; NO INTERFERENCE. **Do not deploy
+  `main` on vm-095 before PR #36 merges** without the rollback first (block R of the evidence): `main`'s api and
+  worker would not start (`missing credential`). Evidence:
+  [`execution/history/T-0021/step-05/evidence.md`](execution/history/T-0021/step-05/evidence.md).
+- **Earlier (OBSERVED 2026-10-08, T-0014 step 5, `juanbetancurm`):** vm-095 runs `task/T-0014-worker-scheduler`
   `169ca07` (migration `003_worker_lease` applied): `argus-v18-agent` runs `argus api`, plus `argus-v18-worker` and
   `argus-v18-scheduler` (no schedule enabled). A worker killed mid-run (SC-02) had its run taken back after the
   lease expired and **resumed from its checkpoint** (`incident.resumed`, DIAGNOSED); a temporary `*/5` schedule was
@@ -88,7 +96,7 @@ and repeated end-to-end runs.
 ## 3. Phase status
 
 See [`IMPLEMENTATION_PLAN.md`](IMPLEMENTATION_PLAN.md) §1. Done or nearly done: 0, 1, 2, 3, 5, 6, 8, 10.
-In progress: 4 (50 %), 7 (50 %), **9 (75 %: LangGraph + checkpoints + OP-006 done; api/worker/scheduler split
+In progress: 4 (85 %: T-0021 verified on vm-095, PR #36 to review), 7 (50 %), **9 (75 %: LangGraph + checkpoints + OP-006 done; api/worker/scheduler split
 T-0014 verified on vm-095, PR #33 to merge)**, 11 (60 %: SC-07 done, T-0018), 12 (30 %), 13 (40 %). Not started: 14. Phase 10 (90 %) gets a read-only web UI as new scope:
 T-0015 (API side: steps 1-5 merged, PR #22; step 6 deploy pending) and T-0016 (frontend: steps 1-2 merged, PR #24,
 mock-only); UI actions beyond reading need a future ACR (`NEXT_STEP.md`).

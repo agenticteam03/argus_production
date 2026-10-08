@@ -17,7 +17,7 @@ calls); the phases below replace each simplification.
 | 1 | Project init | v1.8 code layout, tests | a clean, testable core | ✅ 90 % | tidy as later phases touch it |
 | 2 | Inventory & identity | `vm-095` / `vm-166` as real hosts | the same name on two hosts must never be confused | ✅ done | — |
 | 3 | Target services | read gateway, probes, exporter per VM | Argus reads hosts only through narrow, audited services | ✅ 95 % | DB probe done (T-0019 batch 1); the other §4.6 verbs in T-0019 batches 2–3 |
-| 4 | Tools & guarded execution | every tool call through `InvokeCapability` | policy, audit and host isolation on every read | 🟡 50 % | MCP tools child, UID `argus-tools`, credential-isolation test |
+| 4 | Tools & guarded execution | every tool call through `InvokeCapability` | policy, audit and host isolation on every read | 🟡 85 % | T-0021 verified on vm-095 (worker in `mcp` mode, tokens readable only by `argus-tools`, TOOLS ISOLATION OK, OD-3 p95 overhead ~45 ms); PR #36 to review |
 | 5 | Postgres | system of record (incidents, evidence, audit) | durable insert-only evidence; LangGraph checkpoints need it | ✅ 100 % | — (backup/restore drill done 2026-10-06, T-0017) |
 | 6 | Runbooks | the library drives recall | diagnoses traceable to a runbook version | ✅ 85 % | recall-quality checks per class |
 | 7 | Monitoring & detection | per-host Prometheus, detectors | detect deterministically before any AI | 🟡 50 % | Alertmanager, node-exporter, cAdvisor; pull firing alerts |

@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | `in progress` (2026-10-08): steps 1-4 done; step 5 on vm-095 next |
+| Status | `done` (2026-10-08): steps 1-5 done, verified on vm-095 (worker in `mcp` mode); waits for review (PR #36, normal review: safety model) |
 | Phase | 4 — tools and guarded execution ([`../../IMPLEMENTATION_PLAN.md`](../../IMPLEMENTATION_PLAN.md)): "MCP tools child, UID `argus-tools`, credential-isolation test" |
 | Architecture | no change (no ACR): implements §12.5 (`ToolCatalogue`, `McpChildProvider`, `InWorkerProvider`, `TOOL_CATALOGUE=mcp\|direct`), §12.6 (process identity), §25 OD-3 (benchmark) |
 | Branch | `task/T-0021-tool-isolation` (steps 1-3 from `main`; `main` with T-0014 merged in before step 4) |
@@ -134,6 +134,13 @@ stay in the worker (`InvokeCapability`). This is the main safety condition befor
   every read ok) or `OD-3 STOP`. Tests in `tests/test_mcp_child.py` (an end-to-end run against a fake gateway, and
   the verdict); red seen (`No module named 'argus.tooling.mcp.benchmark'`). Suite: 183 passed, 2 skipped (Postgres
   included).
+- **Step 5d (2026-10-08, vm-095): OD-3.** `DEPLOY OK: a5f330a`, worker `catalogue=mcp`. 30 pairs each on
+  `vm-095/container:argus-lab-api`: `container.status` overhead p50 2.1 ms / **p95 45.7 ms**; `container.logs` p50
+  2.6 ms / **p95 43.1 ms**; no failed read: **OD-3 OK** (budget 100 ms). TOOLS ISOLATION OK, NO INTERFERENCE.
+  Evidence: [`../../execution/history/T-0021/step-05/evidence.md`](../../execution/history/T-0021/step-05/evidence.md).
+  The code default stays `direct` (the decision to flip it is left to the review); vm-095 runs `mcp` through
+  `/opt/argus-v18/hosts.env`. Not done here: SC-07 through the tools process (it needs vm-166's lab; SC-02 on
+  vm-095 was used instead).
 
 ## Step 5 procedure (vm-095, with the lease)
 
