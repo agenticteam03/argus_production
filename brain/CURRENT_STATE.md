@@ -138,6 +138,9 @@ mock-only); UI actions beyond reading need a future ACR (`NEXT_STEP.md`).
 - Pending team decision **D-001** (cross-host path and alert direction) and open problems OP-001…OP-003:
   [`OPEN_PROBLEMS.md`](OPEN_PROBLEMS.md).
 - Differences between the architecture text and the running system: [`architecture/SUMMARY.md`](architecture/SUMMARY.md).
+- **Classes enabled ahead of §21.2:** the 4 enabled classes have lab runs but no `tests/eval/` dataset yet (§3
+  "Enablement"); phase 12 and the evaluation close it (`NEXT_STEP.md`). OP-010: the db-probe is blind at 100 %
+  connection use.
 - An interrupted run is resumed automatically by the worker (T-0014, PR #33 merged). With more than one worker, a
   lost lease renewal would let two workers run the same incident: OP-009 (fix before a second worker).
 - Lab baseline: `deploy.sh status` now ends with `LAB BASELINE OK` or names the stopped/unhealthy `argus-lab-*`

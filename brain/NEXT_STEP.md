@@ -11,8 +11,12 @@ after-merge reviews of #33 and #37 posted (OP-009 opened).
    in `execution/history/T-0021/step-05/` first).
 2. **T-0021 (`juanbetancurm`):** the changes requested in #36; then re-review. When #36 merges, vm-095 goes to `main`
    and its agent gets `postgresql_connection_exhaustion` (the class is in `main` from T-0020 on).
-3. Next work: OP-009 before any second worker; OP-004 checkpoint cleanup; alerting (phase 7); more classes (SC-05
-   disk, SC-06 CPU, SC-08 nginx; below).
+3. Next work: OP-010 (the db-probe's reserved slot, SC-04 at 100 %); OP-009 before any second worker; OP-004
+   checkpoint cleanup; alerting (phase 7); more classes (SC-05 disk, SC-06 CPU, SC-08 nginx; below).
+4. **Evaluation (§21.2, `tests/eval/`) and phase 12 (≥ 5 runs per scenario):** §3 "Enablement" enables a class only
+   when its evaluation passes. The 4 classes enabled so far (including `postgresql_connection_exhaustion`) are
+   enabled ahead of it: they have lab runs (1-2 each), not the §21.2 dataset (≥ 5 labeled cases per class, ≥ 5
+   trials, compared with the deterministic baseline). This is the task that closes that gap.
 
 **Earlier (2026-10-08, `juanbetancurm`):** T-0014 (api / worker / scheduler) is done and verified on vm-095
 ([evidence](execution/history/T-0014/step-05/evidence.md)); PR #33 merged by fast-track (after-merge review by a

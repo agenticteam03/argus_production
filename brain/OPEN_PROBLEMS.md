@@ -16,6 +16,7 @@ When a problem is fixed, set its status to `fixed` with the date, and add a jour
 | **OP-007** | A dependency probe disappears while its owner is restarting, hiding the cause of a crash loop | fixed 2026-10-07 (`owner_active`: running or restarting; deployed on vm-166) | 2026-10-07 |
 | **OP-008** | Postgres backups are never rotated, and the backup's consistency check will stop once the scheduler writes often | accepted 2026-10-07 (PR #31, approved by `juanbetancurm`) — to implement; independent of T-0014 | 2026-10-07 |
 | OP-009 | A worker that loses its lease keeps running the incident; with two workers the same run could execute twice | open (fix before a second worker) | 2026-10-08 |
+| OP-010 | The db-probe cannot connect when every usable slot is taken, so `postgresql_connection_exhaustion` cannot fire at 100 % | open | 2026-10-08 |
 
 ---
 
@@ -364,3 +365,28 @@ flag that the graph runner checks between nodes (cooperative cancel: stop at the
 `renew_claim` returns False: the run stops at the next node and writes no final status.
 
 **Done when.** Both tests pass, and this item is set to `fixed`.
+
+---
+
+## OP-010 — The db-probe is blind when every usable connection slot is taken
+
+**Status:** open · **Opened:** 2026-10-08 · **Found by:** `conantkd` (+ agent), risk review of the T-0020 PR ·
+**Fix with:** its own small task (vm-166 redeploy of `argus-lab-db` and SC-04 at 100 %)
+
+**Problem.** The db-probe connects as `argus_monitor`, an ordinary role that competes for the same usable slots as
+every client. `argus-lab-db` reserves only the superuser slots (`max_connections=20`,
+`superuser_reserved_connections=3`, no `reserved_connections`). If a leak takes all 17 usable slots, the probe
+cannot connect: it publishes only `argus_db_up 0`, `db_connection_usage` has no value, and the class does not match —
+at the worst moment (unknown is never zero, by design). SC-04 opens 16 of 17 on purpose, so this case was not run.
+Only the RB-003 branch (clients already failing) would catch it.
+
+**Proposed fix (general).** Postgres 16: `reserved_connections=1` on the database and
+`GRANT pg_use_reserved_connections TO argus_monitor`, so the monitoring role always has its own slot; the db-probe
+already subtracts `reserved_connections` from the usable count. For real (non-lab) databases, the same two settings
+become a documented prerequisite of the db-probe.
+
+**Tests (red first).** The lab compose declares `reserved_connections` and the init script grants the role; SC-04
+with `SESSIONS` equal to every usable slot still detects `postgresql_connection_exhaustion` (usage 1.0).
+
+**Done when.** The settings are in the lab and documented, SC-04 at 100 % is DIAGNOSED on vm-166, and this item is set
+to `fixed`.
