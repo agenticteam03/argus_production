@@ -56,7 +56,8 @@ class Settings:
     runner: str = field(default_factory=lambda: os.getenv("ARGUS_RUNNER", "plain"))   # plain | langgraph (T-0013)
     # T-0021 (§12.5 TOOL_CATALOGUE): target-side reads in-process (direct) or in the MCP tools process (mcp)
     tool_catalogue: str = field(default_factory=lambda: os.getenv("ARGUS_TOOL_CATALOGUE", "direct"))
-    # the interpreter that starts the tools process, optionally behind a UID switch (T-0021 step 3)
+    # the whole command that starts the tools process (T-0021 step 3: the sudo launcher to the argus-tools UID);
+    # empty = this interpreter, `-m argus.tooling.mcp.tools_server`
     tools_command: list[str] = field(default_factory=lambda: os.getenv("ARGUS_TOOLS_COMMAND", "").split())
     metrics_max_staleness_s: int = field(default_factory=lambda: int(os.getenv("ARGUS_METRICS_MAX_STALENESS", "90")))
     jwt_ttl_min: int = field(default_factory=lambda: int(os.getenv("ARGUS_JWT_TTL_MIN", "30")))
@@ -99,13 +100,15 @@ class App:
     llm_configured: bool
 
 
-def _credentials(s: Settings, inventory: YamlInventory, require: bool, errors: list[str]) -> dict[tuple[str, str], str]:
+def _credentials(s: Settings, inventory: YamlInventory, require: bool, errors: list[str],
+                 load: bool = True) -> dict[tuple[str, str], str]:
+    """Executor tokens. `load=False` (the worker in `mcp` mode, §12.6): validate the inventory, read no token."""
     creds: dict[tuple[str, str], str] = {}
     for h in inventory.hosts():
         for ex in h.executors:
             if ex not in EXECUTOR_KINDS:
                 errors.append(f"host {h.name}: unknown executor {ex}")
-            if ex == "prometheus":
+            if ex == "prometheus" or not load:
                 continue
             tok = s.secret(f"{h.name}/{ex}_token")
             if tok is None and require:
@@ -161,7 +164,7 @@ def build(settings: Settings | None = None, llm=None, metrics=None, executors: E
                 errors.append(f"class {c.name} needs unknown signal {sig}")
     if s.tool_catalogue not in ("direct", "mcp"):
         errors.append(f"ARGUS_TOOL_CATALOGUE must be 'direct' or 'mcp', not {s.tool_catalogue!r}")
-    creds = _credentials(s, inventory, require_credentials, errors)
+    creds = _credentials(s, inventory, require_credentials, errors, load=s.tool_catalogue != "mcp")
     if errors:
         raise SystemExit("startup validation failed:\n  " + "\n  ".join(errors))
 

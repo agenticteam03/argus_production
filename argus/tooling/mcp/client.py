@@ -134,10 +134,10 @@ class McpToolsClient:
 
 
 def child_client(env: dict[str, str], command: list[str] | None = None, timeout_s: float = 30.0) -> McpToolsClient:
-    """The real tools process: `<command> -m argus.tooling.mcp.tools_server` over stdio. `command` is the Python
-    interpreter, optionally behind a UID switch (step 3: setpriv to `argus-tools`); `env` names the config and the
-    secrets folder the child reads (MCP passes only a minimal environment otherwise)."""
+    """The real tools process over stdio. `command` is the whole command line (in the image: the sudo launcher that
+    starts the tools server as `argus-tools`, §12.6); `None` = this interpreter with `-m argus.tooling.mcp.tools_server`.
+    `env` names the config and the secrets folder (MCP passes only a minimal environment otherwise)."""
     from mcp.client.stdio import StdioServerParameters
-    cmd = command or [sys.executable]
-    params = StdioServerParameters(command=cmd[0], args=[*cmd[1:], "-m", "argus.tooling.mcp.tools_server"], env=env)
+    cmd = command or [sys.executable, "-m", "argus.tooling.mcp.tools_server"]
+    params = StdioServerParameters(command=cmd[0], args=cmd[1:], env=env)
     return McpToolsClient(params, timeout_s)

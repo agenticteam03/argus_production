@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | `in progress` (2026-10-08): steps 1-2 done |
+| Status | `in progress` (2026-10-08): steps 1-3 done; step 4 after T-0014 merges |
 | Phase | 4 — tools and guarded execution ([`../../IMPLEMENTATION_PLAN.md`](../../IMPLEMENTATION_PLAN.md)): "MCP tools child, UID `argus-tools`, credential-isolation test" |
 | Architecture | no change (no ACR): implements §12.5 (`ToolCatalogue`, `McpChildProvider`, `InWorkerProvider`, `TOOL_CATALOGUE=mcp\|direct`), §12.6 (process identity), §25 OD-3 (benchmark) |
 | Branch | `task/T-0021-tool-isolation` (steps 1-3 from `main`; step 4 after T-0014 is merged) |
@@ -26,6 +26,10 @@ stay in the worker (`InvokeCapability`). This is the main safety condition befor
   and `direct` is the rollback (§12.5, OD-3).
 - **The api and scheduler stop receiving executor tokens** (§12.6): building the application for the api no longer
   loads them; only the tools process reads them.
+- **The UID switch is a single sudo rule** (decided in step 3): the worker (`argus`, not root) may start exactly
+  `/usr/local/bin/argus-tools-server` as `argus-tools`, with no arguments; the launcher is root-owned and fixes its
+  own environment. A non-root process cannot `setpriv` to another UID, and running the worker as root would let it
+  read the tokens. A compromised worker can only ask the tools server for the published reads.
 - **One tools process per worker, started once and restarted if it dies** (a dead child → the call returns an
   `error` observation, never a crash, never a retry of a write: there are no writes here).
 
@@ -78,3 +82,15 @@ stay in the worker (`InvokeCapability`). This is the main safety condition befor
   `Settings`; in `mcp` mode the worker's dispatcher holds no executor token. An investigation through MCP gives the
   same reads and outcome as `direct`. Credential loading and the target executors moved into `_credentials()` /
   `_target_executors()`, shared by `build()` and the tools process. Suite: 131 passed, 6 skipped.
+- **Step 3 (2026-10-08): credential isolation.** `tests/test_tool_isolation.py` (4 offline tests + 1 real-image
+  test with `ARGUS_TEST_DOCKER=1`). Red seen: 4 failed (in `mcp` mode `build()` still demanded every executor token;
+  `ARGUS_TOOLS_COMMAND` was not the whole command; no sudoers rule, no launcher, no `isolation_check`). Then: in
+  `mcp` mode the worker reads no executor token (`_credentials(load=False)`: the inventory is still validated);
+  `ARGUS_TOOLS_COMMAND` is the whole command line; `deploy/agent/argus-tools-server` (the root-owned launcher) and
+  `deploy/agent/argus-tools.sudoers` (`argus ALL=(argus-tools) NOPASSWD: /usr/local/bin/argus-tools-server ""`);
+  `Dockerfile`: `sudo` installed, user `argus-tools` (uid 10011), the launcher and the rule copied, the tools command
+  set; `python -m argus.tooling.isolation_check` (read-only, for vm-095 in step 5). Real image (built on the laptop,
+  tokens `0400 argus-tools`, run as `argus`): `TOOLS ISOLATION OK` — the worker reads no token; sudo refuses `cat` of
+  a token, an argument to the launcher, and root; the tools process starts as `argus-tools` and lists its 16
+  capabilities. With the tokens readable by the worker: `TOOLS ISOLATION STOP`. Suite: 135 passed, 7 skipped.
+
