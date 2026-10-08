@@ -16,7 +16,7 @@ When a problem is fixed, set its status to `fixed` with the date, and add a jour
 | **OP-007** | A dependency probe disappears while its owner is restarting, hiding the cause of a crash loop | fixed 2026-10-07 (`owner_active`: running or restarting; deployed on vm-166) | 2026-10-07 |
 | **OP-008** | Postgres backups are never rotated, and the backup's consistency check will stop once the scheduler writes often | accepted 2026-10-07 (PR #31, approved by `juanbetancurm`) — to implement; independent of T-0014 | 2026-10-07 |
 | OP-009 | A worker that loses its lease keeps running the incident; with two workers the same run could execute twice | open (fix before a second worker) | 2026-10-08 |
-| OP-010 | The db-probe cannot connect when every usable slot is taken, so `postgresql_connection_exhaustion` cannot fire at 100 % | open | 2026-10-08 |
+| OP-010 | The db-probe cannot connect when every usable slot is taken, so `postgresql_connection_exhaustion` cannot fire at 100 % | in progress | 2026-10-08 |
 
 ---
 
@@ -373,8 +373,9 @@ flag that the graph runner checks between nodes (cooperative cancel: stop at the
 
 ## OP-010 — The db-probe is blind when every usable connection slot is taken
 
-**Status:** open · **Opened:** 2026-10-08 · **Found by:** `conantkd` (+ agent), risk review of the T-0020 PR ·
-**Fix with:** its own small task (vm-166 redeploy of `argus-lab-db` and SC-04 at 100 %)
+**Status:** in progress 2026-10-08 (`task/OP-010-reserved-slot`, on top of `task/T-0022-alerting`) · **Opened:**
+2026-10-08 · **Found by:** `conantkd` (+ agent), risk review of the T-0020 PR · **Fix with:** its own small task
+(vm-166 redeploy of `argus-lab-db` and SC-04 at 100 %)
 
 **Problem.** The db-probe connects as `argus_monitor`, an ordinary role that competes for the same usable slots as
 every client. `argus-lab-db` reserves only the superuser slots (`max_connections=20`,
