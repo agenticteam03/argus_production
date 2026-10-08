@@ -46,8 +46,8 @@ and repeated end-to-end runs.
   `argus-v18-scheduler` (no schedule enabled). A worker killed mid-run (SC-02) had its run taken back after the
   lease expired and **resumed from its checkpoint** (`incident.resumed`, DIAGNOSED); a temporary `*/5` schedule was
   submitted once per slot, not resubmitted by a restarted scheduler, and coalesced while its target was busy.
-  LAB BASELINE OK, NO INTERFERENCE. vm-166 stays on `task/T-0020-sc04-pg-connections` (not touched). vm-095 back to
-  `main` after PR #33 merges (checkout only). Evidence:
+  LAB BASELINE OK, NO INTERFERENCE. vm-166 stays on `task/T-0020-sc04-pg-connections` (not touched). PR #33 merged;
+  vm-095 back on `main` `5cdfd98` (checkout only, nothing restarted; LAB BASELINE OK, NO INTERFERENCE). Evidence:
   [`execution/history/T-0014/step-05/evidence.md`](execution/history/T-0014/step-05/evidence.md).
 - **Earlier (OBSERVED 2026-10-07, T-0019 batch 1, `conantkd`):** both VMs on `task/T-0019-db-probe` `78afa31`.
   vm-166: `argus-lab-db` (testing only) healthy with the `argus_monitor` role (`pg_monitor`, limit 3),
