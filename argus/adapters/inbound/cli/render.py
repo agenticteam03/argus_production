@@ -81,8 +81,10 @@ class Formatter:
             color, tag = EXECUTOR_TAG.get(d.get("executor") or "none", ("d", d.get("executor", "?")))
             ok = d.get("status") == "ok"
             mark = self._k("g", "✓") if ok else self._k("r", "✗ " + str(d.get("status")))
-            out.append(f"  {self._k(color, f'[{tag:>6}@{d.get('host')}]')} {self._k('b', f'{d.get('tool', ''):<24}')} {mark} "
-                       + self._k("d", str(d.get("result", ""))[: max(20, self.w - 46)]))
+            out.append(f"  {self._k(color, f'[{tag:>6}@{d.get('host')}]')} {self._k('b', f'{d.get('tool', ''):<24}')} {mark}")
+            # The result wraps under the tool line instead of being cut to fit (SC-07 demo: `vm-166/container:arg`).
+            lines = textwrap.wrap(str(d.get("result", "")), max(20, self.w - 6), max_lines=4, placeholder=" …")
+            out += [self._k("d", "    " + ln) for ln in lines]
         elif node == "record" and phase == "exit":
             color, label = OUTCOME.get(str(d.get("outcome")), ("y", str(d.get("outcome"))))
             out.append(f"  outcome: {self._k(color, self._k('b', label))}"
