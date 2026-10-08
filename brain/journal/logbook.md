@@ -553,3 +553,16 @@ needed for `setpriv` → `sudo`), after-merge reviews of #33 and #37 posted. OP-
 Consequences: T-0020 is done and waits for review. vm-095 runs T-0021 without T-0020, so the class reaches the agent
 when vm-095 is back on `main`. Phase 11 at 70 %.
 References: `tasks/current/T-0020-sc04-pg-connections.md`, `execution/history/T-0020/`, OPEN_PROBLEMS OP-009, PRs #33-#37.
+
+## 2026-10-08 — OP-009: a worker that loses its lease stops its run (OP-009)
+
+Type: fix
+Who: conantkd (+ agent)
+Context: the after-merge review of PR #33 found that the renewer only logged a lost claim, and died silently on a
+database error, while the run went on; with two workers the same incident could run twice.
+Decision: cooperative cancel instead of fencing every write: the worker owns the decision (retry while the lease
+lasts, then cancel), the runner checks one signal at its node boundaries, before reads and before the final record.
+The LangGraph checkpoint stays at the last completed node, so the new owner resumes. One clock per lease in Postgres.
+Consequences: a second worker is safe from double runs. Code only, no VM change; reaches vm-095 with the next agent
+rebuild. Branch on top of T-0020 (PR #38), because OP-009 is written there.
+References: OPEN_PROBLEMS OP-009, `tests/test_op009_lease_loss.py`.

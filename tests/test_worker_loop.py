@@ -23,7 +23,7 @@ class SlowRunner:
     def __init__(self, seconds=0.0, fail_on=()):
         self.seconds, self.fail_on, self.ran = seconds, set(fail_on), []
 
-    def run(self, incident_id):
+    def run(self, incident_id, cancel=None):   # OP-009: the worker passes its lost-claim signal
         self.ran.append(incident_id)
         time.sleep(self.seconds)
         if incident_id in self.fail_on:
