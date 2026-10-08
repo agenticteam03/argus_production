@@ -263,8 +263,9 @@ def test_http_auth_and_webhook(make_app):
                     json={"target": "vm-166/container:argus-lab-worker"}).status_code == 403
     app.store.set_disabled("alice", True)
     assert api.get("/api/v1/incidents", headers=h).status_code == 401
-    alert = {"alerts": [{"status": "firing", "fingerprint": "f1", "startsAt": "t",
-                         "labels": {"alertname": "ContainerRestartLoop", "argus_host": "vm-095", "container": "worker"}}]}
+    alert = {"alerts": [{"status": "firing", "fingerprint": "f1", "startsAt": "2026-10-08T12:00:00Z",
+                         "labels": {"alertname": "ContainerRestartLoop", "argus_host": "vm-095",
+                                    "container": "argus-lab-api"}}]}
     assert hook.post("/api/v1/alerts", json=alert).status_code == 401
     ok = hook.post("/api/v1/alerts", json=alert, headers={"Authorization": "Bearer am-token-123"}).json()
     assert len(ok["accepted"]) == 1

@@ -5,11 +5,15 @@ into intake with the identity `schedule_id + scheduled_for` (§6.6), so a restar
 twice. A target that already has a queued or running incident gets a `schedule.coalesced` audit event on that
 incident instead of a second run (§6.5 skip-if-active). It never calls a detector, the model or the graph: the worker
 runs what it submits. Missed slots (scheduler down) are not replayed; only the latest due slot is submitted.
+
+T-0022 (ACR-0002): in a pull transport profile it also runs `ReconcileFiringAlerts` every `every_s` seconds
+(`reconcile_firing_alerts` in the same file): the firing alerts of each host's Alertmanager become incidents.
 """
 from __future__ import annotations
 
 import logging
 import threading
+import time
 import uuid
 from dataclasses import dataclass
 from datetime import datetime
@@ -21,6 +25,28 @@ from argus.domain.model import AuditRecord, Incident, RequestKind, TargetRef, Tr
 
 log = logging.getLogger("argus.scheduler")
 FIELDS = {"id", "cron", "target", "reason", "enabled"}
+RECONCILE_FIELDS = {"enabled", "every_s"}
+RECONCILE_MIN_EVERY_S = 30
+
+
+@dataclass(frozen=True)
+class ReconcileConfig:
+    enabled: bool = False
+    every_s: int = 60
+
+
+def load_reconcile(text: str) -> ReconcileConfig:
+    """`reconcile_firing_alerts` (§7.3): absent = off (a push profile). A bad value refuses the file."""
+    item = (yaml.safe_load(text) or {}).get("reconcile_firing_alerts")
+    if not item:
+        return ReconcileConfig()
+    extra = set(item) - RECONCILE_FIELDS
+    if extra:
+        raise ValueError(f"reconcile_firing_alerts: unknown field {sorted(extra)}")
+    every = int(item.get("every_s", 60))
+    if every < RECONCILE_MIN_EVERY_S:
+        raise ValueError(f"reconcile_firing_alerts: every_s {every} is below the minimum of {RECONCILE_MIN_EVERY_S}")
+    return ReconcileConfig(enabled=bool(item.get("enabled", False)), every_s=every)
 
 
 @dataclass(frozen=True)
@@ -64,9 +90,10 @@ def load_schedules(text: str, inventory, min_interval_s: int) -> list[Schedule]:
 
 
 class Scheduler:
-    def __init__(self, store, schedules: list[Schedule]):
+    def __init__(self, store, schedules: list[Schedule], reconcile=None, reconcile_every_s: int = 60):
         self.store = store
         self.schedules = schedules
+        self.reconcile, self.reconcile_every_s = reconcile, reconcile_every_s   # ReconcileFiringAlerts or None
         self._last: dict[str, datetime] = {}
 
     def tick(self, now: datetime) -> list[tuple[str, str]]:
@@ -101,10 +128,17 @@ class Scheduler:
         return "duplicate" if duplicate else "submitted"
 
     def run_forever(self, stop: threading.Event, every_s: float = 15.0) -> None:
+        next_reconcile = time.monotonic()
         while not stop.is_set():
             try:
                 self.tick(utcnow())
             except Exception:                  # a database hiccup must not kill the scheduler; next tick retries
                 log.exception("tick failed")
+            if self.reconcile is not None and time.monotonic() >= next_reconcile:
+                next_reconcile = time.monotonic() + self.reconcile_every_s
+                try:
+                    log.info("reconcile firing alerts: %s", self.reconcile.run_once())
+                except Exception:              # same rule: the next pass retries
+                    log.exception("reconcile failed")
             stop.wait(every_s)
 

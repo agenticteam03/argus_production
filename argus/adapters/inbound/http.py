@@ -14,7 +14,9 @@ from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from pwdlib import PasswordHash
 from pydantic import BaseModel, ConfigDict
 
-from argus.domain.model import AuditRecord, Incident, Principal, RequestKind, TargetRef, TriggerKind, utcnow
+from argus.application.alerts import HandleAlertNotification
+from argus.domain.model import (AlertNotification, AuditRecord, Incident, Principal, RequestKind, TargetRef, TriggerKind,
+                                utcnow)
 
 READ_METHODS = ("GET", "HEAD")          # a read-only token (ACR-0001) may use only these
 
@@ -174,24 +176,20 @@ def build_webhook(app_ctx) -> FastAPI:
         given = (authorization or "").removeprefix("Bearer ").strip()
         if not expected or not hmac.compare_digest(given, expected):
             raise HTTPException(401, "unauthorized")
+        # ACR-0002: the same use case as the pull reconciliation, so a pushed and a pulled alert are one incident.
+        handle = HandleAlertNotification(app_ctx.store, app_ctx.inventory)
         created = []
         for a in payload.get("alerts", []):
-            if a.get("status") != "firing":
-                continue
-            labels = a.get("labels", {})
-            host, name = labels.get("argus_host"), labels.get("container") or labels.get("owner")
-            if not host or not name:
-                continue
             try:
-                target = TargetRef(host=host, kind="container", name=name)
+                note = AlertNotification(fingerprint=str(a.get("fingerprint", "")), status=a.get("status"),
+                                         starts_at=a.get("startsAt"), ends_at=None,
+                                         labels=a.get("labels") or {}, annotations=a.get("annotations") or {})
             except ValueError:
                 continue
-            key = f"alert:{a.get('fingerprint')}:{a.get('startsAt')}"
-            inc = new_incident(target, TriggerKind.alert, RequestKind.report,
-                               f"alert {labels.get('alertname')}: {a.get('annotations', {}).get('summary', '')}",
-                               "alertmanager", key)
-            inc, dup = app_ctx.store.create_incident(inc, key)
-            created.append({"incident_id": inc.id, "duplicate": dup})
+            host = note.labels.get("argus_host", "?")
+            r = handle(note, source=f"alertmanager@{host}")
+            if r.incident_id:
+                created.append({"incident_id": r.incident_id, "duplicate": r.disposition == "duplicate"})
         return {"accepted": created}
 
     @hook.get("/healthz")
