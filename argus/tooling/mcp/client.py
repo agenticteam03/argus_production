@@ -2,12 +2,14 @@
 
 The worker is synchronous; MCP is async. One background thread runs an event loop with ONE long-lived session task
 (MCP/anyio contexts must be entered and left in the same task); calls are queued to it and wait for their answer.
-`server` is an in-process `Server` (tests) or `StdioServerParameters` (the real child process).
+`server` is an in-process `Server` (tests) or `StdioServerParameters` (the real child process). A call that fails in
+the transport (the child died) ends the session: that call becomes `ToolsUnavailable`, the next one starts a new child.
 """
 from __future__ import annotations
 
 import asyncio
 import json
+import sys
 import threading
 from dataclasses import dataclass
 from typing import Any
@@ -34,6 +36,7 @@ class McpToolsClient:
         self._server, self.timeout_s = server, timeout_s
         self.calls = 0
         self._closed = False
+        self._broken = False
         self._loop: asyncio.AbstractEventLoop | None = None
         self._queue: asyncio.Queue | None = None
         self._ready = threading.Event()
@@ -46,10 +49,12 @@ class McpToolsClient:
         with self._lock:
             if self._closed:
                 raise ToolsUnavailable("the tools client is closed")
-            if self._thread is not None and self._thread.is_alive() and self._error is None:
+            if self._thread is not None and self._thread.is_alive() and self._error is None and not self._broken:
                 return
+            if self._thread is not None:
+                self._thread.join(self.timeout_s)          # let a broken session finish closing its child
             self._ready.clear()
-            self._error = None
+            self._error, self._broken = None, False
             self._thread = threading.Thread(target=self._run, name="argus-mcp-client", daemon=True)
             self._thread.start()
         if not self._ready.wait(self.timeout_s) or self._error is not None:
@@ -76,10 +81,11 @@ class McpToolsClient:
                     return
                 fn, fut = job
                 try:
-                    result = await fn(client)
-                except Exception as e:        # noqa: BLE001 - handed to the caller as its answer
-                    result = e
-                fut.set_result(result)
+                    fut.set_result(await fn(client))
+                except Exception as e:        # noqa: BLE001 - the transport failed: answer, then end the session
+                    self._broken = True
+                    fut.set_result(e)
+                    return
 
     def _submit(self, fn) -> Any:
         self._ensure()
@@ -125,3 +131,13 @@ class McpToolsClient:
             except (ValueError, KeyError):
                 return Refusal("forbidden", text or "refused by the tools server")
         return Observation.model_validate_json(text)
+
+
+def child_client(env: dict[str, str], command: list[str] | None = None, timeout_s: float = 30.0) -> McpToolsClient:
+    """The real tools process: `<command> -m argus.tooling.mcp.tools_server` over stdio. `command` is the Python
+    interpreter, optionally behind a UID switch (step 3: setpriv to `argus-tools`); `env` names the config and the
+    secrets folder the child reads (MCP passes only a minimal environment otherwise)."""
+    from mcp.client.stdio import StdioServerParameters
+    cmd = command or [sys.executable]
+    params = StdioServerParameters(command=cmd[0], args=[*cmd[1:], "-m", "argus.tooling.mcp.tools_server"], env=env)
+    return McpToolsClient(params, timeout_s)

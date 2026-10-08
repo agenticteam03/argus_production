@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | `in progress` (2026-10-08): step 1 done |
+| Status | `in progress` (2026-10-08): steps 1-2 done |
 | Phase | 4 — tools and guarded execution ([`../../IMPLEMENTATION_PLAN.md`](../../IMPLEMENTATION_PLAN.md)): "MCP tools child, UID `argus-tools`, credential-isolation test" |
 | Architecture | no change (no ACR): implements §12.5 (`ToolCatalogue`, `McpChildProvider`, `InWorkerProvider`, `TOOL_CATALOGUE=mcp\|direct`), §12.6 (process identity), §25 OD-3 (benchmark) |
 | Branch | `task/T-0021-tool-isolation` (steps 1-3 from `main`; step 4 after T-0014 is merged) |
@@ -49,7 +49,8 @@ stay in the worker (`InvokeCapability`). This is the main safety condition befor
 
 ## Done when
 
-- The full offline suite passes with `TOOL_CATALOGUE=direct` and `mcp`; the red of steps 1-3 is recorded below.
+- The full offline suite passes; an investigation gives the same reads and outcome through `mcp` as `direct`; the
+  red of steps 1-3 is recorded below.
 - On vm-095 the worker UID cannot read an executor token; a diagnosis runs through the tools process; OD-3 recorded.
 - Brain: `CURRENT_STATE.md`, `tdd/CURRENT_TEST_STATE.md`, `IMPLEMENTATION_PLAN.md` (phase 4), a logbook entry.
 
@@ -66,3 +67,14 @@ stay in the worker (`InvokeCapability`). This is the main safety condition befor
   `error` / `upstream_error` observation, never a crash). A read through MCP equals the direct read (status, values,
   redaction, host). Rule 10 guard: only `argus/tooling/mcp/` imports the MCP SDK. `mcp` 2.3.0 added (pure Python
   wheel). Suite: 127 passed, 6 skipped (Postgres and Docker-in-Docker tests skipped here).
+- **Step 2 (2026-10-08): the real child process.** `tests/test_mcp_child.py` (4 tests). Red seen: 4 failed
+  (`cannot import name 'child_client'`; `ARGUS_TOOL_CATALOGUE=mcp` still gave the `DirectProvider`). Then
+  `child_client(env, command)` starts `<python> -m argus.tooling.mcp.tools_server` over stdio, passing only
+  `ARGUS_CONFIG_DIR` / `ARGUS_SECRETS_DIR` (+ `PYTHONPATH`); the child builds its own dispatcher with
+  `wiring.tools_dispatcher()` (catalogue, inventory, executor tokens: no database, no model key, no runbooks). A call
+  that fails in the transport ends the session: that call is an `error` observation, the next call starts a new
+  child (test: the child is killed with SIGKILL, then answers again). `ARGUS_TOOL_CATALOGUE=direct|mcp` (default
+  `direct`; anything else refuses startup) and `ARGUS_TOOLS_COMMAND` (the interpreter, for step 3's UID switch) in
+  `Settings`; in `mcp` mode the worker's dispatcher holds no executor token. An investigation through MCP gives the
+  same reads and outcome as `direct`. Credential loading and the target executors moved into `_credentials()` /
+  `_target_executors()`, shared by `build()` and the tools process. Suite: 131 passed, 6 skipped.
