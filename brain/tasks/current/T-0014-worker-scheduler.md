@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | `in progress` (2026-10-08): steps 1-4 done; step 5 on vm-095 in progress (5a done) |
+| Status | `done` (2026-10-08): steps 1-5 done, step 5 verified on vm-095; waits for review and merge (PR #33) |
 | Phase | 9 — agent workflow ([`../../IMPLEMENTATION_PLAN.md`](../../IMPLEMENTATION_PLAN.md)): "a real worker and scheduler" |
 | Architecture | no change (no ACR): implements ARCHITECTURE §6.2 (intake claim + lease recovery), §6.5 (skip-if-active, maximum queued age), §6.6 (scheduled identity), §7.3 (scheduler), §3 containers `argus-api` / `argus-worker` / `argus-scheduler` |
 | Branch | `task/T-0014-worker-scheduler` |
@@ -125,4 +125,15 @@ one by one, holds a renewable claim on each, and resumes an interrupted run from
   have stayed `running` forever. Test `test_a_running_worker_takes_back_a_claim_that_expires_later`, red seen
   (`unexpected keyword argument 'recover_every_s'`); the worker now re-checks every `recover_every_s` (30 s) while it
   runs. Suite: 162 passed, 1 skipped (Docker-in-Docker), Postgres included.
+- **Step 5b (2026-10-08, vm-095): the worker killed mid-run.** Run 1 was inconclusive (the investigation ended
+  before the kill). Run 2: SC-02 `inc_a9ddbfee2626`, `kill -9` of the worker ~2 s after `running` (still in
+  progress); Docker restarted it within 14 s; at 12:50:09 (lease 300 s + re-check) `requeued 1 runs whose claim
+  expired` and `running inc_a9ddbfee2626` again; audit `incident.resumed {"next": ["investigate"]}`; start, strategy
+  and recall not repeated; DIAGNOSED (`container_restart_loop`, missing `/etc/worker/config.yml`). NO INTERFERENCE.
+- **Step 5c (2026-10-08, vm-095): the scheduler.** Schedule `t14-step5c` (`*/5`, `vm-095/container:argus-lab-api`)
+  enabled temporarily in the VM checkout: slots 13:05 and 13:10 submitted and closed `no_incident`; worker stopped,
+  13:15 slot `queued`; scheduler restarted, the 13:15 slot **not** submitted again; 13:20 slot `coalesced` on the
+  queued incident (audit `schedule.coalesced`); worker started, the queued check ran (`no_incident`, not stale).
+  Undo: shipped file restored (`0 enabled`), LAB BASELINE OK, NO INTERFERENCE. Evidence:
+  [`../../execution/history/T-0014/step-05/evidence.md`](../../execution/history/T-0014/step-05/evidence.md).
 
