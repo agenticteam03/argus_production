@@ -103,6 +103,26 @@ stay in the worker (`InvokeCapability`). This is the main safety condition befor
   `openai_api_key` (its status reports `llm_configured`), the worker keeps the folder and gets
   `ARGUS_TOOL_CATALOGUE=${ARGUS_TOOL_CATALOGUE:-direct}`, the scheduler is unchanged (database only). `docker compose
   config` valid. Suite: 180 passed, 2 skipped (Docker-in-Docker tests), Postgres included.
+- **Step 5a-5b (2026-10-08, vm-095).** 5a (read-only): the api's three files exist (`400 10010`); 7 executor tokens
+  `400 10010` in host folders `500 10010`. 5b: `DEPLOY OK: a4c31f3`, image rebuilt, api / worker / scheduler
+  recreated in `direct` mode: the api sees only `db_password jwt_signing_key openai_api_key`, the scheduler only
+  `db_password`; the image has `argus-tools` (uid 10011), the sudoers rule and the launcher; no startup errors;
+  H-1 HEALTHY; NO INTERFERENCE.
+- **Fix found before the ownership change (2026-10-08).** `isolation_check` found the tokens by listing the host
+  folders; once those belong to `argus-tools` the worker cannot list them, so the check would have said "0 tokens"
+  and STOP although the isolation works. Test `test_isolation_check_takes_the_token_list_from_the_inventory`, red
+  seen; the expected tokens now come from the inventory, and their presence is proved by the tools process starting
+  (it refuses to start without every token). `isolation-test-setup.sh` now builds vm-095's exact layout (secrets
+  folder `0501 argus`, host folders `0500 argus-tools`, tokens `0400 argus-tools`); the real image prints
+  `TOOLS ISOLATION OK` with 7 tokens expected and none readable.
+- **Step 5c (2026-10-08, vm-095, run with `a4c31f3`, before the fix was deployed).** Ownership changed: secrets
+  folder `501 10010`, `vm-095/` and `vm-166/` `500 10011`, the 7 tokens `400 10011`, the api files unchanged
+  (`400 10010`). `ARGUS_TOOL_CATALOGUE=mcp` added to `/opt/argus-v18/hosts.env`; worker recreated, `catalogue=mcp`,
+  no errors. The old `isolation_check` printed the expected false `FAIL executor tokens are present: 0` (it could not
+  list the folders) and STOP, and skipped its sudo probes; its other lines were ok (none readable; the sudo
+  launcher; the tools process lists 16 capabilities). SC-02 `inc_757f21772cef` DIAGNOSED through the tools process
+  (`container.status`, `container.logs`: ok); `docker top`: `python -m argus worker` as uid 10010 and
+  `python -m argus.tooling.mcp.tools_server` as uid 10011. Lab reset, LAB BASELINE OK, NO INTERFERENCE.
 
 ## Step 5 procedure (vm-095, with the lease)
 
@@ -110,8 +130,12 @@ stay in the worker (`InvokeCapability`). This is the main safety condition befor
    list the token files with owner and mode; NO INTERFERENCE before.
 2. Deploy the branch; rebuild the agent image (`sudo`, user `argus-tools`); recreate api, worker, scheduler (still
    `direct`): H-1 HEALTHY; the api container has no token folder.
-3. Token ownership: `chown 10011:10011` and `chmod 0400` on `secrets/agent/<host>/*_token` only (the api files stay
-   `argus`). From here `direct` cannot read them: the rollback to `direct` is `chown 10010:10010` back.
+3. Token ownership (5a found every token `400 10010` in host folders `500 10010`, the secrets folder `500 10010`):
+   the host folders `vm-095/`, `vm-166/` and their `*_token` files to `10011:10011` (folders `0500`, files `0400`);
+   the secrets folder stays `10010` but becomes `0501`, so argus-tools may traverse it (the parent
+   `/opt/argus-v18/secrets` is `700 root`, so no host user gains anything); the api files stay `400 10010`. From
+   here `direct` cannot read the tokens: the rollback to `direct` is the folders and files back to `10010` and the
+   secrets folder back to `0500`.
 4. `ARGUS_TOOL_CATALOGUE=mcp` for the worker; `docker exec argus-v18-worker python -m argus.tooling.isolation_check`
    must print `TOOLS ISOLATION OK`; H-1 and SC-07 through the tools process; the OD-3 benchmark (p95 overhead per
    call < 100 ms, `mcp` vs `direct`); NO INTERFERENCE.

@@ -74,6 +74,21 @@ def test_isolation_check_says_stop_when_the_worker_can_read_a_token(tmp_path, mo
     assert any(ln.startswith("FAIL") and "cannot read" in ln for ln in out)
 
 
+def test_isolation_check_takes_the_token_list_from_the_inventory(tmp_path, monkeypatch, capsys):
+    """T-0021 step 5: on vm-095 the token folders belong to argus-tools, so the worker cannot even list them. The
+    check must not mistake "cannot see" for "missing": the expected tokens come from the inventory, and their presence
+    is proved by the tools process starting (it refuses to start without every token)."""
+    from argus.tooling import isolation_check
+    monkeypatch.setenv("ARGUS_SECRETS_DIR", str(tmp_path / "unlistable"))
+    monkeypatch.setenv("ARGUS_CONFIG_DIR", str(ROOT / "config"))
+    monkeypatch.setenv("ARGUS_TOOLS_COMMAND", "")
+    isolation_check.main()
+    out = capsys.readouterr().out.splitlines()
+    assert not any(ln.startswith("FAIL") and "token" in ln for ln in out), out
+    assert any(ln.startswith("ok") and "cannot read any executor token" in ln and "expected by the inventory" in ln
+               for ln in out), out
+
+
 @pytest.mark.skipif(os.getenv("ARGUS_TEST_DOCKER") != "1" or shutil.which("docker") is None,
                     reason="ARGUS_TEST_DOCKER=1 not set (needs Docker)")
 def test_the_agent_image_isolates_the_tokens():

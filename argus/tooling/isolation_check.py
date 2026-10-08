@@ -2,8 +2,8 @@
 
     docker exec argus-v18-worker python -m argus.tooling.isolation_check
 
-Read-only. The last line is TOOLS ISOLATION OK or TOOLS ISOLATION STOP. Checks: executor tokens exist; this user can
-read none of them; sudo lets it start the tools-server launcher as argus-tools and nothing else (no `cat` of a token,
+Read-only. The last line is TOOLS ISOLATION OK or TOOLS ISOLATION STOP. Checks: this user can read none of the
+executor tokens the inventory names; sudo lets it start the tools-server launcher as argus-tools and nothing else (no `cat` of a token,
 no arguments to the launcher, no root); the tools process starts and lists its read capabilities.
 """
 from __future__ import annotations
@@ -11,6 +11,7 @@ from __future__ import annotations
 import subprocess
 import sys
 
+from argus.adapters.outbound.config_adapters import YamlInventory
 from argus.infrastructure.wiring import Settings
 
 
@@ -34,10 +35,14 @@ def _sudo_refused(cmd: list[str]) -> bool:
 def main() -> int:
     s = Settings()
     results: list[tuple[bool, str, str]] = []
-    tokens = sorted(s.secrets_dir.glob("*/*_token"))
-    results.append((bool(tokens), "executor tokens are present", f"{len(tokens)} under {s.secrets_dir}"))
+    # From the inventory, not a listing: the token folders belong to argus-tools, so this user cannot list them.
+    # Their presence is proved by the tools process starting below (it refuses to start without every token).
+    inventory = YamlInventory((s.config_dir / "inventory.yaml").read_text(encoding="utf-8"))
+    tokens = [s.secrets_dir / h.name / f"{ex}_token" for h in inventory.hosts() for ex in h.executors
+              if ex != "prometheus"]
     readable = [str(t) for t in tokens if _readable(t)]
-    results.append((not readable, "this user cannot read any executor token", ", ".join(readable) or "none readable"))
+    results.append((bool(tokens) and not readable, "this user cannot read any executor token",
+                    ", ".join(readable) or f"none readable ({len(tokens)} expected by the inventory)"))
     cmd = s.tools_command
     launcher = len(cmd) >= 4 and cmd[0] == "sudo"
     results.append((launcher, "the tools process starts through the sudo launcher", " ".join(cmd) or "(not set)"))
@@ -49,10 +54,11 @@ def main() -> int:
         client = child_client({}, cmd, timeout_s=60)
         try:
             names = client.list_names()
-            results.append((bool(names), "the tools process starts and lists its read capabilities",
+            results.append((bool(names), "the tools process starts (it needs every token) and lists its reads",
                             f"{len(names)} capabilities"))
         except Exception as e:      # noqa: BLE001 - reported, never raised
-            results.append((False, "the tools process starts and lists its read capabilities", repr(e)[:200]))
+            results.append((False, "the tools process starts (it needs every token) and lists its reads",
+                            repr(e)[:200]))
         finally:
             client.close()
     for ok, what, detail in results:
