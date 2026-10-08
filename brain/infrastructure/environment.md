@@ -26,13 +26,15 @@ Constraints: 1 vCPU each — CPU scenarios must be capped and time-boxed. vm-095
 vm-095                                               vm-166
  network argus-v18-core 172.30.0.0/24                 Argus services publish on 127.0.0.1 ONLY
   ├─ argus-v18-tunnel (autossh) ───── SSH :22 ───────▶ user argus-v18-tunnel (nologin; may only forward to
-  │    forwards :18701-18704, :18090                    127.0.0.1:18701-18704 and 18090)
+  │    forwards :18701-18704, :18090, :18091 (T-0022)   127.0.0.1:18701-18704, 18090 and 18091)
   ├─ argus-v18-agent   API 127.0.0.1:18000             ├─ argus-v18-read-gateway   127.0.0.1:18701
   ├─ argus-v18-postgres (no host port)                 ├─ argus-v18-host-probe     127.0.0.1:18702
   ├─ argus-v18-read-gateway / -host-probe /            ├─ argus-v18-network-probe  127.0.0.1:18703
   │  -network-probe / -exporter (no host ports)        ├─ argus-v18-db-probe       127.0.0.1:18704 (T-0019)
   ├─ argus-v18-prometheus (vm-095 metrics)             ├─ argus-v18-exporter       (internal only)
-  └─ argus-lab-api (healthy twin)                      ├─ argus-v18-prometheus     127.0.0.1:18090
+  ├─ argus-v18-alertmanager (T-0022, no host port)     ├─ argus-v18-prometheus     127.0.0.1:18090
+  ├─ argus-v18-node-exporter, -cadvisor (T-0022)       ├─ argus-v18-alertmanager   127.0.0.1:18091 (T-0022)
+  └─ argus-lab-api (healthy twin)                      ├─ argus-v18-node-exporter, -cadvisor (T-0022, internal)
                                                        └─ argus-lab-api + argus-lab-cache + argus-lab-db (baseline)
 ```
 
@@ -44,7 +46,13 @@ vm-095                                               vm-166
 
 - The agent reaches vm-095's executors by container name on `argus-v18-core`, and vm-166's through the tunnel
   sidecar (`http://argus-v18-tunnel:18701` …). See `config/inventory.yaml`.
-- Alerts are **pulled** (v1.8 `ReconcileFiringAlerts` through the tunnel); there is no push webhook.
+- **Transport profile `restricted-ssh`** (ACR-0002): alerts are **pulled**. The scheduler on vm-095 reads each
+  host's Argus-owned Alertmanager (`/api/v2/alerts`; vm-166's through the tunnel on 18091) every 60 s
+  (`reconcile_firing_alerts` in `deploy/scheduler/schedules.yaml`). There is no push webhook from vm-166.
+- **Argus-owned exporters (T-0022):** `argus-v18-node-exporter` (host view `/:/host:ro`, `pid: host` for the
+  host mount table) and `argus-v18-cadvisor` (`/`, `/var/run`, `/sys`, `/var/lib/docker` mounted **read-only**:
+  accepted risk, ARCHITECTURE §4.3) on `argus-v18-mon`, no host port. The other deployment's node-exporter and
+  cAdvisor on vm-166 are never scraped. Volume `argus-v18-alertmanager` on each host.
 - The tunnel's peer address comes from `/opt/argus-v18/hosts.env`; compose for the core needs
   `--env-file /opt/argus-v18/hosts.env`. The peer's SSH host key is pinned in `/opt/argus-v18/secrets/tunnel/known_hosts`.
 

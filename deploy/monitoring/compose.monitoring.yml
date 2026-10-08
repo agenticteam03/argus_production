@@ -1,5 +1,6 @@
-# One Argus-owned Prometheus PER target host (v1.8 §3.1). Scrapes only Argus's own exporter (and, where a database
-# is declared, the db-probe) on argus-v18-mon.
+# One Argus-owned Prometheus PER target host (v1.8 §3.1). Scrapes only Argus's own exporters (argus-exporter,
+# node-exporter, cAdvisor, and, where a database is declared, the db-probe) on argus-v18-mon. T-0022 (ACR-0002):
+# Argus-owned Alertmanager, node-exporter and cAdvisor; the image tags are those already present on vm-166.
 name: argus-v18-monitoring
 services:
   argus-v18-prometheus:
@@ -17,7 +18,51 @@ services:
     memswap_limit: 256m
     cpus: 0.3
     restart: unless-stopped
+  argus-v18-alertmanager:                # T-0022: groups and dedupes; sends nothing (the scheduler pulls it)
+    image: prom/alertmanager:v0.34.0
+    container_name: argus-v18-alertmanager
+    command: ["--config.file=/etc/alertmanager/alertmanager.yml", "--storage.path=/alertmanager",
+              "--cluster.listen-address="]
+    volumes:
+      - ./alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - argus-v18-alertmanager:/alertmanager
+    networks: [argus-v18-mon]
+    mem_limit: 64m
+    memswap_limit: 64m
+    cpus: 0.1
+    restart: unless-stopped
+  argus-v18-node-exporter:               # T-0022: host CPU, memory, disk, load (read-only host view)
+    image: quay.io/prometheus/node-exporter:v1.12.1
+    container_name: argus-v18-node-exporter
+    command: ["--path.rootfs=/host", "--collector.disable-defaults", "--collector.cpu", "--collector.meminfo",
+              "--collector.filesystem", "--collector.loadavg", "--collector.diskstats", "--collector.netdev",
+              "--collector.pressure"]
+    volumes:
+      - /:/host:ro                         # no mount propagation: portable (Docker Desktop refuses rslave)
+    pid: host                            # reads the HOST mount table (/proc/1/mounts); without it: its own mounts only
+    networks: [argus-v18-mon]
+    mem_limit: 48m
+    memswap_limit: 48m
+    cpus: 0.1
+    restart: unless-stopped
+  argus-v18-cadvisor:                    # T-0022: CPU, memory, throttling per container (§4.3: read-only mounts)
+    image: ghcr.io/google/cadvisor:v0.60.5
+    container_name: argus-v18-cadvisor
+    command: ["--docker_only=true", "--housekeeping_interval=30s", "--store_container_labels=false",
+              "--disable_metrics=advtcp,cpu_topology,cpuset,hugetlb,memory_numa,percpu,process,referenced_memory,resctrl,sched,tcp,udp,disk,diskIO,network",
+              "--enable_load_reader=false"]
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+    networks: [argus-v18-mon]
+    mem_limit: 128m
+    memswap_limit: 128m
+    cpus: 0.2
+    restart: unless-stopped
 volumes:
   argus-v18-prometheus: {name: argus-v18-prometheus}
+  argus-v18-alertmanager: {name: argus-v18-alertmanager}
 networks:
   argus-v18-mon: {external: true, name: argus-v18-mon}

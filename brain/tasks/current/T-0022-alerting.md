@@ -5,7 +5,7 @@
 | Status | `in progress` — 2026-10-08 (step 1: ACR-0002 proposed) |
 | Phase | 7 — monitoring & detection ([`../../IMPLEMENTATION_PLAN.md`](../../IMPLEMENTATION_PLAN.md): "Alertmanager, node-exporter, cAdvisor; pull firing alerts") |
 | Architecture | **ACR-0002** (transport profiles; alert delivery by profile; closes D-001) → 1.8.2. Touches host isolation: second approval required |
-| Branch | `task/T-0022-alerting` (from `main`, 2026-10-08) |
+| Branch | `task/T-0022-alerting`, **on top of `task/T-0020-sc04-pg-connections`** (#38): the monitoring files build on T-0020's. Its PR opens after #38 merges |
 | Owner | `conantkd` (+ agent) |
 | Needs the VM lease | the read-only discovery, the deploys and the verification. vm-166 after the T-0020 AFTER-MERGE; vm-095 only after PR #36 (T-0021) merges |
 
@@ -92,4 +92,20 @@ alert ever reaches Argus. After this task:
 
 ## Red seen / evidence
 
-(none yet)
+- **Step 1 (2026-10-08):** ACR-0002 proposed; `ARCHITECTURE.md` 1.8.2; D-001 decided (second approval pending).
+- **Step 2 (2026-10-08, read-only, both VMs):** 1 vCPU aarch64, cgroup v2, ~4.8 GiB available on each; vm-166 has the
+  three images already (`prom/alertmanager:v0.34.0`, `quay.io/prometheus/node-exporter:v1.12.1`,
+  `ghcr.io/google/cadvisor:v0.60.5`); 18091 free; tunnel `permitopen` 18090, 18701-18704
+  ([evidence](../../execution/history/T-0022/step-02/evidence.md)).
+- **Step 3 (2026-10-08, code, tests first):** `tests/test_t0022_alerting.py`, 17 tests.
+  - **red:** 16 failed for the right reason (no `AlertNotification`, no `argus.application.alerts`, no Alertmanager
+    adapter, no `load_reconcile`, no `alertmanager` in the inventory, no services, no `alertmanager.yml`, no
+    `alerting:`, no tunnel forward, no new signals); the rule-15 guard passed (it must stay green).
+  - **green:** 17/17; full suite **186 passed, 7 skipped**. The webhook now goes through `HandleAlertNotification`
+    (its old test used `startsAt: "t"`, not a time: now RFC 3339, as Alertmanager sends).
+  - `promtool check config` both hosts and `check rules` (5 rules), `amtool check-config`, `docker compose config`
+    with both overlays: valid.
+  - Local smoke test (Docker Desktop, removed afterwards): cAdvisor healthy and publishing the CFS throttling
+    counters; Alertmanager answers `/api/v2/alerts`; node-exporter needed `pid: host` to read the host mount table
+    (without it: only its own mounts), and `rslave` was dropped (refused by Docker Desktop, not needed). The root
+    filesystem `/` is an `overlay` on Docker Desktop (excluded by design): checked on vm-166 in step 4.
