@@ -1,11 +1,11 @@
 {
   "holder": "juanbetancurm",
-  "session_id": "001732996b14",
-  "task": "T-0014-step5",
-  "branch": "task/T-0014-worker-scheduler",
-  "base_commit": "e4be0f949676b722f72d2325a4d6f1d597991df7",
-  "started_at": "2026-10-08T11:13:10+00:00",
-  "expires_at": "2026-10-08T14:05:05+00:00",
+  "session_id": "b5a8c3473b0d",
+  "task": "T-0021",
+  "branch": "main",
+  "base_commit": "4267fdefce9f31b39579091a1e30309f4c675989",
+  "started_at": "2026-10-08T15:47:56+00:00",
+  "expires_at": "2026-10-08T16:47:56+00:00",
   "released": false,
   "handoff": null
 }
