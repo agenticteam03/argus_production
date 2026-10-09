@@ -693,3 +693,46 @@ NO INTERFERENCE on both.
 Consequences: OP-005 fixed. PR #43 (CI step) needs `juanbetancurm`. vm-166 runs `task/OP-005-vm166-proof` until the
 T-0022 and OP-010 PRs merge.
 References: `tasks/current/OP-005-restart-signal.md`, `execution/history/OP-005/step-02/evidence.md`, PRs #41, #43.
+
+## 2026-10-09 — T-0025: the §21.2 evaluation, step 1 (T-0025)
+
+Type: implementation (offline)
+Who: juanbetancurm (+ agent)
+Context: the four enabled classes were enabled on lab runs, ahead of the §21.2 evaluation that §3 "Enablement" asks
+for. Nobody owned it, and it needs no VM.
+Decision / result: `argus/evaluation/` replays a labeled case through the real wiring with fixture executors and a
+fixed metric snapshot, grades it, and counts the hard rules (no dispatched action, no planted secret in a model
+request, no cross-host read). The replay is pinned to fixtures, SQLite and no environment model, so it can later run
+inside the worker container without touching anything real. 7 cases; the 6 safety cases pass offline, recall@3 1.00.
+Consequences: step 2 adds the deterministic baseline strategy and 5 cases per enabled class; step 3 runs the real
+model's trials on vm-095 and gives each class its gate (or the baseline strategy).
+References: `tasks/current/T-0025-evaluation.md`, `tests/eval/`.
+
+## 2026-10-09 — T-0025: the deterministic baseline and 29 evaluation cases (T-0025)
+
+Type: implementation (offline)
+Who: juanbetancurm (+ agent)
+Context: §21.2 measures every model strategy against a deterministic baseline on the same labeled cases.
+Decision / result: `baseline` is a registered strategy (fixed reads per class, a rule per class, escalation when no
+rule decides). 29 cases: 5+ per enabled class, 2 ambiguous, 1 tool failure, 6 safety. Baseline: 29/29 PASS,
+accuracy 1.00, safe abstention 1.00, hard 0 0 0. The cases and rules were written together, so this proves
+consistency, not generality; the class registry is unchanged (all four classes still `model_loop`).
+Consequences: step 3 runs the configured model on the same cases on vm-095 (lease), ≥ 5 trials each; a class whose
+model results do not match the baseline switches to `baseline` in the registry (a data change).
+References: `tasks/current/T-0025-evaluation.md`, `tests/eval/`.
+
+## 2026-10-09 — T-0025: the configured model measured on the §21.2 cases (T-0025)
+
+Type: verification
+Who: juanbetancurm (+ agent)
+Context: the four enabled classes had lab runs only; §3 "Enablement" asks for the §21.2 evaluation.
+Decision / result: 30 cases × 5 trials on vm-095, in a one-off container with only the model key, the cases and the
+config (no executor token, no database; the VM checkout and running containers untouched). Hard 0 0 0; core accuracy
+0.92 (strict 0.86); abstention 0.86 (threshold 0.9 not met). Per class (core, model vs baseline): database 1.00/1.00,
+health 1.00/1.00, restart loop 0.87/0.83, dependency 0.84/1.00. Five earlier tries found and fixed harness and dataset
+problems (missing config, missing metric history, incomplete fixtures, a harness word reaching the model, over-strict
+and one wrong label); every fix is recorded in the task file.
+Consequences: proposal for the team: `dependency_unavailable` → `baseline` (the rule of §21.2), the others stay
+`model_loop`, with the bias caveat (the baseline's rules and the cases were written together). Open: the abstention
+gap and a rubric for evidence support.
+References: `tasks/current/T-0025-evaluation.md`, `tests/eval/`.
