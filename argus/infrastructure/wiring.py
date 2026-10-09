@@ -54,6 +54,11 @@ class Settings:
     max_reads_per_step: int = field(default_factory=lambda: int(os.getenv("ARGUS_MAX_READS_PER_STEP", "2")))
     max_steps: int = field(default_factory=lambda: int(os.getenv("ARGUS_MAX_STEPS", "8")))
     runner: str = field(default_factory=lambda: os.getenv("ARGUS_RUNNER", "plain"))   # plain | langgraph (T-0013)
+    # T-0021 (§12.5 TOOL_CATALOGUE): target-side reads in-process (direct) or in the MCP tools process (mcp)
+    tool_catalogue: str = field(default_factory=lambda: os.getenv("ARGUS_TOOL_CATALOGUE", "direct"))
+    # the whole command that starts the tools process (T-0021 step 3: the sudo launcher to the argus-tools UID);
+    # empty = this interpreter, `-m argus.tooling.mcp.tools_server`
+    tools_command: list[str] = field(default_factory=lambda: os.getenv("ARGUS_TOOLS_COMMAND", "").split())
     metrics_max_staleness_s: int = field(default_factory=lambda: int(os.getenv("ARGUS_METRICS_MAX_STALENESS", "90")))
     jwt_ttl_min: int = field(default_factory=lambda: int(os.getenv("ARGUS_JWT_TTL_MIN", "30")))
     # ACR-0001: browser origins allowed to call the API (a UI during development); empty = no CORS headers at all
@@ -95,8 +100,47 @@ class App:
     llm_configured: bool
 
 
+def _credentials(s: Settings, inventory: YamlInventory, require: bool, errors: list[str],
+                 load: bool = True) -> dict[tuple[str, str], str]:
+    """Executor tokens. `load=False` (the worker in `mcp` mode, §12.6): validate the inventory, read no token."""
+    creds: dict[tuple[str, str], str] = {}
+    for h in inventory.hosts():
+        for ex in h.executors:
+            if ex not in EXECUTOR_KINDS:
+                errors.append(f"host {h.name}: unknown executor {ex}")
+            if ex == "prometheus" or not load:
+                continue
+            tok = s.secret(f"{h.name}/{ex}_token")
+            if tok is None and require:
+                errors.append(f"missing credential {s.secrets_dir}/{h.name}/{ex}_token")
+            elif tok is not None:
+                creds[(h.name, ex)] = tok
+    return creds
+
+
+def _target_executors(signals: dict) -> ExecutorRegistry:
+    executors = ExecutorRegistry()
+    for kind in ("docker_read", "host_probe", "network_probe", "db_probe"):
+        executors.register(kind, lambda url, tok: TargetAgentClient(url, tok))
+    executors.register("prometheus", lambda url, tok: PrometheusClient(url, tok, signals))
+    return executors
+
+
+def tools_dispatcher(s: Settings):
+    """What the MCP tools process needs, and nothing more (§12.6): the catalogue, the inventory and a dispatcher
+    holding the executor tokens. No database, no model key, no runbooks."""
+    inventory = YamlInventory((s.config_dir / "inventory.yaml").read_text(encoding="utf-8"))
+    signals = yaml.safe_load((s.config_dir / "signals.yaml").read_text(encoding="utf-8"))
+    errors: list[str] = []
+    creds = _credentials(s, inventory, True, errors)
+    if errors:
+        raise SystemExit("tools process: startup validation failed:\n  " + "\n  ".join(errors))
+    return build_catalog(), Dispatcher(inventory, _target_executors(signals), creds, Redactor()), inventory
+
+
 def build(settings: Settings | None = None, llm=None, metrics=None, executors: ExecutorRegistry | None = None,
-          store=None, require_credentials: bool = True) -> App:
+          store=None, require_credentials: bool = True, load_credentials: bool = True) -> App:
+    """`load_credentials=False`: read no executor token (the api, which never investigates; T-0021 step 4)."""
     s = settings or Settings()
     inv_text = (s.config_dir / "inventory.yaml").read_text(encoding="utf-8")
     pol_text = (s.config_dir / "policy.yaml").read_text(encoding="utf-8")
@@ -119,32 +163,30 @@ def build(settings: Settings | None = None, llm=None, metrics=None, executors: E
         for sig in c.required_signals:
             if sig not in signals:
                 errors.append(f"class {c.name} needs unknown signal {sig}")
-    creds: dict[tuple[str, str], str] = {}
-    for h in inventory.hosts():
-        for ex in h.executors:
-            if ex not in EXECUTOR_KINDS:
-                errors.append(f"host {h.name}: unknown executor {ex}")
-            if ex == "prometheus":
-                continue
-            tok = s.secret(f"{h.name}/{ex}_token")
-            if tok is None and require_credentials:
-                errors.append(f"missing credential {s.secrets_dir}/{h.name}/{ex}_token")
-            elif tok is not None:
-                creds[(h.name, ex)] = tok
+    if s.tool_catalogue not in ("direct", "mcp"):
+        errors.append(f"ARGUS_TOOL_CATALOGUE must be 'direct' or 'mcp', not {s.tool_catalogue!r}")
+    creds = _credentials(s, inventory, require_credentials, errors,
+                         load=load_credentials and s.tool_catalogue != "mcp")
     if errors:
         raise SystemExit("startup validation failed:\n  " + "\n  ".join(errors))
 
     redactor = Redactor()
     if executors is None:
-        executors = ExecutorRegistry()
-        for kind in ("docker_read", "host_probe", "network_probe", "db_probe"):
-            executors.register(kind, lambda url, tok: TargetAgentClient(url, tok))
-        executors.register("prometheus", lambda url, tok: PrometheusClient(url, tok, signals))
+        executors = _target_executors(signals)
     knowledge = TfidfRunbooks(str(s.runbooks_dir), s.runbooks_commit and f"commit {s.runbooks_commit}")
     if "argus_internal" not in executors.names():              # in-worker capabilities (knowledge.runbook)
         executors.register("argus_internal", lambda url, tok: KnowledgeClient(knowledge))
     store = store or make_store(s)
-    catalogue = DirectProvider(specs, Dispatcher(inventory, executors, creds, redactor))
+    if s.tool_catalogue == "mcp":       # target-side reads in the tools process, started on the first call
+        from argus.tooling.mcp.client import child_client
+        from argus.tooling.providers import McpCatalogue
+        env = {"ARGUS_CONFIG_DIR": str(s.config_dir.resolve()), "ARGUS_SECRETS_DIR": str(s.secrets_dir)}
+        if os.getenv("PYTHONPATH"):
+            env["PYTHONPATH"] = os.environ["PYTHONPATH"]
+        catalogue = McpCatalogue(specs, Dispatcher(inventory, executors, {}, redactor),
+                                 child_client(env, s.tools_command or None))
+    else:
+        catalogue = DirectProvider(specs, Dispatcher(inventory, executors, creds, redactor))
     invoke = InvokeCapability(catalogue, policy, inventory, store, store, redactor)
 
     llm_configured = llm is not None

@@ -1,6 +1,14 @@
 # Next step
 
-**Now (2026-10-08, `juanbetancurm`):** T-0014 (api / worker / scheduler) is done and verified on vm-095
+**Now (2026-10-08, end of `juanbetancurm`'s session; lease handed to `conantkd`):** T-0021 (tools in a separate
+MCP process under `argus-tools`) is done and verified on vm-095 ([evidence](execution/history/T-0021/step-05/evidence.md)):
+TOOLS ISOLATION OK, OD-3 OK. **PR #36 needs a teammate's review** (safety model, no fast-track). vm-095 runs
+`task/T-0021-tool-isolation` `a5f330a` with the worker in `mcp` mode: do not deploy `main` there before #36 merges
+without the rollback (evidence, block R). vm-166 is untouched on `task/T-0020-sc04-pg-connections`. Owed:
+after-merge reviews of #33 and #37; reviews of #34, #35, #36. Next work: T-0020 (SC-04) PR by `conantkd`; OP-004
+checkpoint cleanup; alerting (phase 7).
+
+**Earlier (2026-10-08, `juanbetancurm`):** T-0014 (api / worker / scheduler) is done and verified on vm-095
 ([evidence](execution/history/T-0014/step-05/evidence.md)); PR #33 merged by fast-track (after-merge review by a
 teammate owed). vm-095 is back on `main` `5cdfd98` (checkout only; the images already run this code). vm-166
 stays on `task/T-0020-sc04-pg-connections` until that task's PR. Next: **T-0021** (MCP tools process under its own
