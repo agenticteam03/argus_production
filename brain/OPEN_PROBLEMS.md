@@ -7,7 +7,7 @@ When a problem is fixed, set its status to `fixed` with the date, and add a jour
 |---|---|---|---|
 | **D-001** | Cross-host path and alert direction: architecture text vs the running system | **decided** 2026-10-08 (`conantkd`): option B as transport profiles, [ACR-0003](architecture/changes/ACR-0003-transport-profiles.md); second approval in the T-0022 PR | 2026-10-02 |
 | **D-002** | Move the runbook library into this repository (the architecture expects it there) | **decided and done** 2026-10-02 | 2026-10-02 |
-| OP-001 | Runbook `detector` metadata uses old or empty class names | open | 2026-09-30 |
+| OP-001 | Runbook `detector` metadata uses old or empty class names | fixed 2026-10-09 on `task/OP-001-runbook-detectors` (review pending) | 2026-09-30 |
 | OP-002 | P0 safety gaps of the runbook library not yet reconciled with architecture v1.8 | open | 2026-09-30 |
 | OP-003 | Runbook safety classes not mapped to `CapabilitySpec.risk` | open | 2026-09-30 |
 | OP-004 | LangGraph checkpoints grow forever; checkpoints of failed runs are orphaned | accepted 2026-10-05 — to implement | 2026-10-05 |
@@ -15,7 +15,7 @@ When a problem is fixed, set its status to `fixed` with the date, and add a jour
 | OP-006 | LangGraph `recursion_limit` is fixed at 100 and can be too small for larger step budgets | fixed 2026-10-05 | 2026-10-05 |
 | **OP-007** | A dependency probe disappears while its owner is restarting, hiding the cause of a crash loop | fixed 2026-10-07 (`owner_active`: running or restarting; deployed on vm-166) | 2026-10-07 |
 | **OP-008** | Postgres backups are never rotated, and the backup's consistency check will stop once the scheduler writes often | accepted 2026-10-07 (PR #31, approved by `juanbetancurm`) — to implement; independent of T-0014 | 2026-10-07 |
-| OP-009 | A worker that loses its lease keeps running the incident; with two workers the same run could execute twice | open (fix before a second worker) | 2026-10-08 |
+| OP-009 | A worker that loses its lease keeps running the incident; with two workers the same run could execute twice | fixed 2026-10-08 (`task/OP-009-lease-loss`: the renewer retries, a lost claim cancels the run) | 2026-10-08 |
 | OP-010 | The db-probe cannot connect when every usable slot is taken, so `postgresql_connection_exhaustion` cannot fire at 100 % | **fixed** 2026-10-09 — SC-04 at 100 % DIAGNOSED from the pulled alert | 2026-10-08 |
 | OP-011 | Two alerts on one target open two incidents: §6.4 correlation is not implemented | open | 2026-10-09 |
 
@@ -75,18 +75,22 @@ deployment no longer mounts `/opt/argus-runbooks`) and the journal records it.
 
 ## OP-001 — Runbook `detector` metadata uses old or empty class names
 
-**Status:** open · **Opened:** 2026-09-30
+**Status:** fixed 2026-10-09 on `task/OP-001-runbook-detectors` (review pending) · **Opened:** 2026-09-30
 
-**Problem.** Each runbook in the library (`agenticteam03/runbooks`, `runbooks/RB-*.md`) has a `detector:` field. It
-still uses v1.7 names or is empty: RB-001 `oom_restart_loop` (v1.8: `container_restart_loop`, shared with RB-008);
-RB-002 `health_check_failed` and RB-003 `dependency_unavailable` already match; RB-004…RB-021 `null`. Architecture
-§15.3 requires that "a runbook's `detector` metadata names the class that uses it".
+**Problem.** Each runbook in the library (`argus/runbooks/RB-*.md`) has a `detector:` field. The original corpus used
+v1.7 names or left the field empty: RB-001 had `oom_restart_loop` (v1.8: `container_restart_loop`, shared with RB-008),
+and many later runbooks had `null`. Architecture §15.3 requires that "a runbook's `detector` metadata names the class
+that uses it".
 
-**Fix.** In the runbooks repository: set `detector:` in every runbook to its v1.8 class (§1.3); bump `version` and
-`last_reviewed`; update `RUNBOOK-INDEX.md`. Now done in this repository (`argus/runbooks/`), through a pull request.
+**Fix.** Set `detector:` in every runbook to its v1.8 class (§1.3), bump `version` and `last_reviewed` on changed
+runbooks, and update `RUNBOOK-INDEX.md`. The metadata-only library revision is v1.1.1. This does not enable draft
+classes or promote untested runbooks.
 
 **Done when.** All 21 runbooks name a class that exists in §1.3, and a check shows no class without a runbook and no
 runbook without a class.
+
+**Verification.** `tests/test_runbook_detector_metadata.py` compares the 21 metadata fields and index rows with the
+20 classes and their primary runbooks in architecture §1.3. The test was red before the edits and is green afterward.
 
 ---
 
@@ -345,7 +349,8 @@ above, runs `prune` as a dry-run on vm-095 first, and sets this item to `fixed`.
 
 ## OP-009 — A worker that loses its lease keeps running the incident
 
-**Status:** open · **Opened:** 2026-10-08 · **Found by:** `conantkd` (+ agent), after-merge review of PR #33 (T-0014) ·
+**Status:** fixed 2026-10-08 on `task/OP-009-lease-loss` (tests `tests/test_op009_lease_loss.py`, red seen; see
+**Fix** below) · **Opened:** 2026-10-08 · **Found by:** `conantkd` (+ agent), after-merge review of PR #33 (T-0014) ·
 **Fix with:** its own small task, **before a second worker is ever started** (today vm-095 runs one)
 
 **Problem.** In `argus/infrastructure/worker.py`, `_renew` extends the claim every `lease_s / 3`. Two cases leave a live
@@ -371,6 +376,20 @@ flag that the graph runner checks between nodes (cooperative cancel: stop at the
 `renew_claim` returns False: the run stops at the next node and writes no final status.
 
 **Done when.** Both tests pass, and this item is set to `fixed`.
+
+**Fix (2026-10-08, `conantkd` + agent).**
+- `argus/infrastructure/worker.py`: `_renew` retries a failed renewal while the lease lasts; a lost claim
+  (`renew_claim` False, or the lease expired while retrying) sets a `lost` event that the worker passes to the runner
+  (`runner.run(id, cancel=lost)`).
+- `argus/orchestration/runner.py`: `ClaimLost`; the cancel signal is a context variable per run. `_guard` runs before
+  every investigation step, before every read and before `_record`. A lost claim audits `incident.claim_lost` and
+  writes no final status; a crash while the claim is lost records nothing either.
+- `argus/orchestration/graph_runner.py`: every graph node starts with the guard, so the checkpoint stays at the last
+  completed node and the new owner resumes from it (`incident.resumed`).
+- Postgres: `renew_claim` and `requeue_expired` use the database clock (`now()`) unless a test passes `now`.
+- Tests: 7 in `tests/test_op009_lease_loss.py` (red: `run()` had no `cancel`; the renewer died at the first error;
+  a lost claim did not cancel), and `test_worker_lease_uses_the_database_clock` (Postgres, a refactor: green from the
+  start). The runner test doubles in `test_worker_loop.py` and `test_scheduler.py` take `cancel`.
 
 ---
 

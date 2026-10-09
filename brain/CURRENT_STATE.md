@@ -155,8 +155,8 @@ mock-only); UI actions beyond reading need a future ACR (`NEXT_STEP.md`).
 - **Classes enabled ahead of §21.2:** the 4 enabled classes have lab runs but no `tests/eval/` dataset yet (§3
   "Enablement"); phase 12 and the evaluation close it (`NEXT_STEP.md`). OP-010: the db-probe is blind at 100 %
   connection use.
-- An interrupted run is resumed automatically by the worker (T-0014, PR #33 merged). With more than one worker, a
-  lost lease renewal would let two workers run the same incident: OP-009 (fix before a second worker).
+- An interrupted run is resumed automatically by the worker (T-0014, PR #33 merged). OP-009 (fixed on
+  `task/OP-009-lease-loss`): a worker that loses its lease stops the run, so two workers never run the same incident.
 - Lab baseline: `deploy.sh status` now ends with `LAB BASELINE OK` or names the stopped/unhealthy `argus-lab-*`
   (DEPLOY-MAIN found `argus-lab-cache` stopped for ~7 h; `nonint-check.sh` does not cover Argus objects).
 - vm-095 says "System restart required" — do not reboot (team decision).

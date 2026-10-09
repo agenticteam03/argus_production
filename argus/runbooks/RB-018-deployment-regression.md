@@ -7,12 +7,12 @@ id: RB-018
 title: Deployment regression
 status: draft
 owner: Argus Team
-version: 1.1.0
+version: 1.1.1
 created: 2026-09-29
-last_reviewed: 2026-09-29
+last_reviewed: 2026-10-09
 source_review_date: 2026-09-29
 last_tested: null
-detector: null
+detector: deployment_regression
 ```
 
 ## Scope
