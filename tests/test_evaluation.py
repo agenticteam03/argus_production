@@ -182,6 +182,19 @@ def test_the_replay_never_leaves_its_fixtures_whatever_the_environment_says(ev, 
 # --- step 2: the deterministic baseline (§21.2 "Baseline") ---------------------------------------------------------------
 ENABLED = ("container_restart_loop", "health_check_failed", "dependency_unavailable",
            "postgresql_connection_exhaustion")
+# T-0027: every class in the registry needs its cases (§3 "Enablement"); a class registered ahead of them is named here,
+# with who writes them, so the gap is visible and cannot grow silently.
+AWAITING_CASES = {"disk_pressure": "T-0025 follow-up (quality lane): 5 cases + a baseline rule"}
+
+
+def test_every_registered_class_has_its_cases_or_is_listed_as_awaiting_them(ev):
+    from argus.detectors.classes import CLASSES
+    cases = ev.load_cases(CASES)
+    for c in CLASSES:
+        n = sum(1 for k in cases if k.category == "class" and k.label.incident_class == c.name)
+        assert n >= 5 or c.name in AWAITING_CASES, f"{c.name}: {n} labeled cases, and not listed in AWAITING_CASES"
+        assert not (n >= 5 and c.name in AWAITING_CASES), f"{c.name} has its cases: remove it from AWAITING_CASES"
+    assert set(AWAITING_CASES) <= {c.name for c in CLASSES}
 
 
 def test_every_enabled_class_has_at_least_5_labeled_cases(ev):
@@ -277,7 +290,10 @@ def test_the_command_line_runs_the_model_and_writes_one_json_line_per_run(ev, tm
     rows = [json.loads(line) for line in out.read_text(encoding="utf-8").splitlines()]
     assert code == 1                                         # a model that never decides fails the class cases
     assert len(rows) == 2 * sum(1 for c in ev.load_cases(CASES) if c.category == "class")
-    assert {r["trial"] for r in rows} == {1, 2} and all(r["model_calls"] >= 1 for r in rows)
+    no_model = {c.id for c in ev.load_cases(CASES) if c.label.model_calls == 0}   # evidence_pack classes (T-0027)
+    assert {r["trial"] for r in rows} == {1, 2}
+    assert all(r["model_calls"] >= 1 for r in rows if r["case"] not in no_model)
+    assert all(r["model_calls"] == 0 for r in rows if r["case"] in no_model)
     assert {"case", "category", "strategy", "verdict", "problems", "hard", "outcome"} <= set(rows[0])
     assert "container_restart_loop" in text and "worst" in text
 
