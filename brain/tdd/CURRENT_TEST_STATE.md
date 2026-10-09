@@ -6,6 +6,10 @@
 `test_a_failing_renewer_cancels_at_the_lease_expiry_not_at_its_next_attempt` (red seen: cancelled at 1.44 s with a
 1 s lease and 0.7 s attempts; now at the expiry; 5/5 stable runs). Full suite on the laptop: green.
 
+**Alert identity to milliseconds, 2026-10-09 (`task/alert-identity-ms`, review note of PR #45):** 3 tests in
+`tests/test_alert_identity.py` (red seen: a pushed copy with a nanosecond `startsAt` and a pulled one with milliseconds
+opened two incidents); the stored identity format is pinned by a test. Full suite on the laptop: green.
+
 **OP-009, 2026-10-09 (`task/OP-009-lease-loss` after merging `main` up to #50):** **306 passed**, 3 skipped on the
 laptop with a throwaway `postgres:16-alpine` (the OD-3 benchmark passed too); the T-0025 baseline evaluation still
 gives hard 0 0 0 with the runners' new `cancel` argument. Before `main` up to #44: 243 passed, 3 skipped on the laptop with a
