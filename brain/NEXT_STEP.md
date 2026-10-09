@@ -1,5 +1,10 @@
 # Next step
 
+**OP-001 (2026-10-09, `conantkd`):** the 21 runbook `detector` metadata fields and index now match the 20 incident
+classes in architecture §1.3 on `task/OP-001-runbook-detectors`. Tests pass locally; review the PR before merging.
+This metadata update does not enable draft detectors or promote runbooks. See
+[the task file](tasks/current/OP-001-runbook-detectors.md).
+
 **Now (2026-10-09, `conantkd`; read as the state after the T-0020 PR merges):** T-0020 (SC-04,
 `postgresql_connection_exhaustion`, RB-004) is done: verified on vm-166 (`inc_075fb0006098` DIAGNOSED). #36 (T-0021)
 was merged before its re-review; its fixes and ACR-0002 came in **#39, approved by `conantkd` (second approval of
