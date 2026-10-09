@@ -104,6 +104,11 @@ findings. Host targets (`…/host:…`) have no class yet.
 One failure at a time. Always run the **reset** step afterwards. Then, on the VM where the scenario
 ran, `sudo bash /opt/argus-v18/app/ops/nonint-check.sh after` must print **NO INTERFERENCE**.
 
+**Repeated runs (T-0023).** From the laptop, with your VM lease, the runner does all of this for the catalogued
+scenarios and grades each result (it opens its own tunnel to vm-095 on local port 18001): `python ops/e2e/run.py SC-01 SC-03 --runs 5 --as <you>`
+(`--list` shows the catalogue, `--dry-run` prints every step and runs nothing). The catalogue
+`ops/e2e/scenarios.yaml` holds the same start, wait, request, expectation and reset as the sections below.
+
 ### H-1 / H-2: healthy checks (no failure needed)
 
 ```json

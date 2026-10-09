@@ -581,3 +581,41 @@ Consequences: per REVIEW_PROTOCOL, a follow-up PR (`task/T-0021-review-fixes`) b
 step 5e record to `main` and gets the missing review (no force push, no fast-track: ACR, safety principle). Until it
 merges, `main` must not be deployed on vm-095.
 References: `execution/history/T-0021/step-05e/evidence.md`, `tasks/current/T-0021-tool-isolation.md`, PR #36.
+
+## 2026-10-09 — T-0023: a runner for repeated end-to-end scenario runs (T-0023)
+
+Type: implementation (step 1, offline)
+Who: juanbetancurm (+ agent)
+Context: phase 12 needs at least 5 graded runs per scenario; every run so far was a set of manual blocks.
+Decision / result: `ops/e2e/run.py` runs catalogued scenarios from the laptop (ssh for the reviewed commands, the
+HTTP API on the tunnel for the investigation), waits on the detector's own signal (pre-gate and gate, no fixed
+sleeps), always resets, stops the batch on interference or a failed reset, grades outcome, class, root cause, first
+runbook, model use and the host of every read, and writes one JSON line per run outside the repository. Catalogue:
+H-1, H-2, SC-01, SC-02, SC-03, SC-07, SC-09, SC-11. 22 new tests; 206 passed, 2 skipped.
+Consequences: step 2 is the first real batch with the lease (H-1, H-2, SC-09, SC-11 once; SC-01 and SC-03 × 5).
+References: `tasks/current/T-0023-e2e-runner.md`, `ops/e2e/scenarios.yaml`.
+
+## 2026-10-09 — T-0023: the first real batch of the scenario runner (T-0023)
+
+Type: verification
+Who: juanbetancurm (+ agent)
+Context: step 2 of T-0023, the runner's first batch on vm-095 and vm-166.
+Decision / result: H-1, H-2, SC-09, SC-11 1/1; **SC-03 5/5** and **SC-01 5/5 PASS** (class, root cause, first runbook
+and the host of every read graded), NO INTERFERENCE after every run. One SC-01 run lost the laptop's API tunnel: it
+was reset and checked clean, the batch stopped as designed, and the runner now keeps its own tunnel and retries a
+dropped connection (`4f8ae43`).
+Consequences: phase 12 has its first repeated runs. Next: SC-02 and SC-07 × 5; each new scenario (SC-04 after #38)
+gets a catalogue entry and 5 runs.
+References: `tasks/current/T-0023-e2e-runner.md`, `execution/history/T-0023/step-02/evidence.md`.
+
+## 2026-10-09 — review of PR #40: two runner fixes made by the reviewer (T-0023)
+
+Type: review
+Who: conantkd (+ agent)
+Context: review of PR #40 (`juanbetancurm`'s end-to-end runner). REVIEW_PROTOCOL: small fixes are made by the
+reviewer on the same branch, journaled.
+Decision / result: (1) an incident view without `evidence` and `audit` (the runner's user not an operator) is an ERROR,
+never a PASS; before, the model and host checks passed on nothing. (2) The reset runs only once a start was attempted;
+SC-07's reset succeeds when its network is already gone. 6 new tests, red seen; `test_e2e_runner.py` 33 passed.
+Consequences: run the batches as an operator user. Every catalogued reset must be idempotent.
+References: `tasks/current/T-0023-e2e-runner.md`, PR #40.
