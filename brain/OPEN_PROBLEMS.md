@@ -17,7 +17,7 @@ When a problem is fixed, set its status to `fixed` with the date, and add a jour
 | **OP-008** | Postgres backups are never rotated, and the backup's consistency check will stop once the scheduler writes often | accepted 2026-10-07 (PR #31, approved by `juanbetancurm`) — to implement; independent of T-0014 | 2026-10-07 |
 | OP-009 | A worker that loses its lease keeps running the incident; with two workers the same run could execute twice | open (fix before a second worker) | 2026-10-08 |
 | OP-010 | The db-probe cannot connect when every usable slot is taken, so `postgresql_connection_exhaustion` cannot fire at 100 % | **fixed** 2026-10-09 — SC-04 at 100 % DIAGNOSED from the pulled alert | 2026-10-08 |
-| OP-011 | Two alerts on one target open two incidents: §6.4 correlation is not implemented | in progress 2026-10-09 (`task/OP-011-correlation`: code and tests done; VM proof next) | 2026-10-09 |
+| OP-011 | Two alerts on one target open two incidents: §6.4 correlation is not implemented | in progress 2026-10-09 (`task/OP-011-correlation`: deployed; SC-03 gave 2 incidents → ACR-0004, step 03) | 2026-10-09 |
 
 ---
 
@@ -442,3 +442,9 @@ version is 1 + its attached occurrences and its last evidence time is the newest
 body so the worker's full-body writes cannot overwrite them. The intake processes (api, scheduler) now read the
 metrics port (`App.metrics`, `wiring.make_metrics`). Not in this fix: resolved alerts (occurrence `status`),
 related-incident links, showing the evidence version in the incident view and the run context.
+
+**Step 02 (VMs) and ACR-0004.** Deployed on both VMs; SC-03 still gave two incidents because the first was diagnosed
+and closed (31 s) before the second alert was pulled one pass later, although that alert started before the close
+([evidence](execution/history/OP-011/step-02/evidence.md)). [ACR-0004](architecture/changes/ACR-0004-correlation-same-episode.md)
+(accepted by `conantkd`) adds §6.4 step 3: the target's latest concluded incident of the same class takes an alert
+that started at or before it closed (within the window, compatible), with no new run. Step 03: deploy and repeat SC-03.

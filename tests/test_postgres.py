@@ -115,6 +115,11 @@ def test_alert_occurrences(runtime_dsn, store):
     assert version == 2 and last == t + timedelta(seconds=1)
     with psycopg.connect(runtime_dsn, autocommit=True) as c, pytest.raises(psycopg.Error, match="permission"):
         c.execute("DELETE FROM alert_occurrence")
+    assert store.latest_concluded_incident(inc.target) is None                  # ACR-0004: queued is not concluded
+    from argus.domain.model import IncidentStatus
+    inc.status, inc.incident_class, inc.closed_at = IncidentStatus.escalated, "dependency_unavailable", t
+    store.update_incident(inc)
+    assert store.latest_concluded_incident(inc.target).id == inc.id
 
 
 def test_evidence_audit_events_principals(store):

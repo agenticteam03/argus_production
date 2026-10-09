@@ -3,7 +3,8 @@
 `HandleAlertNotification` turns one `AlertNotification` into durable intake. The push webhook and the pull
 reconciliation both call it, so one alert gives one incident whichever way it arrived: the identity is
 `fingerprint + startsAt` (§6.6). Correlation (§6.4, OP-011): an alert already recorded is a `duplicate`; one that
-matches an open incident on its target and class is `attached` to it; anything else opens a new incident.
+matches an open incident on its target and class, or the incident of the same episode that already concluded
+(ACR-0004), is `attached` to it; anything else opens a new incident.
 `ReconcileFiringAlerts` reads each host's Alertmanager through `AlertSourcePort`
 and submits every firing alert; a host that cannot be read is reported and the others go on.
 """
@@ -69,7 +70,7 @@ class HandleAlertNotification:
         if known:
             return IntakeResult("duplicate", known)
         now = self.now()
-        corr = self.correlator.match(target, a.labels, now)          # §6.4 (2): same target and class, compatible
+        corr = self.correlator.match(target, a.labels, a.starts_at, now)   # §6.4 (2, 3): same target, class
         if corr.incident is not None:
             inc = corr.incident
             if not self.store.add_alert_occurrence(key, inc.id, a.fingerprint, a.starts_at, a.labels, "attached",
@@ -83,7 +84,7 @@ class HandleAlertNotification:
                                                   "evidence_version": version, "reason": corr.reason}))
             log.info("alert %s on %s attached to %s (%s)", a.labels.get("alertname"), target, inc.id, corr.reason)
             return IntakeResult("attached", inc.id, corr.reason)
-        reason = f"alert {a.labels.get('alertname', '?')}: {a.annotations.get('summary', '')}"     # §6.4 (3)
+        reason = f"alert {a.labels.get('alertname', '?')}: {a.annotations.get('summary', '')}"     # §6.4 (4)
         inc = Incident(id=f"inc_{uuid.uuid4().hex[:12]}", target=target, trigger_kind=TriggerKind.alert,
                        request_kind=RequestKind.report, reason=reason[:2000], principal=source, trigger_id=key,
                        opened_at=now)

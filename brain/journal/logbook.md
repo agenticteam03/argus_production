@@ -728,3 +728,19 @@ pulled it and `inc_4d78232433a1` was DIAGNOSED (`disk_pressure`, root cause `arg
 deletion advised. Reset; the lab filesystem stays mounted and empty. RB-005 1.0.2. NO INTERFERENCE on both.
 Consequences: T-0024 done; phase 11 at 80 % (SC-06, SC-08 left). The time to full lags a stop by up to 15 minutes.
 References: `tasks/current/T-0024-sc05-disk.md`, `execution/history/T-0024/step-02/evidence.md`.
+
+## 2026-10-09 — OP-011: alert correlation deployed; ACR-0004 (the same episode) accepted
+
+Type: decision
+Who: conantkd (+ agent)
+Context: OP-011 (two alerts on one target opened two incidents). Step 01 implemented ARCHITECTURE §6.4 in the alert
+intake (webhook and pull) with migration 004 (`alert_occurrence`); step 02 deployed it on both VMs and ran SC-03.
+Decision / result: SC-03 still gave two incidents: the alerts started 30 s apart and were pulled one pass apart, and
+the first incident was diagnosed and closed in 31 s, so §6.4 (open incidents only) did not apply. The second alert
+started 9 s before the first incident closed. `conantkd` accepted ACR-0004 (architecture 1.8.4): an alert that started
+at or before the latest concluded incident of its target and class closed, within the window and compatible, is
+attached to it, without a new run and without reopening it. Rejected: a grouping wait (latency on every alert) and
+keeping §6.4 as written.
+Consequences: step 03 deploys the rule and repeats SC-03 (done when one incident). No safety principle touched.
+References: OPEN_PROBLEMS OP-011, `architecture/changes/ACR-0004-correlation-same-episode.md`,
+`execution/history/OP-011/step-02/evidence.md`.

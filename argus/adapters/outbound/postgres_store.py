@@ -109,6 +109,12 @@ class PostgresStore:
                       "ORDER BY opened_at LIMIT 1", (str(target),))
         return Incident.model_validate(row[0][0]) if row else None
 
+    def latest_concluded_incident(self, target: TargetRef) -> Incident | None:
+        """The target's most recent closed or escalated incident (ACR-0004: the episode an alert may still join)."""
+        row = self._q("SELECT body FROM incident WHERE target = %s AND status IN ('closed', 'escalated') "
+                      "ORDER BY opened_at DESC LIMIT 1", (str(target),))
+        return Incident.model_validate(row[0][0]) if row else None
+
     def similar_incidents(self, target: TargetRef, incident_class: str, k: int) -> list[Incident]:
         rows = self._q("SELECT body FROM incident WHERE target = %s AND body->>'incident_class' = %s "
                        "AND body->>'closed_at' IS NOT NULL ORDER BY opened_at DESC LIMIT %s",
