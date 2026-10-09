@@ -20,7 +20,7 @@ from argus.application.invoke_capability import InvocationContext
 from argus.detectors.classes import CLASSES, classes_for
 from argus.domain.model import (Conclude, EvidenceRef, Escalate, Incident, IncidentOutcome, IncidentStatus, TargetRef,
                                 InvalidDecision, Passage, RequestKind, UseReadTools)
-from argus.orchestration.runner import SkeletonRunner
+from argus.orchestration.runner import ClaimLost, SkeletonRunner
 from argus.orchestration.strategies import EvidencePackStrategy, evidence_pack_plan
 from argus.orchestration.view import InvestigationView
 from argus.ports.ports import MetricsUnavailable, StaleMetrics
@@ -59,7 +59,7 @@ class GraphRunner(SkeletonRunner):
         self.checkpointer = checkpointer if checkpointer is not None else InMemorySaver()
         g = StateGraph(RunState)
         for name in ("detect", "recall", "investigate", "act", "evidence_pack", "record"):
-            g.add_node(name, getattr(self, f"_n_{name}"))
+            g.add_node(name, self._guarded(getattr(self, f"_n_{name}")))
         g.add_edge(START, "detect")
         g.add_conditional_edges("detect", _route, ["recall", "evidence_pack", "record"])
         g.add_edge("recall", "investigate")
@@ -86,8 +86,16 @@ class GraphRunner(SkeletonRunner):
         per_round = 1 + max(self.max_reads_per_step, largest_plan)
         return max(100, self.max_steps_cap * per_round + self.FIXED_NODES + self.SAFETY_MARGIN)
 
+    def _guarded(self, node):
+        """OP-009: every node starts by checking the worker still owns the incident. A lost claim stops the graph
+        before the node runs, so its checkpoint stays at the last completed node for the new owner."""
+        def step(s: RunState) -> dict:
+            self._guard()
+            return node(s)
+        return step
+
     # ------------------------------------------------------------------------------------------- entry point
-    def run(self, incident_id: str) -> Incident:
+    def _execute(self, incident_id: str) -> Incident:      # run() (SkeletonRunner) sets the cancel signal
         config = {"configurable": {"thread_id": incident_id}, "recursion_limit": self.recursion_limit}
         inc = self.memory.get_incident(incident_id)
         if inc is None:
@@ -105,11 +113,13 @@ class GraphRunner(SkeletonRunner):
                        "down": {}, "passages": [], "class_name": None, "step": 0, "max_steps": 0, "pending": []}
         try:
             self.graph.invoke(payload, config)
+        except ClaimLost:
+            return self._claim_lost(incident_id)
         except Exception as e:                        # a crash is recorded, never silent
             log.exception("run failed %s", incident_id)
             inc = self.memory.get_incident(incident_id)
             inc.diagnosis = f"internal error: {type(e).__name__}: {e}"
-            return self._record(inc, IncidentOutcome.no_action_escalated, IncidentStatus.escalated)
+            return self._record_crash(inc)
         return self.memory.get_incident(incident_id)
 
     # ------------------------------------------------------------------------------------------------ helpers

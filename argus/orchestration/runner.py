@@ -8,7 +8,9 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import threading
 import uuid
+from contextvars import ContextVar
 from typing import Any
 
 from argus.application.invoke_capability import InvocationContext, InvokeCapability
@@ -22,6 +24,14 @@ from argus.ports.ports import (AuditSinkPort, IncidentMemoryPort, InventoryPort,
                                MetricsPort, MetricsUnavailable, NotificationPort, StaleMetrics)
 
 log = logging.getLogger("argus.runner")
+
+# OP-009: set by the worker when its claim on the running incident is lost. Per run (a context variable), so one
+# runner object can serve several runs; LangGraph copies the context into the threads that run its nodes.
+_CANCEL: ContextVar[threading.Event | None] = ContextVar("argus_run_cancel", default=None)
+
+
+class ClaimLost(Exception):
+    """The worker no longer owns this incident: stop at once and write nothing more (another worker resumes it)."""
 
 
 class SkeletonRunner:
@@ -72,7 +82,26 @@ class SkeletonRunner:
         return {t for t in members | hosts if self.inventory.target(t) is not None}
 
     # ---------------------------------------------------------------------------------------------
-    def run(self, incident_id: str) -> Incident:
+    def run(self, incident_id: str, cancel: threading.Event | None = None) -> Incident:
+        token = _CANCEL.set(cancel)
+        try:
+            return self._execute(incident_id)
+        finally:
+            _CANCEL.reset(token)
+
+    def _guard(self) -> None:
+        """OP-009: called between nodes and before every read; raises when the worker's claim was lost."""
+        cancel = _CANCEL.get()
+        if cancel is not None and cancel.is_set():
+            raise ClaimLost()
+
+    def _claim_lost(self, incident_id: str) -> Incident:
+        inc = self.memory.get_incident(incident_id)
+        log.warning("claim lost on %s: stopped, nothing more written", incident_id)
+        self._audit(inc, "incident", "incident.claim_lost", detail={"status_left": str(inc.status)})
+        return inc
+
+    def _execute(self, incident_id: str) -> Incident:
         inc = self.memory.get_incident(incident_id)
         if inc is None:
             raise KeyError(incident_id)
@@ -82,10 +111,18 @@ class SkeletonRunner:
                     detail={"target": str(inc.target), "trigger": inc.trigger_kind, "request": inc.request_kind})
         try:
             return self._run(inc)
+        except ClaimLost:
+            return self._claim_lost(inc.id)
         except Exception as e:  # a crash is recorded, never silent
             log.exception("run failed %s", inc.id)
             inc.diagnosis = f"internal error: {type(e).__name__}: {e}"
+            return self._record_crash(inc)
+
+    def _record_crash(self, inc: Incident) -> Incident:
+        try:
             return self._record(inc, IncidentOutcome.no_action_escalated, IncidentStatus.escalated)
+        except ClaimLost:                    # the claim went while crashing: the new owner records the outcome
+            return self._claim_lost(inc.id)
 
     def _run(self, inc: Incident) -> Incident:
         target = inc.target
@@ -165,6 +202,7 @@ class SkeletonRunner:
         if pack:
             self._ev(inc, "evidence_pack", "enter", reason=inc.outcome)
         for step in range(max_steps):
+            self._guard()
             view = InvestigationView(incident=inc, incident_class=cls, findings=inc.findings, passages=passages,
                                      evidence=evidence, decisions_so_far=decisions, offered_specs=offered,
                                      scope=sorted(ctx.scope, key=str), steps_left=max_steps - step,
@@ -195,6 +233,7 @@ class SkeletonRunner:
                 if not pack:
                     self._ev(inc, "act", "enter", calls=len(d.calls))
                 for call in d.calls:
+                    self._guard()
                     obs, ref = self.invoke(ctx, call.name, call.arguments)
                     if ref:
                         evidence.append(ref)
@@ -270,6 +309,7 @@ class SkeletonRunner:
 
     def _record(self, inc: Incident, outcome: IncidentOutcome, status: IncidentStatus,
                 cited: list[str] | None = None) -> Incident:
+        self._guard()
         inc.outcome, inc.status, inc.closed_at = outcome, status, utcnow()
         self.memory.update_incident(inc)
         self._ev(inc, "record", "exit", outcome=outcome, status=status, incident_class=inc.incident_class,
