@@ -9,4 +9,4 @@
 # and tell the agent "output.bash updated".
 # =====================================================================================
 
-# (no block yet: OP-011 is verified on the VMs; its blocks are in execution/history/OP-011/)
+# (no block yet: T-0026 is verified on the VMs; its blocks are in execution/history/T-0026/)

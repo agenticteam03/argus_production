@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | `in progress` — step 1 (code, tests) done; step 2 (VMs) next |
+| Status | `done` 2026-10-09 (step 2: SC-03's two occurrences resolved on vm-166 after the cache came back) |
 | Phase | 7 — alerting ([`../../IMPLEMENTATION_PLAN.md`](../../IMPLEMENTATION_PLAN.md)); follows OP-011 (correlation) |
 | Architecture | [ACR-0005](../../architecture/changes/ACR-0005-pull-alert-resolution.md) (1.8.4 → 1.8.5): §6.4 "Resolution", §7.3, §8.1 |
 | Branch | `task/T-0026-alert-resolution`, on top of `task/OP-011-correlation` (uses its `alert_occurrence` table) |
@@ -34,7 +34,9 @@ an investigation. A running investigation finishes; a concluded incident is neve
    five new `argus db check` lines.
 2. **VMs:** backup, migration 005 and the agent image on vm-095; `argus db check`; SC-03 on vm-166: stop the cache,
    the incident opens (two occurrences), start the cache, the next passes resolve both occurrences
-   (`incident.alert_resolved`, `incident.alerts_all_resolved`); NO INTERFERENCE.
+   (`incident.alert_resolved`, `incident.alerts_all_resolved`); NO INTERFERENCE. **Done 2026-10-09**
+   ([evidence](../../execution/history/T-0026/step-02/evidence.md)): `inc_ed6a85ccd28f`, both occurrences
+   resolved in the first pass after the alerts cleared, the incident unchanged; `argus db check` 20/20.
 
 ## Done when
 

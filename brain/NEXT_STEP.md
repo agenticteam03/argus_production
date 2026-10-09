@@ -1,23 +1,27 @@
 # Next step
 
-**Now (2026-10-09, late, `conantkd`).** Four branches stacked on `main`, each with the previous one merged in:
+**Now (2026-10-09, evening, `conantkd`).** Five branches stacked on `main`, each with the previous one merged in:
 `task/T-0022-alerting` (phase 7, ACR-0003) → `task/OP-010-reserved-slot` → `task/T-0024-sc05-disk` (SC-05) →
-`task/OP-011-correlation` (§6.4 correlation, **ACR-0004**, migration 004; **done**: SC-03 gives one incident). **Both VMs
-run `task/OP-011-correlation` `cb300df`**; vm-095's database has migration 004 (`alert_occurrence`; backup
-`argus-20261009T131715Z.dump` taken before). LAB BASELINE OK, NO INTERFERENCE. Open: #42 (OP-004, draft), #43 (CI step
-for OP-005), #45 (T-0022), #46 (OP-010), #47 (T-0024), #48 (OP-011). **Warning for the team:** `brain.py
-start` reports `59ffa39` (PR #44, OP-001) merged into `main` without a non-author approval of its last push.
+`task/OP-011-correlation` (§6.4 correlation, ACR-0004, migration 004) → `task/T-0026-alert-resolution` (§6.4
+resolution, **ACR-0005**, migration 005; **done**: SC-03's occurrences resolve when the cache is back). **Both VMs run
+`task/T-0026-alert-resolution` `ea01c68`**; vm-095's database has migrations 004 and 005 (backups
+`argus-20261009T131715Z.dump`, `argus-20261009T183857Z.dump`). LAB BASELINE OK, NO INTERFERENCE. Merged today: #49
+(ACR-0002 accepted), #50 (T-0025 evaluation). #45: the cAdvisor text fixed (`1809eef`), waits for `juanbetancurm`'s
+second approval. #52 (parallel lanes): changes requested (two text suggestions). OP-009 is ready on
+`task/OP-009-lease-loss` (`main` merged in), PR not opened. **Warning for the team:** `brain.py start` reports
+`59ffa39` (PR #44, OP-001) merged into `main` without a non-author approval of its last push.
 
 1. **PRs, in order:** T-0022 (needs `juanbetancurm`'s second approval: ACR-0003 touches host isolation), OP-010,
-   T-0024, OP-011 #48 (ACR-0004 needs no second approval). After they merge, both VMs go to `main` (checkout + rebuild of
-   the agent image; migration 004 is already applied). Do not deploy `main` before: it would drop the monitoring, the
+   T-0024, OP-011 #48 (ACR-0004 needs no second approval), then T-0026. After they merge, both VMs go to `main` (checkout + rebuild of
+   the agent image; migrations 004 and 005 are already applied). Do not deploy `main` before: it would drop the monitoring, the
    reserved slot and the correlation (the table can stay; older code ignores it).
 2. **Done 2026-10-09:** OP-011 (step 02 showed the second SC-03 alert pulled after the first incident closed →
    ACR-0004; step 03 one incident `inc_8a4cf92444ae`, occurrences `started` + `attached`). T-0024 steps 2-4 (SC-05
    DIAGNOSED; vm-166 keeps the lab filesystem `/srv/argus-lab-fill`, `ops/lab-fill-mount.sh --remove` takes it away).
    T-0022 steps 5-6 and OP-010.
-3. **Next code work:** resolved alerts are on `task/T-0026-alert-resolution` (ACR-0005, migration 005; step 2 on the
-   VMs next, [task file](tasks/current/T-0026-alert-resolution.md)); OP-009 is fixed on `task/OP-009-lease-loss`
+3. **Done 2026-10-09:** resolved alerts (T-0026, ACR-0005, migration 005; [task file](tasks/current/T-0026-alert-resolution.md)):
+   **both VMs run `task/T-0026-alert-resolution` `ea01c68`**; vm-095 has migration 005 (backup
+   `argus-20261009T183857Z.dump` before). Its PR goes after #48. **Next code work:** OP-009 is fixed on `task/OP-009-lease-loss`
    (`main` merged in, PR not opened yet); OP-009 before any second worker, OP-004 checkpoint cleanup, SC-06 / SC-08, phase 12 with the
    runner (≥ 5 runs per scenario) and the §21.2 evaluation.
 4. **Open question (`conantkd`):** a host incident's scope holds only the host's declared dependents (T-0024 declares

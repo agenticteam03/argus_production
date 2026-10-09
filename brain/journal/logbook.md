@@ -770,3 +770,16 @@ concluded → unchanged. Migration 005: `resolved_at`, `UPDATE (status, resolved
 Consequences: code and tests done (301 passed, 3 skipped with Postgres); the VM step (migration 005 on vm-095, SC-03
 on vm-166) is next. Stacked on OP-011 (#48).
 References: `tasks/current/T-0026-alert-resolution.md`, `architecture/changes/ACR-0005-pull-alert-resolution.md`.
+
+## 2026-10-09 — T-0026 verified: SC-03's alerts resolve when the cache is back (T-0026, ACR-0005)
+
+Type: verification
+Who: conantkd (+ agent)
+Context: step 01 implemented §6.4 "Resolution" with ACR-0005 (pull: absence from a successful read of every active
+alert).
+Decision / result: backup, migration 005 and the agent image on vm-095 (`ea01c68`), `argus db check` 20/20; vm-166
+checkout. SC-03: one incident `inc_ed6a85ccd28f` (DIAGNOSED, two occurrences, nothing resolved while the alerts were
+active); the cache started at 18:46:13, the alerts cleared at 18:46:54, and the pass at 18:46:56 resolved both
+occurrences (`absent_from_pull`), audited, the concluded incident unchanged. LAB BASELINE OK, NO INTERFERENCE.
+Consequences: T-0026 done; its PR is stacked on #48. Both VMs run `task/T-0026-alert-resolution`.
+References: `tasks/current/T-0026-alert-resolution.md`, `execution/history/T-0026/step-02/evidence.md`.

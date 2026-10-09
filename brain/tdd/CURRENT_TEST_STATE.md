@@ -8,6 +8,8 @@ missing; the silenced-alert and the received-before guards were green from the s
 `tests/test_postgres.py::test_alert_occurrence_resolution` (migration 005: forward only, column grant, no DELETE), plus
 five `argus db check` lines. Full suite on the laptop with a throwaway `postgres:16-alpine`: **301 passed**, 3 skipped;
 the OD-3 timing benchmark failed once in the full run and passed alone (the known Windows timing flake).
+Stage 7 (2026-10-09, both VMs on `ea01c68`): `argus db check` 20/20; SC-03 `inc_ed6a85ccd28f`, both occurrences
+resolved one pass after the alerts cleared, the incident unchanged; NO INTERFERENCE.
 
 **OP-005, 2026-10-09 (`task/OP-005-young-restarts`):** three new unit tests were red against the old exporter/signal,
 then passed. Five PromQL synthetic-series cases passed with Prometheus 3.5.0 `promtool test rules` (young, old with
