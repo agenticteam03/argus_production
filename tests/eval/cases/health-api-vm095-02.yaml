@@ -1,0 +1,43 @@
+# the port of the vm-095 twin is closed
+id: health-api-vm095-02
+category: class
+target: vm-095/container:argus-lab-api
+request: report
+reason: health check is red
+metrics:
+  vm-095/container:argus-lab-api:
+    restarts_10m: 0
+    health_unhealthy: 1
+fixtures:
+  docker_read:
+    /containers/argus-lab-api/health:
+      status: unhealthy
+      failing_streak: 8
+      log:
+      - exit_code: 1
+        output: connection refused
+    /containers/argus-lab-api/status:
+      id: c0ffee
+      state: running
+      health: unhealthy
+      restart_count: 0
+      oom_killed: false
+      exit_code: 0
+      memory_limit_bytes: 67108864
+      networks:
+      - argus-lab-app
+  host_probe:
+    '*':
+      total_mib: 5800
+      available_mib: 4000
+      cpu_busy_percent: 12
+      load1: 0.2
+      cpus: 1
+label:
+  outcome: diagnosed
+  class: health_check_failed
+  root_cause: vm-095/container:argus-lab-api
+  diagnosis_any:
+  - health check
+  runbooks:
+  - RB-002

@@ -169,3 +169,58 @@ def test_the_replay_never_leaves_its_fixtures_whatever_the_environment_says(ev, 
     assert run.reads and all(status == "ok" for _, _, status in run.reads)       # answered by the fixtures
     import os
     assert os.environ["OPENAI_API_KEY"] == "sk-must-not-be-used"              # restored afterwards
+
+
+# --- step 2: the deterministic baseline (§21.2 "Baseline") ---------------------------------------------------------------
+ENABLED = ("container_restart_loop", "health_check_failed", "dependency_unavailable",
+           "postgresql_connection_exhaustion")
+
+
+def test_every_enabled_class_has_at_least_5_labeled_cases(ev):
+    cases = ev.load_cases(CASES)
+    for cls in ENABLED:
+        n = sum(1 for c in cases if c.category == "class" and c.label.incident_class == cls)
+        assert n >= 5, f"{cls}: {n} cases"
+    assert sum(c.category == "ambiguous" for c in cases) >= 2 and any(c.category == "tool_failure" for c in cases)
+
+
+def test_the_baseline_is_a_registered_strategy(ev, tmp_path, monkeypatch):
+    from test_core import RUNBOOKS, FakeMetrics
+    from argus.infrastructure.wiring import Settings, build
+    s = Settings(config_dir=ROOT / "config", secrets_dir=tmp_path / "none", runbooks_dir=RUNBOOKS,
+                 db_path=str(tmp_path / "t.db"))
+    app = build(s, metrics=FakeMetrics(), require_credentials=False)
+    assert app.runner.strategies["baseline"].name == "baseline"
+
+
+def _ids(*categories: str) -> list[str]:
+    from argus.evaluation.cases import load_cases
+    return sorted(c.id for c in load_cases(CASES) if c.category in categories)
+
+
+@pytest.mark.parametrize("cid", _ids("class", "ambiguous", "tool_failure"))
+def test_the_baseline_meets_every_label_without_a_model(ev, tmp_path, cid):
+    c = case(ev, cid)
+    run = ev.run_case(c, workdir=tmp_path, strategy="baseline")
+    assert run.model_calls == 0
+    assert ev.grade(c, run) == [], (run.outcome, run.diagnosis, run.root_cause_target)
+    assert not any(ev.hard_violations(c, run).values())
+
+
+def test_the_baseline_is_deterministic(ev, tmp_path):
+    c = case(ev, "dep-cache-stopped")
+    a, b = (ev.run_case(c, workdir=tmp_path, strategy="baseline") for _ in range(2))
+    assert (a.diagnosis, a.root_cause_target, [r[:2] for r in a.reads]) == \
+           (b.diagnosis, b.root_cause_target, [r[:2] for r in b.reads])
+
+
+def test_the_baseline_never_guesses_when_a_read_fails(ev, tmp_path):
+    run = ev.run_case(case(ev, "tool-failure-status"), workdir=tmp_path, strategy="baseline")
+    assert run.outcome != "diagnosed" and any(status != "ok" for _, _, status in run.reads)
+
+
+def test_the_command_line_runs_every_case_with_the_baseline(ev, tmp_path, capsys):
+    code = ev.main(["--cases", str(CASES), "--strategy", "baseline", "--workdir", str(tmp_path)])
+    out = capsys.readouterr().out
+    assert code == 0, out
+    assert "accuracy 1.00" in out and "hard: 0 0 0" in out

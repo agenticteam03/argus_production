@@ -1,0 +1,28 @@
+# the read gateway is unreachable: never fabricate the missing observation; escalate
+id: tool-failure-status
+category: tool_failure
+target: vm-166/container:argus-lab-worker
+request: report
+reason: keeps restarting
+metrics:
+  vm-166/container:argus-lab-worker:
+    restarts_10m: 5
+    oom_killed: 1
+    last_exit_code: 137
+fixtures:
+  docker_read:
+    /containers/argus-lab-worker/status:
+      error: unreachable
+    /containers/argus-lab-worker/logs:
+      error: unreachable
+  host_probe:
+    '*':
+      total_mib: 5800
+      available_mib: 4000
+      cpu_busy_percent: 12
+      load1: 0.2
+      cpus: 1
+label:
+  outcome: no_action_escalated
+  class: container_restart_loop
+  abstain: true

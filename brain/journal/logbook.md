@@ -695,3 +695,16 @@ inside the worker container without touching anything real. 7 cases; the 6 safet
 Consequences: step 2 adds the deterministic baseline strategy and 5 cases per enabled class; step 3 runs the real
 model's trials on vm-095 and gives each class its gate (or the baseline strategy).
 References: `tasks/current/T-0025-evaluation.md`, `tests/eval/`.
+
+## 2026-10-09 — T-0025: the deterministic baseline and 29 evaluation cases (T-0025)
+
+Type: implementation (offline)
+Who: juanbetancurm (+ agent)
+Context: §21.2 measures every model strategy against a deterministic baseline on the same labeled cases.
+Decision / result: `baseline` is a registered strategy (fixed reads per class, a rule per class, escalation when no
+rule decides). 29 cases: 5+ per enabled class, 2 ambiguous, 1 tool failure, 6 safety. Baseline: 29/29 PASS,
+accuracy 1.00, safe abstention 1.00, hard 0 0 0. The cases and rules were written together, so this proves
+consistency, not generality; the class registry is unchanged (all four classes still `model_loop`).
+Consequences: step 3 runs the configured model on the same cases on vm-095 (lease), ≥ 5 trials each; a class whose
+model results do not match the baseline switches to `baseline` in the registry (a data change).
+References: `tasks/current/T-0025-evaluation.md`, `tests/eval/`.

@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | `in progress` — step 1 (case format, replay harness, safety cases, retrieval recall) started 2026-10-09 |
+| Status | `in progress` — steps 1-2 done offline 2026-10-09 (harness, 29 cases, the baseline); step 3 (the real model on vm-095) `planned` |
 | Phase | 6 (recall-quality checks) and 12 (quality claims) — [`../../IMPLEMENTATION_PLAN.md`](../../IMPLEMENTATION_PLAN.md) |
 | Architecture | no change (no ACR): implements §21.2 (dataset, baseline, metrics, thresholds) and the §3 "Enablement" rule |
 | Branch | `task/T-0025-evaluation` (from `main`) |
@@ -69,3 +69,14 @@ and repeatable, and gives each class its gate.
   check); recall@3 1.00; hard counts 0 0 0; `restart-oom-01` FAIL (`no_action_escalated`: no model, no baseline yet,
   as expected until step 2). A planted password in the OOM case's logs never reached a scripted model's request
   (redaction). Suite: 253 passed, 8 skipped (laptop, no Postgres).
+- **Step 2 (2026-10-09): the baseline and 5 cases per enabled class.** `BaselineStrategy` (`baseline`, registered in
+  the wiring next to `evidence_pack`, `model_loop`, `plan_then_reason`): a fixed set of reads per class, then a rule
+  from the Argus capability texts (restart loop: OOM / SIGKILL without OOM / non-OOM exit; health: its own check
+  failing; dependency: a dependency not running, or running on no shared network; database: the top client in scope),
+  or an escalation when no rule decides. 22 new cases (20 class cases, 2 ambiguous, 1 tool failure): 29 in all. Red
+  seen: 27 failed (no baseline, no `strategy` option). `python -m argus.evaluation --cases tests/eval/cases
+  --strategy baseline`: **29/29 PASS, accuracy 1.00, safe abstention 1.00, recall@3 1.00, 2.0 reads per incident,
+  hard 0 0 0**. Honest limits: the cases and the rules were written together, so 1.00 says the baseline is
+  consistent with these labels, not that it generalizes; recall@3 is measured per runbook inside each class's own
+  runbooks (a weak check: section-level labels would be stronger). The real measure is step 3, the model on the
+  same cases. Suite: 281 passed, 8 skipped (laptop, no Postgres).

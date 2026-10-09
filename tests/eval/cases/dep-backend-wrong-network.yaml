@@ -1,0 +1,47 @@
+# SC-07: a healthy backend on the wrong network
+id: dep-backend-wrong-network
+category: class
+target: vm-166/container:argus-lab-client
+request: report
+reason: the client cannot reach its backend
+metrics:
+  vm-166/container:argus-lab-client:
+    restarts_10m: 0
+    dependency_probe_min: 0
+fixtures:
+  docker_read:
+    /containers/argus-lab-client/status:
+      id: c0ffee
+      state: running
+      health: none
+      restart_count: 0
+      oom_killed: false
+      exit_code: 0
+      memory_limit_bytes: 67108864
+      networks:
+      - argus-lab-app
+    /containers/argus-lab-backend/status:
+      id: c0ffee
+      state: running
+      health: none
+      restart_count: 0
+      oom_killed: false
+      exit_code: 0
+      memory_limit_bytes: 67108864
+      networks:
+      - argus-lab-iso
+  host_probe:
+    '*':
+      total_mib: 5800
+      available_mib: 4000
+      cpu_busy_percent: 12
+      load1: 0.2
+      cpus: 1
+label:
+  outcome: diagnosed
+  class: dependency_unavailable
+  root_cause: vm-166/container:argus-lab-backend
+  diagnosis_any:
+  - network
+  runbooks:
+  - RB-003

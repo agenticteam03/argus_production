@@ -19,6 +19,7 @@ def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(prog="python -m argus.evaluation")
     p.add_argument("--cases", type=Path, required=True)
     p.add_argument("--category", action="append", default=[], help="only these categories (repeatable)")
+    p.add_argument("--strategy", default=None, help="run every class with this registered strategy (e.g. baseline)")
     p.add_argument("--trials", type=int, default=1)
     p.add_argument("--workdir", type=Path, default=None, help="throwaway SQLite stores (default: a temp folder)")
     a = p.parse_args(argv)
@@ -30,7 +31,7 @@ def main(argv: list[str] | None = None) -> int:
     results = []
     for c in cases:
         for i in range(1, a.trials + 1):
-            run = run_case(c, workdir)
+            run = run_case(c, workdir, strategy=a.strategy)
             problems = grade(c, run)
             hard = hard_violations(c, run)
             bad = problems + [f"HARD {k}={v}" for k, v in hard.items() if v]

@@ -79,8 +79,11 @@ class RecordingLLM:
         return self.llm.decide(messages, tools)
 
 
-def run_case(case: Case, workdir: Path, llm: Any | None = None, settings: Settings | None = None) -> CaseRun:
-    """Replay `case` in a throwaway SQLite store under `workdir`. `llm=None`: no model (classes escalate)."""
+def run_case(case: Case, workdir: Path, llm: Any | None = None, settings: Settings | None = None,
+             strategy: str | None = None) -> CaseRun:
+    """Replay `case` in a throwaway SQLite store under `workdir`. `llm=None`: no model (classes escalate).
+    `strategy`: run every class with this registered strategy instead of the class registry's (the evaluation
+    compares strategies on the same cases, §21.2); `None` = as registered."""
     workdir = Path(workdir)
     workdir.mkdir(parents=True, exist_ok=True)
     db = workdir / f"{case.id}-{os.urandom(3).hex()}.db"
@@ -106,6 +109,11 @@ def run_case(case: Case, workdir: Path, llm: Any | None = None, settings: Settin
     inc = Incident(id=f"inc_eval_{os.urandom(4).hex()}", target=TargetRef.parse(case.target),
                    trigger_kind=TriggerKind.manual, request_kind=RequestKind(case.request), reason=case.reason,
                    principal="evaluation", trigger_id=f"eval:{case.id}", opened_at=utcnow())
+    if strategy is not None:
+        chosen = app.runner.strategies[strategy]
+        for name in list(app.runner.strategies):
+            if name != "evidence_pack":            # unsupported / undiagnosable keep the evidence pack
+                app.runner.strategies[name] = chosen
     app.store.create_incident(inc, None)
     t0 = time.monotonic()
     done = app.runner.run(inc.id)

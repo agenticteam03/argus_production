@@ -1,0 +1,53 @@
+# the oldest transaction of the leaker is 15 minutes old
+id: pg-leaker-16-long
+category: class
+target: vm-166/container:argus-lab-db
+request: report
+reason: new clients are refused
+metrics:
+  vm-166/container:argus-lab-db:
+    restarts_10m: 0
+    db_up: 1
+    db_connection_usage: 0.94
+    health_unhealthy: 0
+fixtures:
+  db_probe:
+    /database/health:
+      database: argus-lab-db
+      ok: true
+      max_connections: 20
+      reserved_connections: 3
+      usable_connections: 17
+      client_connections: 16
+      usage_percent: 94.1
+      by_state:
+        idle in transaction: 16
+        idle: 0
+      by_client:
+      - application_name: argus-lab-leaker
+        role: argus_lab_app
+        connections: 16
+      longest_transactions:
+      - pid: 4242
+        application_name: argus-lab-leaker
+        state: idle in transaction
+        wait_event_type: Client
+        wait_event: ClientRead
+        age_s: 900.0
+      lock_waits: 0
+      blocked_sessions: 0
+  host_probe:
+    '*':
+      total_mib: 5800
+      available_mib: 4000
+      cpu_busy_percent: 12
+      load1: 0.2
+      cpus: 1
+label:
+  outcome: diagnosed
+  class: postgresql_connection_exhaustion
+  root_cause: vm-166/container:argus-lab-leaker
+  diagnosis_any:
+  - argus-lab-leaker
+  runbooks:
+  - RB-004

@@ -1,0 +1,53 @@
+# every usable slot taken by the leaker
+id: pg-leaker-17-full
+category: class
+target: vm-166/container:argus-lab-db
+request: report
+reason: new clients are refused
+metrics:
+  vm-166/container:argus-lab-db:
+    restarts_10m: 0
+    db_up: 1
+    db_connection_usage: 1.0
+    health_unhealthy: 0
+fixtures:
+  db_probe:
+    /database/health:
+      database: argus-lab-db
+      ok: true
+      max_connections: 20
+      reserved_connections: 3
+      usable_connections: 17
+      client_connections: 17
+      usage_percent: 100.0
+      by_state:
+        idle in transaction: 17
+        idle: 0
+      by_client:
+      - application_name: argus-lab-leaker
+        role: argus_lab_app
+        connections: 17
+      longest_transactions:
+      - pid: 4242
+        application_name: argus-lab-leaker
+        state: idle in transaction
+        wait_event_type: Client
+        wait_event: ClientRead
+        age_s: 900.0
+      lock_waits: 0
+      blocked_sessions: 0
+  host_probe:
+    '*':
+      total_mib: 5800
+      available_mib: 4000
+      cpu_busy_percent: 12
+      load1: 0.2
+      cpus: 1
+label:
+  outcome: diagnosed
+  class: postgresql_connection_exhaustion
+  root_cause: vm-166/container:argus-lab-leaker
+  diagnosis_any:
+  - argus-lab-leaker
+  runbooks:
+  - RB-004

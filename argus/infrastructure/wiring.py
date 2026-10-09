@@ -17,7 +17,8 @@ from argus.capabilities.redaction import Redactor
 from argus.detectors.classes import CLASSES
 from argus.orchestration.graph_runner import GraphRunner
 from argus.orchestration.runner import SkeletonRunner
-from argus.orchestration.strategies import EvidencePackStrategy, ModelLoopStrategy, PlanThenReasonStrategy
+from argus.orchestration.strategies import (BaselineStrategy, EvidencePackStrategy, ModelLoopStrategy,
+                                           PlanThenReasonStrategy)
 from argus.policy.engine import PolicyEngine
 from argus.tooling.dispatch import DirectProvider, Dispatcher
 from argus.tooling.executors import ExecutorRegistry, KnowledgeClient, PrometheusClient, TargetAgentClient
@@ -205,7 +206,8 @@ def build(settings: Settings | None = None, llm=None, metrics=None, executors: E
             llm_configured = True
     harness = ModelHarness(llm) if llm is not None else None
     strategies = {"evidence_pack": EvidencePackStrategy(), "model_loop": ModelLoopStrategy(harness),
-                  "plan_then_reason": PlanThenReasonStrategy(harness)}
+                  "plan_then_reason": PlanThenReasonStrategy(harness),
+                  "baseline": BaselineStrategy()}          # §21.2: the deterministic baseline (T-0025)
     for c in CLASSES:
         if c.strategy not in strategies:
             raise SystemExit(f"class {c.name} names unknown strategy {c.strategy}")
