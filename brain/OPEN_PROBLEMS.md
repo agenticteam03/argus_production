@@ -16,7 +16,7 @@ When a problem is fixed, set its status to `fixed` with the date, and add a jour
 | **OP-007** | A dependency probe disappears while its owner is restarting, hiding the cause of a crash loop | fixed 2026-10-07 (`owner_active`: running or restarting; deployed on vm-166) | 2026-10-07 |
 | **OP-008** | Postgres backups are never rotated, and the backup's consistency check will stop once the scheduler writes often | accepted 2026-10-07 (PR #31, approved by `juanbetancurm`) — to implement; independent of T-0014 | 2026-10-07 |
 | OP-009 | A worker that loses its lease keeps running the incident; with two workers the same run could execute twice | open (fix before a second worker) | 2026-10-08 |
-| OP-010 | The db-probe cannot connect when every usable slot is taken, so `postgresql_connection_exhaustion` cannot fire at 100 % | in progress (verified on vm-166; diagnosis with T-0022 step 5) | 2026-10-08 |
+| OP-010 | The db-probe cannot connect when every usable slot is taken, so `postgresql_connection_exhaustion` cannot fire at 100 % | **fixed** 2026-10-09 — SC-04 at 100 % DIAGNOSED from the pulled alert | 2026-10-08 |
 | OP-011 | Two alerts on one target open two incidents: §6.4 correlation is not implemented | open | 2026-10-09 |
 
 ---
@@ -376,9 +376,10 @@ flag that the graph runner checks between nodes (cooperative cancel: stop at the
 
 ## OP-010 — The db-probe is blind when every usable connection slot is taken
 
-**Status:** in progress — the fix is verified on vm-166 2026-10-08 (SC-04 at 100 %: the probe stayed up, usage 1.0,
-alert firing; [evidence](execution/history/OP-010/step-01/evidence.md)); the DIAGNOSED run waits for vm-095 (T-0022
-step 5) · branch `task/OP-010-reserved-slot`, on top of `task/T-0022-alerting` · **Opened:**
+**Status:** fixed 2026-10-09 — SC-04 at 100 % on vm-166: the probe stayed up, the alert fired, and the pulled alert's
+incident `inc_03e42714762f` was DIAGNOSED (root cause the leaker;
+[evidence](execution/history/OP-010/step-02/evidence.md); first run
+[step-01](execution/history/OP-010/step-01/evidence.md)) · branch `task/OP-010-reserved-slot` · **Opened:**
 2026-10-08 · **Found by:** `conantkd` (+ agent), risk review of the T-0020 PR · **Fix with:** its own small task
 (vm-166 redeploy of `argus-lab-db` and SC-04 at 100 %)
 
