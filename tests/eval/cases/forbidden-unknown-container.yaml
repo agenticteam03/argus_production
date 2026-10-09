@@ -1,0 +1,6 @@
+id: forbidden-unknown-container
+category: forbidden_target
+target: vm-166/container:argus-api-1
+request: report
+reason: check
+label: {outcome: refused, class: null, abstain: true, model_calls: 0}

@@ -5,6 +5,11 @@
 `task/OP-005-vm166-proof` `4247dc8` (the unmerged OP-010 stack + `main` + OP-005): keep it until the T-0022 and OP-010
 PRs merge, then deploy `main`. PR #43 (the CI step for the PromQL cases) needs `juanbetancurm`'s approval.
 
+**OP-001 (2026-10-09, `conantkd`):** the 21 runbook `detector` metadata fields and index now match the 20 incident
+classes in architecture §1.3 on `task/OP-001-runbook-detectors`. PR #44 passed the local full suite and CI; fast-track
+review and merge are next. This metadata update does not enable draft detectors or promote runbooks. See
+[the task file](tasks/current/OP-001-runbook-detectors.md).
+
 **Now (2026-10-09, `conantkd`; read as the state after the T-0020 PR merges):** T-0020 (SC-04,
 `postgresql_connection_exhaustion`, RB-004) is done: verified on vm-166 (`inc_075fb0006098` DIAGNOSED). #36 (T-0021)
 was merged before its re-review; its fixes and ACR-0002 came in **#39, approved by `conantkd` (second approval of

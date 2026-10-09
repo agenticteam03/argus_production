@@ -1,0 +1,228 @@
+# the leaker plus the connection of the db-probe
+id: pg-leaker-15-monitor
+category: class
+target: vm-166/container:argus-lab-db
+request: report
+reason: new clients are refused
+metrics:
+  vm-166/container:argus-lab-db:
+    restarts_10m: 0
+    db_up: 1
+    db_connection_usage: 0.94
+    health_unhealthy: 0
+fixtures:
+  db_probe:
+    /database/health:
+      database: argus-lab-db
+      ok: true
+      max_connections: 20
+      reserved_connections: 3
+      usable_connections: 17
+      client_connections: 16
+      usage_percent: 94.1
+      by_state:
+        idle in transaction: 15
+        idle: 1
+      by_client:
+      - application_name: argus-lab-leaker
+        role: argus_lab_app
+        connections: 15
+      - application_name: argus-v18-db-probe
+        role: argus_monitor
+        connections: 1
+      longest_transactions:
+      - pid: 4242
+        application_name: argus-lab-leaker
+        state: idle in transaction
+        wait_event_type: Client
+        wait_event: ClientRead
+        age_s: 900.0
+      lock_waits: 0
+      blocked_sessions: 0
+  host_probe:
+    '*':
+      total_mib: 5800
+      available_mib: 4000
+      cpu_busy_percent: 12
+      load1: 0.2
+      cpus: 1
+  prometheus:
+    range:
+      container_memory_bytes:
+      - - -1800
+        - 31457280
+      - - -1740
+        - 31522816
+      - - -1680
+        - 31588352
+      - - -1620
+        - 31457280
+      - - -1560
+        - 31522816
+      - - -1500
+        - 31588352
+      - - -1440
+        - 31457280
+      - - -1380
+        - 31522816
+      - - -1320
+        - 31588352
+      - - -1260
+        - 31457280
+      - - -1200
+        - 31522816
+      - - -1140
+        - 31588352
+      - - -1080
+        - 31457280
+      - - -1020
+        - 31522816
+      - - -960
+        - 31588352
+      - - -900
+        - 31457280
+      - - -840
+        - 31522816
+      - - -780
+        - 31588352
+      - - -720
+        - 31457280
+      - - -660
+        - 31522816
+      - - -600
+        - 31588352
+      - - -540
+        - 31457280
+      - - -480
+        - 31522816
+      - - -420
+        - 31588352
+      - - -360
+        - 31457280
+      - - -300
+        - 31522816
+      - - -240
+        - 31588352
+      - - -180
+        - 31457280
+      - - -120
+        - 31522816
+      - - -60
+        - 31588352
+      - - 0
+        - 31457280
+      container_restart_count:
+      - - -1800
+        - 0
+      - - -1740
+        - 0
+      - - -1680
+        - 0
+      - - -1620
+        - 0
+      - - -1560
+        - 0
+      - - -1500
+        - 0
+      - - -1440
+        - 0
+      - - -1380
+        - 0
+      - - -1320
+        - 0
+      - - -1260
+        - 0
+      - - -1200
+        - 0
+      - - -1140
+        - 0
+      - - -1080
+        - 0
+      - - -1020
+        - 0
+      - - -960
+        - 0
+      - - -900
+        - 0
+      - - -840
+        - 0
+      - - -780
+        - 0
+      - - -720
+        - 0
+      - - -660
+        - 0
+      - - -600
+        - 0
+      - - -540
+        - 0
+      - - -480
+        - 0
+      - - -420
+        - 0
+      - - -360
+        - 0
+      - - -300
+        - 0
+      - - -240
+        - 0
+      - - -180
+        - 0
+      - - -120
+        - 0
+      - - -60
+        - 0
+      - - 0
+        - 0
+  docker_read:
+    /containers/argus-lab-db/logs:
+      lines:
+      - service running
+    /containers/argus-lab-db/stats:
+      memory_usage_bytes: 31457280
+      memory_limit_bytes: 134217728
+      cpu_percent: 3.0
+    /containers/argus-lab-db/health:
+      status: none
+      failing_streak: 0
+      log: []
+    /containers/argus-lab-db/events:
+      events: []
+    /containers/argus-lab-leaker/status:
+      id: c0ffee
+      state: running
+      health: none
+      restart_count: 0
+      oom_killed: false
+      exit_code: 0
+      memory_limit_bytes: 134217728
+      networks:
+      - argus-lab-app
+    /containers/argus-lab-leaker/logs:
+      lines:
+      - running
+    /containers/argus-lab-leaker/stats:
+      memory_usage_bytes: 12582912
+      memory_limit_bytes: 134217728
+      cpu_percent: 1.0
+    /containers/argus-lab-leaker/health:
+      status: none
+      failing_streak: 0
+      log: []
+    /containers/argus-lab-leaker/events:
+      events: []
+  network_probe:
+    '*':
+      ok: true
+      addresses:
+      - 172.30.1.20
+      duration_ms: 2
+      status: 200
+label:
+  outcome: diagnosed
+  class: postgresql_connection_exhaustion
+  root_cause: vm-166/container:argus-lab-leaker
+  diagnosis_any:
+  - argus-lab-leaker
+  runbooks:
+  - RB-004
