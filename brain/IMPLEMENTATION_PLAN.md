@@ -17,7 +17,7 @@ calls); the phases below replace each simplification.
 | 1 | Project init | v1.8 code layout, tests | a clean, testable core | ✅ 90 % | tidy as later phases touch it |
 | 2 | Inventory & identity | `vm-095` / `vm-166` as real hosts | the same name on two hosts must never be confused | ✅ done | — |
 | 3 | Target services | read gateway, probes, exporter per VM | Argus reads hosts only through narrow, audited services | ✅ 95 % | DB probe done (T-0019 batch 1); the other §4.6 verbs in T-0019 batches 2–3 |
-| 4 | Tools & guarded execution | every tool call through `InvokeCapability` | policy, audit and host isolation on every read | 🟡 50 % | MCP tools child, UID `argus-tools`, credential-isolation test |
+| 4 | Tools & guarded execution | every tool call through `InvokeCapability` | policy, audit and host isolation on every read | 🟡 85 % | T-0021 verified on vm-095 (worker in `mcp` mode, tokens readable only by `argus-tools`, TOOLS ISOLATION OK, OD-3 p95 overhead ~45 ms); PR #36 to review |
 | 5 | Postgres | system of record (incidents, evidence, audit) | durable insert-only evidence; LangGraph checkpoints need it | ✅ 100 % | — (backup/restore drill done 2026-10-06, T-0017) |
 | 6 | Runbooks | the library drives recall | diagnoses traceable to a runbook version | ✅ 85 % | recall-quality checks per class |
 | 7 | Monitoring & detection | per-host Prometheus, detectors | detect deterministically before any AI | 🟡 50 % | Alertmanager, node-exporter, cAdvisor; pull firing alerts |
@@ -25,7 +25,7 @@ calls); the phases below replace each simplification.
 | 9 | Agent workflow | the v1.8 skeleton in LangGraph | resume after a crash; a real worker and scheduler | 🟡 75 % | T-0013 (LangGraph + Postgres checkpoints) and OP-006 done; T-0014 done (lease, `argus api`/`worker`/`scheduler`, compose; on vm-095 a killed worker's run resumed from its checkpoint, a schedule coalesced while busy), PR #33 to merge; OP-004 checkpoint cleanup after it |
 | 10 | Output modes | formatted CLI and `--raw` | readable for humans, complete for developers | ✅ 90 % | ACT result column wraps instead of being cut (fixed 2026-10-07, seen in the SC-07 demo); new scope: read-only web UI (T-0015 API side, T-0016 frontend) |
 | 11 | Synthetic incidents | controlled failures on both VMs | proof needs reproducible failures | 🟡 70 % | SC-05 disk, SC-06 CPU, SC-08 nginx (SC-04 done 2026-10-07, T-0020) |
-| 12 | End-to-end tests | every scenario through the CLI | quality claims need repeated runs | 🟡 30 % | scripted e2e suite; ≥ 5 runs per scenario |
+| 12 | End-to-end tests | every scenario through the CLI | quality claims need repeated runs | 🟡 45 % | T-0023: the scenario runner `ops/e2e/run.py` + catalogue; on the VMs SC-01 5/5 and SC-03 5/5 PASS, H-1/H-2/SC-09/SC-11 1/1 (2026-10-09); next SC-02, SC-07 × 5, then each new scenario |
 | 13 | Failure & recovery | behaviour under real faults | failures become escalations, never crashes | 🟡 40 % | restart Postgres, rotate tokens (kill the worker mid-run: done on vm-095, T-0014 step 5) |
 | 14 | Optional | swap-ability experiments | prove a new executor needs no core change | ⬜ 0 % | `ssh_verbs` executor, only if time allows |
 

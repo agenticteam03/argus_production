@@ -1,6 +1,6 @@
 # Current state — the last verified shared state
 
-**As of:** 2026-10-08 (T-0020 SC-04 and the state probe of both VMs, by `conantkd`) · **Architecture:** v1.8.1 (ACR-0001) · **Status:** `verified` on
+**As of:** 2026-10-09 (T-0020 SC-04 after #39 and #40 merged, by `conantkd`) · **Architecture:** v1.8.2 (ACR-0002, second approval in PR #39; 1.8.1 ACR-0001) · **Status:** `verified` on
 the VMs; T-0013 (LangGraph + Postgres checkpoints) merged and **deployed: both VMs run `main` `09f5ab1`** (§2) ·
 shared-Brain setup B1–B8 under way (three developers).
 
@@ -54,6 +54,14 @@ and repeated end-to-end runs.
   `inc_075fb0006098` **DIAGNOSED**, root cause `argus-lab-leaker`, RB-004, `inspect_database_health` read, no database
   restart proposed. Two anonymous volumes left by the leaker's image were removed by ID (approved); the leaker now
   uses a tmpfs. Evidence: [`execution/history/T-0020/`](execution/history/T-0020/).
+- **T-0021 (OBSERVED 2026-10-08, step 5, `juanbetancurm`; review fixes deployed in step 5e, PR #39):** vm-095 runs `task/T-0021-tool-isolation`
+  `a5f330a` (T-0014 included): the worker runs in `mcp` mode (`ARGUS_TOOL_CATALOGUE=mcp` in `/opt/argus-v18/hosts.env`);
+  the 7 executor tokens and their host folders belong to `argus-tools` (uid 10011), so the worker (10010) and the
+  api (which now mounts only `db_password`, `jwt_signing_key`, `openai_api_key`) cannot read them; TOOLS ISOLATION
+  OK; SC-02 DIAGNOSED through the tools process; OD-3 p95 overhead ~45 ms per read; NO INTERFERENCE. **Do not deploy
+  `main` on vm-095 before PR #36 merges** without the rollback first (block R of the evidence): `main`'s api and
+  worker would not start (`missing credential`). Evidence:
+  [`execution/history/T-0021/step-05/evidence.md`](execution/history/T-0021/step-05/evidence.md).
 - **Earlier (OBSERVED 2026-10-08, T-0014 step 5, `juanbetancurm`):** vm-095 runs `task/T-0014-worker-scheduler`
   `169ca07` (migration `003_worker_lease` applied): `argus-v18-agent` runs `argus api`, plus `argus-v18-worker` and
   `argus-v18-scheduler` (no schedule enabled). A worker killed mid-run (SC-02) had its run taken back after the
@@ -101,7 +109,7 @@ and repeated end-to-end runs.
 ## 3. Phase status
 
 See [`IMPLEMENTATION_PLAN.md`](IMPLEMENTATION_PLAN.md) §1. Done or nearly done: 0, 1, 2, 3, 5, 6, 8, 10.
-In progress: 4 (50 %), 7 (50 %), **9 (75 %: LangGraph + checkpoints + OP-006 done; api/worker/scheduler split
+In progress: 4 (85 %: T-0021 verified on vm-095, PR #36 merged, review fixes in #39), 7 (50 %), **9 (75 %: LangGraph + checkpoints + OP-006 done; api/worker/scheduler split
 T-0014 verified on vm-095, PR #33 to merge)**, 11 (70 %: SC-07 done, T-0018; SC-04 done, T-0020), 12 (30 %), 13 (40 %). Not started: 14. Phase 10 (90 %) gets a read-only web UI as new scope:
 T-0015 (API side: done; step 6 proved on vm-095 2026-10-07, a read token gets 403 on a write) and T-0016 (frontend: steps 1-2 merged, PR #24,
 mock-only); UI actions beyond reading need a future ACR (`NEXT_STEP.md`).

@@ -536,6 +536,23 @@ Consequences: T-0014 is done and waits for review and merge (PR #33); then vm-09
 and T-0021 step 4 (compose for the tools process) can start. Phase 13 "kill the worker mid-run" is covered.
 References: `tasks/current/T-0014-worker-scheduler.md`, `execution/history/T-0014/step-05/evidence.md`.
 
+## 2026-10-08 — T-0021: target-side reads in an MCP tools process under its own user (T-0021)
+
+Type: implementation + verification
+Who: juanbetancurm (+ agent)
+Context: the worker held every executor token and ran every read itself; ARCHITECTURE §12.5/§12.6 want the reads in
+a separate tools process that alone can read the tokens, and OD-3 asks what that costs per call.
+Decision / result: an MCP tools server over stdio (`mcp` 2.3) publishes only the `tools_child` read capabilities and
+refuses unpublished names, out-of-inventory targets and bad arguments before executing; the worker keeps policy,
+audit and evidence. It runs as `argus-tools` (uid 10011), started through one sudo rule (the root-owned launcher, no
+arguments); the api mounts no token. On vm-095 the tokens and their folders now belong to `argus-tools`, the worker
+runs `ARGUS_TOOL_CATALOGUE=mcp`: TOOLS ISOLATION OK, SC-02 DIAGNOSED through the tools process, OD-3 p95 overhead
+~45 ms per read (budget 100 ms), NO INTERFERENCE. A false STOP of the isolation check (it listed folders the worker
+can no longer list) was found on the VM and fixed with a test. 183 passed, 2 skipped.
+Consequences: PR #36 needs a teammate's review (safety model). Until it merges, vm-095 must not get `main` without
+the rollback (its api and worker would not start). The code default stays `direct`; flipping it is for the review.
+References: `tasks/current/T-0021-tool-isolation.md`, `execution/history/T-0021/step-05/evidence.md`, PR #36.
+
 ## 2026-10-08 — SC-04 verified, reviews, T-0020 ready for review (T-0020)
 
 Type: verification
@@ -553,3 +570,70 @@ needed for `setpriv` → `sudo`), after-merge reviews of #33 and #37 posted. OP-
 Consequences: T-0020 is done and waits for review. vm-095 runs T-0021 without T-0020, so the class reaches the agent
 when vm-095 is back on `main`. Phase 11 at 70 %.
 References: `tasks/current/T-0020-sc04-pg-connections.md`, `execution/history/T-0020/`, OPEN_PROBLEMS OP-009, PRs #33-#37.
+
+## 2026-10-09 — T-0021: review fixes of PR #36, and ACR-0002 (T-0021)
+
+Type: implementation + architecture change (proposed)
+Who: juanbetancurm (+ agent)
+Context: `conantkd` requested changes on PR #36: a compromised worker could still get code to run as `argus-tools`
+(sudo keeps the working folder, `python -m` puts it first on `sys.path`; reproduced with fake tokens), and the
+switch from `setpriv` to a sudo rule changes the mechanism behind a safety principle (secrets), so it needs an ACR.
+Decision / result: the launcher runs `cd /` and `python -I -u`; `isolation_check` plants an `argus` package and
+starts the launcher from that folder (old launcher: STOP, fixed launcher: OK, on the agent image). ACR-0002
+(proposed) records the sudo launcher in §12.6 and closes OD-3 with "keep MCP" (architecture 1.8.2). A tools process
+that hangs is now replaced after the call times out. vm-095's compose defaults to `mcp`. 185 passed, 2 skipped.
+Consequences: PR #36 needs the re-review and the ACR's second approval; vm-095 gets the fixed launcher with a
+redeploy of the branch and a new isolation check (step 5e, with the lease).
+References: `architecture/changes/ACR-0002-tools-uid-sudo-launcher.md`, `tasks/current/T-0021-tool-isolation.md`,
+PR #36.
+
+## 2026-10-09 — T-0021: step 5e on vm-095, and PR #36 merged before its re-review (T-0021)
+
+Type: verification + incident (review rule)
+Who: juanbetancurm (+ agent)
+Context: the review fixes of PR #36 (`6f45218`) had to reach vm-095, and the PR needed `conantkd`'s re-review.
+Decision / result: step 5e on vm-095: the fixed launcher deployed, `isolation_check` with the planted-package probe
+TOOLS ISOLATION OK, NO INTERFERENCE. Meanwhile PR #36 was merged into `main` (`a9b4df8`) at its earlier head
+`289bb0d`, before the fixes and the re-review: `main-guard` red, and `main` has the old launcher.
+Consequences: per REVIEW_PROTOCOL, a follow-up PR (`task/T-0021-review-fixes`) brings the fixes, ACR-0002 and the
+step 5e record to `main` and gets the missing review (no force push, no fast-track: ACR, safety principle). Until it
+merges, `main` must not be deployed on vm-095.
+References: `execution/history/T-0021/step-05e/evidence.md`, `tasks/current/T-0021-tool-isolation.md`, PR #36.
+
+## 2026-10-09 — T-0023: a runner for repeated end-to-end scenario runs (T-0023)
+
+Type: implementation (step 1, offline)
+Who: juanbetancurm (+ agent)
+Context: phase 12 needs at least 5 graded runs per scenario; every run so far was a set of manual blocks.
+Decision / result: `ops/e2e/run.py` runs catalogued scenarios from the laptop (ssh for the reviewed commands, the
+HTTP API on the tunnel for the investigation), waits on the detector's own signal (pre-gate and gate, no fixed
+sleeps), always resets, stops the batch on interference or a failed reset, grades outcome, class, root cause, first
+runbook, model use and the host of every read, and writes one JSON line per run outside the repository. Catalogue:
+H-1, H-2, SC-01, SC-02, SC-03, SC-07, SC-09, SC-11. 22 new tests; 206 passed, 2 skipped.
+Consequences: step 2 is the first real batch with the lease (H-1, H-2, SC-09, SC-11 once; SC-01 and SC-03 × 5).
+References: `tasks/current/T-0023-e2e-runner.md`, `ops/e2e/scenarios.yaml`.
+
+## 2026-10-09 — T-0023: the first real batch of the scenario runner (T-0023)
+
+Type: verification
+Who: juanbetancurm (+ agent)
+Context: step 2 of T-0023, the runner's first batch on vm-095 and vm-166.
+Decision / result: H-1, H-2, SC-09, SC-11 1/1; **SC-03 5/5** and **SC-01 5/5 PASS** (class, root cause, first runbook
+and the host of every read graded), NO INTERFERENCE after every run. One SC-01 run lost the laptop's API tunnel: it
+was reset and checked clean, the batch stopped as designed, and the runner now keeps its own tunnel and retries a
+dropped connection (`4f8ae43`).
+Consequences: phase 12 has its first repeated runs. Next: SC-02 and SC-07 × 5; each new scenario (SC-04 after #38)
+gets a catalogue entry and 5 runs.
+References: `tasks/current/T-0023-e2e-runner.md`, `execution/history/T-0023/step-02/evidence.md`.
+
+## 2026-10-09 — review of PR #40: two runner fixes made by the reviewer (T-0023)
+
+Type: review
+Who: conantkd (+ agent)
+Context: review of PR #40 (`juanbetancurm`'s end-to-end runner). REVIEW_PROTOCOL: small fixes are made by the
+reviewer on the same branch, journaled.
+Decision / result: (1) an incident view without `evidence` and `audit` (the runner's user not an operator) is an ERROR,
+never a PASS; before, the model and host checks passed on nothing. (2) The reset runs only once a start was attempted;
+SC-07's reset succeeds when its network is already gone. 6 new tests, red seen; `test_e2e_runner.py` 33 passed.
+Consequences: run the batches as an operator user. Every catalogued reset must be idempotent.
+References: `tasks/current/T-0023-e2e-runner.md`, PR #40.

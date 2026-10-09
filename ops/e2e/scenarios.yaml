@@ -1,0 +1,122 @@
+# T-0023: the scenarios ops/e2e/run.py may run (docs/INCIDENTS.md §4, IMPLEMENTATION_PLAN §7). Reviewed like code:
+# these commands are the ONLY ones the runner runs on a VM, over `ssh argus-vm095` / `ssh argus-vm166`.
+#
+#   host      the VM where the scenario's commands run (start, gates, reset)
+#   hosts     the VMs whose session marker and nonint-check are verified (default: [host])
+#   pre_gate  wait until the signal is clean before starting (so run N never sees run N-1's failure)
+#   gate      wait until the signal the detector reads shows the failure (never a fixed sleep)
+#             - promql: queried on the host's own Prometheus (127.0.0.1:18090), last value or "none"
+#             - expect: a comparison (">=3", "==0") or a regular expression on the last line
+#   request   what is sent to POST /api/v1/investigations (target, reason, kind)
+#   expect    outcome (or a list), class (null = none), root_cause, first_runbook, model: none, reads_on (a host:
+#             every read must stay on it), findings_any
+#   reset     runs once a start was attempted, also after an error; a failed reset stops the batch. Idempotent:
+#             it must succeed when what it removes is already gone
+# Not here yet: SC-10 and SC-12 (they stop Argus's own services), SC-04 (after PR #38), SC-05, SC-06, SC-08.
+
+scenarios:
+  - id: H-1
+    title: healthy check of the vm-166 api (no failure)
+    host: vm-166
+    request: {target: "vm-166/container:argus-lab-api", reason: "is it healthy?", kind: check}
+    expect: {outcome: no_incident, model: none, reads_on: vm-166}
+
+  - id: H-2
+    title: healthy check of the vm-095 twin (same name, other host)
+    host: vm-095
+    request: {target: "vm-095/container:argus-lab-api", reason: "is it healthy?", kind: check}
+    expect: {outcome: no_incident, model: none, reads_on: vm-095}
+
+  - id: SC-01
+    title: OOM restart loop on vm-166 (killed by its own 64 MiB limit)
+    host: vm-166
+    pre_gate:
+      promql: 'max_over_time(argus_container_restart_count{argus_host="vm-166",container="argus-lab-worker"}[10m]) - min_over_time(argus_container_restart_count{argus_host="vm-166",container="argus-lab-worker"}[10m])'
+      expect: "^(none|0)$"
+      timeout_s: 900
+      every_s: 30
+    start:
+      - cd /opt/argus-v18/app/deploy/lab && sudo docker compose -f compose.lab.yml --profile sc01 up -d argus-lab-worker-oom
+    gate:
+      promql: 'max_over_time(argus_container_restart_count{argus_host="vm-166",container="argus-lab-worker"}[10m]) - min_over_time(argus_container_restart_count{argus_host="vm-166",container="argus-lab-worker"}[10m])'
+      expect: ">=3"
+      timeout_s: 300
+      every_s: 15
+    request: {target: "vm-166/container:argus-lab-worker", reason: "keeps restarting", kind: report}
+    expect: {outcome: diagnosed, class: container_restart_loop, first_runbook: RB-001, reads_on: vm-166}
+    reset:
+      - cd /opt/argus-v18/app/deploy/lab && sudo docker compose -f compose.lab.yml --profile sc01 rm -sf argus-lab-worker-oom
+
+  - id: SC-02
+    title: non-OOM crash loop on vm-095 (same container name as SC-01)
+    host: vm-095
+    pre_gate:
+      promql: 'max_over_time(argus_container_restart_count{argus_host="vm-095",container="argus-lab-worker"}[10m]) - min_over_time(argus_container_restart_count{argus_host="vm-095",container="argus-lab-worker"}[10m])'
+      expect: "^(none|0)$"
+      timeout_s: 900
+      every_s: 30
+    start:
+      - cd /opt/argus-v18/app/deploy/lab && sudo docker compose -f compose.lab.yml --profile sc02 up -d argus-lab-worker-crash
+    gate:
+      promql: 'max_over_time(argus_container_restart_count{argus_host="vm-095",container="argus-lab-worker"}[10m]) - min_over_time(argus_container_restart_count{argus_host="vm-095",container="argus-lab-worker"}[10m])'
+      expect: ">=3"
+      timeout_s: 300
+      every_s: 15
+    request: {target: "vm-095/container:argus-lab-worker", reason: "keeps restarting", kind: report}
+    expect: {outcome: diagnosed, class: container_restart_loop, first_runbook: RB-008, reads_on: vm-095}
+    reset:
+      - cd /opt/argus-v18/app/deploy/lab && sudo docker compose -f compose.lab.yml --profile sc02 rm -sf argus-lab-worker-crash
+
+  - id: SC-03
+    title: the cache stops; the api is the victim, the cache the root cause (vm-166)
+    host: vm-166
+    pre_gate:
+      promql: 'min(argus_probe_success{argus_host="vm-166",owner="argus-lab-api"})'
+      expect: "==1"
+      timeout_s: 300
+      every_s: 15
+    start:
+      - sudo docker stop argus-lab-cache
+    gate:
+      promql: 'min(argus_probe_success{argus_host="vm-166",owner="argus-lab-api"})'
+      expect: "==0"
+      timeout_s: 180
+      every_s: 10
+    request: {target: "vm-166/container:argus-lab-api", reason: "api returns errors", kind: report}
+    expect: {outcome: diagnosed, class: dependency_unavailable, root_cause: "vm-166/container:argus-lab-cache",
+             first_runbook: RB-003, reads_on: vm-166}
+    reset:
+      - sudo docker start argus-lab-cache
+
+  - id: SC-07
+    title: a healthy backend on the wrong network (vm-166)
+    host: vm-166
+    pre_gate:
+      promql: 'min(argus_probe_success{argus_host="vm-166",owner="argus-lab-client"})'
+      expect: "^none$"
+      timeout_s: 600
+      every_s: 30
+    start:
+      - cd /opt/argus-v18/app/deploy/lab && sudo docker compose -f compose.lab.yml --profile sc07 up -d
+    gate:
+      promql: 'min(argus_probe_success{argus_host="vm-166",owner="argus-lab-client"})'
+      expect: "==0"
+      timeout_s: 180
+      every_s: 10
+    request: {target: "vm-166/container:argus-lab-client", reason: "the client cannot reach its backend", kind: report}
+    expect: {outcome: diagnosed, class: dependency_unavailable, root_cause: "vm-166/container:argus-lab-backend",
+             first_runbook: RB-003, reads_on: vm-166}
+    reset:
+      - sudo docker rm -f argus-lab-client argus-lab-backend && { ! sudo docker network inspect argus-lab-iso >/dev/null 2>&1 || sudo docker network rm argus-lab-iso; }
+
+  - id: SC-09
+    title: a report with no matching class on a healthy target (no model call)
+    host: vm-095
+    request: {target: "vm-095/container:argus-lab-api", reason: "users see stale data", kind: report}
+    expect: {outcome: unsupported_escalated, class: null, model: none, reads_on: vm-095}
+
+  - id: SC-11
+    title: a target outside the inventory is refused before anything is read
+    host: vm-166
+    request: {target: "vm-166/container:argus-api-1", reason: "check", kind: report}
+    expect: {outcome: refused, class: null, model: none, reads_on: vm-166}
