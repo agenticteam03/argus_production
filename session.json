@@ -1,11 +1,11 @@
 {
-  "holder": "conantkd",
-  "session_id": "d77b4b79ab5a",
+  "holder": "juanbetancurm",
+  "session_id": "9123f9010669",
   "task": "T-0021",
-  "branch": "task/T-0020-sc04-pg-connections",
-  "base_commit": "e96de25a72baded8125a6b1ff0661fe35522baef",
-  "started_at": "2026-10-08T17:45:22+00:00",
-  "expires_at": "2026-10-09T01:21:09+00:00",
-  "released": true,
+  "branch": "main",
+  "base_commit": "a9b4df8c09123f80707f8292ed6530d631d9a851",
+  "started_at": "2026-10-09T00:50:31+00:00",
+  "expires_at": "2026-10-09T01:50:31+00:00",
+  "released": false,
   "handoff": null
 }
