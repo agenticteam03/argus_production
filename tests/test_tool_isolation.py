@@ -58,7 +58,11 @@ def test_sudoers_allows_only_the_launcher_without_arguments():
     grants = [r for r in rules if not r.startswith("Defaults")]
     assert grants == ['argus ALL=(argus-tools) NOPASSWD: /usr/local/bin/argus-tools-server ""']
     text = LAUNCHER.read_text(encoding="utf-8")
-    assert "exec /usr/local/bin/python -m argus.tooling.mcp.tools_server" in text and '"$@"' not in text
+    assert '"$@"' not in text
+    # Review of PR #36: sudo keeps the caller's working folder and `python -m` would put it first on sys.path, so a
+    # worker could plant its own `argus` package there. The launcher leaves that folder and runs Python isolated.
+    assert "cd / || exit 1" in text.splitlines()
+    assert "exec /usr/local/bin/python -I -u -m argus.tooling.mcp.tools_server" in text
     assert "ARGUS_SECRETS_DIR=/run/argus-secrets" in text and "ARGUS_CONFIG_DIR=/app/config" in text
 
 

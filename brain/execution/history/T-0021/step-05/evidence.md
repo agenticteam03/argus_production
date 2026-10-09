@@ -30,5 +30,6 @@ there before that would bring back code in which the api and the worker read the
 tokens belong to uid 10011: both would refuse to start (`missing credential`). Before
 deploying `main` on vm-095 ahead of #36, run the rollback.
 
-**Rollback** (from `code.bash`, block R): remove `ARGUS_TOOL_CATALOGUE` from `hosts.env`; tokens and the two host
+**Rollback** (from `code.bash`, block R): set `ARGUS_TOOL_CATALOGUE=direct` in `hosts.env` (since 2026-10-09 the
+compose default is `mcp`, so removing the line is no longer enough); tokens and the two host
 folders back to `10010`; the secrets folder back to `0500`; recreate the worker.
