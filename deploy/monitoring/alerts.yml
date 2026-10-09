@@ -1,8 +1,8 @@
 groups:
   - name: argus-v18
     rules:
-      - alert: ContainerRestartLoop
-        expr: (max_over_time(argus_container_restart_count[10m]) - min_over_time(argus_container_restart_count[10m])) >= 3
+      - alert: ContainerRestartLoop          # OP-005: counts like the signal restarts_10m (young-first; a gap is unknown)
+        expr: clamp_min((argus_container_restart_count and on(argus_host,container) (time() - argus_container_created_seconds < 600)) or on(argus_host,container) (argus_container_restart_count - argus_container_restart_count offset 10m), 0) >= 3
         annotations: {summary: "container restarted 3+ times in 10 minutes"}
       - alert: ContainerUnhealthy
         expr: argus_container_health_unhealthy == 1
@@ -17,3 +17,7 @@ groups:
         expr: argus_db_connections_used / (argus_db_connections_usable > 0) >= 0.9
         for: 5m
         annotations: {summary: "a database has used 90 %+ of its usable connection slots for 5 minutes"}
+      - alert: HostDiskPressure            # T-0022/T-0024 (node-exporter): any real filesystem above 90 % for 5 minutes
+        expr: max by (argus_host) (1 - node_filesystem_avail_bytes{job="argus-v18-node-exporter",fstype=~"ext4|xfs|btrfs"} / node_filesystem_size_bytes{job="argus-v18-node-exporter",fstype=~"ext4|xfs|btrfs"}) >= 0.9
+        for: 5m
+        annotations: {summary: "a filesystem of the host is above 90 % used for 5 minutes"}

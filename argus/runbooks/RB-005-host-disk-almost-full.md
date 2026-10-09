@@ -7,17 +7,17 @@ id: RB-005
 title: Host disk almost full
 status: draft
 owner: Argus Team
-version: 1.0.0
+version: 1.0.3
 created: 2026-09-29
-last_reviewed: 2026-09-29
+last_reviewed: 2026-10-09
 source_review_date: 2026-09-29
-last_tested: null
-detector: null
+last_tested: 2026-10-09
+detector: disk_pressure
 ```
 
 ## Scope
 
-Approved Linux filesystems backing Docker, logs or application storage on Host T. Record mount/device/namespace, filesystem type and Docker storage/log driver. Exclude device-latency-only incidents (RB-010); database-owned storage branches to RB-019. [Shared contracts](../RUNBOOK-CONVENTIONS.md) apply. No disk detector was found in the current three-class registry.
+Approved Linux filesystems backing Docker, logs or application storage on Host T. Record mount/device/namespace, filesystem type and Docker storage/log driver. Exclude device-latency-only incidents (RB-010); database-owned storage branches to RB-019. [Shared contracts](../RUNBOOK-CONVENTIONS.md) apply. Detector: `disk_pressure` (T-0024): a declared mount of the host target at 90 % or more for 5 minutes, with the time to full at the 15-minute fill rate.
 
 ## Incident definition
 

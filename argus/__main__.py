@@ -59,20 +59,30 @@ def scheduler() -> None:
     """T-0014: submits the scheduled checks of ARGUS_SCHEDULES; never runs detectors, the model or the graph."""
     from pathlib import Path
 
+    from argus.adapters.outbound.alerts_alertmanager import AlertmanagerSource
     from argus.adapters.outbound.config_adapters import YamlInventory
-    from argus.infrastructure.scheduler import Scheduler, load_schedules
+    from argus.application.alerts import HandleAlertNotification, ReconcileFiringAlerts
+    from argus.infrastructure.scheduler import Scheduler, load_reconcile, load_schedules
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
     s = Settings()
     inventory = YamlInventory((s.config_dir / "inventory.yaml").read_text(encoding="utf-8"))
     path = Path(os.getenv("ARGUS_SCHEDULES", "deploy/scheduler/schedules.yaml"))
-    schedules = load_schedules(path.read_text(encoding="utf-8"), inventory,
-                               min_interval_s=int(os.getenv("ARGUS_SCHEDULE_MIN_INTERVAL_S", "300")))
-    logging.getLogger("argus.scheduler").info("%d schedules, %d enabled", len(schedules),
-                                              sum(x.enabled for x in schedules))
+    text = path.read_text(encoding="utf-8")
+    schedules = load_schedules(text, inventory, min_interval_s=int(os.getenv("ARGUS_SCHEDULE_MIN_INTERVAL_S", "300")))
+    cfg = load_reconcile(text)
+    log = logging.getLogger("argus.scheduler")
+    log.info("%d schedules, %d enabled; reconcile firing alerts: %s", len(schedules),
+             sum(x.enabled for x in schedules), f"every {cfg.every_s} s" if cfg.enabled else "off")
+    store = make_store(s)
+    reconcile = None
+    if cfg.enabled:                     # ACR-0003: the pull transport profile
+        hosts = {h.name: h.alertmanager for h in inventory.hosts() if h.alertmanager}
+        reconcile = ReconcileFiringAlerts(AlertmanagerSource(hosts), HandleAlertNotification(store, inventory),
+                                          sorted(hosts))
     stop = threading.Event()
     signal.signal(signal.SIGTERM, lambda *_: stop.set())
     signal.signal(signal.SIGINT, lambda *_: stop.set())
-    Scheduler(make_store(s), schedules).run_forever(stop)
+    Scheduler(store, schedules, reconcile, cfg.every_s).run_forever(stop)
 
 
 def serve() -> None:
