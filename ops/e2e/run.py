@@ -12,9 +12,10 @@ failed on the VM is not.
 
 One run: the session marker on each touched host is yours -> nonint-check before -> pre-gate (the signal is clean)
 -> start -> gate (the signal the detector reads, polled, never a fixed sleep) -> investigate -> wait for the result
--> grade -> reset (always, also after an error) -> nonint-check after. A host that does not say NO INTERFERENCE, or a
-failed reset, stops the whole batch. A wrong diagnosis is a FAIL of that run; the batch goes on. Each run is written
-as one JSON line (default ~/argus-e2e/, outside the repository).
+-> grade -> reset (always once a start was attempted, also after an error) -> nonint-check after. A host that does
+not say NO INTERFERENCE, or a failed reset, stops the whole batch. A wrong diagnosis is a FAIL of that run; the batch
+goes on. An incident view without evidence and audit (the runner's user is not an operator) is an ERROR, never a
+PASS. Each run is written as one JSON line (default ~/argus-e2e/, outside the repository).
 """
 from __future__ import annotations
 
@@ -49,6 +50,7 @@ SCENARIO_KEYS = {"id", "title", "host", "hosts", "start", "pre_gate", "gate", "r
 GATE_KEYS = {"cmd", "promql", "expect", "timeout_s", "every_s"}
 EXPECT_KEYS = {"outcome", "class", "root_cause", "first_runbook", "model", "reads_on", "findings_any"}
 FINAL = ("closed", "escalated")
+NEEDS_OPERATOR = ("evidence", "audit")      # the API shows them only to operators and approvers
 
 
 class BatchStop(Exception):
@@ -159,8 +161,11 @@ def first_runbook(inc: dict) -> str | None:
 
 
 def grade(expect: dict, inc: dict) -> list[str]:
-    """What differs from the expectation (empty = PASS)."""
-    problems = []
+    """What differs from the expectation (empty = PASS). Without `evidence` and `audit` the host, model and runbook
+    checks would pass on nothing, so a view without them is never a PASS."""
+    missing = [k for k in NEEDS_OPERATOR if k not in inc]
+    problems = [f"the incident view has no {' and no '.join(missing)}: the runner's Argus user needs the operator "
+                f"role"] if missing else []
     want = expect["outcome"]
     wanted = want if isinstance(want, list) else [want]
     if inc.get("outcome") not in wanted:
@@ -244,6 +249,7 @@ def run_once(sc: Scenario, i: int, runs: int, shell: Shell, api, me: str, now, s
             raise BatchStop(f"{sc.id}: the session marker on {h} is not {me}'s ({out[:80]})")
     for h in sc.hosts:
         shell(h, NONINT.format(label="before"), 180)
+    started = False                             # reset only what a start may have created
     try:
         if sc.pre_gate:
             ok, out = _wait(sc.pre_gate, sc.host, shell, now, sleep)
@@ -251,6 +257,7 @@ def run_once(sc: Scenario, i: int, runs: int, shell: Shell, api, me: str, now, s
                 res.problems.append(f"pre-gate never clean: last {out[-60:]!r}, wanted {sc.pre_gate.expect}")
                 return res
         for cmd in sc.start:
+            started = True
             rc, out = shell(sc.host, cmd, 300)
             if rc != 0:
                 res.problems.append(f"start failed (rc {rc}): {cmd} -> {out[-200:]}")
@@ -274,6 +281,8 @@ def run_once(sc: Scenario, i: int, runs: int, shell: Shell, api, me: str, now, s
         res.outcome, res.incident_class = inc.get("outcome"), inc.get("incident_class")
         res.root_cause_target, res.first_runbook = inc.get("root_cause_target"), first_runbook(inc)
         res.problems = grade(sc.expect, inc)
+        if any(k not in inc for k in NEEDS_OPERATOR):
+            return res                          # ERROR: nothing was graded, so not a FAIL of the diagnosis either
         res.verdict = "FAIL" if res.problems else "PASS"
         return res
     except BatchStop:
@@ -283,7 +292,7 @@ def run_once(sc: Scenario, i: int, runs: int, shell: Shell, api, me: str, now, s
         return res
     finally:
         res.duration_s = round(now() - t0, 1)
-        failed = [cmd for cmd in sc.reset if shell(sc.host, cmd, 300)[0] != 0]
+        failed = [cmd for cmd in (sc.reset if started else []) if shell(sc.host, cmd, 300)[0] != 0]
         disturbed = [h for h in sc.hosts if "NO INTERFERENCE" not in shell(h, NONINT.format(label="after"), 180)[1]]
         if failed:
             res.problems.append(f"reset failed: {failed}")

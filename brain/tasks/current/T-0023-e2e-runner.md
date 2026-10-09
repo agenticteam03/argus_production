@@ -77,3 +77,9 @@ way every time, grades each result against the expected one and writes one line 
 - **Step 2, second part (2026-10-09).** With `4f8ae43`: SC-01 three more runs, 3/3 PASS. **Step 2 done: SC-01 5/5,
   SC-03 5/5**, H-1, H-2, SC-09, SC-11 1/1 each, NO INTERFERENCE after every run. Evidence:
   [`../../execution/history/T-0023/step-02/evidence.md`](../../execution/history/T-0023/step-02/evidence.md).
+- **Review of PR #40 (2026-10-09, `conantkd`, fixes on this branch):** two holes, tests first (6 new tests, red seen
+  6/6). (1) The API returns `evidence` and `audit` only to operators and approvers; without them the model and host
+  checks passed on nothing. Now such a view is a problem in `grade` and the run is an ERROR, never a PASS. (2) The
+  reset ran even when nothing was started (a pre-gate that never clears), and SC-07's `docker network rm` fails on an
+  absent network, which would stop the batch with a misleading "fix by hand". Now the reset runs only once a start
+  was attempted, and SC-07's reset succeeds when the network is already gone. 33 passed in `test_e2e_runner.py`.

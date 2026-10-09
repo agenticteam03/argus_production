@@ -10,7 +10,8 @@
 #   request   what is sent to POST /api/v1/investigations (target, reason, kind)
 #   expect    outcome (or a list), class (null = none), root_cause, first_runbook, model: none, reads_on (a host:
 #             every read must stay on it), findings_any
-#   reset     always runs after start, also after an error; a failed reset stops the batch
+#   reset     runs once a start was attempted, also after an error; a failed reset stops the batch. Idempotent:
+#             it must succeed when what it removes is already gone
 # Not here yet: SC-10 and SC-12 (they stop Argus's own services), SC-04 (after PR #38), SC-05, SC-06, SC-08.
 
 scenarios:
@@ -106,7 +107,7 @@ scenarios:
     expect: {outcome: diagnosed, class: dependency_unavailable, root_cause: "vm-166/container:argus-lab-backend",
              first_runbook: RB-003, reads_on: vm-166}
     reset:
-      - sudo docker rm -f argus-lab-client argus-lab-backend && sudo docker network rm argus-lab-iso
+      - sudo docker rm -f argus-lab-client argus-lab-backend && { ! sudo docker network inspect argus-lab-iso >/dev/null 2>&1 || sudo docker network rm argus-lab-iso; }
 
   - id: SC-09
     title: a report with no matching class on a healthy target (no model call)

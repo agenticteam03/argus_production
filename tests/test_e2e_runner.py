@@ -337,3 +337,40 @@ def test_the_runner_keeps_its_own_tunnel_alive(monkeypatch):
     t.ensure()
     assert len(started) == 2
     t.close()
+
+# --- review of PR #40 (conantkd) -----------------------------------------------------------------------------------------
+def _without(*keys):
+    inc = incident()
+    for k in keys:
+        inc.pop(k)
+    return inc
+
+
+@pytest.mark.parametrize("missing", [("evidence",), ("audit",), ("evidence", "audit")])
+def test_the_grader_never_passes_an_incident_view_without_evidence_or_audit(missing):
+    """The API returns `evidence` and `audit` only to operators and approvers. Without them the host and model checks
+    would pass on nothing: a quality number built on no data."""
+    exp = {"outcome": "diagnosed", "model": "none", "reads_on": "vm-166"}
+    problems = e2e.grade(exp, _without(*missing, "strategy"))
+    assert any("operator" in p for p in problems), problems
+
+
+def test_a_run_whose_incident_view_has_no_evidence_is_an_error_not_a_pass():
+    res = run(scenario(), FakeShell({"echo restarts": "3"}), FakeApi(_without("evidence", "audit")))
+    assert res[0].verdict == "ERROR" and any("operator" in p for p in res[0].problems)
+
+
+def test_a_pre_gate_that_never_clears_starts_nothing_and_resets_nothing():
+    """Nothing was started, so there is nothing to reset: a reset of absent objects can fail (SC-07's network) and
+    would stop the batch with a misleading "fix by hand"."""
+    sc = scenario(pre_gate={"cmd": "echo clean", "expect": "^0$", "timeout_s": 60, "every_s": 10})
+    shell = FakeShell({"echo clean": "5"})
+    res = run(sc, shell, FakeApi(incident()))
+    assert res[0].verdict == "ERROR" and any("pre-gate" in p for p in res[0].problems)
+    assert not any("docker start x" in c or "docker rm -f x" in c for c in shell.cmds())
+    assert any("nonint-check.sh after" in c for c in shell.cmds())          # the host is still checked
+
+
+def test_the_sc07_reset_succeeds_when_the_network_is_already_gone():
+    sc07 = e2e.load_catalogue(CATALOGUE)["SC-07"]
+    assert any("docker network inspect argus-lab-iso" in c for c in sc07.reset), sc07.reset
