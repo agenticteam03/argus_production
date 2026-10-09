@@ -26,3 +26,4 @@ pr 44  2026-10-09  conantkd  fast-track: OP-001 runbook detector metadata alignm
 pr 53  2026-10-09  conantkd  fast-track: OP-009 a worker that loses its lease stops its run (code only; no VM change)
 pr 46  2026-10-09  conantkd  fast-track: OP-010 the db-probe keeps a reserved connection slot (approved by juanbetancurm on 2ddcfb1; re-merged after #45; verified on vm-166)
 pr 47  2026-10-09  conantkd  fast-track: T-0024 SC-05 disk almost full (disk_pressure, RB-005; approved by juanbetancurm on 22a924d; re-merged after #46; verified on vm-166)
+pr 57  2026-10-09  conantkd  fast-track: alert identity startsAt truncated to milliseconds (review note of #45; code only, no VM change)
