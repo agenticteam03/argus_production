@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | `proposed` (2026-10-09, `juanbetancurm` + agent) — needs the team's agreement in its pull request |
+| Status | `accepted` (2026-10-09): proposed by `juanbetancurm` + agent, approved by `conantkd` in PR #52; `juanes6554` may object or amend in any PR, and an objection reopens it |
 | Changes when accepted | `GIT_WORKFLOW.md`, `../agents/REVIEW_PROTOCOL.md`, `brain.py` (lease per VM, journal entries, roll-up), CI |
 | Not an ACR | it changes how the team works, not `ARCHITECTURE.md` |
 
@@ -24,7 +24,8 @@ Three developers, but most work runs in a single line. Seen in the week of 2026-
 
 - `brain.py start --vm vm-166` (or `--vm vm-095`, or both) claims only that VM. `session.json` holds one lease per VM;
   `/opt/argus-v18/SESSION` on each VM names its own holder (unchanged format).
-- **Rule:** a change to the **agent on vm-095** (deploy, rebuild, `hosts.env`) needs **both** leases. vm-166's
+- **Rule:** a change to the **agent on vm-095** (deploy, rebuild, `hosts.env`, a database migration or a restore
+  of `argus-v18-postgres`) needs **both** leases; a backup only reads and needs only vm-095's lease. vm-166's
   scenarios are investigated by vm-095's agent, so changing it under someone else's batch would invalidate that batch.
 - A VM-local change on vm-166 (lab, target services, monitoring) needs only vm-166's lease. A run that changes
   nothing (the §21.2 evaluation's one-off container, a read-only check) needs only the lease of the VM it runs on.
@@ -37,6 +38,9 @@ Three developers, but most work runs in a single line. Seen in the week of 2026-
   `journal/logbook.md`. `brain.py lint` refuses those edits on a `task/*` branch (exception: the roll-up branch).
 - **Roll-up:** after merges, `brain.py rollup` (a small PR, fast to review) appends the new entries to the logbook and
   regenerates the status lines of the summaries from the merged task files. Whoever merges last that day runs it.
+- **Transition:** branches opened before the lint rule merges (for example `task/T-0026-alert-resolution`,
+  `task/OP-009-lease-loss`) keep their edits to the summaries; the rule applies to branches created after it, and
+  the first roll-up reconciles the summaries.
 
 ### 3. Long runs are unattended jobs; tests run where they are cheap
 
@@ -72,7 +76,7 @@ Three developers, but most work runs in a single line. Seen in the week of 2026-
 - **More parallel PRs need more reviews:** the daily reviewer rotation is the counterweight; without it the lanes
   queue up again.
 
-## Order of work, if accepted
+## Order of work
 
 1. The lease per VM (`brain.py`, `GIT_WORKFLOW.md`), with tests.
 2. Journal entries as files and `brain.py rollup`, with the lint rule.
