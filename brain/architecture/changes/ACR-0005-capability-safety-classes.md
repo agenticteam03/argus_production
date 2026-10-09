@@ -17,10 +17,24 @@ There is no rule translating one scheme to the other. The running read catalogue
 `safety_class`, but it has no mandatory per-source field allowlist and cannot represent writes. This leaves the
 architecture, runbooks, and runtime contract divergent.
 
-The difference is concrete: RB-001/RB-002 classify container status as `READ_ONLY_SENSITIVE`, while the registered
-`container.status` spec says `READ_ONLY_SAFE`. RB-002 classifies health-check output as sensitive, while
-`container.health` says safe. RB-009 treats DNS and HTTP observations as sensitive, while `network.resolve_dns` and
-`network.http_probe` say safe. These are classification disagreements, not evidence of a released write capability.
+All 17 registered read capabilities have a `safety_class`; §12.2 names 44 read capabilities, so the other 27 are
+architecture-only and have no runtime spec/class yet. Four incident detector classes have no `safety_class` because
+this label belongs to operations, not incident types. The seven registered specs below say `READ_ONLY_SAFE` where
+at least one runbook usage says `READ_ONLY_SENSITIVE`:
+
+| Registered capability | Runbook evidence | Why review is needed |
+|---|---|---|
+| `container.list` | RB-007, RB-017 | workload names and states |
+| `container.status` | RB-001/002/003/005/008/014/015/017/018 sensitive; RB-009 safe for its `networks` subset | one broad status response exposes more than the subset |
+| `container.health` | RB-002, RB-008 | recent health-check output can contain application text |
+| `container.events` | RB-018 sensitive for the combined status/events row; RB-001/007/008 safe | runbooks disagree on lifecycle-event sensitivity |
+| `network.resolve_dns` | RB-003/009/014/015/016 | addresses and topology |
+| `network.tcp_connect` | RB-014/015/016 sensitive for combined DNS/TCP rows; RB-003/009 safe | runbooks disagree on transport-result sensitivity |
+| `network.http_probe` | RB-001/002/003/009/011/014/015/016/017 | endpoint and response metadata |
+
+The shared table cells in RB-014/015/016/018 do not say whether each component should have the same class.
+Resolve that ambiguity in review; do not silently choose the less restrictive label. These discrepancies are not
+evidence of a released write capability.
 
 ## 2. Why the current architecture is insufficient
 
@@ -48,16 +62,16 @@ addresses the field-allowlist portion of OP-002/G-006; it does not claim to sett
 
 | Class | Capabilities |
 |---|---|
-| `READ_ONLY_SAFE` | `container.resources`, `container.restart_count`, `container.events`, `host.cpu`, `host.memory`, `host.disk_usage`, `host.uptime`, `host.load`, `host.io`, `docker.disk_usage`, `network.tcp_connect`, `network.tcp_connection`, `metrics.memory_history`, `metrics.cpu_history`, `metrics.disk_history`, `metrics.network_history`, `metrics.restart_history`, `metrics.compare_baseline`, `knowledge.runbook` |
-| `READ_ONLY_SENSITIVE` | `container.list`, `container.status`, `container.logs`, `container.health`, `container.processes`, `container.detailed_logs`, `container.search_logs`, `container.network`, `host.top_cpu`, `host.top_memory`, `host.directory_sizes`, `host.kernel_oom_records`, `host.socket_summary`, `host.read_file`, `host.service_config`, `host.journal`, `host.process_details`, `network.http_probe`, `network.resolve_dns`, `network.connectivity`, `database.health`, `knowledge.prior_incidents`, `analysis.diagnostic_snapshot`, `analysis.timeline`, `analysis.trace_request_path` |
+| `READ_ONLY_SAFE` | `container.resources`, `container.restart_count`, `host.cpu`, `host.memory`, `host.disk_usage`, `host.uptime`, `host.load`, `host.io`, `docker.disk_usage`, `network.tcp_connection`, `metrics.memory_history`, `metrics.cpu_history`, `metrics.disk_history`, `metrics.network_history`, `metrics.restart_history`, `metrics.compare_baseline`, `knowledge.runbook` |
+| `READ_ONLY_SENSITIVE` | `container.list`, `container.status`, `container.logs`, `container.health`, `container.events`, `container.processes`, `container.detailed_logs`, `container.search_logs`, `container.network`, `host.top_cpu`, `host.top_memory`, `host.directory_sizes`, `host.kernel_oom_records`, `host.socket_summary`, `host.read_file`, `host.service_config`, `host.journal`, `host.process_details`, `network.http_probe`, `network.resolve_dns`, `network.tcp_connect`, `network.connectivity`, `database.health`, `knowledge.prior_incidents`, `analysis.diagnostic_snapshot`, `analysis.timeline`, `analysis.trace_request_path` |
 | `MUTATING_LOW_RISK` | none in this release; a bounded reversible write still needs HITL and an explicit gate |
 | `MUTATING_HIGH_RISK` | `container.restart`; future `service.scale`, `container.update_resources`, `docker.prune`, `logs.rotate`, `service.restart`, `deployment.rollback`, `container.isolate`, `runbook.execute` remain unregistered until separately designed and released |
 | `FORBIDDEN` | no registered capability; arbitrary shell/SQL/file access and bypass operations remain refused |
 
-The sensitive row deliberately uses the stricter runbook classification where current code and runbooks disagree.
+The sensitive row provisionally uses the stricter runbook classification where current code and runbooks disagree.
 Before applying this inventory, review each capability's actual output schema and decide whether to narrow the
-output or keep the sensitive class. In particular, `container.status`, `container.health`, DNS, and HTTP probe are
-explicit review cases. A narrower response may justify a later class change through review, not an implicit downgrade.
+output or keep the sensitive class. All seven disagreements above are explicit review cases. A narrower response
+may justify a later class change through review, not an implicit downgrade.
 
 **Alternatives considered:**
 
@@ -71,7 +85,7 @@ explicit review cases. A narrower response may justify a later class change thro
 - The implementation PR must update §12.2–§12.3, version/changelog, `CapabilitySpec`, every registered spec, policy
   validation/redaction, and tests. It must identify reviewed allowed fields for all sensitive sources before enabling
   fail-closed validation. It must keep the write gate closed and add no write tool to the model or MCP catalogue.
-- `container.status`, `container.health`, DNS, and HTTP probe may require tighter responses or allowlists. This can
+- The seven mismatched reads may require tighter responses or allowlists. This can
   affect diagnosis, so compare existing scenario/evaluation behavior before deployment.
 - Reversal: revert the accepted architecture and implementation PR together. A proposal rejection changes no runtime.
 - **Safety principle:** yes — data minimization, evidence integrity, and the write gate. A second team member's
@@ -79,7 +93,7 @@ explicit review cases. A narrower response may justify a later class change thro
 
 ## 5. Decision
 
-Pending team review. Approval must settle the four currently conflicting read classifications and the migration
+Pending team review. Approval must settle the seven currently conflicting read classifications and the migration
 order for required allowlists. No architecture or code change is authorized by this proposed record alone.
 
 ## 6. Applied

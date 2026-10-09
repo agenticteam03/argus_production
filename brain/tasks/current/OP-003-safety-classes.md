@@ -11,12 +11,13 @@ output allowlists; writes remain behind the existing closed gate, HITL and prech
 
 - Proposes [ACR-0005](../../architecture/changes/ACR-0005-capability-safety-classes.md) without changing the
   authoritative architecture or runtime.
-- Enumerates all §12.2 capabilities and calls out mismatches for container status, container health, DNS and HTTP.
+- Enumerates all §12.2 capabilities: 17 registered reads already have a class, and 27 planned reads have no runtime
+  spec yet. It calls out seven runbook/runtime class disagreements, including mixed labels among runbooks.
 - Requires a second team member's approval because the data-minimization and write-gate principles are affected.
 
 ## After a decision
 
-1. Review actual output fields for every sensitive read, especially the four mismatches. Decide whether the output
+1. Review actual output fields for every sensitive read, especially the seven mismatches. Decide whether the output
    should be narrowed or remain sensitive; define allowlists before enforcing registration checks.
 2. In one implementation PR, apply the accepted ACR to architecture §12.2–§12.3 and migrate the catalogue and
    policy. Test classification, rejection of unregistered/forbidden operations, allowlist/redaction, and unchanged
