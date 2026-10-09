@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | `in progress` — steps 1-2 done offline 2026-10-09 (harness, 29 cases, the baseline); step 3 (the real model on vm-095) `planned` |
+| Status | `in progress` — steps 1-3 done 2026-10-09 (harness, 30 cases, the baseline, the configured model × 5 trials on vm-095); the class-registry decision waits for the team (PR) |
 | Phase | 6 (recall-quality checks) and 12 (quality claims) — [`../../IMPLEMENTATION_PLAN.md`](../../IMPLEMENTATION_PLAN.md) |
 | Architecture | no change (no ACR): implements §21.2 (dataset, baseline, metrics, thresholds) and the §3 "Enablement" rule |
 | Branch | `task/T-0025-evaluation` (from `main`) |
@@ -132,3 +132,21 @@ and repeatable, and gives each class its gate.
   summary reports a **core accuracy** (outcome, class, root cause, abstention) next to the strict one (core + the
   mechanism words, a crude proxy until §21.2's rubric-scored evidence support exists). Try 5 would read core 0.95 /
   strict 0.81. 62 tests pass; baseline 28/30 (core 0.95). Next: 5 trials per case.
+- **Step 3b (2026-10-09, vm-095, `9d6ab4b`, 5 trials per case, 150 runs, ~25 min).** Hard **0 0 0**, checkout unchanged,
+  NO INTERFERENCE. Overall strict 0.86, **core 0.92**, safe abstention **0.86** (threshold 0.9: not met).
+
+  | Class | Baseline (core) | Model core (mean) | Model strict (mean / worst trial) | Model FAILs (of 25-30 runs) |
+  |---|---|---|---|---|
+  | `postgresql_connection_exhaustion` | 1.00 | **1.00** | 1.00 / 1.00 | none |
+  | `health_check_failed` | 1.00 | **1.00** | 0.72 / 0.40 | 7, all wording ("health probe" for "health check") |
+  | `container_restart_loop` | 0.83 | **0.87** | 0.87 / 0.83 | `restart-sigkill-01` escalated 4/5 (it saw OOMKilled=false but did not name an outside kill) |
+  | `dependency_unavailable` | 1.00 | **0.84** | 0.84 / 0.60 | `dep-backend-wrong-network` 2/5 (client named as root cause, or escalated); `dep-cache-paused` 1/5, `dep-cache-restarting` 1/5 (escalated) |
+
+  Abstention misses: `ambiguous-health-no-cause` 3/5 and `ambiguous-dep-all-running` 2/5 (a diagnosis claimed while
+  the cause is not established). The model beats the baseline on the exit-0 job (`restart-exit0-job-01`, 5/5).
+- **What §21.2's rule would give** (a class whose model does not match or beat the baseline switches to the baseline
+  strategy, a data change): keep `model_loop` for `postgresql_connection_exhaustion`, `health_check_failed`
+  (core) and `container_restart_loop`; switch `dependency_unavailable` to `baseline`. **Not applied here:** the
+  baseline's rules were written together with these cases, so the comparison favours it; the class registry is a team
+  decision, in its own PR. Also open: the abstention gap (0.86 < 0.9) is a prompt/harness question (§10), and the word
+  checks need §21.2's rubric-scored evidence support. Results file on vm-095: `/opt/argus-v18/eval-results/`.

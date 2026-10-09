@@ -708,3 +708,19 @@ consistency, not generality; the class registry is unchanged (all four classes s
 Consequences: step 3 runs the configured model on the same cases on vm-095 (lease), ≥ 5 trials each; a class whose
 model results do not match the baseline switches to `baseline` in the registry (a data change).
 References: `tasks/current/T-0025-evaluation.md`, `tests/eval/`.
+
+## 2026-10-09 — T-0025: the configured model measured on the §21.2 cases (T-0025)
+
+Type: verification
+Who: juanbetancurm (+ agent)
+Context: the four enabled classes had lab runs only; §3 "Enablement" asks for the §21.2 evaluation.
+Decision / result: 30 cases × 5 trials on vm-095, in a one-off container with only the model key, the cases and the
+config (no executor token, no database; the VM checkout and running containers untouched). Hard 0 0 0; core accuracy
+0.92 (strict 0.86); abstention 0.86 (threshold 0.9 not met). Per class (core, model vs baseline): database 1.00/1.00,
+health 1.00/1.00, restart loop 0.87/0.83, dependency 0.84/1.00. Five earlier tries found and fixed harness and dataset
+problems (missing config, missing metric history, incomplete fixtures, a harness word reaching the model, over-strict
+and one wrong label); every fix is recorded in the task file.
+Consequences: proposal for the team: `dependency_unavailable` → `baseline` (the rule of §21.2), the others stay
+`model_loop`, with the bias caveat (the baseline's rules and the cases were written together). Open: the abstention
+gap and a rubric for evidence support.
+References: `tasks/current/T-0025-evaluation.md`, `tests/eval/`.
