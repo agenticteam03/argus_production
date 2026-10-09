@@ -1,15 +1,11 @@
 {
   "holder": "conantkd",
-  "session_id": "f94089c29baa",
+  "session_id": "558fb5a747f8",
   "task": "T-0025",
-  "branch": "task/T-0026-alert-resolution",
-  "base_commit": "ea01c68b7df57f9b53755bfbedf8f87df5eb8ad5",
-  "started_at": "2026-10-09T18:12:24+00:00",
-  "expires_at": "2026-10-09T21:33:23+00:00",
-  "released": true,
-  "handoff": {
-    "note": "For juanbetancurm. VMs: both on task/T-0027-blind-spot c27546f (T-0026 resolved alerts + T-0027 monitoring blind spot verified; vm-095 has migrations 004 and 005, backup argus-20261009T183857Z.dump), LAB BASELINE OK, NO INTERFERENCE; SESSION marker is conantkd's, overwrite it with yours. Merged today: #49 #50 #53 (OP-009) #45 #46 #47. Waiting for you: #48 (OP-011, ACR-0004) re-approval on 6ea7070, then #54 (T-0026, ACR-0005, migration 005) review; #55 (T-0027, no ACR) follows by fast-track. CI test job fails on #48/#54/#55 only because Docker Hub rate-limits the postgres:16-alpine pull (toomanyrequests): re-run failed jobs later; locally the stack top passes 388/3 with Postgres. #52 approved by conantkd on 68eea45 (merge pending). #51 and #42 have main merged in (Brain conflicts only; suites green with an argus_owner Postgres). Open: disk_pressure needs 5 eval cases (AWAITING_CASES in #55); a CI mirror for postgres would avoid the rate limit (touches CI: needs a teammate).",
-    "branch": "task/T-0027-blind-spot",
-    "at": "2026-10-09T21:19:14+00:00"
-  }
+  "branch": "task/OP-003-safety-classes",
+  "base_commit": "450242ce4465bfd81f361ecacadff20907a251de",
+  "started_at": "2026-10-09T21:31:49+00:00",
+  "expires_at": "2026-10-09T22:31:49+00:00",
+  "released": false,
+  "handoff": null
 }
