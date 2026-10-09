@@ -1,7 +1,7 @@
 # Argus — Production Architecture Specification
 
 **Document type:** consolidated target architecture and implementation blueprint ·
-**Version:** 1.8.2 (2026-10-08, ACR-0002; 1.8.1 2026-10-06, ACR-0001; base 1.8.0 of 30 September 2026, sanitized for the shared repository 2026-10-02) · **Audience:** engineers and AI coding agents implementing
+**Version:** 1.8.3 (2026-10-08, ACR-0003; 1.8.2 2026-10-08, ACR-0002, PR #39; 1.8.1 2026-10-06, ACR-0001; base 1.8.0 of 30 September 2026, sanitized for the shared repository 2026-10-02) · **Audience:** engineers and AI coding agents implementing
 Argus from an empty repository.
 
 
@@ -450,7 +450,7 @@ only; no domain or application code knows which host it runs on.
 | `app` | T | monitored workloads, network-probe, db-probe | workload traffic + target-perspective probes |
 | **cross-host path** | A↔T | the selected transport profile (below) | the only path between hosts |
 
-**Transport profiles (ACR-0002).** A deployment selects **one explicit transport profile** for the
+**Transport profiles (ACR-0003).** A deployment selects **one explicit transport profile** for the
 cross-host path. The profile is configuration (`deploy/`, `hosts.env`), never automatic detection or
 fallback.
 
@@ -575,7 +575,7 @@ flowchart TB
 | `argus-scheduler` | A | Argus image, `scheduler` command | cron-style; submits triggers only |
 | `postgres` | A | PostgreSQL 16, named volume | all Argus durable state |
 | `prometheus`, `alertmanager` | T | upstream images | **Argus-owned** instances with Argus alert rules; they may scrape exporters that already exist on the host, and never modify another team's monitoring |
-| `node-exporter`, `cadvisor` | T | upstream images | host and container resource metrics; **Argus-owned** instances (ACR-0002). Exporters of another deployment are reused only when its owners agree, recorded in `brain/infrastructure/environment.md`. `cadvisor`'s read-only host mounts: §4.3 |
+| `node-exporter`, `cadvisor` | T | upstream images | host and container resource metrics; **Argus-owned** instances (ACR-0003). Exporters of another deployment are reused only when its owners agree, recorded in `brain/infrastructure/environment.md`. `cadvisor`'s read-only host mounts: §4.3 |
 | `argus-exporter` | T | custom | `oom_killed`, `last_exit_code` and lifecycle facts cAdvisor does not publish |
 | `docker-read-gateway` | T | custom or ACL proxy | exact GET allowlist (§4.4) |
 | `action-gateway` | T | custom service | exact write routes + action journal (§4.5); deployed/reachable only after a write capability is released |
@@ -596,7 +596,7 @@ These values are configuration (inventory, settings, `deploy/`), recorded here f
 | Private address | `<host-a private IP>` (VM-local `/opt/argus-v18/hosts.env`) | `<host-t private IP>` (same file) |
 | Shared subnet | `10.0.0.0/24` (same cloud VCN) | same |
 | Architecture | ARM64, 1 vCPU, 5.8 GiB RAM, no swap | same |
-| Transport profile | **`restricted-ssh`** (only port 22 is open between the VMs; ACR-0002) | same |
+| Transport profile | **`restricted-ssh`** (only port 22 is open between the VMs; ACR-0003) | same |
 | Alert delivery | pull (`ReconcileFiringAlerts` enabled) | Argus-owned Alertmanager on `127.0.0.1` |
 | API exposure | `127.0.0.1:8000` for humans (SSH tunnel); no private-address listener (no webhook from Host T in this profile) | — |
 | Pre-existing monitoring | — | a shared Prometheus on `:9090`, node-exporter, cAdvisor (not Argus's; left untouched and never scraped) |
@@ -653,7 +653,7 @@ Docker API access is root-equivalent, so HTTP-method filtering alone is **not** 
 Argus **never** gets the Docker socket or a broad Docker API proxy. It reaches Docker only through two
 exact-route gateways on each Host T.
 
-**Accepted risk (ACR-0002):** the Argus-owned `cadvisor` mounts `/sys`, `/var/lib/docker` and the
+**Accepted risk (ACR-0003):** the Argus-owned `cadvisor` mounts `/sys`, `/var/lib/docker` and the
 Docker socket **read-only** to publish container metrics. It is upstream code, not an Argus process; it
 has a memory limit, no host port, and no path from Host A except Prometheus' scrape.
 
@@ -1265,7 +1265,7 @@ detection with no LLM call.
 `HandleAlertNotification` with the webhook's identity (`fingerprint + startsAt`, §6.6), so a push and a
 pull of the same alert are one incident. An alert whose `argus_host` is not the host asked is dropped,
 never reassigned. In a **pull** profile (§3.2) it is the primary trigger and is enabled; in a push
-profile it is the backup for alerts missed during an Argus outage (ACR-0002).
+profile it is the backup for alerts missed during an Argus outage (ACR-0003).
 
 ### 7.4 Peer-agent adapter (`adapters/inbound/agent`, reserved)
 
@@ -1281,7 +1281,7 @@ the use cases above. It never exposes graph nodes, the database, executors or po
 | Port | Contract | Production adapter | Test adapter |
 |---|---|---|---|
 | `MetricsPort` | `snapshot(target, signals: set[str]) -> MetricSnapshot`; `range(target, signal, window, step) -> Series`; raises `StaleMetrics` / `MetricsUnavailable` | `metrics_prometheus.py` (HTTP PromQL over the signal catalogue, §4.1) | `metrics_fake.py` |
-| `AlertSourcePort` | `firing_alerts(host) -> list[AlertNotification]` (only alerts labelled with that host); raises `AlertsUnavailable` (ACR-0002) | `alerts_alertmanager.py` (Alertmanager API v2) | `alerts_fake.py` |
+| `AlertSourcePort` | `firing_alerts(host) -> list[AlertNotification]` (only alerts labelled with that host); raises `AlertsUnavailable` (ACR-0003) | `alerts_alertmanager.py` (Alertmanager API v2) | `alerts_fake.py` |
 | `LLMPort` | `decide(context: ModelContext, tools: list[ModelToolDefinition]) -> ModelReply` | `llm_openai.py` (OpenAI-dialect chat/tool-calling API) | `llm_mock.py` |
 | `KnowledgePort` | `search(query: str, k: int) -> list[Passage]` | `knowledge_tfidf.py` over `argus/runbooks/*.md` | `knowledge_fake.py` |
 | `IncidentMemoryPort` | incident, trigger, alert-occurrence, proposal, approval, hold, resume-intent, outbox, action and outcome persistence; evidence: `append_evidence(EvidenceRecord)`, `get_evidence(ids)`, `list_evidence(incident_id, filters)`; `similar_incidents(target, incident_class, k)` | `memory_postgres.py` | `memory_sqlite.py`, `memory_fake.py` |
@@ -2686,7 +2686,7 @@ The goal of this architecture is that Argus's diagnostic reach grows **without c
 | OD-13 | Automatic merging of related incidents | linked only in this release; decide from operational experience |
 | OD-14 | Wire protocol of the peer-agent adapter | decided when the security agent's design exists; the verbs of §23.2 are fixed |
 | OD-15 | A diagnosis-only mode for unsupported reports from authenticated operators | off; reconsider once the evidence pack and unsupported backlog show a need |
-| OD-16 | TLS or a tunnel inside the private subnet | **decided by ACR-0002 (2026-10-08):** covered by the transport profiles (§3.2); a path that leaves the private network is encrypted (`wireguard-overlay`, `restricted-ssh`) |
+| OD-16 | TLS or a tunnel inside the private subnet | **decided by ACR-0003 (2026-10-08):** covered by the transport profiles (§3.2); a path that leaves the private network is encrypted (`wireguard-overlay`, `restricted-ssh`) |
 
 ---
 
@@ -2845,4 +2845,4 @@ erDiagram
 |---|---|---|---|
 | 1.8.0 | 2026-10-02 | v1.8 (30 Sep 2026) imported into the shared repository; addresses replaced by placeholders, nothing else changed | — |
 | 1.8.1 | 2026-10-06 | user interfaces as read-only-capable clients of the HTTP API (§25 OD-10, §17.3); `GET /api/v1/me`; the existing read routes `/incidents/{id}/events`, `/evidence/{id}`, `/escalations` documented (§7.1); `frontend/` (§2.4) | [ACR-0001](changes/ACR-0001-ui-read-access.md) |
-| 1.8.2 | 2026-10-08 | transport profiles (`direct-private`, `wireguard-overlay`, `restricted-ssh`) for the cross-host path (§3.2, §3.3, §3.6, §17.1, OD-16); alert delivery by profile: push webhook or pull reconciliation from the Argus-owned Alertmanager (§4.2, §7.3, `AlertSourcePort` §8.1); Argus-owned node-exporter and cAdvisor (§3.5, §4.3) | [ACR-0002](changes/ACR-0002-transport-profiles.md) |
+| 1.8.3 | 2026-10-08 | transport profiles (`direct-private`, `wireguard-overlay`, `restricted-ssh`) for the cross-host path (§3.2, §3.3, §3.6, §17.1, OD-16); alert delivery by profile: push webhook or pull reconciliation from the Argus-owned Alertmanager (§4.2, §7.3, `AlertSourcePort` §8.1); Argus-owned node-exporter and cAdvisor (§3.5, §4.3) | [ACR-0003](changes/ACR-0003-transport-profiles.md) |

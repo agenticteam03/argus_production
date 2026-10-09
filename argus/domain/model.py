@@ -241,7 +241,7 @@ class IncidentClassSpec(BaseModel):
 
 
 class AlertNotification(BaseModel):
-    """Vendor-neutral translation of one Alertmanager alert (§5, ACR-0002): the same for push and pull."""
+    """Vendor-neutral translation of one Alertmanager alert (§5, ACR-0003): the same for push and pull."""
     fingerprint: str
     status: Literal["firing", "resolved"]
     starts_at: datetime
@@ -253,7 +253,7 @@ class AlertNotification(BaseModel):
 class HostInfo(BaseModel):
     name: str
     executors: dict[str, str]                 # executor → endpoint URL (no credentials)
-    alertmanager: str | None = None           # ACR-0002: the host's Alertmanager URL (not an executor: no token)
+    alertmanager: str | None = None           # ACR-0003: the host's Alertmanager URL (not an executor: no token)
 
 
 class TargetInfo(BaseModel):

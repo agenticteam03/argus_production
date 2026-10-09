@@ -1,4 +1,4 @@
-# ACR-0002 — Portable transport profiles; alert delivery by profile (closes D-001)
+# ACR-0003 — Portable transport profiles; alert delivery by profile (closes D-001)
 
 An Architecture Change Record is the **only** way to change `brain/architecture/ARCHITECTURE.md`. ACRs are never
 fast-tracked. This one touches a safety principle (host isolation, the cross-host path), so it needs a second team
@@ -10,7 +10,7 @@ member's approval in its pull request.
 | Proposed by | conantkd (+ agent) · 2026-10-08 |
 | Accepted by | conantkd · 2026-10-08 (decision text in §5); waits for the second approval |
 | Second approval (safety principle only) | **required** (host isolation): `juanbetancurm` in the T-0022 PR |
-| Architecture version | from `1.8.1` → `1.8.2` |
+| Architecture version | from `1.8.2` (ACR-0002, PR #39) → `1.8.3` |
 | Task / PR | T-0022 (phase 7, alerting) · PR to be opened |
 
 ## 1. Detect and explain
@@ -106,7 +106,7 @@ backend from Prometheus. "The seven deterministic ports" become eight.
 **§17.1 (layers, row 7)** — *"Cross-host path: the selected transport profile (§3.2); per-service
 credentials; no public exposure; no cross-host executor fallback."*
 
-**§25 OD-16** — *"decided by ACR-0002: covered by the transport profiles; a profile that leaves the private network
+**§25 OD-16** — *"decided by ACR-0003: covered by the transport profiles; a profile that leaves the private network
 is encrypted (`wireguard-overlay`, `restricted-ssh`)."*
 
 **Alternatives considered:**
@@ -178,6 +178,6 @@ D-001 required the whole team: the second approval (`juanbetancurm`) in the PR c
 
 ## 6. Applied
 
-- [x] `ARCHITECTURE.md` updated, version 1.8.2, changelog line added (with this ACR's link) — on `task/T-0022-alerting`
+- [x] `ARCHITECTURE.md` updated, version 1.8.3, changelog line added (with this ACR's link) — on `task/T-0022-alerting`
 - [ ] journal entry
 - [ ] the ACR, the architecture change and the first code that needs it are in the same pull request
