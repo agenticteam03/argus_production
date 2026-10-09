@@ -43,6 +43,11 @@ vm-095                                               vm-166
   deployment does not need it: the probe points at the real database through the inventory (`database` on a
   target). The probe logs in as `argus_monitor` (`pg_monitor` only, connection limit 3); its password and the
   probe's token are in `/opt/argus-v18/secrets/` on vm-166 (the agent's copy of the token on vm-095).
+- **The db-probe needs a slot of its own (OP-010), on every database it reads:** PostgreSQL 16
+  `reserved_connections >= 1` and `GRANT pg_use_reserved_connections TO <monitoring role>`. Without them a leak of
+  every ordinary slot locks the probe out at the worst moment. The probe publishes
+  `argus_db_monitor_slot_reserved` (1 = the prerequisite holds) and `inspect_database_health` says so when it does
+  not. `argus-lab-db`: `reserved_connections=1`, so 16 ordinary slots.
 
 - The agent reaches vm-095's executors by container name on `argus-v18-core`, and vm-166's through the tunnel
   sidecar (`http://argus-v18-tunnel:18701` …). See `config/inventory.yaml`.

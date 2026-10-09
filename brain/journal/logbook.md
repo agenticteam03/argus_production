@@ -707,6 +707,20 @@ NO INTERFERENCE on both.
 Consequences: T-0022 done; its PR needs `juanbetancurm`'s second approval of ACR-0003. Next: OP-011, the OP-010
 DIAGNOSED run at 100 %, T-0024 (SC-05).
 References: `tasks/current/T-0022-alerting.md`, `execution/history/T-0022/step-05/`, `step-06/`, OPEN_PROBLEMS OP-011.
+
+## 2026-10-09 — OP-010 fixed: SC-04 at 100 % DIAGNOSED from the pulled alert (OP-010)
+
+Type: verification
+Who: conantkd (+ agent)
+Context: OP-010's fix (a reserved slot for the monitoring role) was verified on vm-166 on 2026-10-08; the diagnosis
+waited for vm-095 to pull alerts (T-0022 step 5, done today).
+Decision / result: with 16 of 16 ordinary slots taken the probe kept `argus_db_up=1`; `DbConnectionsExhausted` fired
+after 5 minutes; the scheduler pulled it and opened `inc_03e42714762f`, DIAGNOSED (`postgresql_connection_exhaustion`,
+root cause `argus-lab-leaker`, the database the victim). No password was needed: the alert opened the incident.
+NO INTERFERENCE on both.
+Consequences: OP-010 fixed; its PR (stacked on T-0022) is ready.
+References: OPEN_PROBLEMS OP-010, `execution/history/OP-010/step-02/evidence.md`.
+
 ## 2026-10-09 — T-0025: the §21.2 evaluation, step 1 (T-0025)
 
 Type: implementation (offline)

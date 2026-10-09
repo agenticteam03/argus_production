@@ -292,6 +292,9 @@ DB_QUERIES = {
                f"WHERE {_CLIENTS} AND xact_start IS NOT NULL ORDER BY xact_start LIMIT 5",
     "locks": "SELECT (SELECT count(*) FROM pg_locks WHERE NOT granted), "
              "(SELECT count(*) FROM pg_stat_activity WHERE cardinality(pg_blocking_pids(pid)) > 0)",
+    # OP-010: does this role own a reserved slot (PG 16)? The role is absent before 16: zero rows, no error.
+    "reserved_slot": "SELECT count(*) FROM pg_roles WHERE rolname = 'pg_use_reserved_connections' "
+                     "AND pg_has_role(current_user, oid, 'MEMBER')",
 }
 
 
@@ -329,7 +332,8 @@ def db_metrics() -> str:
                   f"argus_db_connections_usable{{{lab}}} {h['usable_connections']}",
                   f"argus_db_connections_used{{{lab}}} {h['client_connections']}",
                   *(f'argus_db_connections{{{lab},state="{s}"}} {n}' for s, n in sorted(h["by_state"].items())),
-                  f"argus_db_oldest_xact_seconds{{{lab}}} {oldest}", f"argus_db_lock_waits{{{lab}}} {h['lock_waits']}"]
+                  f"argus_db_oldest_xact_seconds{{{lab}}} {oldest}", f"argus_db_lock_waits{{{lab}}} {h['lock_waits']}",
+                  f"argus_db_monitor_slot_reserved{{{lab}}} {1 if h['monitor_slot_reserved'] else 0}"]
     return "\n".join(lines) + "\n"
 
 
@@ -351,6 +355,8 @@ def db_health(db: dict) -> dict:
     by_state = {s: int(n) for s, n in r["by_state"]}
     total = sum(by_state.values())
     waits, blocked = r["locks"][0]
+    # OP-010: without a slot of its own the probe is locked out exactly when every ordinary slot is taken
+    member = bool(r["reserved_slot"] and int(r["reserved_slot"][0][0]))
     return {"database": name, "ok": True, "max_connections": st["max_connections"], "reserved_connections": reserved,
             "usable_connections": usable, "client_connections": total,
             "usage_percent": round(total * 100 / usable, 1) if usable > 0 else None, "by_state": by_state,
@@ -358,7 +364,8 @@ def db_health(db: dict) -> dict:
             "longest_transactions": [{"pid": p, "application_name": a, "state": s, "wait_event_type": wt,
                                       "wait_event": we, "age_s": round(float(age), 1)}
                                      for p, a, s, wt, we, age in r["longest"]],
-            "lock_waits": int(waits), "blocked_sessions": int(blocked), "collected_at": now()}
+            "lock_waits": int(waits), "blocked_sessions": int(blocked),
+            "monitor_slot_reserved": member and st.get("reserved_connections", 0) > 0, "collected_at": now()}
 
 
 _metrics = "# no data yet\n"

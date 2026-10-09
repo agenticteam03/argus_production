@@ -16,7 +16,7 @@ When a problem is fixed, set its status to `fixed` with the date, and add a jour
 | **OP-007** | A dependency probe disappears while its owner is restarting, hiding the cause of a crash loop | fixed 2026-10-07 (`owner_active`: running or restarting; deployed on vm-166) | 2026-10-07 |
 | **OP-008** | Postgres backups are never rotated, and the backup's consistency check will stop once the scheduler writes often | accepted 2026-10-07 (PR #31, approved by `juanbetancurm`) — to implement; independent of T-0014 | 2026-10-07 |
 | OP-009 | A worker that loses its lease keeps running the incident; with two workers the same run could execute twice | fixed 2026-10-08 (`task/OP-009-lease-loss`: the renewer retries, a lost claim cancels the run) | 2026-10-08 |
-| OP-010 | The db-probe cannot connect when every usable slot is taken, so `postgresql_connection_exhaustion` cannot fire at 100 % | open | 2026-10-08 |
+| OP-010 | The db-probe cannot connect when every usable slot is taken, so `postgresql_connection_exhaustion` cannot fire at 100 % | **fixed** 2026-10-09 — SC-04 at 100 % DIAGNOSED from the pulled alert | 2026-10-08 |
 | OP-011 | Two alerts on one target open two incidents: §6.4 correlation is not implemented | open | 2026-10-09 |
 
 ---
@@ -395,8 +395,12 @@ flag that the graph runner checks between nodes (cooperative cancel: stop at the
 
 ## OP-010 — The db-probe is blind when every usable connection slot is taken
 
-**Status:** open · **Opened:** 2026-10-08 · **Found by:** `conantkd` (+ agent), risk review of the T-0020 PR ·
-**Fix with:** its own small task (vm-166 redeploy of `argus-lab-db` and SC-04 at 100 %)
+**Status:** fixed 2026-10-09 — SC-04 at 100 % on vm-166: the probe stayed up, the alert fired, and the pulled alert's
+incident `inc_03e42714762f` was DIAGNOSED (root cause the leaker;
+[evidence](execution/history/OP-010/step-02/evidence.md); first run
+[step-01](execution/history/OP-010/step-01/evidence.md)) · branch `task/OP-010-reserved-slot` · **Opened:**
+2026-10-08 · **Found by:** `conantkd` (+ agent), risk review of the T-0020 PR · **Fix with:** its own small task
+(vm-166 redeploy of `argus-lab-db` and SC-04 at 100 %)
 
 **Problem.** The db-probe connects as `argus_monitor`, an ordinary role that competes for the same usable slots as
 every client. `argus-lab-db` reserves only the superuser slots (`max_connections=20`,
@@ -415,6 +419,12 @@ with `SESSIONS` equal to every usable slot still detects `postgresql_connection_
 
 **Done when.** The settings are in the lab and documented, SC-04 at 100 % is DIAGNOSED on vm-166, and this item is set
 to `fixed`.
+
+**Done so far (2026-10-08).** Lab `reserved_connections=1` + the grant; the probe reports
+`monitor_slot_reserved` / `argus_db_monitor_slot_reserved` and `inspect_database_health` warns without it (general:
+a real database missing the prerequisite is visible); documented in `infrastructure/environment.md` and
+`docs/INCIDENTS.md`. Tests `test_op010_reserved_slot.py` (red 6/6, green; suite 192 passed, 7 skipped). On vm-166:
+SC-04 with 16 of 16 ordinary slots, the probe stayed up, usage 1.0 for 5 min, `DbConnectionsExhausted` firing.
 
 ---
 

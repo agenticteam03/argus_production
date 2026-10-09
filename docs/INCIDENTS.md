@@ -59,7 +59,7 @@ A model-driven run takes about 1 to 3 minutes. Re-run GET until `status` is `clo
 |---|---|---|---|
 | `vm-166/container:argus-lab-api` | VM 0.166 | small HTTP api; **depends on** `argus-lab-cache` (TCP 6379) | always on, healthy |
 | `vm-166/container:argus-lab-cache` | VM 0.166 | redis (memory only, tmpfs) | always on |
-| `vm-166/container:argus-lab-db` | VM 0.166 | PostgreSQL, **for testing only** (a production deployment points the db-probe at its real database instead); 20 connection slots, memory only. Read by `inspect_database_health`; used by **SC-04** | always on, healthy |
+| `vm-166/container:argus-lab-db` | VM 0.166 | PostgreSQL, **for testing only** (a production deployment points the db-probe at its real database instead); 20 connection slots (16 ordinary, 1 reserved for the monitoring role, 3 superuser), memory only. Read by `inspect_database_health`; used by **SC-04** | always on, healthy |
 | `vm-166/container:argus-lab-client` | VM 0.166 | calls its backend every 5 s; **depends on** `argus-lab-backend` (TCP 8080). Used by **SC-07** | absent until the scenario starts |
 | `vm-166/container:argus-lab-leaker` | VM 0.166 | holds database sessions idle in transaction; **depends on** `argus-lab-db` (TCP 5432). Used by **SC-04** | absent until the scenario starts |
 | `vm-166/container:argus-lab-backend` | VM 0.166 | small HTTP api on the network `argus-lab-iso`. Used by **SC-07** | absent until the scenario starts |
@@ -211,14 +211,17 @@ sudo docker start argus-lab-cache
 ### SC-04: a worker leaks database sessions (vm-166)
 
 `argus-lab-leaker` connects to `argus-lab-db` (testing only) as the ordinary role `argus_lab_app` and opens 16
-sessions, each with a transaction it never ends (`idle in transaction`). That is 16 of the 17 usable connection
-slots (94 %): new ordinary clients would soon be rejected. Restarting the database would only hide the defect: the
+sessions, each with a transaction it never ends (`idle in transaction`). That is 15 of the 16 ordinary connection
+slots (94 %): new ordinary clients would soon be rejected. The database keeps one more slot for the monitoring role
+(`reserved_connections=1`, OP-010), so the probe still reads it at 100 %: `SC04_SESSIONS=16` takes every ordinary
+slot. Restarting the database would only hide the defect: the
 cause is the client that holds the sessions.
 
 **Start** [VM 0.166 · bash], then wait about 5 minutes (the signal is the slot usage sustained for 5 minutes, and the
 alert `DbConnectionsExhausted` fires after 5 minutes at 90 % or more):
 ```bash
 cd /opt/argus-v18/app/deploy/lab && sudo docker compose -f compose.lab.yml --profile sc04 up -d argus-lab-leaker
+# at 100 %: sudo SC04_SESSIONS=16 docker compose -f compose.lab.yml --profile sc04 up -d argus-lab-leaker
 ```
 **Investigate:**
 ```json
@@ -227,7 +230,7 @@ cd /opt/argus-v18/app/deploy/lab && sudo docker compose -f compose.lab.yml --pro
 **Expected:**
 - detect: `postgresql_connection_exhaustion` (94 % of the usable slots for 5 minutes);
 - recall: RB-004 (branch RB-013);
-- investigate: `inspect_database_health` shows 16 sessions `idle in transaction` from `argus-lab-leaker` /
+- investigate: `inspect_database_health` shows 15 (or 16) sessions `idle in transaction` from `argus-lab-leaker` /
   `argus_lab_app` and the age of the oldest open transaction;
 - record: `diagnosed`, root cause `vm-166/container:argus-lab-leaker` (sessions held idle in transaction), and
   **no restart of the database advised**.
