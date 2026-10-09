@@ -21,7 +21,8 @@ class YamlInventory:
     def __init__(self, text: str):
         data = yaml.safe_load(text) or {}
         self._version = hashlib.sha256(text.encode()).hexdigest()
-        self._hosts = {name: HostInfo(name=name, executors=(h or {}).get("executors", {}) or {})
+        self._hosts = {name: HostInfo(name=name, executors=(h or {}).get("executors", {}) or {},
+                                      alertmanager=(h or {}).get("alertmanager"))       # ACR-0003: not an executor
                        for name, h in (data.get("hosts") or {}).items()}
         self._targets: dict[TargetRef, TargetInfo] = {}
         for t in data.get("targets") or []:

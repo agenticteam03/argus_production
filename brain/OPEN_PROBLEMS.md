@@ -5,7 +5,7 @@ When a problem is fixed, set its status to `fixed` with the date, and add a jour
 
 | ID | Item | Status | Opened |
 |---|---|---|---|
-| **D-001** | Cross-host path and alert direction: architecture text vs the running system | **pending team decision** | 2026-10-02 |
+| **D-001** | Cross-host path and alert direction: architecture text vs the running system | **decided** 2026-10-08 (`conantkd`): option B as transport profiles, [ACR-0003](architecture/changes/ACR-0003-transport-profiles.md); second approval in the T-0022 PR | 2026-10-02 |
 | **D-002** | Move the runbook library into this repository (the architecture expects it there) | **decided and done** 2026-10-02 | 2026-10-02 |
 | OP-001 | Runbook `detector` metadata uses old or empty class names | fixed 2026-10-09 on `task/OP-001-runbook-detectors` (review pending) | 2026-09-30 |
 | OP-002 | P0 safety gaps of the runbook library not yet reconciled with architecture v1.8 | open | 2026-09-30 |
@@ -17,12 +17,16 @@ When a problem is fixed, set its status to `fixed` with the date, and add a jour
 | **OP-008** | Postgres backups are never rotated, and the backup's consistency check will stop once the scheduler writes often | accepted 2026-10-07 (PR #31, approved by `juanbetancurm`) — to implement; independent of T-0014 | 2026-10-07 |
 | OP-009 | A worker that loses its lease keeps running the incident; with two workers the same run could execute twice | fixed 2026-10-08 (`task/OP-009-lease-loss`: the renewer retries, a lost claim cancels the run) | 2026-10-08 |
 | OP-010 | The db-probe cannot connect when every usable slot is taken, so `postgresql_connection_exhaustion` cannot fire at 100 % | open | 2026-10-08 |
+| OP-011 | Two alerts on one target open two incidents: §6.4 correlation is not implemented | open | 2026-10-09 |
 
 ---
 
-## D-001 — Cross-host path and alert direction (pending team decision)
+## D-001 — Cross-host path and alert direction (decided by ACR-0003)
 
-**Status:** pending · **Opened:** 2026-10-02 · **Decided by:** the whole team (including `conantkd`)
+**Status:** decided 2026-10-08 by `conantkd` — option B, generalized as **transport profiles**
+([ACR-0003](architecture/changes/ACR-0003-transport-profiles.md)): this deployment is `restricted-ssh` and pulls alerts
+from an Argus-owned Alertmanager; the second team approval (`juanbetancurm`) is given in the T-0022 PR ·
+**Opened:** 2026-10-02 · **Decided by:** the whole team (including `conantkd`)
 
 **The difference.** Architecture §3.6 (reference values) says the two hosts talk over the **private network with no
 tunnel**, and that alerts are **pushed** (Alertmanager on vm-166 → webhook on vm-095). The running system uses a
@@ -411,3 +415,26 @@ with `SESSIONS` equal to every usable slot still detects `postgresql_connection_
 
 **Done when.** The settings are in the lab and documented, SC-04 at 100 % is DIAGNOSED on vm-166, and this item is set
 to `fixed`.
+
+---
+
+## OP-011 — Two alerts on one target open two incidents (§6.4 correlation not implemented)
+
+**Status:** open · **Opened:** 2026-10-09 · **Found by:** `conantkd` (T-0022 step 6)
+
+**Problem.** In SC-03 the cache stopped and vm-166 fired two alerts on `argus-lab-api`: `DependencyProbeFailed` and
+`ContainerUnhealthy` (its health check needs the cache). The scheduler pulled both in one pass and opened **two
+incidents** (`inc_6f6f3aacfef8`, `inc_d02d9c397b7f`), both DIAGNOSED with the same class and root cause: twice the
+reads and model cost, and two answers for one failure. Each alert is deduplicated by its identity (the next passes
+say `duplicate`), but ARCHITECTURE §6.4 also says: an alert whose target and class match an open incident (within
+`CORRELATION_WINDOW`, after the compatibility test) is **attached** to it, not opened as a new one. There is no
+`application/correlation.py`; the webhook path has the same gap.
+
+**Proposed solution (to discuss).** Implement §6.4 in the alert intake: (1) an open incident containing the
+fingerprint → attach (exists as `duplicate`); (2) an open incident with the same target and class within the window,
+compatible by a fresh detector run → attach as an `AlertOccurrence` (`attached`), `evidence_version` + 1; (3) else a
+new incident. Alerts in the same pass are handled in order, so the second sees the first's open incident. The class is
+known only after detection, so step 2 needs the detector at intake (the compatibility test already requires it).
+
+**Done when.** A test with two alerts on one target and class gives one incident with two occurrences; SC-03 on
+vm-166 gives one incident.

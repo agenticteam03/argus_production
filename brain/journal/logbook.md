@@ -694,6 +694,19 @@ Consequences: OP-005 fixed. PR #43 (CI step) needs `juanbetancurm`. vm-166 runs 
 T-0022 and OP-010 PRs merge.
 References: `tasks/current/OP-005-restart-signal.md`, `execution/history/OP-005/step-02/evidence.md`, PRs #41, #43.
 
+## 2026-10-09 — T-0022 verified on both VMs: firing alerts are pulled and open incidents (T-0022)
+
+Type: verification
+Who: conantkd (+ agent)
+Context: T-0022 steps 5-6 waited for #36; `main` now has #38-#41. Both VMs got `50f33ae` (T-0022 + OP-010 + `main`).
+Decision / result: vm-095 runs its Argus-owned Alertmanager, node-exporter and cAdvisor, and the tunnel forwards
+vm-166's Alertmanager (18091); the scheduler reads both every 60 s. SC-03 on vm-166 and SC-02 on vm-095: each firing
+alert opened one incident (principal `alertmanager@<host>`), all DIAGNOSED, and the next passes reported `duplicate`.
+Two alerts on one target (SC-03) opened two incidents: §6.4 correlation is not implemented, recorded as OP-011.
+NO INTERFERENCE on both.
+Consequences: T-0022 done; its PR needs `juanbetancurm`'s second approval of ACR-0003. Next: OP-011, the OP-010
+DIAGNOSED run at 100 %, T-0024 (SC-05).
+References: `tasks/current/T-0022-alerting.md`, `execution/history/T-0022/step-05/`, `step-06/`, OPEN_PROBLEMS OP-011.
 ## 2026-10-09 — T-0025: the §21.2 evaluation, step 1 (T-0025)
 
 Type: implementation (offline)
