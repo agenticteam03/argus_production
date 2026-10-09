@@ -17,6 +17,7 @@ When a problem is fixed, set its status to `fixed` with the date, and add a jour
 | **OP-008** | Postgres backups are never rotated, and the backup's consistency check will stop once the scheduler writes often | accepted 2026-10-07 (PR #31, approved by `juanbetancurm`) — to implement; independent of T-0014 | 2026-10-07 |
 | OP-009 | A worker that loses its lease keeps running the incident; with two workers the same run could execute twice | open (fix before a second worker) | 2026-10-08 |
 | OP-010 | The db-probe cannot connect when every usable slot is taken, so `postgresql_connection_exhaustion` cannot fire at 100 % | in progress (verified on vm-166; diagnosis with T-0022 step 5) | 2026-10-08 |
+| OP-011 | Two alerts on one target open two incidents: §6.4 correlation is not implemented | open | 2026-10-09 |
 
 ---
 
@@ -404,3 +405,26 @@ to `fixed`.
 a real database missing the prerequisite is visible); documented in `infrastructure/environment.md` and
 `docs/INCIDENTS.md`. Tests `test_op010_reserved_slot.py` (red 6/6, green; suite 192 passed, 7 skipped). On vm-166:
 SC-04 with 16 of 16 ordinary slots, the probe stayed up, usage 1.0 for 5 min, `DbConnectionsExhausted` firing.
+
+---
+
+## OP-011 — Two alerts on one target open two incidents (§6.4 correlation not implemented)
+
+**Status:** open · **Opened:** 2026-10-09 · **Found by:** `conantkd` (T-0022 step 6)
+
+**Problem.** In SC-03 the cache stopped and vm-166 fired two alerts on `argus-lab-api`: `DependencyProbeFailed` and
+`ContainerUnhealthy` (its health check needs the cache). The scheduler pulled both in one pass and opened **two
+incidents** (`inc_6f6f3aacfef8`, `inc_d02d9c397b7f`), both DIAGNOSED with the same class and root cause: twice the
+reads and model cost, and two answers for one failure. Each alert is deduplicated by its identity (the next passes
+say `duplicate`), but ARCHITECTURE §6.4 also says: an alert whose target and class match an open incident (within
+`CORRELATION_WINDOW`, after the compatibility test) is **attached** to it, not opened as a new one. There is no
+`application/correlation.py`; the webhook path has the same gap.
+
+**Proposed solution (to discuss).** Implement §6.4 in the alert intake: (1) an open incident containing the
+fingerprint → attach (exists as `duplicate`); (2) an open incident with the same target and class within the window,
+compatible by a fresh detector run → attach as an `AlertOccurrence` (`attached`), `evidence_version` + 1; (3) else a
+new incident. Alerts in the same pass are handled in order, so the second sees the first's open incident. The class is
+known only after detection, so step 2 needs the detector at intake (the compatibility test already requires it).
+
+**Done when.** A test with two alerts on one target and class gives one incident with two occurrences; SC-03 on
+vm-166 gives one incident.

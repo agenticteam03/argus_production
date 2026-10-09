@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | `in progress` — 2026-10-08 (steps 1-4 done; step 5 waits for #36) |
+| Status | `done` 2026-10-09 (steps 1-6 verified on both VMs; PR open, ACR-0003 waits for the second approval) |
 | Phase | 7 — monitoring & detection ([`../../IMPLEMENTATION_PLAN.md`](../../IMPLEMENTATION_PLAN.md): "Alertmanager, node-exporter, cAdvisor; pull firing alerts") |
 | Architecture | **ACR-0003** (transport profiles; alert delivery by profile; closes D-001) → 1.8.3. Touches host isolation: second approval required |
 | Branch | `task/T-0022-alerting`, **on top of `task/T-0020-sc04-pg-connections`** (#38): the monitoring files build on T-0020's. Its PR opens after #38 merges |
@@ -113,3 +113,14 @@ alert ever reaches Argus. After this task:
   services Up, Prometheus recreated; every `argus-v18-*` job `up=1`; root filesystem present (disk 0.27 used);
   cAdvisor sees `argus-lab-api`; 1 Alertmanager, nothing firing; ~55 MiB for the three new services; LAB BASELINE
   OK; nonint: only the new listener `127.0.0.1:18091` ([evidence](../../execution/history/T-0022/step-04/evidence.md)).
+- **Step 5 (2026-10-09, both VMs, mutating):** `50f33ae` (T-0022 + OP-010 + `main` with #41) on both hosts. vm-095:
+  tunnel (forward 18091), agent/worker/scheduler, the three monitoring services, Prometheus; every job `up=1`; the
+  scheduler reads vm-095's Alertmanager and vm-166's through the tunnel every 60 s (the first pass found vm-095's
+  still starting: `unavailable`, vm-166 read anyway); TOOLS ISOLATION OK; LAB BASELINE OK; NO INTERFERENCE
+  ([evidence](../../execution/history/T-0022/step-05/evidence.md)).
+- **Step 6 (2026-10-09):** SC-03 on vm-166: `DependencyProbeFailed` and `ContainerUnhealthy` pulled; two incidents
+  opened by `alertmanager@vm-166`, both DIAGNOSED (`dependency_unavailable`, root cause `argus-lab-cache`); the next
+  passes `duplicate`, never twice per alert. SC-02 on vm-095: `ContainerRestartLoop` pulled, `inc_842722808d31`
+  DIAGNOSED. Resets, LAB BASELINE OK and NO INTERFERENCE on both. Finding: two alerts on one target open two
+  incidents (§6.4 correlation not implemented) → **OP-011**
+  ([evidence](../../execution/history/T-0022/step-06/evidence.md)).
