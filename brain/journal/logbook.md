@@ -552,3 +552,16 @@ can no longer list) was found on the VM and fixed with a test. 183 passed, 2 ski
 Consequences: PR #36 needs a teammate's review (safety model). Until it merges, vm-095 must not get `main` without
 the rollback (its api and worker would not start). The code default stays `direct`; flipping it is for the review.
 References: `tasks/current/T-0021-tool-isolation.md`, `execution/history/T-0021/step-05/evidence.md`, PR #36.
+
+## 2026-10-09 — T-0023: a runner for repeated end-to-end scenario runs (T-0023)
+
+Type: implementation (step 1, offline)
+Who: juanbetancurm (+ agent)
+Context: phase 12 needs at least 5 graded runs per scenario; every run so far was a set of manual blocks.
+Decision / result: `ops/e2e/run.py` runs catalogued scenarios from the laptop (ssh for the reviewed commands, the
+HTTP API on the tunnel for the investigation), waits on the detector's own signal (pre-gate and gate, no fixed
+sleeps), always resets, stops the batch on interference or a failed reset, grades outcome, class, root cause, first
+runbook, model use and the host of every read, and writes one JSON line per run outside the repository. Catalogue:
+H-1, H-2, SC-01, SC-02, SC-03, SC-07, SC-09, SC-11. 22 new tests; 206 passed, 2 skipped.
+Consequences: step 2 is the first real batch with the lease (H-1, H-2, SC-09, SC-11 once; SC-01 and SC-03 × 5).
+References: `tasks/current/T-0023-e2e-runner.md`, `ops/e2e/scenarios.yaml`.
