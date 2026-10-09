@@ -12,6 +12,7 @@ DOCKER=${ARGUS_DOCKER:-docker}
 IMAGE=${ARGUS_EVAL_IMAGE:-argus-v18-agent:1}
 KEY="$HOME_DIR/secrets/agent/openai_api_key"
 CASES=${ARGUS_EVAL_CASES:-$HOME_DIR/app/tests/eval}   # the tests/eval folder of the evaluated branch
+CONFIG=${ARGUS_EVAL_CONFIG:-$HOME_DIR/app/config}     # its config (inventory, policy, signals): not in the image
 OUTDIR="$HOME_DIR/eval-results"
 WHO=""
 EXTRA=()
@@ -30,6 +31,7 @@ done
 grep -q "^holder=$WHO " "$HOME_DIR/SESSION" 2>/dev/null || stop "NOT YOUR SESSION"
 [ -s "$KEY" ] || stop "model key missing"
 [ -d "$CASES/cases" ] || stop "no cases at $CASES/cases (is the checkout on a branch with T-0025?)"
+[ -s "$CONFIG/inventory.yaml" ] || stop "no inventory at $CONFIG"
 mkdir -p "$OUTDIR" && chown 10010:10010 "$OUTDIR"
 OUT="eval-$(date -u +%Y%m%d-%H%M%S).jsonl"
 
@@ -37,6 +39,7 @@ OUT="eval-$(date -u +%Y%m%d-%H%M%S).jsonl"
   --cap-drop ALL --security-opt no-new-privileges --pids-limit 64 --memory 512m \
   --mount "type=bind,source=$KEY,target=/run/eval-secrets/openai_api_key,readonly" \
   --mount "type=bind,source=$CASES,target=/eval,readonly" \
+  --mount "type=bind,source=$CONFIG,target=/app/config,readonly" \
   --mount "type=bind,source=$OUTDIR,target=/out" \
   -e ARGUS_SECRETS_DIR=/run/eval-secrets -e ARGUS_DB_BACKEND=sqlite -e ARGUS_TOOL_CATALOGUE=direct \
   -e ARGUS_LLM_MODEL="${ARGUS_LLM_MODEL:-gpt-5.6-luna}" \

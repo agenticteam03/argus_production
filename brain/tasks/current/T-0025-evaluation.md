@@ -90,3 +90,10 @@ and repeatable, and gives each class its gate.
   passed, 8 skipped. **The VM run (lease):** check out this branch on vm-095 (checkout only), build a separate image
   tag from it (the running containers are not rebuilt), run the wrapper with 1 trial per case first (23 model runs),
   then 5 trials; then vm-095 back to `main` (checkout only).
+- **Step 3a, first tries (2026-10-09, vm-095).** Try 1: the fetch failed (git without sudo, root's default key
+  instead of the VM's deploy key); nothing was built or run, NO INTERFERENCE. Try 2 (deploy key, sudo): fetched
+  `914d2cf`, built `argus-v18-eval:t0025`, checkout unchanged (`cb300df`); the evaluation stopped at once:
+  `/app/config/inventory.yaml` missing (the image has no config: compose mounts it at run time; the offline tests run
+  from a source tree that has it). NO INTERFERENCE. Fix: the wrapper mounts the evaluated branch's `config/`
+  read-only (test red first); checked locally with the same image, user, read-only root and mounts (baseline 29/29,
+  hard 0 0 0).

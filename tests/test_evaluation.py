@@ -278,3 +278,5 @@ def test_the_vm_wrapper_gives_the_evaluation_only_the_model_key_and_the_cases():
     assert "secrets/agent:" not in text                      # never the whole secrets folder (executor tokens)
     assert "db_password" not in text and "argus-v18-core" not in text   # no database, not on the core network
     assert "SESSION" in text and "--model configured" in text
+    # the image has no config (compose mounts it at run time): the evaluated branch's config, read-only (step 3a, try 2)
+    assert "target=/app/config,readonly" in text
