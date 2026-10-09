@@ -744,3 +744,15 @@ keeping §6.4 as written.
 Consequences: step 03 deploys the rule and repeats SC-03 (done when one incident). No safety principle touched.
 References: OPEN_PROBLEMS OP-011, `architecture/changes/ACR-0004-correlation-same-episode.md`,
 `execution/history/OP-011/step-02/evidence.md`.
+
+## 2026-10-09 — OP-011 fixed: SC-03 gives one incident (OP-011, ACR-0004)
+
+Type: verification
+Who: conantkd (+ agent)
+Context: ACR-0004 (an alert of the same episode joins the concluded incident) was implemented after step 02.
+Decision / result: both VMs on `task/OP-011-correlation` `cb300df`. SC-03 reproduced step 02's timing: the incident
+`inc_8a4cf92444ae` was DIAGNOSED and closed at 13:36:22; `ContainerUnhealthy` (started 13:36:01) was pulled at 13:36:57
+and **attached** to it (`concluded, same episode`); the next pass said `duplicate` twice. One incident, one diagnosis,
+evidence version 2. LAB BASELINE OK, NO INTERFERENCE on both.
+Consequences: OP-011 fixed; its PR is stacked on T-0024 (with migration 004 and ACR-0004). Both VMs run it.
+References: OPEN_PROBLEMS OP-011, `execution/history/OP-011/step-03/evidence.md`.

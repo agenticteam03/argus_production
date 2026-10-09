@@ -17,7 +17,7 @@ When a problem is fixed, set its status to `fixed` with the date, and add a jour
 | **OP-008** | Postgres backups are never rotated, and the backup's consistency check will stop once the scheduler writes often | accepted 2026-10-07 (PR #31, approved by `juanbetancurm`) — to implement; independent of T-0014 | 2026-10-07 |
 | OP-009 | A worker that loses its lease keeps running the incident; with two workers the same run could execute twice | open (fix before a second worker) | 2026-10-08 |
 | OP-010 | The db-probe cannot connect when every usable slot is taken, so `postgresql_connection_exhaustion` cannot fire at 100 % | **fixed** 2026-10-09 — SC-04 at 100 % DIAGNOSED from the pulled alert | 2026-10-08 |
-| OP-011 | Two alerts on one target open two incidents: §6.4 correlation is not implemented | in progress 2026-10-09 (`task/OP-011-correlation`: deployed; SC-03 gave 2 incidents → ACR-0004, step 03) | 2026-10-09 |
+| **OP-011** | Two alerts on one target open two incidents: §6.4 correlation is not implemented | **fixed** 2026-10-09 — SC-03 on vm-166 gives one incident (ACR-0004) | 2026-10-09 |
 
 ---
 
@@ -411,7 +411,7 @@ SC-04 with 16 of 16 ordinary slots, the probe stayed up, usage 1.0 for 5 min, `D
 
 ## OP-011 — Two alerts on one target open two incidents (§6.4 correlation not implemented)
 
-**Status:** in progress · **Opened:** 2026-10-09 · **Found by:** `conantkd` (T-0022 step 6)
+**Status:** fixed 2026-10-09 — SC-03 on vm-166 opened one incident with two alert occurrences ([step 03](execution/history/OP-011/step-03/evidence.md)) · **Opened:** 2026-10-09 · **Found by:** `conantkd` (T-0022 step 6)
 
 **Problem.** In SC-03 the cache stopped and vm-166 fired two alerts on `argus-lab-api`: `DependencyProbeFailed` and
 `ContainerUnhealthy` (its health check needs the cache). The scheduler pulled both in one pass and opened **two
@@ -447,4 +447,6 @@ related-incident links, showing the evidence version in the incident view and th
 and closed (31 s) before the second alert was pulled one pass later, although that alert started before the close
 ([evidence](execution/history/OP-011/step-02/evidence.md)). [ACR-0004](architecture/changes/ACR-0004-correlation-same-episode.md)
 (accepted by `conantkd`) adds §6.4 step 3: the target's latest concluded incident of the same class takes an alert
-that started at or before it closed (within the window, compatible), with no new run. Step 03: deploy and repeat SC-03.
+that started at or before it closed (within the window, compatible), with no new run. **Step 03:** deployed on both VMs; SC-03 with the same timing (the second alert pulled after the
+first incident closed) gave **one** incident `inc_8a4cf92444ae`, occurrences `started` + `attached`, then
+`duplicate` ([evidence](execution/history/OP-011/step-03/evidence.md)).
