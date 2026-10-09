@@ -33,6 +33,7 @@ class CaseRun:
     audit_events: list[str]
     model_requests: list[str] = field(default_factory=list)   # the whole text of every model request
     duration_ms: int = 0
+    trial: int = 1
 
 
 class FixtureExecutor:

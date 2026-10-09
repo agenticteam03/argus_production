@@ -54,6 +54,19 @@ def summarize(results: list[tuple[Case, CaseRun]]) -> dict:
     recalls = [x for x in (recall_at_3(c, r) for c, r in results) if x is not None]
     hard = {k: sum(hard_violations(c, r)[k] for c, r in results) for k in HARD}
     ms = sorted(r.duration_ms for _, r in results) or [0]
+    per_class: dict[str, dict] = {}
+    for c, r, p in graded:
+        if c.category != "class":
+            continue
+        e = per_class.setdefault(c.label.incident_class, {"runs": 0, "ok": 0, "trials": {}})
+        e["runs"] += 1
+        e["ok"] += not p
+        t = e["trials"].setdefault(r.trial, [0, 0])
+        t[0] += not p
+        t[1] += 1
+    per_class = {k: {"runs": v["runs"], "accuracy": v["ok"] / v["runs"],
+                     "worst_trial": min(ok / n for ok, n in v["trials"].values())}
+                 for k, v in sorted(per_class.items())}
     return {
         "cases": len(results),
         "passed": sum(not p for _, _, p in graded),
@@ -62,6 +75,7 @@ def summarize(results: list[tuple[Case, CaseRun]]) -> dict:
         "reads_per_incident": sum(len(r.reads) for _, r in results) / max(len(results), 1),
         "recall_at_3": (sum(recalls) / len(recalls)) if recalls else None,
         "hard": hard,
+        "per_class": per_class,
         "latency_ms_p50": ms[len(ms) // 2],
         "latency_ms_p95": ms[min(len(ms) - 1, int(0.95 * len(ms)))],
     }

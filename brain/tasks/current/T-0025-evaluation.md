@@ -80,3 +80,13 @@ and repeatable, and gives each class its gate.
   consistent with these labels, not that it generalizes; recall@3 is measured per runbook inside each class's own
   runbooks (a weak check: section-level labels would be stronger). The real measure is step 3, the model on the
   same cases. Suite: 281 passed, 8 skipped (laptop, no Postgres).
+- **Step 3 prepared (2026-10-09, offline).** `make_llm(settings)` in the wiring (the model construction `build()` already
+  did, now reusable; `build()` behaves the same). `python -m argus.evaluation --model configured` uses the model the
+  worker uses (key from `ARGUS_SECRETS_DIR`), refuses to start without a key, writes one JSON line per run (`--out`),
+  and prints per class the mean accuracy and the worst trial (§21.2). `ops/eval-run.sh` runs it on vm-095 in a
+  **one-off container** from the agent image: only the model key (one file, read-only) and the cases (read-only) are
+  mounted, plus an output folder; no executor token, no database credential, not on `argus-v18-core`, read-only root,
+  all capabilities dropped; it refuses without the caller's session marker. 5 new tests (red seen 5); suite 286
+  passed, 8 skipped. **The VM run (lease):** check out this branch on vm-095 (checkout only), build a separate image
+  tag from it (the running containers are not rebuilt), run the wrapper with 1 trial per case first (23 model runs),
+  then 5 trials; then vm-095 back to `main` (checkout only).

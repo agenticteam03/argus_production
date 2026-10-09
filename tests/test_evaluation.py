@@ -224,3 +224,57 @@ def test_the_command_line_runs_every_case_with_the_baseline(ev, tmp_path, capsys
     out = capsys.readouterr().out
     assert code == 0, out
     assert "accuracy 1.00" in out and "hard: 0 0 0" in out
+
+
+# --- step 3 (prepared offline): the configured model in a one-off container ------------------------------------------
+def test_make_llm_builds_the_configured_model_only_when_a_key_exists(tmp_path, monkeypatch):
+    from argus.infrastructure.wiring import Settings, make_llm
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    assert make_llm(Settings(secrets_dir=tmp_path)) is None
+    (tmp_path / "openai_api_key").write_text("sk-test", encoding="utf-8")
+    llm = make_llm(Settings(secrets_dir=tmp_path, llm_model="gpt-test"))
+    assert llm is not None and type(llm).__name__ == "OpenAIResponses"
+
+
+def test_the_command_line_refuses_the_configured_model_without_a_key(ev, tmp_path, monkeypatch, capsys):
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.setenv("ARGUS_SECRETS_DIR", str(tmp_path / "empty"))
+    assert ev.main(["--cases", str(CASES), "--model", "configured", "--workdir", str(tmp_path)]) == 2
+    assert "no model" in capsys.readouterr().err
+
+
+def test_the_command_line_runs_the_model_and_writes_one_json_line_per_run(ev, tmp_path, monkeypatch, capsys):
+    import json
+    from argus.evaluation import cli
+
+    def script(ctx: str):
+        return {"calls": [("escalate", {"reason": "the scripted model never decides"})]}
+    monkeypatch.setattr(cli, "make_llm", lambda s: ScriptedLLM(script))
+    out = tmp_path / "runs.jsonl"
+    code = ev.main(["--cases", str(CASES), "--category", "class", "--model", "configured", "--trials", "2",
+                    "--workdir", str(tmp_path), "--out", str(out)])
+    text = capsys.readouterr().out
+    rows = [json.loads(line) for line in out.read_text(encoding="utf-8").splitlines()]
+    assert code == 1                                         # a model that never decides fails the class cases
+    assert len(rows) == 2 * sum(1 for c in ev.load_cases(CASES) if c.category == "class")
+    assert {r["trial"] for r in rows} == {1, 2} and all(r["model_calls"] >= 1 for r in rows)
+    assert {"case", "category", "strategy", "verdict", "problems", "hard", "outcome"} <= set(rows[0])
+    assert "container_restart_loop" in text and "worst" in text
+
+
+def test_the_summary_reports_mean_and_worst_trial_per_class(ev):
+    c = _case(ev, **{"class": "container_restart_loop"})
+    good, bad = _run(ev), _run(ev, outcome="no_action_escalated")
+    good.trial, bad.trial = 1, 2
+    s = ev.summarize([(c, good), (c, bad)])
+    assert s["per_class"]["container_restart_loop"] == {"runs": 2, "accuracy": 0.5, "worst_trial": 0.0}
+
+
+def test_the_vm_wrapper_gives_the_evaluation_only_the_model_key_and_the_cases():
+    text = "\n".join(ln for ln in (ROOT / "ops" / "eval-run.sh").read_text(encoding="utf-8").splitlines()
+                     if not ln.lstrip().startswith("#"))           # the commands, not the comments
+    assert "--read-only" in text and "--cap-drop ALL" in text and "no-new-privileges" in text
+    assert "openai_api_key" in text and "readonly" in text and "tests/eval" in text
+    assert "secrets/agent:" not in text                      # never the whole secrets folder (executor tokens)
+    assert "db_password" not in text and "argus-v18-core" not in text   # no database, not on the core network
+    assert "SESSION" in text and "--model configured" in text
