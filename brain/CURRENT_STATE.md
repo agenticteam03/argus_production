@@ -7,6 +7,12 @@ shared-Brain setup B1–B8 under way (three developers).
 > The VMs are authoritative for what runs there: run `sudo bash /opt/argus-v18/app/ops/deploy.sh status` (or read
 > `/opt/argus-v18/DEPLOYED`) and the state probe before trusting this file.
 
+> **Update 2026-10-08 late (`conantkd`):** vm-166 runs `task/OP-010-reserved-slot` `bc56923` (= T-0020 + T-0022 +
+> OP-010): Argus-owned `argus-v18-alertmanager` (127.0.0.1:18091), `-node-exporter`, `-cadvisor`; tunnel account
+> `permitopen` 18091; `argus-lab-db` with `reserved_connections=1` (16 ordinary slots, the db-probe has its own).
+> LAB BASELINE OK, NO INTERFERENCE. vm-095 runs `task/T-0021-tool-isolation`. Evidence:
+> `execution/history/T-0022/step-04/`, `execution/history/OP-010/step-01/`.
+
 ## 1. In one paragraph
 
 Argus v1.8 runs on the two VMs. The agent on vm-095 diagnoses incidents on both hosts through the per-host gateways
@@ -149,8 +155,8 @@ mock-only); UI actions beyond reading need a future ACR (`NEXT_STEP.md`).
 - **Classes enabled ahead of §21.2:** the 4 enabled classes have lab runs but no `tests/eval/` dataset yet (§3
   "Enablement"); phase 12 and the evaluation close it (`NEXT_STEP.md`). OP-010: the db-probe is blind at 100 %
   connection use.
-- An interrupted run is resumed automatically by the worker (T-0014, PR #33 merged). With more than one worker, a
-  lost lease renewal would let two workers run the same incident: OP-009 (fix before a second worker).
+- An interrupted run is resumed automatically by the worker (T-0014, PR #33 merged). OP-009 (fixed on
+  `task/OP-009-lease-loss`): a worker that loses its lease stops the run, so two workers never run the same incident.
 - Lab baseline: `deploy.sh status` now ends with `LAB BASELINE OK` or names the stopped/unhealthy `argus-lab-*`
   (DEPLOY-MAIN found `argus-lab-cache` stopped for ~7 h; `nonint-check.sh` does not cover Argus objects).
 - vm-095 says "System restart required" — do not reboot (team decision).

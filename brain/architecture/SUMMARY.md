@@ -30,8 +30,8 @@ These are recorded here so nobody "fixes" one side silently. Each will be resolv
 
 | Topic | Architecture says | Running today | Resolution |
 |---|---|---|---|
-| Cross-host path (§3.2, §3.6) | §3.6 reference values: private subnet, no tunnel | restricted SSH tunnel over port 22 (the only open port between the VMs) | **pending team decision D-001** (`../OPEN_PROBLEMS.md`) |
-| Alerts | Alertmanager webhook push | alerts pulled by `ReconcileFiringAlerts` through the tunnel | **pending team decision D-001** |
+| Cross-host path (§3.2, §3.6) | transport profile `restricted-ssh` (ACR-0003, 1.8.3) | restricted SSH tunnel over port 22 (the only open port between the VMs) | **aligned** by ACR-0003 (D-001 decided; second approval in the T-0022 PR) |
+| Alerts | by profile: pull from the Argus-owned Alertmanager in `restricted-ssh` (§7.3) | no alert reaches Argus yet (no Alertmanager, no reconciliation) | **T-0022** implements the pull (phase 7) |
 | Workflow engine (§10) | LangGraph with a Postgres checkpointer | **resolved by T-0013 (2026-10-04):** LangGraph runner, checkpoints in Postgres (plain runner kept as rollback) | — |
 | Tools process (§12) | stdio MCP tools child under UID `argus-tools` | direct in-process provider | plan Phase 4 |
 | api / worker / scheduler | separate processes | one agent container, no scheduler; interrupted runs are not resumed automatically yet | plan Phase 9 (next: T-0014) |

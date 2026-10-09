@@ -1,5 +1,9 @@
 global: {scrape_interval: 15s, evaluation_interval: 15s}
 rule_files: ["/etc/prometheus/alerts.yml"]
+alerting:                                 # T-0022: the host's own Argus-owned Alertmanager
+  alertmanagers:
+    - static_configs:
+        - targets: ["argus-v18-alertmanager:9093"]
 scrape_configs:
   - job_name: argus-v18-exporter
     static_configs:
@@ -9,4 +13,12 @@ scrape_configs:
     authorization: {type: Bearer, credentials_file: /etc/prometheus/secrets/db_probe_token}
     static_configs:
       - targets: ["argus-v18-db-probe:8700"]
+        labels: {argus_host: vm-166}
+  - job_name: argus-v18-node-exporter      # T-0022: host CPU, memory, disk, load
+    static_configs:
+      - targets: ["argus-v18-node-exporter:9100"]
+        labels: {argus_host: vm-166}
+  - job_name: argus-v18-cadvisor           # T-0022: per-container CPU, memory, throttling
+    static_configs:
+      - targets: ["argus-v18-cadvisor:8080"]
         labels: {argus_host: vm-166}

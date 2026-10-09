@@ -66,6 +66,25 @@ def postgresql_connection_exhaustion(snap: MetricSnapshot) -> DetectorResult:
     return DetectorResult(matched=False)
 
 
+def disk_pressure(snap: MetricSnapshot) -> DetectorResult:
+    """RB-005: a declared mount at or above 90 % used for 5 minutes (the signal is the worst mount's 5-minute
+    minimum); the time to full comes from the 15-minute fill rate and is absent when nothing grows."""
+    used = snap.values.get("host_disk_used_ratio_5m")
+    if used is None:
+        return DetectorResult(matched=False, findings=["signal missing (unknown, not healthy): host_disk_used_ratio_5m"])
+    if used < 0.9:
+        return DetectorResult(matched=False)
+    f = [f"a declared filesystem of the host is {round(used * 100)}% used for at least 5 minutes"]
+    hours = snap.values.get("host_disk_hours_to_full")
+    if hours is None:
+        f.append("its free space is not growing smaller now (no time-to-full estimate)")
+    elif hours < 2:
+        f.append(f"at the last 15 minutes' fill rate it is full in about {max(1, round(hours * 60))} min")
+    else:
+        f.append(f"at the last 15 minutes' fill rate it is full in about {round(hours, 1)} h")
+    return DetectorResult(matched=True, findings=f)
+
+
 # Priority order: the first matching class becomes the incident class; others become findings.
 CLASSES: list[IncidentClassSpec] = [
     IncidentClassSpec(name="container_restart_loop", family="stability", target_kinds={"container"},
@@ -87,6 +106,10 @@ CLASSES: list[IncidentClassSpec] = [
                       branch_runbook_ids=["RB-013"], strategy="model_loop",
                       tool_tags={"database", "logs", "container", "dependency", "knowledge"},
                       detector=postgresql_connection_exhaustion),
+    IncidentClassSpec(name="disk_pressure", family="saturation", target_kinds={"host"},
+                      required_signals={"host_disk_used_ratio_5m", "host_disk_hours_to_full"}, runbook_ids=["RB-005"],
+                      branch_runbook_ids=["RB-019"], strategy="model_loop",
+                      tool_tags={"host", "disk", "logs", "container", "knowledge"}, detector=disk_pressure),
 ]
 
 

@@ -69,10 +69,10 @@ class FakeConn:
 # --- the probe (services/target/service.py, ROLE=db_probe) ---------------------------------------
 def test_db_probe_reads_only_system_views_and_never_sql_text(tmp_path, monkeypatch):
     svc = _db_probe(tmp_path, monkeypatch)
-    assert set(svc.DB_QUERIES) == {"settings", "by_state", "by_client", "longest", "locks"}
+    assert set(svc.DB_QUERIES) == {"settings", "by_state", "by_client", "longest", "locks", "reserved_slot"}
     for name, sql in svc.DB_QUERIES.items():
         tables = re.findall(r"\b(?:FROM|JOIN)\s+([a-z_]+)\b(?!\s*\()", sql, flags=re.I)   # not now()
-        assert tables and all(t in ("pg_stat_activity", "pg_locks", "pg_settings") for t in tables), (name, tables)
+        assert tables and all(t in ("pg_stat_activity", "pg_locks", "pg_settings", "pg_roles") for t in tables), (name, tables)
         assert not re.search(r"\bquery\b", sql, flags=re.I), f"{name} selects SQL text"
         assert sql.lstrip().upper().startswith("SELECT"), name
 

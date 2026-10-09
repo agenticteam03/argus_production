@@ -6,12 +6,12 @@ approval in its pull request.
 
 | Field | Value |
 |---|---|
-| Status | `proposed` |
+| Status | `accepted` (applied in architecture 1.8.2) |
 | Proposed by | juanbetancurm (+ agent) · 2026-10-09 |
-| Accepted by | — |
-| Second approval (safety principle only) | required (secrets) — in PR #36 |
+| Accepted by | conantkd · 2026-10-09 |
+| Second approval (safety principle only) | conantkd in PR #39 (2026-10-09; the follow-up of PR #36, which was merged before its re-review) |
 | Architecture version | from `1.8.1` → `1.8.2` |
-| Task / PR | T-0021 · PR #36 |
+| Task / PR | T-0021 · PR #36, PR #39 |
 
 ## 1. Detect and explain
 
@@ -109,7 +109,9 @@ OD-3 decided: keep MCP · ACR-0002`.
 ## 5. Decision
 
 Proposed by `juanbetancurm`: start the tools server through one fixed sudo launcher that leaves the caller's folder
-and runs Python isolated, and close OD-3 with "keep MCP". Waiting for a second team member's approval in PR #36.
+and runs Python isolated, and close OD-3 with "keep MCP". **Accepted by `conantkd`** (second approval, safety
+principle: secrets) in PR #39 on 2026-10-09. PR #36 had reached `main` before its re-review; #39 brought the review
+fixes, this ACR and the vm-095 proof (TOOLS ISOLATION OK with the planted-package probe).
 
 ## 6. Applied
 
