@@ -1,4 +1,4 @@
-"""SC-05 (T-0023): a workload that fills the lab filesystem mounted at /fill until TARGET_PCT, then holds.
+"""SC-05 (T-0024): a workload that fills the lab filesystem mounted at /fill until TARGET_PCT, then holds.
 
 It refuses any filesystem larger than MAX_FS_MIB: if the lab mount is missing, /fill is a directory of the root disk
 and nothing is written. Its file is /fill/argus-lab-filler.dat (the reset removes it).

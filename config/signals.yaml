@@ -16,7 +16,7 @@ host_disk_used_ratio:  '1 - node_filesystem_avail_bytes{argus_host="$host",mount
 host_cpu_busy_ratio:   '1 - avg(rate(node_cpu_seconds_total{argus_host="$host",mode="idle"}[5m]))'
 host_memory_available_ratio: 'node_memory_MemAvailable_bytes{argus_host="$host"} / node_memory_MemTotal_bytes{argus_host="$host"}'
 container_cpu_throttled_ratio: 'rate(container_cpu_cfs_throttled_periods_total{argus_host="$host",name="$name"}[5m]) / (rate(container_cpu_cfs_periods_total{argus_host="$host",name="$name"}[5m]) > 0)'
-# T-0023 (SC-05, RB-005): every DECLARED mount of the host target ($mounts, from the inventory), not only `/`.
+# T-0024 (SC-05, RB-005): every DECLARED mount of the host target ($mounts, from the inventory), not only `/`.
 # The worst mount's used ratio, its minimum over 5 minutes; the soonest time to full (hours) at the 15-minute fill rate
 # (no value when nothing is growing).
 host_disk_used_ratio_5m: 'max(min_over_time((1 - node_filesystem_avail_bytes{argus_host="$host",mountpoint=~"$mounts"} / node_filesystem_size_bytes{argus_host="$host",mountpoint=~"$mounts"})[5m:30s]))'

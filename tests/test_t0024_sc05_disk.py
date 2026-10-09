@@ -1,4 +1,4 @@
-"""T-0023 / SC-05: host disk almost full (class `disk_pressure`, RB-005).
+"""T-0024 / SC-05: host disk almost full (class `disk_pressure`, RB-005).
 
 node-exporter (T-0022) publishes every filesystem; the signals read only the host target's declared mounts
 (`$mounts`, from the inventory), so a data disk is covered like `/`. The class matches at 90 % for 5 minutes. The lab
@@ -157,7 +157,7 @@ def test_host_probe_refuses_a_declared_mount_that_is_not_mounted(tmp_path, monke
     monkeypatch.setenv("TA_CONFIG", str(cfg))
     monkeypatch.setenv("TA_SECRETS", str(tmp_path))
     monkeypatch.setenv("TA_ROOTFS", str(tmp_path / "rootfs"))
-    svc = _load("ta_service_t0023", ROOT / "services" / "target" / "service.py")
+    svc = _load("ta_service_t0024", ROOT / "services" / "target" / "service.py")
     with pytest.raises(svc.Err) as e:
         svc.host_probe(["disk"], {"mount": [FILL]})
     assert e.value.code == 409 and "not mounted" in str(e.value.args)

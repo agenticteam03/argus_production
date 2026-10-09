@@ -554,23 +554,23 @@ Consequences: T-0020 is done and waits for review. vm-095 runs T-0021 without T-
 when vm-095 is back on `main`. Phase 11 at 70 %.
 References: `tasks/current/T-0020-sc04-pg-connections.md`, `execution/history/T-0020/`, OPEN_PROBLEMS OP-009, PRs #33-#37.
 
-## 2026-10-08 — phase 7 on vm-166, OP-010 verified, SC-05 coded (T-0022, OP-010, T-0023)
+## 2026-10-08 — phase 7 on vm-166, OP-010 verified, SC-05 coded (T-0022, OP-010, T-0024)
 
 Type: verification
 Who: conantkd (+ agent)
 Context: after T-0020 (#38) and the OP-009 branch, `conantkd` chose all of phase 7: D-001 decided as transport
-profiles (ACR-0002, this deployment `restricted-ssh`, alerts pulled), Argus-owned Alertmanager, node-exporter and
+profiles (ACR-0003, this deployment `restricted-ssh`, alerts pulled), Argus-owned Alertmanager, node-exporter and
 cAdvisor.
-Decision / result: T-0022 steps 1-3 (ACR-0002, architecture 1.8.2, the alert intake shared by webhook and pull, the
+Decision / result: T-0022 steps 1-3 (ACR-0003, architecture 1.8.3, the alert intake shared by webhook and pull, the
 scheduler's reconciliation, the monitoring stack; 186 passed). Step 4 on vm-166: all jobs up, the root filesystem
 seen (`pid: host`), 1 Alertmanager, nothing firing; nonint showed only the new listener 18091. OP-010: the lab
 database reserves a slot for `argus_monitor` and the probe reports `monitor_slot_reserved` (general: a real database
 without it is visible); SC-04 at 16 of 16 ordinary slots on vm-166: the probe stayed up, usage 1.0, the alert fired
 and reached vm-166's Alertmanager. A mis-extracted block (the T-0020 AFTER-MERGE `M.1`) ran only a SESSION grep and
-`nonint-check before`, then stopped on its `<you>` placeholder: nothing changed. T-0023 (SC-05) step 1: signals per
+`nonint-check before`, then stopped on its `<you>` placeholder: nothing changed. T-0024 (SC-05) step 1: signals per
 declared mount, `disk_pressure`, `rslave`, the bounded filler and the lab mount script (207 passed); the scripted
 diagnosis showed the filler outside a host incident's scope, fixed with `depends_on` (the §5 rule).
-Consequences: vm-166 on `task/OP-010-reserved-slot`; T-0023 local only; PRs wait for #38 and for `conantkd`'s
+Consequences: vm-166 on `task/OP-010-reserved-slot`; T-0024 local only; PRs wait for #38 and for `conantkd`'s
 order; vm-095 work waits for #36. Session closed, lease released.
-References: `tasks/current/T-0022-alerting.md`, `tasks/current/T-0023-sc05-disk.md`, OPEN_PROBLEMS OP-010,
+References: `tasks/current/T-0022-alerting.md`, `tasks/current/T-0024-sc05-disk.md`, OPEN_PROBLEMS OP-010,
 `execution/history/T-0022/step-04/`, `execution/history/OP-010/step-01/`.

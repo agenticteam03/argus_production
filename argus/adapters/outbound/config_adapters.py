@@ -27,7 +27,7 @@ class YamlInventory:
         self._targets: dict[TargetRef, TargetInfo] = {}
         for t in data.get("targets") or []:
             ref = TargetRef.parse(t["ref"])
-            for m in t.get("mounts", []):            # T-0023: mounts fill a PromQL regex ($mounts): plain paths only
+            for m in t.get("mounts", []):            # T-0024: mounts fill a PromQL regex ($mounts): plain paths only
                 if not _MOUNT.fullmatch(m):
                     raise ValueError(f"inventory target {ref}: mount {m!r} is not a plain absolute path")
             if ref.host not in self._hosts:

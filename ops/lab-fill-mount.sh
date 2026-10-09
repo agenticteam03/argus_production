@@ -1,5 +1,5 @@
 #!/bin/sh
-# SC-05 (T-0023), vm-166, TESTING ONLY: the lab filesystem the filler fills, never the root disk.
+# SC-05 (T-0024), vm-166, TESTING ONLY: the lab filesystem the filler fills, never the root disk.
 # A 256M ext4 image under /opt/argus-v18/lab/, loop-mounted at /srv/argus-lab-fill (nodev,nosuid,noexec). Idempotent.
 # Not persisted (no host config is edited): after a reboot the mount is absent, and node-exporter, the host-probe and
 # the filler all see that (unknown / refused), never the root disk under its name. Run it again to restore it.

@@ -2,19 +2,22 @@
 
 **Now (2026-10-08 late, `conantkd`; session closed, lease released).** Three branches stacked on T-0020 (#38):
 `task/T-0022-alerting` (phase 7, steps 1-4 done, pushed) → `task/OP-010-reserved-slot` (verified on vm-166,
-pushed) → `task/T-0023-sc05-disk` (SC-05, step 1 done: code and tests; **local only, not pushed**). vm-166 runs
+pushed) → `task/T-0024-sc05-disk` (SC-05, step 1 done: code and tests; **local only, not pushed**). vm-166 runs
 `task/OP-010-reserved-slot` `bc56923` (LAB BASELINE OK, NO INTERFERENCE); vm-095 still runs
 `task/T-0021-tool-isolation`. No PR opened for any of them yet (only on `conantkd`'s order).
+**Renumbered 2026-10-08 night** to fit `juanbetancurm`'s open PRs: our ACR-0002 → **ACR-0003** (architecture 1.8.3;
+his ACR-0002 and 1.8.2 are in #39) and our SC-05 task T-0023 → **T-0024** (his T-0023 is the e2e runner, #40). #36 is
+merged; #39 carries its review fixes.
 
-1. **PRs, in order, once #38 merges:** T-0022 (needs `juanbetancurm`'s second approval: ACR-0002 touches host
-   isolation), then OP-010, then T-0023; OP-009 (`scratchpad` text, separate) whenever `conantkd` says. The T-0020
+1. **PRs, in order, once #38 merges:** T-0022 (needs `juanbetancurm`'s second approval: ACR-0003 touches host
+   isolation), then OP-010, then T-0024; OP-009 (`scratchpad` text, separate) whenever `conantkd` says. The T-0020
    AFTER-MERGE block in `execution/current/code.bash` is out of date: vm-166 is now ahead of `main`; skip it.
-2. **T-0023 steps 2-3 (vm-166):** push the branch, then the block in `execution/current/code.bash` (a host change: the
+2. **T-0024 steps 2-3 (vm-166):** push the branch, then the block in `execution/current/code.bash` (a host change: the
    256M lab filesystem at `/srv/argus-lab-fill`; then the deploy and the SC-05 run). Needs `conantkd`'s go.
 3. **When #36 merges:** vm-095 to the stacked code (T-0022 step 5: monitoring, tunnel forward 18091, scheduler with
    reconciliation); then T-0022 step 6 (SC-03 alert pulled → DIAGNOSED, no duplicate), the OP-010 DIAGNOSED run at
-   100 % and T-0023 step 4 (SC-05 diagnosis).
-4. **Open question (`conantkd`):** a host incident's scope holds only the host's declared dependents (T-0023 declares
+   100 % and T-0024 step 4 (SC-05 diagnosis).
+4. **Open question (`conantkd`):** a host incident's scope holds only the host's declared dependents (T-0024 declares
    the filler `depends_on` the host). Opening it to every container of the host (useful for SC-06 CPU) would be an
    ACR (§5 scope rule).
 

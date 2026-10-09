@@ -1,11 +1,11 @@
-# T-0023 — SC-05: host disk almost full (`disk_pressure`, RB-005)
+# T-0024 — SC-05: host disk almost full (`disk_pressure`, RB-005)
 
 | Field | Value |
 |---|---|
 | Status | `in progress` — 2026-10-08 (step 1: code, tests first) |
 | Phase | 11 — synthetic incidents ([`../../IMPLEMENTATION_PLAN.md`](../../IMPLEMENTATION_PLAN.md) §7: SC-05); uses phase 7's node-exporter (T-0022) |
 | Architecture | no change (no ACR): §3 class table (`disk_pressure` · RB-005 · branch RB-019 · `model_loop`), §4.1 signal templates with a mount parameter, node-exporter (§3.5) |
-| Branch | `task/T-0023-sc05-disk`, on top of `task/OP-010-reserved-slot` (vm-166 runs it; T-0022's node-exporter is needed) |
+| Branch | `task/T-0024-sc05-disk`, on top of `task/OP-010-reserved-slot` (vm-166 runs it; T-0022's node-exporter is needed) |
 | Owner | `conantkd` (+ agent) |
 | Needs the VM lease | the lab mount, the deploy and the scenario run on vm-166; the diagnosis on vm-095 waits for T-0022 step 5 |
 
@@ -52,7 +52,7 @@ estimate how fast it fills, and name the filling workload as the cause, without 
 
 ## Red seen / evidence
 
-- **Step 1 (2026-10-08, code, tests first):** `tests/test_t0023_sc05_disk.py`, 15 tests.
+- **Step 1 (2026-10-08, code, tests first):** `tests/test_t0024_sc05_disk.py`, 15 tests.
   - **red:** 15/15 failed for the right reason (no disk signals, no `$mounts`, no mount validation, no
     `disk_pressure`, RB-005 metadata, the alert on `/` only, no `rslave`, no not-mounted refusal, no filler, no
     inventory entry, no mount script).

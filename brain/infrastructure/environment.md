@@ -49,7 +49,7 @@ vm-095                                               vm-166
   `argus_db_monitor_slot_reserved` (1 = the prerequisite holds) and `inspect_database_health` says so when it does
   not. `argus-lab-db`: `reserved_connections=1`, so 16 ordinary slots.
 
-- **`/srv/argus-lab-fill` is for testing only** (T-0023, SC-05): a 256M ext4 image `/opt/argus-v18/lab/fill.img`,
+- **`/srv/argus-lab-fill` is for testing only** (T-0024, SC-05): a 256M ext4 image `/opt/argus-v18/lab/fill.img`,
   loop-mounted (`nodev,nosuid,noexec`) by `ops/lab-fill-mount.sh`; not in `fstab`, so after a reboot it is absent until
   the script runs again (node-exporter has no series for it, the host-probe answers 409, the filler refuses: unknown,
   never the root disk's numbers). node-exporter and the host-probe bind `/` with `rslave` so they see it.

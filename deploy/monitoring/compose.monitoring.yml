@@ -38,7 +38,7 @@ services:
               "--collector.filesystem", "--collector.loadavg", "--collector.diskstats", "--collector.netdev",
               "--collector.pressure"]
     volumes:
-      - /:/host:ro,rslave                  # T-0023: sees mounts made after it started (Linux; Docker Desktop refuses it)
+      - /:/host:ro,rslave                  # T-0024: sees mounts made after it started (Linux; Docker Desktop refuses it)
     pid: host                            # reads the HOST mount table (/proc/1/mounts); without it: its own mounts only
     networks: [argus-v18-mon]
     mem_limit: 48m

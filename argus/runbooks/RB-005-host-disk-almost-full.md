@@ -17,7 +17,7 @@ detector: disk_pressure
 
 ## Scope
 
-Approved Linux filesystems backing Docker, logs or application storage on Host T. Record mount/device/namespace, filesystem type and Docker storage/log driver. Exclude device-latency-only incidents (RB-010); database-owned storage branches to RB-019. [Shared contracts](../RUNBOOK-CONVENTIONS.md) apply. Detector: `disk_pressure` (T-0023): a declared mount of the host target at 90 % or more for 5 minutes, with the time to full at the 15-minute fill rate.
+Approved Linux filesystems backing Docker, logs or application storage on Host T. Record mount/device/namespace, filesystem type and Docker storage/log driver. Exclude device-latency-only incidents (RB-010); database-owned storage branches to RB-019. [Shared contracts](../RUNBOOK-CONVENTIONS.md) apply. Detector: `disk_pressure` (T-0024): a declared mount of the host target at 90 % or more for 5 minutes, with the time to full at the 15-minute fill rate.
 
 ## Incident definition
 
