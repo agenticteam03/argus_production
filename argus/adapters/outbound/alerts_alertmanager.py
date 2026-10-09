@@ -1,4 +1,4 @@
-"""AlertSourcePort over the Alertmanager API v2 (ARCHITECTURE §7.3, §8.1; ACR-0002, T-0022).
+"""AlertSourcePort over the Alertmanager API v2 (ARCHITECTURE §7.3, §8.1; ACR-0003, T-0022).
 
 One Argus-owned Alertmanager per host, URL from the inventory (`hosts.<name>.alertmanager`). Only active alerts
 that are neither silenced nor inhibited are read. An alert is returned only when its `argus_host` label is the host

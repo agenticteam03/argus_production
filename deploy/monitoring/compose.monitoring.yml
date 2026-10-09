@@ -1,5 +1,5 @@
 # One Argus-owned Prometheus PER target host (v1.8 §3.1). Scrapes only Argus's own exporters (argus-exporter,
-# node-exporter, cAdvisor, and, where a database is declared, the db-probe) on argus-v18-mon. T-0022 (ACR-0002):
+# node-exporter, cAdvisor, and, where a database is declared, the db-probe) on argus-v18-mon. T-0022 (ACR-0003):
 # Argus-owned Alertmanager, node-exporter and cAdvisor; the image tags are those already present on vm-166.
 name: argus-v18-monitoring
 services:

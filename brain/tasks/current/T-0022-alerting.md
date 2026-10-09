@@ -4,7 +4,7 @@
 |---|---|
 | Status | `in progress` — 2026-10-08 (steps 1-4 done; step 5 waits for #36) |
 | Phase | 7 — monitoring & detection ([`../../IMPLEMENTATION_PLAN.md`](../../IMPLEMENTATION_PLAN.md): "Alertmanager, node-exporter, cAdvisor; pull firing alerts") |
-| Architecture | **ACR-0002** (transport profiles; alert delivery by profile; closes D-001) → 1.8.2. Touches host isolation: second approval required |
+| Architecture | **ACR-0003** (transport profiles; alert delivery by profile; closes D-001) → 1.8.3. Touches host isolation: second approval required |
 | Branch | `task/T-0022-alerting`, **on top of `task/T-0020-sc04-pg-connections`** (#38): the monitoring files build on T-0020's. Its PR opens after #38 merges |
 | Owner | `conantkd` (+ agent) |
 | Needs the VM lease | the read-only discovery, the deploys and the verification. vm-166 after the T-0020 AFTER-MERGE; vm-095 only after PR #36 (T-0021) merges |
@@ -22,7 +22,7 @@ alert ever reaches Argus. After this task:
 
 ## Decisions (2026-10-08, `conantkd`)
 
-- **D-001, option B, as transport profiles** ([ACR-0002](../../architecture/changes/ACR-0002-transport-profiles.md)):
+- **D-001, option B, as transport profiles** ([ACR-0003](../../architecture/changes/ACR-0003-transport-profiles.md)):
   `direct-private` | `wireguard-overlay` | `restricted-ssh`, chosen by configuration. This deployment is
   `restricted-ssh`: forward-only, so alerts are **pulled**. The push webhook stays for profiles with bidirectional
   connectivity.
@@ -62,7 +62,7 @@ alert ever reaches Argus. After this task:
 
 ## Steps
 
-1. **ACR-0002** and `ARCHITECTURE.md` 1.8.2 (text only); D-001 → decided. Review by `juanbetancurm` (second approval).
+1. **ACR-0003** and `ARCHITECTURE.md` 1.8.3 (text only); D-001 → decided. Review by `juanbetancurm` (second approval).
 2. **Discovery (read-only, both VMs):**
    - free RAM and disk, CPU architecture, cgroup version;
    - the free ports in 18000–18799;
@@ -92,7 +92,7 @@ alert ever reaches Argus. After this task:
 
 ## Red seen / evidence
 
-- **Step 1 (2026-10-08):** ACR-0002 proposed; `ARCHITECTURE.md` 1.8.2; D-001 decided (second approval pending).
+- **Step 1 (2026-10-08):** ACR-0003 proposed; `ARCHITECTURE.md` 1.8.3; D-001 decided (second approval pending).
 - **Step 2 (2026-10-08, read-only, both VMs):** 1 vCPU aarch64, cgroup v2, ~4.8 GiB available on each; vm-166 has the
   three images already (`prom/alertmanager:v0.34.0`, `quay.io/prometheus/node-exporter:v1.12.1`,
   `ghcr.io/google/cadvisor:v0.60.5`); 18091 free; tunnel `permitopen` 18090, 18701-18704

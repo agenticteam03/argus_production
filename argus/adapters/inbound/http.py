@@ -176,7 +176,7 @@ def build_webhook(app_ctx) -> FastAPI:
         given = (authorization or "").removeprefix("Bearer ").strip()
         if not expected or not hmac.compare_digest(given, expected):
             raise HTTPException(401, "unauthorized")
-        # ACR-0002: the same use case as the pull reconciliation, so a pushed and a pulled alert are one incident.
+        # ACR-0003: the same use case as the pull reconciliation, so a pushed and a pulled alert are one incident.
         handle = HandleAlertNotification(app_ctx.store, app_ctx.inventory)
         created = []
         for a in payload.get("alerts", []):

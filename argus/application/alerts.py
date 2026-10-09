@@ -1,4 +1,4 @@
-"""Alert intake (ARCHITECTURE §6.1 A and D, §6.6, §7.3; ACR-0002, T-0022).
+"""Alert intake (ARCHITECTURE §6.1 A and D, §6.6, §7.3; ACR-0003, T-0022).
 
 `HandleAlertNotification` turns one `AlertNotification` into durable intake. The push webhook and the pull
 reconciliation both call it, so one alert gives one incident whichever way it arrived: the identity is
@@ -67,7 +67,7 @@ class HandleAlertNotification:
 
 
 class ReconcileFiringAlerts:
-    """§7.3: the primary trigger in a pull profile (ACR-0002), the outage backup in a push profile."""
+    """§7.3: the primary trigger in a pull profile (ACR-0003), the outage backup in a push profile."""
 
     def __init__(self, source: AlertSourcePort, handle: HandleAlertNotification, hosts: list[str]):
         self.source, self.handle, self.hosts = source, handle, hosts

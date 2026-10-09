@@ -1,4 +1,4 @@
-"""T-0022 (phase 7, ACR-0002): firing alerts reach Argus by the deployment's transport profile.
+"""T-0022 (phase 7, ACR-0003): firing alerts reach Argus by the deployment's transport profile.
 
 In `restricted-ssh` (this deployment) the scheduler pulls each host's Argus-owned Alertmanager
 (`/api/v2/alerts`) and hands every firing alert to `HandleAlertNotification`, the same use case the push webhook
