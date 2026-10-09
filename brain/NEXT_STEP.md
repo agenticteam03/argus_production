@@ -1,5 +1,11 @@
 # Next step
 
+**OP-004 (2026-10-09, `conantkd`):** the owner-only `argus db prune-checkpoints` command, read-only default,
+transactional `--apply`, audit row, wrapper, and daily timer are implemented on `task/OP-004-checkpoint-cleanup`.
+Offline PostgreSQL tests pass. Next: with the VM lease, probe vm-095 and run the command in dry-run mode from the new
+maintenance image, after checking the backup evidence. Live deletion and timer enablement require the team's review
+of the dry-run counts; see [the task file](tasks/current/OP-004-checkpoint-retention.md).
+
 **Now (2026-10-09, `conantkd`; read as the state after the T-0020 PR merges):** T-0020 (SC-04,
 `postgresql_connection_exhaustion`, RB-004) is done: verified on vm-166 (`inc_075fb0006098` DIAGNOSED). #36 (T-0021)
 was merged before its re-review; its fixes and ACR-0002 came in **#39, approved by `conantkd` (second approval of

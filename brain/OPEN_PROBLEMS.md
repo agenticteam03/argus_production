@@ -10,7 +10,7 @@ When a problem is fixed, set its status to `fixed` with the date, and add a jour
 | OP-001 | Runbook `detector` metadata uses old or empty class names | open | 2026-09-30 |
 | OP-002 | P0 safety gaps of the runbook library not yet reconciled with architecture v1.8 | open | 2026-09-30 |
 | OP-003 | Runbook safety classes not mapped to `CapabilitySpec.risk` | open | 2026-09-30 |
-| OP-004 | LangGraph checkpoints grow forever; checkpoints of failed runs are orphaned | accepted 2026-10-05 — to implement | 2026-10-05 |
+| OP-004 | LangGraph checkpoints grow forever; checkpoints of failed runs are orphaned | in progress — offline tests pass; VM dry run and approved apply pending | 2026-10-05 |
 | **OP-005** | The `restarts_10m` signal undercounts restarts of a container younger than its window | accepted 2026-10-06 (PR #8, approved by `conantkd`) — to implement | 2026-10-05 |
 | OP-006 | LangGraph `recursion_limit` is fixed at 100 and can be too small for larger step budgets | fixed 2026-10-05 | 2026-10-05 |
 | **OP-007** | A dependency probe disappears while its owner is restarting, hiding the cause of a crash loop | fixed 2026-10-07 (`owner_active`: running or restarting; deployed on vm-166) | 2026-10-07 |
@@ -124,9 +124,10 @@ mandatory field allowlists (ties to G-006); `FORBIDDEN` operations are never reg
 
 ---
 
-## OP-004 — Checkpoint retention (accepted, to implement)
+## OP-004 — Checkpoint retention (in progress)
 
-**Status:** accepted 2026-10-05 (PR #7, approved by `conantkd`) · **Opened:** 2026-10-05 · **Found by:** `conantkd` (T-0013 review)
+**Status:** in progress 2026-10-09 (`task/OP-004-checkpoint-cleanup`, offline tests passed; VM dry run and approved
+apply pending); proposal accepted 2026-10-05 (PR #7) · **Opened:** 2026-10-05 · **Found by:** `conantkd` (T-0013 review)
 
 **Problem.** Since T-0013 every investigation leaves rows in `checkpoints`, `checkpoint_blobs` and `checkpoint_writes`,
 and nothing ever removes them: the runtime role has no DELETE (on purpose, migration 002). A run that ends with an

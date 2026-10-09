@@ -128,6 +128,13 @@ def db(args) -> None:
         print(f"{passed}/{len(results)} database checks passed (as {s.pg_user}; rolled back, nothing kept)")
         if passed != len(results):
             raise SystemExit(1)
+    elif args.action == "prune-checkpoints":
+        from argus.infrastructure.checkpoint_retention import prune_checkpoints
+
+        result = prune_checkpoints(s.pg_conninfo(), days=args.days, dry_run=not args.apply)
+        mode = "PRUNED" if args.apply else "DRY RUN"
+        print(f"{mode}: threads={result['threads']} checkpoints={result['checkpoints']} "
+              f"blobs={result['blobs']} writes={result['writes']}")
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -143,8 +150,10 @@ def build_parser() -> argparse.ArgumentParser:
     u.add_argument("--role", default="operator", choices=["viewer", "operator", "approver"])
     u.add_argument("--scopes", nargs="*", default=["lab"])
     d = sub.add_parser("db", help="Postgres system of record: import the lab SQLite history, prove the guarantees")
-    d.add_argument("action", choices=["import-sqlite", "check"])
+    d.add_argument("action", choices=["import-sqlite", "check", "prune-checkpoints"])
     d.add_argument("path", nargs="?", default="/data/argus.db")
+    d.add_argument("--days", type=int, default=int(os.getenv("ARGUS_CHECKPOINT_RETENTION_DAYS", "30")))
+    d.add_argument("--apply", action="store_true", help="delete eligible checkpoints; default is a read-only preview")
     from argus.adapters.inbound.cli.main import add_parsers
     add_parsers(sub)
     return p

@@ -637,3 +637,17 @@ never a PASS; before, the model and host checks passed on nothing. (2) The reset
 SC-07's reset succeeds when its network is already gone. 6 new tests, red seen; `test_e2e_runner.py` 33 passed.
 Consequences: run the batches as an operator user. Every catalogued reset must be idempotent.
 References: `tasks/current/T-0023-e2e-runner.md`, PR #40.
+
+## 2026-10-09 — OP-004 offline checkpoint retention implementation
+
+Type: implementation
+Who: conantkd (+ agent)
+Context: LangGraph checkpoint rows grow indefinitely, including failed runs whose incidents are final. The accepted
+OP-004 proposal keeps runtime DELETE forbidden and requires a dry run before any live cleanup.
+Decision / result: `argus db prune-checkpoints` defaults to a read-only preview; `--apply` uses the owner role and one
+transaction to remove the three checkpoint tables' eligible rows and append `maintenance.checkpoints_pruned` to audit.
+The one-off wrapper mounts only the owner credential; the daily systemd timer is shipped but not installed. Six tests
+pass with throwaway PostgreSQL 16; no live database rows have been deleted.
+Consequences: VM dry run and review of its counts and backup evidence are next; apply and timer enablement remain
+pending.
+References: `tasks/current/OP-004-checkpoint-retention.md`, `tests/test_checkpoint_retention.py`, OPEN_PROBLEMS OP-004.
