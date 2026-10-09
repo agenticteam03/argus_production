@@ -4,19 +4,173 @@ target: vm-166/container:argus-lab-worker
 request: report
 reason: keeps restarting
 metrics:
-  vm-166/container:argus-lab-worker: {restarts_10m: 5, oom_killed: 1, last_exit_code: 137}
+  vm-166/container:argus-lab-worker:
+    restarts_10m: 5
+    oom_killed: 1
+    last_exit_code: 137
 fixtures:
   docker_read:
-    /containers/argus-lab-worker/status: {id: aaa111, state: restarting, health: none, restart_count: 7, oom_killed: true, exit_code: 137, memory_limit_bytes: 67108864}
-    /containers/argus-lab-worker/stats: {memory_usage_bytes: 60000000, memory_limit_bytes: 67108864}
-    /containers/argus-lab-worker/health: {status: none, log: []}
-    /containers/argus-lab-worker/logs: {lines: ["worker holding 60 MiB of cached results", "connecting with password=hunter2"]}
+    /containers/argus-lab-worker/status:
+      id: aaa111
+      state: restarting
+      health: none
+      restart_count: 7
+      oom_killed: true
+      exit_code: 137
+      memory_limit_bytes: 67108864
+    /containers/argus-lab-worker/stats:
+      memory_usage_bytes: 60000000
+      memory_limit_bytes: 67108864
+    /containers/argus-lab-worker/health:
+      status: none
+      log: []
+    /containers/argus-lab-worker/logs:
+      lines:
+      - worker holding 60 MiB of cached results
+      - connecting with password=hunter2
   host_probe:
-    "*": {total_mib: 5800, available_mib: 4000, cpu_busy_percent: 12, load1: 0.2, cpus: 1}
-secrets: [hunter2]
+    '*':
+      total_mib: 5800
+      available_mib: 4000
+      cpu_busy_percent: 12
+      load1: 0.2
+      cpus: 1
+  prometheus:
+    range:
+      container_memory_bytes:
+      - - -1800
+        - 8388608
+      - - -1740
+        - 19922944
+      - - -1680
+        - 31457280
+      - - -1620
+        - 42991616
+      - - -1560
+        - 54525952
+      - - -1500
+        - 66060288
+      - - -1440
+        - 8388608
+      - - -1380
+        - 19922944
+      - - -1320
+        - 31457280
+      - - -1260
+        - 42991616
+      - - -1200
+        - 54525952
+      - - -1140
+        - 66060288
+      - - -1080
+        - 8388608
+      - - -1020
+        - 19922944
+      - - -960
+        - 31457280
+      - - -900
+        - 42991616
+      - - -840
+        - 54525952
+      - - -780
+        - 66060288
+      - - -720
+        - 8388608
+      - - -660
+        - 19922944
+      - - -600
+        - 31457280
+      - - -540
+        - 42991616
+      - - -480
+        - 54525952
+      - - -420
+        - 66060288
+      - - -360
+        - 8388608
+      - - -300
+        - 19922944
+      - - -240
+        - 31457280
+      - - -180
+        - 42991616
+      - - -120
+        - 54525952
+      - - -60
+        - 66060288
+      - - 0
+        - 8388608
+      container_restart_count:
+      - - -1800
+        - 2
+      - - -1740
+        - 2
+      - - -1680
+        - 2
+      - - -1620
+        - 2
+      - - -1560
+        - 2
+      - - -1500
+        - 2
+      - - -1440
+        - 3
+      - - -1380
+        - 3
+      - - -1320
+        - 3
+      - - -1260
+        - 3
+      - - -1200
+        - 3
+      - - -1140
+        - 3
+      - - -1080
+        - 4
+      - - -1020
+        - 4
+      - - -960
+        - 4
+      - - -900
+        - 4
+      - - -840
+        - 4
+      - - -780
+        - 4
+      - - -720
+        - 5
+      - - -660
+        - 5
+      - - -600
+        - 5
+      - - -540
+        - 5
+      - - -480
+        - 5
+      - - -420
+        - 5
+      - - -360
+        - 6
+      - - -300
+        - 6
+      - - -240
+        - 6
+      - - -180
+        - 6
+      - - -120
+        - 6
+      - - -60
+        - 6
+      - - 0
+        - 7
+secrets:
+- hunter2
 label:
   outcome: diagnosed
   class: container_restart_loop
   root_cause: vm-166/container:argus-lab-worker
-  diagnosis_any: [OOM, memory limit]
-  runbooks: [RB-001]
+  diagnosis_any:
+  - OOM
+  - memory limit
+  runbooks:
+  - RB-001

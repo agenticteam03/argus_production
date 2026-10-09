@@ -280,3 +280,23 @@ def test_the_vm_wrapper_gives_the_evaluation_only_the_model_key_and_the_cases():
     assert "SESSION" in text and "--model configured" in text
     # the image has no config (compose mounts it at run time): the evaluated branch's config, read-only (step 3a, try 2)
     assert "target=/app/config,readonly" in text
+
+
+def test_a_metric_history_read_is_answered_from_the_case_or_as_no_data(ev, tmp_path):
+    """Step 3a, try 3 on vm-095: the model asked for metric history and the fixture executor had no `range`, so the
+    read failed in a way a real run never would. A case may now give a history (seconds before now, value); without
+    one the read is the capability's own NO DATA answer, never an internal error."""
+    c = case(ev, "restart-oom-01")
+    t = c.target
+
+    def script(ctx: str):
+        if "memory bytes for" not in ctx:
+            return {"calls": [("get_memory_history", {"target": t, "minutes": 30})]}
+        return {"calls": [("escalate", {"reason": "enough"})]}
+    run = ev.run_case(c, workdir=tmp_path, llm=ScriptedLLM(script))
+    hist = [r for r in run.reads if r[0] == "metrics.memory_history"]
+    assert hist and hist[0][2] == "ok", run.reads
+    bare = c.model_copy(update={"fixtures": {k: v for k, v in c.fixtures.items() if k != "prometheus"}})
+    run = ev.run_case(bare, workdir=tmp_path, llm=ScriptedLLM(script))
+    hist = [r for r in run.reads if r[0] == "metrics.memory_history"]
+    assert hist and hist[0][2] == "error" and "internal" not in " ".join(run.audit_events)

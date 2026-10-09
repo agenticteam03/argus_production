@@ -53,6 +53,13 @@ class FixtureExecutor:
             raise ExecutorError(str(answer["error"]), f"fixture error for {path}")
         return answer
 
+    def range(self, signal: str, target: TargetRef, minutes: int, step_s: int) -> list[tuple[float, float]]:
+        """Metric history (the prometheus executor): `fixtures.prometheus.range.<signal>` as [seconds before now,
+        value] pairs, cut to the window asked; none = no samples (the capability answers NO DATA, unknown)."""
+        now = time.time()
+        points = (self.answers.get("range") or {}).get(signal) or []
+        return [(now + float(dt), float(v)) for dt, v in points if -float(dt) <= minutes * 60]
+
 
 class CaseMetrics:
     def __init__(self, case: Case):

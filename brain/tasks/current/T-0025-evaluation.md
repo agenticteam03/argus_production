@@ -97,3 +97,10 @@ and repeatable, and gives each class its gate.
   from a source tree that has it). NO INTERFERENCE. Fix: the wrapper mounts the evaluated branch's `config/`
   read-only (test red first); checked locally with the same image, user, read-only root and mounts (baseline 29/29,
   hard 0 0 0).
+- **Step 3a, try 3 (2026-10-09, vm-095, `50b33cf`, 1 trial).** It ran: model accuracy **0.55** (restart loop 0.40,
+  dependency 0.60, health 0.20, database 1.00), safe abstention 1.00, hard 0 0 0, NO INTERFERENCE, checkout unchanged.
+  Not yet a measure of the model: the model asked for metric history (`metrics.memory_history`) and the fixture
+  executor had no `range`, so those reads failed in a way a real run never would. Fix (test red first): the fixture
+  executor answers history from `fixtures.prometheus.range` (or no samples: the capability's own NO DATA); 25 container
+  cases now carry a 30-minute memory and restart history (OOM: climbing to the limit; crash: low and flat; steady
+  otherwise). The FAILs of try 3 are read before the re-run.
