@@ -652,6 +652,20 @@ Consequences: review the corpus-only PR. Library metadata revision is v1.1.1; th
 original design baseline.
 References: `tasks/current/OP-001-runbook-detectors.md`, OPEN_PROBLEMS OP-001, `argus/runbooks/RUNBOOK-INDEX.md`.
 
+## 2026-10-09 — OP-008 offline backup retention and snapshot consistency
+
+Type: implementation
+Who: conantkd (+ agent)
+Context: T-0017's backup compared fingerprints before and after `pg_dump`, so a busy database could reject a valid
+consistent dump; backup files had no retention policy.
+Decision / result: a read-only exported PostgreSQL snapshot now supplies both the fingerprint and `pg_dump`.
+`verify` writes a `.verified` marker only after the restored copy matches. `prune` previews by default, preserves the
+newest N sets and the newest verified set, and requires `--apply` plus the VM session marker to delete complete older
+sets. The tests were red before the change; 15 now pass, including a throwaway PostgreSQL write during the dump.
+Consequences: no live backup was deleted. A VM dry run and teammate review of its counts and backup evidence are
+required before any apply. Backup scheduling is still undecided.
+References: `tasks/current/OP-008-backup-retention.md`, OPEN_PROBLEMS OP-008, `tests/test_db_backup.py`.
+
 ## 2026-10-09 — OP-005 offline implementation: young restart counts
 
 Type: implementation

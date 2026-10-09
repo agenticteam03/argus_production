@@ -2,6 +2,13 @@
 
 **Last updated:** 2026-10-09 · **Commit:** `task/T-0020-sc04-pg-connections` after merging `main` (#39, #40) and the review of PR #38
 
+**OP-008, 2026-10-09 (`task/OP-008-backup-retention`):** three new retention/verification tests and the changed
+snapshot-consistency test failed before implementation, then passed. `tests/test_db_backup.py`: 15 passed locally,
+including two real Docker/PostgreSQL cases; one writes to the live throwaway database between snapshot export and
+`pg_dump`, then restores successfully. The Windows full suite with Docker had one unrelated OD-3 timing-benchmark
+failure (448.6 ms p95 overhead against 100 ms); every other executed test passed, with seven Linux/Postgres skips.
+Linux CI and the VM dry run are pending.
+
 **OP-001, 2026-10-09 (`task/OP-001-runbook-detectors`, PR #44):** the architecture-to-runbook metadata test failed
 before the edits, then passed. The new mapping and index tests plus 20 related knowledge/SC-04 tests pass locally.
 The Windows full suite passed with nine skips when pytest's temporary directory was placed outside the Git worktree;

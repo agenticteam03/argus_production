@@ -1,5 +1,11 @@
 # Next step
 
+**OP-008 (2026-10-09, `conantkd`):** snapshot-consistent backup, verified markers, and preview-first backup retention
+are implemented on `task/OP-008-backup-retention`. Fifteen tests pass locally, including two with throwaway PostgreSQL
+containers and a write during `pg_dump`. Next, when the VM lease is available, check restorable backup evidence and run
+`prune` in dry-run mode only. Review the listed sets with a teammate before any live `--apply`; scheduling remains a
+separate team decision. See [the task file](tasks/current/OP-008-backup-retention.md).
+
 **OP-005 (2026-10-09, `conantkd`): done, verified on both VMs (PR #41, fast-track).** vm-095 runs
 `task/OP-005-young-restarts` `b26effa` (= `main` after #41 merges: no rebuild needed to go to `main`). vm-166 runs
 `task/OP-005-vm166-proof` `4247dc8` (the unmerged OP-010 stack + `main` + OP-005): keep it until the T-0022 and OP-010

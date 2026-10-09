@@ -14,7 +14,7 @@ When a problem is fixed, set its status to `fixed` with the date, and add a jour
 | **OP-005** | The `restarts_10m` signal undercounts restarts of a container younger than its window | **fixed** 2026-10-09 — verified on both VMs (PR #41) | 2026-10-05 |
 | OP-006 | LangGraph `recursion_limit` is fixed at 100 and can be too small for larger step budgets | fixed 2026-10-05 | 2026-10-05 |
 | **OP-007** | A dependency probe disappears while its owner is restarting, hiding the cause of a crash loop | fixed 2026-10-07 (`owner_active`: running or restarting; deployed on vm-166) | 2026-10-07 |
-| **OP-008** | Postgres backups are never rotated, and the backup's consistency check will stop once the scheduler writes often | accepted 2026-10-07 (PR #31, approved by `juanbetancurm`) — to implement; independent of T-0014 | 2026-10-07 |
+| **OP-008** | Postgres backups are never rotated, and the backup's consistency check will stop once the scheduler writes often | in progress — offline implementation and Docker tests pass; VM dry run and approved apply pending | 2026-10-07 |
 | OP-009 | A worker that loses its lease keeps running the incident; with two workers the same run could execute twice | open (fix before a second worker) | 2026-10-08 |
 | OP-010 | The db-probe cannot connect when every usable slot is taken, so `postgresql_connection_exhaustion` cannot fire at 100 % | open | 2026-10-08 |
 
@@ -297,7 +297,9 @@ redeployed on vm-166, and this item is set to `fixed`.
 
 ## OP-008 — Backup retention, and a consistency check that survives a busy database
 
-**Status:** accepted 2026-10-07 (PR #31, approved by `juanbetancurm`; snapshot approach, scheduling decided later) · **Opened:** 2026-10-07 · **Found by:** `juanbetancurm` (after-merge review
+**Status:** in progress 2026-10-09 (`task/OP-008-backup-retention`; offline implementation verified, VM dry run and
+approved apply pending); proposal accepted 2026-10-07 (PR #31, approved by `juanbetancurm`; snapshot approach,
+scheduling decided later) · **Opened:** 2026-10-07 · **Found by:** `juanbetancurm` (after-merge review
 of PR #25, T-0017) · **Proposal by:** `conantkd` (+ agent) · **Fix with:** its own task, with or after T-0014
 (scheduler)
 
@@ -340,6 +342,12 @@ N and the newest verified one, and removes every file of a pruned backup; `verif
 
 **Done when.** The team accepts this proposal (or the alternative); then a task implements 1 and 2 with the tests
 above, runs `prune` as a dry-run on vm-095 first, and sets this item to `fixed`.
+
+**Implementation progress (2026-10-09).** `ops/db-backup.sh` now fingerprints in a read-only exported snapshot and
+passes that snapshot to `pg_dump`; `verify` writes `.verified` only after a matching restore. `prune` previews by
+default, retains the newest N and the newest verified set, and removes complete older sets only with `--apply` and
+the VM lease. Fifteen offline/local-Docker tests pass, including a live write between export and dump. No VM backup
+was pruned; see [the task](tasks/current/OP-008-backup-retention.md).
 
 ---
 
