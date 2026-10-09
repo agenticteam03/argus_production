@@ -1,7 +1,8 @@
 # Next step
 
 **OP-003 proposal (2026-10-09, `conantkd`):** [ACR-0005](architecture/changes/ACR-0005-capability-safety-classes.md)
-maps every §12.2 capability to a proposed runbook safety class and records seven read-class disagreements. The team
+maps every §12.2 capability to a proposed runbook safety class. Five runbook tables were corrected; five registered
+read-class disagreements remain. The team
 must review this safety change and its allowlist migration before implementation; no VM or runtime change was made.
 See [the task file](tasks/current/OP-003-safety-classes.md).
 

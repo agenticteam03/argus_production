@@ -7,7 +7,7 @@ id: RB-018
 title: Deployment regression
 status: draft
 owner: Argus Team
-version: 1.1.1
+version: 1.1.2
 created: 2026-09-29
 last_reviewed: 2026-10-09
 source_review_date: 2026-09-29
@@ -47,7 +47,8 @@ Release event/actor, old/new immutable digests, configuration fingerprints witho
 
 | Existing tool / input | Purpose / output | Safety class |
 |---|---|---|
-| `get_container_status(container)` / `get_container_events(container, since_minutes=60)` | Current identity and lifecycle evidence | `READ_ONLY_SENSITIVE` |
+| `get_container_status(container)` | Current container identity and state | `READ_ONLY_SENSITIVE` |
+| `get_container_events(container, since_minutes=60)` | Bounded lifecycle time, action and exit-code records | `READ_ONLY_SAFE` |
 | `get_detailed_logs(container, since_minutes=30, max_lines=150)` | First post-change errors, redacted | `READ_ONLY_SENSITIVE` |
 | `inspect_service_config(container, config='main')` | Declared redacted configuration only | `READ_ONLY_SENSITIVE` |
 | `compare_incident_baseline(container)` | Current versus helper baseline; must verify baseline was healthy | `READ_ONLY_SAFE` |

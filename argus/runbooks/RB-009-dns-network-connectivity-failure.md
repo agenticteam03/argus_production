@@ -7,7 +7,7 @@ id: RB-009
 title: DNS/network connectivity failure
 status: draft
 owner: Argus Team
-version: 1.1.1
+version: 1.1.2
 created: 2026-09-29
 last_reviewed: 2026-10-09
 source_review_date: 2026-09-29
@@ -50,7 +50,7 @@ Topology/version, source vantage, resolver answers/errors/time, expected address
 | `check_dns(name)` | Approved service-name resolution and addresses | `READ_ONLY_SENSITIVE` |
 | `check_tcp_connection(host, port, attempts=3, timeout_s=2)` | Success ratio/errors, at most 5 attempts and 10 seconds each | `READ_ONLY_SAFE` |
 | `check_http_endpoint(url, timeout_s=3)` | Allowlisted protocol check, no arbitrary redirect expansion | `READ_ONLY_SENSITIVE` |
-| `get_container_status(container)` → `networks` | Names of the attached Docker networks of source and destination (replaces the planned `get_container_network`; aliases and published ports still missing) | `READ_ONLY_SAFE` |
+| `get_container_status(container)` → `networks` | Names of the attached Docker networks of source and destination (replaces the planned `get_container_network`; aliases and published ports still missing); the tool returns the broader status response | `READ_ONLY_SENSITIVE` |
 | `get_socket_summary(container)` | Namespace socket states/listeners | `READ_ONLY_SENSITIVE` |
 | `get_network_history(container, minutes=30)` | Traffic/error/drop trends, subject to missing-value defect | `READ_ONLY_SAFE` |
 | `get_detailed_logs(container, since_minutes=15, max_lines=100)` | Application-side network errors | `READ_ONLY_SENSITIVE` |

@@ -1,6 +1,6 @@
 # Argus runbook index
 
-Library version 1.1.1 · source review 2026-09-29 · detector metadata review 2026-10-09 · 21 authored runbooks, RB-001–RB-021.
+Library version 1.1.2 · source review 2026-09-29 · detector metadata and OP-003 safety-table review 2026-10-09 · 21 authored runbooks, RB-001–RB-021.
 
 All runbooks are **draft** with `last_tested: null`. They include fault-injection specifications, not completed lab results. Technical documentation was reviewed; no production deployment or fault injection was performed. Start with the [assessment](RUNBOOK-ASSESSMENT.md), [shared contracts](RUNBOOK-CONVENTIONS.md), [book review](RUNBOOK-BOOK-REVIEW.md) and [capability backlog](ARGUS-CAPABILITY-GAPS.md). [RB-001](runbooks/RB-001-container-oom-restart-loop.md) is the authoring benchmark.
 

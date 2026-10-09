@@ -7,7 +7,7 @@ id: RB-014
 title: Monitoring blind spot / exporter unavailable
 status: draft
 owner: Argus Team
-version: 1.0.1
+version: 1.0.2
 created: 2026-09-29
 last_reviewed: 2026-10-09
 source_review_date: 2026-09-29
@@ -51,7 +51,8 @@ Existing reads may support an independently authorized operator investigation on
 |---|---|---|
 | `get_container_status(container)` | Exporter/runtime state if separately allowlisted | `READ_ONLY_SENSITIVE` |
 | `check_http_endpoint(url, timeout_s=3)` | Exact approved exporter/service probe | `READ_ONLY_SENSITIVE` |
-| `check_dns(name)` / `check_tcp_connection(host, port, attempts=2)` | Target-side reachability | `READ_ONLY_SENSITIVE` |
+| `check_dns(name)` | Approved name resolution and addresses | `READ_ONLY_SENSITIVE` |
+| `check_tcp_connection(host, port, attempts=2)` | Bounded target-side connection result and latency | `READ_ONLY_SAFE` |
 | `get_detailed_logs(container, since_minutes=15, max_lines=100)` | Bounded exporter error context | `READ_ONLY_SENSITIVE` |
 
 Current lab target scope does not automatically include the entire monitoring plane. Missing scope is a permission gap, not a reason to widen targets during an incident. `MetricsPort.snapshot` is deterministic application infrastructure, not an invented model tool.

@@ -7,7 +7,7 @@ id: RB-015
 title: NGINX/reverse-proxy upstream failure
 status: draft
 owner: Argus Team
-version: 1.0.1
+version: 1.0.2
 created: 2026-09-29
 last_reviewed: 2026-10-09
 source_review_date: 2026-09-29
@@ -50,7 +50,8 @@ Paired edge/backend results for the same safe route contract, bounded proxy erro
 | `check_http_endpoint(url, timeout_s=3)` | Approved proxy/backend probe, subject to equivalent-route limits | `READ_ONLY_SENSITIVE` |
 | `get_detailed_logs(container, since_minutes=15, max_lines=150)` | Proxy and backend sanitized failures | `READ_ONLY_SENSITIVE` |
 | `inspect_service_config(container, config='main')` | Only configured allowlisted proxy config | `READ_ONLY_SENSITIVE` |
-| `check_dns(name)` / `check_tcp_connection(host, port, attempts=2)` | Backend name/transport | `READ_ONLY_SENSITIVE` |
+| `check_dns(name)` | Backend name resolution and addresses | `READ_ONLY_SENSITIVE` |
+| `check_tcp_connection(host, port, attempts=2)` | Bounded backend transport result and latency | `READ_ONLY_SAFE` |
 | `get_container_status(container)` / `get_container_network(container)` | Backend/proxy identity and attachment | `READ_ONLY_SENSITIVE` |
 | `trace_request_path(container)` | Declared dependencies to discriminate victims | `READ_ONLY_SENSITIVE` |
 

@@ -127,8 +127,8 @@ mandatory field allowlists (ties to G-006); `FORBIDDEN` operations are never reg
 **Done when.** §12.3 has one scheme; every capability has a class; policy and redaction rules refer to it.
 
 **Proposal (2026-10-09).** [ACR-0005](architecture/changes/ACR-0005-capability-safety-classes.md) inventories every
-§12.2 capability and identifies seven read-class disagreements between the runtime and runbooks. The 17 registered
-reads already have a class; 27 architecture-only reads have no runtime spec. It is proposed only;
+§12.2 capability and identifies five remaining read-class disagreements after five runbook table corrections. The
+17 registered reads already have a class; 27 architecture-only reads have no runtime spec. It is proposed only;
 architecture and runtime remain unchanged until the team accepts the safety change and reviews output allowlists.
 
 ---

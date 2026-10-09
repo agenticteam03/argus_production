@@ -7,7 +7,7 @@ id: RB-016
 title: TLS certificate / handshake failure
 status: draft
 owner: Argus Team
-version: 1.0.1
+version: 1.0.2
 created: 2026-09-29
 last_reviewed: 2026-10-09
 source_review_date: 2026-09-29
@@ -47,7 +47,8 @@ Exact sanitized verification/handshake error, endpoint/IP/port and expected host
 
 | Existing tool / input | Purpose / output | Safety class |
 |---|---|---|
-| `check_dns(name)` / `check_tcp_connection(host, port, attempts=2)` | Establish destination and transport layer | `READ_ONLY_SENSITIVE` |
+| `check_dns(name)` | Establish destination addresses | `READ_ONLY_SENSITIVE` |
+| `check_tcp_connection(host, port, attempts=2)` | Establish bounded transport result and latency | `READ_ONLY_SAFE` |
 | `check_http_endpoint(url, timeout_s=3)` | Approved HTTPS request; inspect whether its configured verification matches client contract | `READ_ONLY_SENSITIVE` |
 | `get_detailed_logs(container, since_minutes=15, max_lines=100)` | Redacted handshake phase/errors | `READ_ONLY_SENSITIVE` |
 | `inspect_service_config(container, config='main')` | Only allowlisted non-secret TLS directive metadata | `READ_ONLY_SENSITIVE` |
