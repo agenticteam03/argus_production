@@ -1,10 +1,9 @@
 # Next step
 
-**OP-005 (2026-10-09, `conantkd`):** the exporter creation metric and young-first `restarts_10m` expression are
-implemented on `task/OP-005-young-restarts`. Offline unit and PromQL tests pass. VM verification is still needed:
-first resolve PR #38's review and merge, then take the VM lease, probe both hosts, deploy OP-005 from the updated
-`main`, and run the SC-01 and old-container checks in [the task file](tasks/current/OP-005-restart-signal.md).
-Do not replace vm-166's T-0020 checkout with a branch that predates PR #38.
+**OP-005 (2026-10-09, `conantkd`): done, verified on both VMs (PR #41, fast-track).** vm-095 runs
+`task/OP-005-young-restarts` `b26effa` (= `main` after #41 merges: no rebuild needed to go to `main`). vm-166 runs
+`task/OP-005-vm166-proof` `4247dc8` (the unmerged OP-010 stack + `main` + OP-005): keep it until the T-0022 and OP-010
+PRs merge, then deploy `main`. PR #43 (the CI step for the PromQL cases) needs `juanbetancurm`'s approval.
 
 **Now (2026-10-09, `conantkd`; read as the state after the T-0020 PR merges):** T-0020 (SC-04,
 `postgresql_connection_exhaustion`, RB-004) is done: verified on vm-166 (`inc_075fb0006098` DIAGNOSED). #36 (T-0021)

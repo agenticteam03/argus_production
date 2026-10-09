@@ -1,6 +1,6 @@
 # OP-005 — Count restarts of young containers
 
-**Owner:** `conantkd` · **Branch:** `task/OP-005-young-restarts` · **Status:** offline implementation verified; VM proof pending.
+**Owner:** `conantkd` · **Branch:** `task/OP-005-young-restarts` · **Status:** done 2026-10-09: offline and VM proof (PR #41).
 
 ## Goal
 
@@ -36,3 +36,9 @@ missing historical scrape as new restarts. Use the design accepted in `OPEN_PROB
   opens the incident, so it must not see a young loop later than the detector). Test first:
   `test_the_restart_loop_alert_counts_like_the_signal` (red seen); `promtool check rules` SUCCESS (4 rules). The CI
   step moved to its own PR so this one can be fast-tracked. `main` merged in.
+- **Step 2, VM proof (2026-10-09, `conantkd`, session 21a9ce710773):** at a young SC-01 container's counter 3 (age
+  41 s) the new `restarts_10m` was 3, the old expression 1; `ContainerRestartLoop` fired and reached vm-166's
+  Alertmanager; `inc_312b18f2d8a8` DIAGNOSED (`container_restart_loop`, RB-001, every read on vm-166). An exporter
+  restart with an old healthy container (`argus-lab-api`, 187 h) kept every `restarts_10m` at 0, no alert. LAB
+  BASELINE OK and NO INTERFERENCE on both. Evidence:
+  [`../../execution/history/OP-005/step-02/evidence.md`](../../execution/history/OP-005/step-02/evidence.md).
