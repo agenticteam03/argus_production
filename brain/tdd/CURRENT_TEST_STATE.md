@@ -2,6 +2,14 @@
 
 **Last updated:** 2026-10-09 · **Commit:** `task/T-0020-sc04-pg-connections` after merging `main` (#39, #40) and the review of PR #38
 
+**OP-001, 2026-10-09 (`task/OP-001-runbook-detectors`, PR #44):** the architecture-to-runbook metadata test failed
+before the edits, then passed. The new mapping and index tests plus 20 related knowledge/SC-04 tests pass locally.
+The Windows full suite passed with nine skips when pytest's temporary directory was placed outside the Git worktree;
+the first local run used an in-worktree temporary directory and caused five unrelated `test_deploy.py` path failures.
+After merging `main` (#41), only the existing OD-3 timing benchmark failed locally: p95 MCP overhead was 227 ms
+against its 100 ms budget (294 ms isolated). It is unaffected by OP-001 and is recorded as timing-flaky on the OP-005
+branch too. Linux CI `test` and `frontend` passed on the fast-track record commit; rerun after this merge from `main`.
+
 **OP-005, 2026-10-09 (`task/OP-005-young-restarts`):** three new unit tests were red against the old exporter/signal,
 then passed. Five PromQL synthetic-series cases passed with Prometheus 3.5.0 `promtool test rules` (young, old with
 scrape gap, old with continuous history, recreated same name, and missing creation metric). The full local Windows

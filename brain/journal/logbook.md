@@ -638,6 +638,20 @@ SC-07's reset succeeds when its network is already gone. 6 new tests, red seen; 
 Consequences: run the batches as an operator user. Every catalogued reset must be idempotent.
 References: `tasks/current/T-0023-e2e-runner.md`, PR #40.
 
+## 2026-10-09 — OP-001 runbook detector metadata alignment
+
+Type: implementation
+Who: conantkd (+ agent)
+Context: the authored runbooks retained an old detector name or null metadata despite architecture §1.3 assigning
+every runbook to an incident class.
+Decision / result: 18 changed runbooks now name their architecture class, with patch versions and `last_reviewed`
+updated; RB-002, RB-003, and RB-004 already matched and stayed unchanged. The index names all 21 mappings, and a
+test compares both surfaces with the architecture table (red before, green after). No detector was enabled or runbook
+promoted.
+Consequences: review the corpus-only PR. Library metadata revision is v1.1.1; the §1.3 v1.1.0 citation remains its
+original design baseline.
+References: `tasks/current/OP-001-runbook-detectors.md`, OPEN_PROBLEMS OP-001, `argus/runbooks/RUNBOOK-INDEX.md`.
+
 ## 2026-10-09 — OP-005 offline implementation: young restart counts
 
 Type: implementation

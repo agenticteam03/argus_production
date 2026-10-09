@@ -7,7 +7,7 @@ When a problem is fixed, set its status to `fixed` with the date, and add a jour
 |---|---|---|---|
 | **D-001** | Cross-host path and alert direction: architecture text vs the running system | **pending team decision** | 2026-10-02 |
 | **D-002** | Move the runbook library into this repository (the architecture expects it there) | **decided and done** 2026-10-02 | 2026-10-02 |
-| OP-001 | Runbook `detector` metadata uses old or empty class names | open | 2026-09-30 |
+| OP-001 | Runbook `detector` metadata uses old or empty class names | fixed 2026-10-09 on `task/OP-001-runbook-detectors` (review pending) | 2026-09-30 |
 | OP-002 | P0 safety gaps of the runbook library not yet reconciled with architecture v1.8 | open | 2026-09-30 |
 | OP-003 | Runbook safety classes not mapped to `CapabilitySpec.risk` | open | 2026-09-30 |
 | OP-004 | LangGraph checkpoints grow forever; checkpoints of failed runs are orphaned | accepted 2026-10-05 — to implement | 2026-10-05 |
@@ -71,18 +71,22 @@ deployment no longer mounts `/opt/argus-runbooks`) and the journal records it.
 
 ## OP-001 — Runbook `detector` metadata uses old or empty class names
 
-**Status:** open · **Opened:** 2026-09-30
+**Status:** fixed 2026-10-09 on `task/OP-001-runbook-detectors` (review pending) · **Opened:** 2026-09-30
 
-**Problem.** Each runbook in the library (`agenticteam03/runbooks`, `runbooks/RB-*.md`) has a `detector:` field. It
-still uses v1.7 names or is empty: RB-001 `oom_restart_loop` (v1.8: `container_restart_loop`, shared with RB-008);
-RB-002 `health_check_failed` and RB-003 `dependency_unavailable` already match; RB-004…RB-021 `null`. Architecture
-§15.3 requires that "a runbook's `detector` metadata names the class that uses it".
+**Problem.** Each runbook in the library (`argus/runbooks/RB-*.md`) has a `detector:` field. The original corpus used
+v1.7 names or left the field empty: RB-001 had `oom_restart_loop` (v1.8: `container_restart_loop`, shared with RB-008),
+and many later runbooks had `null`. Architecture §15.3 requires that "a runbook's `detector` metadata names the class
+that uses it".
 
-**Fix.** In the runbooks repository: set `detector:` in every runbook to its v1.8 class (§1.3); bump `version` and
-`last_reviewed`; update `RUNBOOK-INDEX.md`. Now done in this repository (`argus/runbooks/`), through a pull request.
+**Fix.** Set `detector:` in every runbook to its v1.8 class (§1.3), bump `version` and `last_reviewed` on changed
+runbooks, and update `RUNBOOK-INDEX.md`. The metadata-only library revision is v1.1.1. This does not enable draft
+classes or promote untested runbooks.
 
 **Done when.** All 21 runbooks name a class that exists in §1.3, and a check shows no class without a runbook and no
 runbook without a class.
+
+**Verification.** `tests/test_runbook_detector_metadata.py` compares the 21 metadata fields and index rows with the
+20 classes and their primary runbooks in architecture §1.3. The test was red before the edits and is green afterward.
 
 ---
 
