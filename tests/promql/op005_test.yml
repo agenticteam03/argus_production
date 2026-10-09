@@ -1,0 +1,68 @@
+rule_files: [op005_rules.yml]
+evaluation_interval: 1m
+tests:
+  - name: young container counts restarts before the first scrape
+    interval: 1m
+    input_series:
+      - series: 'argus_container_restart_count{argus_host="vm-166",container="argus-lab-worker"}'
+        values: '_x8 3+0x2'
+      - series: 'argus_container_created_seconds{argus_host="vm-166",container="argus-lab-worker"}'
+        values: '_x8 480+0x2'
+    promql_expr_test:
+      - expr: 'argus:restarts_10m'
+        eval_time: 10m
+        exp_samples:
+          - labels: 'argus:restarts_10m{argus_host="vm-166",container="argus-lab-worker"}'
+            value: 3
+
+  - name: old container with scrape gap is unknown
+    interval: 1m
+    input_series:
+      - series: 'argus_container_restart_count{argus_host="vm-166",container="argus-lab-worker"}'
+        values: '_x6 5+0x4'
+      - series: 'argus_container_created_seconds{argus_host="vm-166",container="argus-lab-worker"}'
+        values: '-600+0x10'
+    promql_expr_test:
+      - expr: 'argus:restarts_10m'
+        eval_time: 10m
+        exp_samples: []
+
+  - name: old container counts only the ten minute difference
+    interval: 1m
+    input_series:
+      - series: 'argus_container_restart_count{argus_host="vm-166",container="argus-lab-worker"}'
+        values: '5+0x9 7'
+      - series: 'argus_container_created_seconds{argus_host="vm-166",container="argus-lab-worker"}'
+        values: '-600+0x10'
+    promql_expr_test:
+      - expr: 'argus:restarts_10m'
+        eval_time: 10m
+        exp_samples:
+          - labels: 'argus:restarts_10m{argus_host="vm-166",container="argus-lab-worker"}'
+            value: 2
+
+  - name: recreated container under the same name starts at zero
+    interval: 1m
+    input_series:
+      - series: 'argus_container_restart_count{argus_host="vm-166",container="argus-lab-worker"}'
+        values: '5+0x9 3'
+      - series: 'argus_container_created_seconds{argus_host="vm-166",container="argus-lab-worker"}'
+        values: '-600+0x9 480'
+    promql_expr_test:
+      - expr: 'argus:restarts_10m'
+        eval_time: 10m
+        exp_samples:
+          - labels: 'argus:restarts_10m{argus_host="vm-166",container="argus-lab-worker"}'
+            value: 3
+
+  - name: exporter without creation metric uses only the difference
+    interval: 1m
+    input_series:
+      - series: 'argus_container_restart_count{argus_host="vm-166",container="argus-lab-worker"}'
+        values: '5+0x9 7'
+    promql_expr_test:
+      - expr: 'argus:restarts_10m'
+        eval_time: 10m
+        exp_samples:
+          - labels: 'argus:restarts_10m{argus_host="vm-166",container="argus-lab-worker"}'
+            value: 2

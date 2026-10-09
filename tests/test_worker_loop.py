@@ -121,8 +121,8 @@ def test_api_serves_without_a_worker(monkeypatch):
     import uvicorn
 
     import argus.__main__ as m
-    started = []
-    monkeypatch.setattr(m, "build", lambda: object())
+    started, built = [], []
+    monkeypatch.setattr(m, "build", lambda **kw: built.append(kw) or object())
     monkeypatch.setattr("argus.adapters.inbound.http.build_api", lambda app: "api")
     monkeypatch.setattr("argus.adapters.inbound.http.build_webhook", lambda app: "webhook")
     monkeypatch.setattr(uvicorn, "Config", lambda app, **kw: app)
@@ -134,3 +134,4 @@ def test_api_serves_without_a_worker(monkeypatch):
     monkeypatch.setattr(m, "Worker", lambda *a, **k: pytest.fail("the api must not run a worker"))
     m.api()
     assert started == ["api", "webhook"]
+    assert built == [{"require_credentials": False, "load_credentials": False}]   # T-0021: the api reads no token

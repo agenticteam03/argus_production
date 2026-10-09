@@ -1,23 +1,30 @@
 # Next step
 
-**Now (2026-10-08, `conantkd`; read as the state after the T-0020 PR merges):** T-0020 (SC-04,
-`postgresql_connection_exhaustion`, RB-004) is done: verified on vm-166 (`inc_075fb0006098` DIAGNOSED). Reviews done
-this session: #34 and #35 merged; **#36 (T-0021) changes requested** and handed back to `juanbetancurm` (launcher:
-`cd /` + `python -I`, with a test; an ACR for `setpriv` → `sudo`; the client timeout; the `mcp` default);
-after-merge reviews of #33 and #37 posted (OP-009 opened).
+**OP-005 (2026-10-09, `conantkd`): done, verified on both VMs (PR #41, fast-track).** vm-095 runs
+`task/OP-005-young-restarts` `b26effa` (= `main` after #41 merges: no rebuild needed to go to `main`). vm-166 runs
+`task/OP-005-vm166-proof` `4247dc8` (the unmerged OP-010 stack + `main` + OP-005): keep it until the T-0022 and OP-010
+PRs merge, then deploy `main`. PR #43 (the CI step for the PromQL cases) needs `juanbetancurm`'s approval.
 
-1. **AFTER-MERGE T-0020 on vm-166** (checkout only, block in `execution/current/code.bash`). **Not on vm-095**: it
-   runs `task/T-0021-tool-isolation` and `main` would not start its api and worker before #36 merges (rollback block R
-   in `execution/history/T-0021/step-05/` first).
-2. **T-0021 (`juanbetancurm`):** the changes requested in #36; then re-review. When #36 merges, vm-095 goes to `main`
-   and its agent gets `postgresql_connection_exhaustion` (the class is in `main` from T-0020 on).
-3. Next work: OP-009 is fixed on `task/OP-009-lease-loss` (its PR after #38); OP-010 (the db-probe's reserved
-   slot, SC-04 at 100 %); OP-004
-   checkpoint cleanup; alerting (phase 7); more classes (SC-05 disk, SC-06 CPU, SC-08 nginx; below).
-4. **Evaluation (§21.2, `tests/eval/`) and phase 12 (≥ 5 runs per scenario):** §3 "Enablement" enables a class only
+**OP-001 (2026-10-09, `conantkd`):** the 21 runbook `detector` metadata fields and index now match the 20 incident
+classes in architecture §1.3 on `task/OP-001-runbook-detectors`. PR #44 passed the local full suite and CI; fast-track
+review and merge are next. This metadata update does not enable draft detectors or promote runbooks. See
+[the task file](tasks/current/OP-001-runbook-detectors.md).
+
+**Now (2026-10-09, `conantkd`; read as the state after the T-0020 PR merges):** T-0020 (SC-04,
+`postgresql_connection_exhaustion`, RB-004) is done: verified on vm-166 (`inc_075fb0006098` DIAGNOSED). #36 (T-0021)
+was merged before its re-review; its fixes and ACR-0002 came in **#39, approved by `conantkd` (second approval of
+ACR-0002) and merged**: `main-guard` green, `main` has the fixed launcher. **#40** (T-0023, the scenario runner, with
+two reviewer fixes) is merged too. Owed by `juanbetancurm`: ACR-0002's status set to `accepted` (small PR).
+
+1. **AFTER-MERGE T-0020 on vm-166** (checkout only, block in `execution/current/code.bash`). vm-095 may now get
+   `main` (it has the fixed launcher and defaults to `mcp`); its agent then gets `postgresql_connection_exhaustion`.
+2. Next work: alerting (phase 7, T-0022) and OP-010 (the db-probe's reserved slot) are ready on `conantkd`'s
+   branches; OP-009 (before any second worker) is fixed on `task/OP-009-lease-loss`, `main` merged in, its PR next; OP-004 checkpoint cleanup; SC-05 (T-0024); phase 12 with the runner:
+   SC-02 and SC-07 × 5, then an SC-04 catalogue entry.
+3. **Evaluation (§21.2, `tests/eval/`) and phase 12 (≥ 5 runs per scenario):** §3 "Enablement" enables a class only
    when its evaluation passes. The 4 classes enabled so far (including `postgresql_connection_exhaustion`) are
-   enabled ahead of it: they have lab runs (1-2 each), not the §21.2 dataset (≥ 5 labeled cases per class, ≥ 5
-   trials, compared with the deterministic baseline). This is the task that closes that gap.
+   enabled ahead of it: they have lab runs, not the §21.2 dataset (≥ 5 labeled cases per class, ≥ 5 trials, compared
+   with the deterministic baseline). This is the task that closes that gap.
 
 **Earlier (2026-10-08, `juanbetancurm`):** T-0014 (api / worker / scheduler) is done and verified on vm-095
 ([evidence](execution/history/T-0014/step-05/evidence.md)); PR #33 merged by fast-track (after-merge review by a

@@ -53,7 +53,11 @@ services:
     volumes:
       - argus-v18-agent-data:/data
       - /opt/argus-v18/app/config:/app/config:ro
-      - /opt/argus-v18/secrets/agent:/run/argus-secrets:ro
+      # T-0021 (§12.6): the api never investigates, so it gets no executor token, only these files. The rollback
+      # ARGUS_AGENT_CMD=serve (investigates in-process) needs the folder back: /opt/argus-v18/secrets/agent:/run/argus-secrets:ro
+      - /opt/argus-v18/secrets/agent/db_password:/run/argus-secrets/db_password:ro
+      - /opt/argus-v18/secrets/agent/jwt_signing_key:/run/argus-secrets/jwt_signing_key:ro
+      - /opt/argus-v18/secrets/agent/openai_api_key:/run/argus-secrets/openai_api_key:ro   # only for llm_configured
     environment:
       ARGUS_RUNNER: ${ARGUS_RUNNER:-langgraph}          # T-0013 (verified 2026-10-04); rollback: ARGUS_RUNNER=plain
       ARGUS_DB_BACKEND: ${ARGUS_DB_BACKEND:-postgres}   # rollback: ARGUS_DB_BACKEND=sqlite (the SQLite file is kept)
@@ -76,10 +80,12 @@ services:
     volumes:
       - argus-v18-agent-data:/data
       - /opt/argus-v18/app/config:/app/config:ro
+      # the only container with the executor tokens; in mcp mode only its tools process (argus-tools) can read them
       - /opt/argus-v18/secrets/agent:/run/argus-secrets:ro
     environment:
       ARGUS_RUNNER: ${ARGUS_RUNNER:-langgraph}
       ARGUS_DB_BACKEND: ${ARGUS_DB_BACKEND:-postgres}
+      ARGUS_TOOL_CATALOGUE: ${ARGUS_TOOL_CATALOGUE:-mcp}   # T-0021 (OD-3, ACR-0002): mcp on vm-095; rollback: direct
       ARGUS_LLM_MODEL: ${ARGUS_LLM_MODEL:-gpt-5.6-luna}
       ARGUS_MAX_READS_PER_STEP: "2"
       ARGUS_MAX_STEPS: "8"

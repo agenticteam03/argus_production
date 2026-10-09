@@ -47,6 +47,23 @@ def test_db_probe_metrics_of_an_unreadable_database_are_unknown_not_zero(tmp_pat
     assert lines == ['argus_db_up{container="argus-lab-db"} 0']          # no used/usable series at all
 
 
+def test_db_probe_metrics_of_a_query_that_fails_after_connecting_are_unknown_not_a_500(tmp_path, monkeypatch):
+    """Review of PR #38: the 3 s statement_timeout on a busy database, or a lost connection, must not turn the whole
+    scrape into a 500 (no `argus_db_*` series at all: "not a database"). It is `argus_db_up 0`, and the connection
+    is still closed."""
+    svc = _db_probe(tmp_path, monkeypatch)
+    conn = FakeConn(svc)
+
+    def timeout(sql):
+        if sql.startswith("SET"):
+            return []
+        raise TimeoutError("canceling statement due to statement timeout")
+    conn.run = timeout
+    monkeypatch.setattr(svc, "pg_connect", lambda db: conn)
+    lines = [ln for ln in svc.db_metrics().splitlines() if ln and not ln.startswith("#")]
+    assert lines == ['argus_db_up{container="argus-lab-db"} 0'] and conn.closed
+
+
 # --- Prometheus, signal, alert ------------------------------------------------------------------------
 def test_vm166_prometheus_scrapes_the_db_probe_with_its_token():
     p166 = yaml.safe_load((ROOT / "deploy" / "monitoring" / "prometheus-vm-166.yml").read_text(encoding="utf-8"))

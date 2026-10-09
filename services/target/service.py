@@ -84,12 +84,22 @@ def allowed(name: str) -> str:
     return name
 
 
+def created_seconds(value: str | None) -> float | None:
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(value.replace("Z", "+00:00")).timestamp()
+    except ValueError:
+        return None
+
+
 def inspect(name: str) -> dict:
     d = djson(f"/containers/{urllib.parse.quote(name)}/json")
     st, hc = d.get("State", {}), d.get("HostConfig", {})
     return {"id": d.get("Id", "")[:12], "name": name, "state": st.get("Status"), "running": st.get("Running"),
             "restarting": st.get("Restarting"),
-            "restart_count": d.get("RestartCount"), "oom_killed": st.get("OOMKilled"), "exit_code": st.get("ExitCode"),
+            "restart_count": d.get("RestartCount"), "created_at_seconds": created_seconds(d.get("Created")),
+            "oom_killed": st.get("OOMKilled"), "exit_code": st.get("ExitCode"),
             "started_at": st.get("StartedAt"), "finished_at": st.get("FinishedAt"), "error": st.get("Error") or None,
             "health": (st.get("Health") or {}).get("Status", "none"), "image": d.get("Config", {}).get("Image"),
             "memory_limit_bytes": hc.get("Memory") or None, "restart_policy": (hc.get("RestartPolicy") or {}).get("Name"),
@@ -311,7 +321,7 @@ def db_metrics() -> str:
         lab = f'container="{db["name"]}"'
         try:
             h = db_health(db)
-        except Err:
+        except Exception:               # also a query that fails after connecting (statement_timeout, lost link)
             lines.append(f"argus_db_up{{{lab}}} 0")
             continue
         oldest = max([t["age_s"] for t in h["longest_transactions"]], default=0)
@@ -393,6 +403,8 @@ def collect() -> None:
                       f"argus_container_oom_killed{{{lab}}} {1 if oom else 0}",
                       f"argus_container_last_exit_code{{{lab}}} {code}",
                       f"argus_container_running{{{lab}}} {1 if d['running'] else 0}"]
+            if d.get("created_at_seconds") is not None:
+                lines.append(f"argus_container_created_seconds{{{lab}}} {d['created_at_seconds']}")
             if d["health"] in ("healthy", "unhealthy", "starting"):
                 lines.append(f"argus_container_health_unhealthy{{{lab}}} {1 if d['health'] == 'unhealthy' else 0}")
             if owner_active(d):
