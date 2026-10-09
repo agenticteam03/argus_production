@@ -6,6 +6,10 @@
   "base_commit": "642b5bd5f2cf34740693adde9b36860bf3e78379",
   "started_at": "2026-10-09T13:44:59+00:00",
   "expires_at": "2026-10-09T14:44:59+00:00",
-  "released": false,
-  "handoff": null
+  "released": true,
+  "handoff": {
+    "note": "For juanbetancurm. Both VMs run task/OP-011-correlation cb300df (main + T-0022 + OP-010 + T-0024 + OP-011); vm-095 database has migration 004 (alert_occurrence; backup argus-20261009T131715Z.dump taken before). LAB BASELINE OK, NO INTERFERENCE. Reviews in order: #45 (T-0022, your second approval of ACR-0003), #46 (OP-010), #47 (T-0024), #48 (OP-011, ACR-0004, no second approval needed); also #43. Owed by you: ACR-0002 status to accepted. Warning: PR #44 (OP-001) was merged into main without a non-author approval. Do not deploy main on the VMs before #45-#48 merge.",
+    "branch": "task/OP-011-correlation",
+    "at": "2026-10-09T13:45:08+00:00"
+  }
 }
