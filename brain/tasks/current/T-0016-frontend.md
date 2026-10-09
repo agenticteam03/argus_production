@@ -107,3 +107,7 @@ a screen or a button in `frontend/`.
     runbooks read from `argus/runbooks/` (`demoRunbooks/` deleted).
   - **still open (not this step):** Playwright acceptance tests, the read-only network guard and the
     `contracts/ui-api.json` contract check; the write features stay mock-only until the new ACR.
+  - **committed:** `5ec43cc` on `task/T-0016-step3-screens`, PR **#56** opened 2026-10-09 (fast-track eligible: no
+    `.github/workflows/` or `contracts/` change); merged up to date with `main` (`afe84a6`). CI: `frontend` green;
+    the `test` job first failed on a Docker Hub unauthenticated pull-rate limit while pulling `postgres:16-alpine`
+    (infrastructure, before any test ran) and was re-run.
