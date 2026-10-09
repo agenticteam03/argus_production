@@ -6,7 +6,7 @@
 set -eu
 PGPASSWORD="$(cat /run/secrets/app_password)"
 export PGPASSWORD
-n=${SESSIONS:-16}
+n=${SESSIONS:-15}
 i=1
 while [ "$i" -le "$n" ]; do
   ( printf 'BEGIN;\nSELECT 1;\n'; sleep 86400 ) | psql -q -X -v ON_ERROR_STOP=1 >/dev/null 2>&1 &

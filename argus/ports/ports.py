@@ -6,7 +6,7 @@ from typing import Any, Literal, Protocol
 
 from pydantic import BaseModel
 
-from argus.domain.model import (AuditRecord, EvidenceRecord, HostInfo, Incident, MetricSnapshot,
+from argus.domain.model import (AlertNotification, AuditRecord, EvidenceRecord, HostInfo, Incident, MetricSnapshot,
                                 Passage, TargetInfo, TargetRef)
 
 
@@ -16,6 +16,14 @@ class StaleMetrics(Exception):
 
 class MetricsUnavailable(Exception):
     """The metrics backend could not be reached."""
+
+
+class AlertsUnavailable(Exception):
+    """A host's Alertmanager could not be read (ACR-0003)."""
+
+
+class AlertSourcePort(Protocol):
+    def firing_alerts(self, host: str) -> list[AlertNotification]: ...   # only alerts labelled with that host
 
 
 class MetricsPort(Protocol):

@@ -94,6 +94,25 @@ def test_worker_lease(store):
     assert store.active_incident(_incident(target="vm-095/container:t0014-never-used").target) is None
 
 
+def test_worker_lease_uses_the_database_clock(store):
+    """OP-009: without `now`, renew and requeue use the database clock, the same one the claim used."""
+    from argus.domain.model import IncidentStatus, utcnow
+    store.requeue_expired(now=utcnow() + timedelta(days=1))
+    while store.claim_next_queued("drain", lease_s=86400 * 30):
+        pass
+    live, gone = _incident(minutes_ago=8), _incident(minutes_ago=7)
+    store.create_incident(live, None)
+    store.create_incident(gone, None)
+    assert store.claim_next_queued("worker-a", lease_s=600).id == live.id
+    assert store.claim_next_queued("worker-b", lease_s=0).id == gone.id           # expires at once
+    assert store.renew_claim(live.id, "worker-a", lease_s=600) is True
+    store._q("UPDATE incident SET claimed_until = now() - interval '1 second' WHERE id = %s", (gone.id,))
+    assert store.renew_claim(gone.id, "worker-b", lease_s=600) is False
+    assert store.requeue_expired() == 1
+    assert store.get_incident(gone.id).status == IncidentStatus.queued
+    assert store.get_incident(live.id).status == IncidentStatus.running
+
+
 def test_evidence_audit_events_principals(store):
     import psycopg
     from argus.domain.model import AuditRecord, EvidenceRecord, utcnow
