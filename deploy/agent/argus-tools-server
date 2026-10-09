@@ -1,0 +1,6 @@
+#!/bin/sh
+# T-0021 (ARCHITECTURE §12.6): the ONLY program the worker (user argus) may start as argus-tools, through
+# deploy/agent/argus-tools.sudoers. Root-owned in the image; fixed environment; takes no arguments (sudo refuses any).
+# It runs the MCP tools server over stdin/stdout: the only process that can read the executor tokens.
+export ARGUS_CONFIG_DIR=/app/config ARGUS_SECRETS_DIR=/run/argus-secrets PYTHONUNBUFFERED=1 HOME=/nonexistent
+exec /usr/local/bin/python -m argus.tooling.mcp.tools_server

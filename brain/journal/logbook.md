@@ -536,6 +536,23 @@ Consequences: T-0014 is done and waits for review and merge (PR #33); then vm-09
 and T-0021 step 4 (compose for the tools process) can start. Phase 13 "kill the worker mid-run" is covered.
 References: `tasks/current/T-0014-worker-scheduler.md`, `execution/history/T-0014/step-05/evidence.md`.
 
+## 2026-10-08 — T-0021: target-side reads in an MCP tools process under its own user (T-0021)
+
+Type: implementation + verification
+Who: juanbetancurm (+ agent)
+Context: the worker held every executor token and ran every read itself; ARCHITECTURE §12.5/§12.6 want the reads in
+a separate tools process that alone can read the tokens, and OD-3 asks what that costs per call.
+Decision / result: an MCP tools server over stdio (`mcp` 2.3) publishes only the `tools_child` read capabilities and
+refuses unpublished names, out-of-inventory targets and bad arguments before executing; the worker keeps policy,
+audit and evidence. It runs as `argus-tools` (uid 10011), started through one sudo rule (the root-owned launcher, no
+arguments); the api mounts no token. On vm-095 the tokens and their folders now belong to `argus-tools`, the worker
+runs `ARGUS_TOOL_CATALOGUE=mcp`: TOOLS ISOLATION OK, SC-02 DIAGNOSED through the tools process, OD-3 p95 overhead
+~45 ms per read (budget 100 ms), NO INTERFERENCE. A false STOP of the isolation check (it listed folders the worker
+can no longer list) was found on the VM and fixed with a test. 183 passed, 2 skipped.
+Consequences: PR #36 needs a teammate's review (safety model). Until it merges, vm-095 must not get `main` without
+the rollback (its api and worker would not start). The code default stays `direct`; flipping it is for the review.
+References: `tasks/current/T-0021-tool-isolation.md`, `execution/history/T-0021/step-05/evidence.md`, PR #36.
+
 ## 2026-10-08 — SC-04 verified, reviews, T-0020 ready for review (T-0020)
 
 Type: verification

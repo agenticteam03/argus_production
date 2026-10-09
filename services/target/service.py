@@ -311,7 +311,7 @@ def db_metrics() -> str:
         lab = f'container="{db["name"]}"'
         try:
             h = db_health(db)
-        except Err:
+        except Exception:               # also a query that fails after connecting (statement_timeout, lost link)
             lines.append(f"argus_db_up{{{lab}}} 0")
             continue
         oldest = max([t["age_s"] for t in h["longest_transactions"]], default=0)
