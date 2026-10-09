@@ -553,6 +553,35 @@ Consequences: PR #36 needs a teammate's review (safety model). Until it merges, 
 the rollback (its api and worker would not start). The code default stays `direct`; flipping it is for the review.
 References: `tasks/current/T-0021-tool-isolation.md`, `execution/history/T-0021/step-05/evidence.md`, PR #36.
 
+## 2026-10-09 — T-0021: review fixes of PR #36, and ACR-0002 (T-0021)
+
+Type: implementation + architecture change (proposed)
+Who: juanbetancurm (+ agent)
+Context: `conantkd` requested changes on PR #36: a compromised worker could still get code to run as `argus-tools`
+(sudo keeps the working folder, `python -m` puts it first on `sys.path`; reproduced with fake tokens), and the
+switch from `setpriv` to a sudo rule changes the mechanism behind a safety principle (secrets), so it needs an ACR.
+Decision / result: the launcher runs `cd /` and `python -I -u`; `isolation_check` plants an `argus` package and
+starts the launcher from that folder (old launcher: STOP, fixed launcher: OK, on the agent image). ACR-0002
+(proposed) records the sudo launcher in §12.6 and closes OD-3 with "keep MCP" (architecture 1.8.2). A tools process
+that hangs is now replaced after the call times out. vm-095's compose defaults to `mcp`. 185 passed, 2 skipped.
+Consequences: PR #36 needs the re-review and the ACR's second approval; vm-095 gets the fixed launcher with a
+redeploy of the branch and a new isolation check (step 5e, with the lease).
+References: `architecture/changes/ACR-0002-tools-uid-sudo-launcher.md`, `tasks/current/T-0021-tool-isolation.md`,
+PR #36.
+
+## 2026-10-09 — T-0021: step 5e on vm-095, and PR #36 merged before its re-review (T-0021)
+
+Type: verification + incident (review rule)
+Who: juanbetancurm (+ agent)
+Context: the review fixes of PR #36 (`6f45218`) had to reach vm-095, and the PR needed `conantkd`'s re-review.
+Decision / result: step 5e on vm-095: the fixed launcher deployed, `isolation_check` with the planted-package probe
+TOOLS ISOLATION OK, NO INTERFERENCE. Meanwhile PR #36 was merged into `main` (`a9b4df8`) at its earlier head
+`289bb0d`, before the fixes and the re-review: `main-guard` red, and `main` has the old launcher.
+Consequences: per REVIEW_PROTOCOL, a follow-up PR (`task/T-0021-review-fixes`) brings the fixes, ACR-0002 and the
+step 5e record to `main` and gets the missing review (no force push, no fast-track: ACR, safety principle). Until it
+merges, `main` must not be deployed on vm-095.
+References: `execution/history/T-0021/step-05e/evidence.md`, `tasks/current/T-0021-tool-isolation.md`, PR #36.
+
 ## 2026-10-09 — T-0023: a runner for repeated end-to-end scenario runs (T-0023)
 
 Type: implementation (step 1, offline)
@@ -578,6 +607,7 @@ dropped connection (`4f8ae43`).
 Consequences: phase 12 has its first repeated runs. Next: SC-02 and SC-07 × 5; each new scenario (SC-04 after #38)
 gets a catalogue entry and 5 runs.
 References: `tasks/current/T-0023-e2e-runner.md`, `execution/history/T-0023/step-02/evidence.md`.
+
 ## 2026-10-09 — review of PR #40: two runner fixes made by the reviewer (T-0023)
 
 Type: review

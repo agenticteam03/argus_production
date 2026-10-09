@@ -83,6 +83,31 @@ def test_a_dead_tools_server_gives_an_error_observation_not_a_crash(parts):
     assert obs.status == "error" and obs.error_category == "upstream_error"
 
 
+def test_a_hung_tools_server_is_replaced_after_a_timeout():
+    """Review of PR #36: a tools process that hangs (instead of dying) must not hold every later call. The call that
+    times out ends its session, so the next call starts a new one instead of queueing behind the stuck job."""
+    import anyio
+    import mcp_types as types
+    from mcp.server import Server
+
+    from argus.tooling.mcp.client import McpToolsClient, ToolsUnavailable
+    calls: list[int] = []
+
+    async def on_list_tools(ctx, params) -> types.ListToolsResult:
+        calls.append(1)
+        if len(calls) == 1:
+            await anyio.sleep(3600)                                        # the first answer never comes
+        return types.ListToolsResult(tools=[types.Tool(name="t", description="t", input_schema={"type": "object"})])
+
+    client = McpToolsClient(Server("hung", on_list_tools=on_list_tools), timeout_s=2)
+    try:
+        with pytest.raises(ToolsUnavailable):
+            client.list_names()
+        assert client.list_names() == {"t"}
+    finally:
+        client.close()
+
+
 def test_only_tooling_mcp_imports_the_mcp_sdk():
     """Rule 10 (ARCHITECTURE §2.3): `tooling/mcp/` is the only location of the MCP SDK."""
     from test_core import ROOT, _imports
