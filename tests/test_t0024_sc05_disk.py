@@ -129,7 +129,7 @@ def test_rb005_names_its_detector_and_is_bumped():
     text = (ROOT / "argus" / "runbooks" / "RB-005-host-disk-almost-full.md").read_text(encoding="utf-8")
     meta = yaml.safe_load(re.search(r"```yaml\n(.*?)```", text, re.S).group(1))
     assert meta["detector"] == "disk_pressure"
-    assert meta["version"] == "1.0.2" and str(meta["last_reviewed"]) == "2026-10-08"
+    assert meta["version"] == "1.0.3" and str(meta["last_reviewed"]) == "2026-10-09"   # + OP-001 (1.0.1) merged
     assert str(meta["last_tested"]) == "2026-10-09"                    # SC-05 DIAGNOSED on vm-166
     assert "No disk detector was found" not in text
 

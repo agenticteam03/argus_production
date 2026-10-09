@@ -23,6 +23,11 @@ start` reports `59ffa39` (PR #44, OP-001) merged into `main` without a non-autho
    the filler `depends_on` the host). Opening it to every container of the host (useful for SC-06 CPU) would be an
    ACR (§5 scope rule).
 
+**OP-001 (2026-10-09, `conantkd`):** the 21 runbook `detector` metadata fields and index now match the 20 incident
+classes in architecture §1.3 on `task/OP-001-runbook-detectors`. PR #44 passed the local full suite and CI; fast-track
+review and merge are next. This metadata update does not enable draft detectors or promote runbooks. See
+[the task file](tasks/current/OP-001-runbook-detectors.md).
+
 **Now (2026-10-09, `conantkd`; read as the state after the T-0020 PR merges):** T-0020 (SC-04,
 `postgresql_connection_exhaustion`, RB-004) is done: verified on vm-166 (`inc_075fb0006098` DIAGNOSED). #36 (T-0021)
 was merged before its re-review; its fixes and ACR-0002 came in **#39, approved by `conantkd` (second approval of
@@ -32,7 +37,7 @@ two reviewer fixes) is merged too. Owed by `juanbetancurm`: ACR-0002's status se
 1. **AFTER-MERGE T-0020 on vm-166** (checkout only, block in `execution/current/code.bash`). vm-095 may now get
    `main` (it has the fixed launcher and defaults to `mcp`); its agent then gets `postgresql_connection_exhaustion`.
 2. Next work: alerting (phase 7, T-0022) and OP-010 (the db-probe's reserved slot) are ready on `conantkd`'s
-   branches; OP-009 before any second worker; OP-004 checkpoint cleanup; SC-05 (T-0024); phase 12 with the runner:
+   branches; OP-009 (before any second worker) is fixed on `task/OP-009-lease-loss`, `main` merged in, its PR next; OP-004 checkpoint cleanup; SC-05 (T-0024); phase 12 with the runner:
    SC-02 and SC-07 × 5, then an SC-04 catalogue entry.
 3. **Evaluation (§21.2, `tests/eval/`) and phase 12 (≥ 5 runs per scenario):** §3 "Enablement" enables a class only
    when its evaluation passes. The 4 classes enabled so far (including `postgresql_connection_exhaustion`) are

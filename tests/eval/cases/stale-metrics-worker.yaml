@@ -1,0 +1,7 @@
+id: stale-metrics-worker
+category: stale_metrics
+target: vm-166/container:argus-lab-worker
+request: report
+reason: keeps restarting
+stale: true
+label: {outcome: undiagnosable, class: null, abstain: true, model_calls: 0, findings_any: [RB-014]}

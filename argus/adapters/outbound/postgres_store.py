@@ -82,10 +82,11 @@ class PostgresStore:
 
     def renew_claim(self, incident_id: str, worker_id: str, lease_s: int = 300,
                     now: datetime | None = None) -> bool:
-        """Extend a live claim. False: the claim is no longer this worker's (expired and taken), so it must stop."""
-        now = now or utcnow()
-        row = self._q("UPDATE incident SET claimed_until = %s + make_interval(secs => %s) "
-                      "WHERE id = %s AND status = 'running' AND claimed_by = %s AND claimed_until >= %s RETURNING id",
+        """Extend a live claim. False: the claim is no longer this worker's (expired and taken), so it must stop.
+        `now` is for tests; by default the database clock decides, as in the claim (OP-009: one clock per lease)."""
+        row = self._q("UPDATE incident SET claimed_until = COALESCE(%s::timestamptz, now()) + make_interval(secs => %s) "
+                      "WHERE id = %s AND status = 'running' AND claimed_by = %s "
+                      "AND claimed_until >= COALESCE(%s::timestamptz, now()) RETURNING id",
                       (now, lease_s, incident_id, worker_id, now))
         return bool(row)
 
@@ -93,8 +94,9 @@ class PostgresStore:
         """Crash recovery: running incidents whose claim expired (or that never had one) go back to the queue."""
         rows = self._q("UPDATE incident SET status = 'queued', body = jsonb_set(body, '{status}', '\"queued\"'), "
                        "claimed_by = NULL, claimed_until = NULL "
-                       "WHERE status = 'running' AND (claimed_until IS NULL OR claimed_until < %s) RETURNING id",
-                       (now or utcnow(),))
+                       "WHERE status = 'running' AND (claimed_until IS NULL "
+                       "OR claimed_until < COALESCE(%s::timestamptz, now())) RETURNING id",
+                       (now,))
         return len(rows)
 
     def requeue_running(self) -> int:

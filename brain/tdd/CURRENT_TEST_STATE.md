@@ -1,6 +1,22 @@
 # Current test state
 
-**Last updated:** 2026-10-09 · **Commit:** `task/T-0020-sc04-pg-connections` after merging `main` (#39, #40) and the review of PR #38
+**Last updated:** 2026-10-09 · **Commit:** `task/OP-009-lease-loss` after merging `main` (up to #44)
+
+**OP-009, 2026-10-09 (`task/OP-009-lease-loss` after merging `main` up to #50):** **306 passed**, 3 skipped on the
+laptop with a throwaway `postgres:16-alpine` (the OD-3 benchmark passed too); the T-0025 baseline evaluation still
+gives hard 0 0 0 with the runners' new `cancel` argument. Before `main` up to #44: 243 passed, 3 skipped on the laptop with a
+throwaway `postgres:16-alpine` (the Postgres tests included; skipped: the two real-Docker tests and the `/proc`
+test). The OD-3 timing benchmark failed once in the full run (p95 overhead 123 ms against 100 ms) and passed alone:
+the known Windows timing flake. OP-009's own tests: 7 in `tests/test_op009_lease_loss.py` and
+`test_worker_lease_uses_the_database_clock` (red seen on 2026-10-08, see below).
+
+**OP-001, 2026-10-09 (`task/OP-001-runbook-detectors`, PR #44):** the architecture-to-runbook metadata test failed
+before the edits, then passed. The new mapping and index tests plus 20 related knowledge/SC-04 tests pass locally.
+The Windows full suite passed with nine skips when pytest's temporary directory was placed outside the Git worktree;
+the first local run used an in-worktree temporary directory and caused five unrelated `test_deploy.py` path failures.
+After merging `main` (#41), only the existing OD-3 timing benchmark failed locally: p95 MCP overhead was 227 ms
+against its 100 ms budget (294 ms isolated). It is unaffected by OP-001 and is recorded as timing-flaky on the OP-005
+branch too. Linux CI `test` and `frontend` passed on the fast-track record commit; rerun after this merge from `main`.
 
 **OP-005, 2026-10-09 (`task/OP-005-young-restarts`):** three new unit tests were red against the old exporter/signal,
 then passed. Five PromQL synthetic-series cases passed with Prometheus 3.5.0 `promtool test rules` (young, old with
