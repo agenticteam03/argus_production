@@ -75,8 +75,9 @@ member's approval in its pull request.
 >
 > after: **Argus-owned instances** (`argus-v18-*`). Exporters of another deployment are reused only when that
 > deployment's owners agree, recorded in `infrastructure/environment.md`. `cadvisor` mounts `/sys`, `/var/lib/docker`
-> and the Docker socket **read-only**: an accepted risk recorded in §4.3 (it is not an Argus process and is not reachable
-> from Host A except through Prometheus).
+> and `/var/run` (the Docker socket): **it has the Docker socket, so it is root-equivalent on its host whatever the
+> mount flags** (a `:ro` mount of a socket does not limit the Docker API). An accepted risk recorded in §4.3: it is not
+> an Argus process and is not reachable from Host A except through Prometheus.
 
 **§3.6** — the instance values:
 
@@ -142,8 +143,11 @@ is encrypted (`wireguard-overlay`, `restricted-ssh`)."*
   - Pull adds latency: an alert reaches Argus within one reconciliation interval (configured, default 60 s), on top
     of Prometheus' `for:` window.
   - If the scheduler is down, alerts wait until it is back; Alertmanager keeps them firing, so none is lost.
-  - `cadvisor`'s read-only mounts give it root-equivalent read visibility on the host; it is upstream code, it has no
-    network path from Host A except Prometheus' scrape, and its memory is limited.
+  - `cadvisor` has the Docker socket: it is **root-equivalent on its host**, whatever the mount flags (a `:ro` bind
+    mount of a Unix socket does not limit the Docker API; it can start a privileged container). Accepted because it
+    is upstream code, it has no network path from Host A except Prometheus' scrape, and its memory is limited. The
+    image is then the whole trust boundary: pinning the monitoring images by digest and mounting only
+    `/var/run/docker.sock` are follow-ups (review of PR #45).
 - **How to reverse it:** select `direct-private` (or `wireguard-overlay`) when the network allows it, enable the
   webhook route in Alertmanager, and keep reconciliation as the backup. The identity rule makes the switch free of
   duplicates. Reverting the text restores the single-transport wording of 1.8.1.
@@ -179,5 +183,5 @@ D-001 required the whole team: the second approval (`juanbetancurm`) in the PR c
 ## 6. Applied
 
 - [x] `ARCHITECTURE.md` updated, version 1.8.3, changelog line added (with this ACR's link) — on `task/T-0022-alerting`
-- [ ] journal entry
-- [ ] the ACR, the architecture change and the first code that needs it are in the same pull request
+- [x] journal entry
+- [x] the ACR, the architecture change and the first code that needs it are in the same pull request
