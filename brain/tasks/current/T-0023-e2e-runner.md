@@ -65,3 +65,12 @@ way every time, grades each result against the expected one and writes one line 
   Design choices: a **pre-gate** waits until the signal is clean before a run (the restart signal looks back 10
   minutes, so run N must not see run N-1's restarts); a gate is a comparison (`>=3`, `==0`) or a regular expression;
   a run that stops the batch is still written to the results file.
+- **Step 2, first part (2026-10-09, vm-095 + vm-166).** H-1, H-2, SC-09, SC-11: 4/4 PASS. SC-03 × 5: **5/5 PASS**
+  (`dependency_unavailable`, root cause `argus-lab-cache`, RB-003 first, every read on vm-166). SC-01: runs 1-2 PASS
+  (`container_restart_loop`, RB-001 first; run 2 waited ~10 min in the pre-gate, as designed), run 3 ERROR: the
+  laptop's API tunnel dropped (`ConnectionRefusedError`), its reset and NO INTERFERENCE check still passed; then ssh
+  to vm-166 timed out in run 4's session check and the batch stopped before run 4 started anything.
+- **Fix (2026-10-09): a dropped connection.** Red seen: 4 new tests failed. The runner now opens its own tunnel to
+  vm-095 (local port 18001, keepalives, `ExitOnForwardFailure`) and reopens it when the API cannot be reached; an API
+  call retries for about 2 minutes; ssh gets `ConnectTimeout`/`ServerAliveInterval` and retries a connection failure
+  (rc 255) or a timeout, never a command that failed on the VM. 27 tests in `test_e2e_runner.py`.

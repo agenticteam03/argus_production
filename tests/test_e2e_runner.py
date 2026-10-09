@@ -252,3 +252,88 @@ def test_results_are_written_as_json_lines(tmp_path):
     rows = [json.loads(line) for line in out.read_text(encoding="utf-8").splitlines()]
     assert [r["run"] for r in rows] == [1, 2] and rows[0]["verdict"] == "PASS"
     assert rows[0]["incident_id"] == "inc_test" and rows[0]["first_runbook"] == "RB-001"
+
+
+# --- a dropped connection (step 2, 2026-10-09: the tunnel and then ssh to vm-166 dropped in the middle of SC-01) -----
+class _Proc:
+    def __init__(self, rc: int, out: str = ""):
+        self.returncode, self.stdout, self.stderr = rc, out, ""
+
+
+def test_ssh_retries_a_connection_failure_and_sets_timeouts(monkeypatch):
+    seen, answers = [], [_Proc(255, "ssh: connect to host: Connection timed out"), _Proc(0, "SESSION OK")]
+    monkeypatch.setattr(e2e.subprocess, "run", lambda args, **k: (seen.append(args), answers.pop(0))[1])
+    monkeypatch.setattr(e2e.time, "sleep", lambda s: None)
+    assert e2e.ssh("vm-166", "echo hi") == (0, "SESSION OK")
+    assert len(seen) == 2
+    assert "ConnectTimeout=15" in " ".join(seen[0]) and "ServerAliveInterval=15" in " ".join(seen[0])
+
+
+def test_ssh_does_not_retry_a_command_that_failed_on_the_vm(monkeypatch):
+    seen = []
+    monkeypatch.setattr(e2e.subprocess, "run", lambda args, **k: (seen.append(args), _Proc(1, "boom"))[1])
+    monkeypatch.setattr(e2e.time, "sleep", lambda s: None)
+    assert e2e.ssh("vm-166", "false")[0] == 1 and len(seen) == 1
+
+
+def test_the_api_retries_a_dropped_connection_after_reopening_the_tunnel(monkeypatch):
+    import io
+    import urllib.error
+    calls, reconnects = [], []
+
+    def urlopen(req, timeout=30):
+        calls.append(req.full_url)
+        if len(calls) in (2, 3):                                     # the tunnel dropped twice after the login
+            raise urllib.error.URLError(ConnectionRefusedError(10061, "refused"))
+        body = {"access_token": "t"} if req.full_url.endswith("/token") else {"id": "inc_x", "status": "closed"}
+        return io.BytesIO(json.dumps(body).encode())
+    monkeypatch.setattr(e2e.urllib.request, "urlopen", urlopen)
+    api = e2e.Api("http://127.0.0.1:18001", ME, "pw", reconnect=lambda: reconnects.append(1), sleep=lambda s: None)
+    assert api.incident("inc_x")["status"] == "closed"
+    assert len(reconnects) == 2
+
+
+def test_the_api_gives_up_after_its_retries(monkeypatch):
+    import io
+    import urllib.error
+
+    def urlopen(req, timeout=30):
+        if req.full_url.endswith("/token"):
+            return io.BytesIO(b'{"access_token": "t"}')
+        raise urllib.error.URLError(ConnectionRefusedError(10061, "refused"))
+    monkeypatch.setattr(e2e.urllib.request, "urlopen", urlopen)
+    api = e2e.Api("http://127.0.0.1:18001", ME, "pw", reconnect=lambda: None, sleep=lambda s: None)
+    with pytest.raises(e2e.urllib.error.URLError):
+        api.incident("inc_x")
+
+
+def test_the_runner_keeps_its_own_tunnel_alive(monkeypatch):
+    started = []
+
+    class P:
+        def __init__(self, args, **k):
+            started.append(args)
+            self.dead = False
+
+        def poll(self):
+            return 255 if self.dead else None
+
+        def terminate(self):
+            self.dead = True
+
+        def wait(self, timeout=None):
+            return 0
+    monkeypatch.setattr(e2e.subprocess, "Popen", P)
+    monkeypatch.setattr(e2e, "healthz", lambda base: True)
+    t = e2e.Tunnel(18001, sleep=lambda s: None)
+    t.ensure()
+    assert len(started) == 1
+    args = " ".join(started[0])
+    assert "-N" in started[0] and "18001:127.0.0.1:18000" in args and "argus-vm095" in args
+    assert "ExitOnForwardFailure=yes" in args and "ServerAliveInterval=15" in args
+    t.ensure()                                                      # alive: nothing new
+    assert len(started) == 1
+    t.proc.dead = True                                              # the tunnel died
+    t.ensure()
+    assert len(started) == 2
+    t.close()

@@ -6,7 +6,9 @@
 Runs on the laptop. VM commands go through `ssh argus-vm095` / `ssh argus-vm166` and are ONLY the commands written
 in the reviewed catalogue (ops/e2e/scenarios.yaml). The investigation goes through the Argus HTTP API on the usual
 SSH tunnel (ARGUS_API, default http://127.0.0.1:18000); the password comes from ARGUS_PASSWORD or a hidden prompt and
-is never written or passed to ssh.
+is never written or passed to ssh. The runner opens its own tunnel to vm-095 (local port 18001, keepalives) and
+reopens it if it drops; `--api URL` uses an existing tunnel instead. A dropped ssh connection is retried; a command that
+failed on the VM is not.
 
 One run: the session marker on each touched host is yours -> nonint-check before -> pre-gate (the signal is clean)
 -> start -> gate (the signal the detector reads, polled, never a fixed sleep) -> investigate -> wait for the result
@@ -37,6 +39,8 @@ import yaml
 
 CATALOGUE = Path(__file__).resolve().with_name("scenarios.yaml")
 SSH_ALIAS = {"vm-095": "argus-vm095", "vm-166": "argus-vm166"}
+SSH_OPTS = ["-o", "BatchMode=yes", "-o", "ConnectTimeout=15", "-o", "ServerAliveInterval=15",
+            "-o", "ServerAliveCountMax=4"]
 NONINT = "sudo bash /opt/argus-v18/app/ops/nonint-check.sh {label} | tail -1"
 PROM = "http://127.0.0.1:18090/api/v1/query"                    # each host's own Prometheus (loopback)
 PROM_VALUE = ("python3 -c 'import json,sys; r=json.load(sys.stdin)[\"data\"][\"result\"]; "
@@ -200,13 +204,22 @@ class RunResult:
     started_at: str = ""
 
 
-def ssh(host: str, cmd: str, timeout_s: float = 120) -> tuple[int, str]:
-    try:
-        r = subprocess.run(["ssh", "-o", "BatchMode=yes", SSH_ALIAS[host], cmd], capture_output=True, text=True,
-                           timeout=timeout_s)
-    except subprocess.TimeoutExpired:
-        return 124, "timeout"
-    return r.returncode, (r.stdout + r.stderr).strip()
+def ssh(host: str, cmd: str, timeout_s: float = 120, attempts: int = 4, wait_s: float = 15) -> tuple[int, str]:
+    """Run one catalogued command on a VM. rc 255 (ssh could not connect) and a timeout are retried; any other rc is
+    the command's own answer and is returned as it is (a failed command is never repeated)."""
+    rc, out = 255, ""
+    for attempt in range(attempts):
+        try:
+            r = subprocess.run(["ssh", *SSH_OPTS, SSH_ALIAS[host], cmd], capture_output=True, text=True,
+                               timeout=timeout_s)
+            rc, out = r.returncode, (r.stdout + r.stderr).strip()
+        except subprocess.TimeoutExpired:
+            rc, out = 124, "timeout"
+        if rc not in (124, 255):
+            return rc, out
+        if attempt < attempts - 1:
+            time.sleep(wait_s)
+    return rc, out
 
 
 def _wait(gate: Gate, host: str, shell: Shell, now, sleep) -> tuple[bool, str]:
@@ -314,9 +327,40 @@ def summary(results: list[RunResult]) -> list[str]:
 
 
 # --- the Argus API (through the SSH tunnel) ----------------------------------------------------------------------------
+class Tunnel:
+    """The runner's own SSH tunnel to the Argus API on vm-095, kept alive and reopened if it dies."""
+
+    def __init__(self, port: int = 18001, sleep=time.sleep):
+        self.port, self.sleep, self.proc = port, sleep, None
+        self.base = f"http://127.0.0.1:{port}"
+
+    def ensure(self) -> None:
+        if self.proc is not None and self.proc.poll() is None:
+            return
+        self.close()
+        self.proc = subprocess.Popen(["ssh", "-N", *SSH_OPTS, "-o", "ExitOnForwardFailure=yes",
+                                      "-L", f"{self.port}:127.0.0.1:18000", SSH_ALIAS["vm-095"]],
+                                     stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        for _ in range(20):
+            if healthz(self.base):
+                return
+            self.sleep(1)
+
+    def close(self) -> None:
+        if self.proc is not None:
+            self.proc.terminate()
+            try:
+                self.proc.wait(timeout=10)
+            except subprocess.TimeoutExpired:
+                self.proc.kill()
+            self.proc = None
+
+
 class Api:
-    def __init__(self, base: str, user: str, password: str):
+    def __init__(self, base: str, user: str, password: str, reconnect: Callable[[], None] = lambda: None,
+                 attempts: int = 8, wait_s: float = 15, sleep=time.sleep):
         self.base, self.user, self._password, self.token = base.rstrip("/"), user, password, None
+        self.reconnect, self.attempts, self.wait_s, self.sleep = reconnect, attempts, wait_s, sleep
         self._login()
 
     def _login(self) -> None:
@@ -328,14 +372,20 @@ class Api:
         r.add_header("Content-Type", "application/x-www-form-urlencoded" if form else "application/json")
         if self.token:
             r.add_header("Authorization", f"Bearer {self.token}")
-        try:
-            with urllib.request.urlopen(r, timeout=30) as resp:
-                return json.loads(resp.read())
-        except urllib.error.HTTPError as e:
-            if e.code == 401 and retry:            # the token lasts 30 minutes; a batch can last longer
-                self._login()
-                return self._req(method, path, body, form, retry=False)
-            raise
+        for attempt in range(self.attempts):
+            try:
+                with urllib.request.urlopen(r, timeout=30) as resp:
+                    return json.loads(resp.read())
+            except urllib.error.HTTPError as e:
+                if e.code == 401 and retry:            # the token lasts 30 minutes; a batch can last longer
+                    self._login()
+                    return self._req(method, path, body, form, retry=False)
+                raise
+            except urllib.error.URLError:              # the tunnel dropped: reopen it, wait, try again (~2 min)
+                if attempt == self.attempts - 1:
+                    raise
+                self.reconnect()
+                self.sleep(self.wait_s)
 
     def investigate(self, target: str, reason: str, kind: str) -> str:
         body = json.dumps({"target": target, "reason": reason, "request_kind": kind}).encode()
@@ -375,7 +425,9 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("ids", nargs="*", help="scenario ids from the catalogue, e.g. SC-01 SC-03")
     p.add_argument("--runs", type=int, default=1)
     p.add_argument("--as", dest="me", help="your GitHub handle (the session marker and the Argus user)")
-    p.add_argument("--api", default=os.getenv("ARGUS_API", "http://127.0.0.1:18000"))
+    p.add_argument("--api", default=os.getenv("ARGUS_API"), help="use this API (an open tunnel) instead of the "
+                   "runner's own tunnel to vm-095")
+    p.add_argument("--tunnel-port", type=int, default=18001)
     p.add_argument("--catalogue", type=Path, default=CATALOGUE)
     p.add_argument("--out", type=Path, default=None)
     p.add_argument("--dry-run", action="store_true", help="print every step; run nothing")
@@ -396,12 +448,23 @@ def main(argv: list[str] | None = None) -> int:
             print("\n".join(describe(sc, a.me)))
         print(f"(dry run: {a.runs} run(s) each; nothing was executed)")
         return 0
-    if not healthz(a.api):
-        print(f"cannot reach Argus at {a.api}: open the tunnel first (ssh -N -L 18000:127.0.0.1:18000 argus-vm095)",
-              file=sys.stderr)
+    tunnel = None if a.api else Tunnel(a.tunnel_port)
+    base = a.api or tunnel.base
+    if tunnel:
+        tunnel.ensure()
+    try:
+        return _batch(a, chosen, base, tunnel)
+    finally:
+        if tunnel:
+            tunnel.close()
+
+
+def _batch(a, chosen: list[Scenario], base: str, tunnel: "Tunnel | None") -> int:
+    if not healthz(base):
+        print(f"cannot reach Argus at {base}" + ("" if tunnel else ": is the tunnel open?"), file=sys.stderr)
         return 2
     password = os.getenv("ARGUS_PASSWORD") or getpass.getpass(f"Argus password for {a.me}: ")
-    api = Api(a.api, a.me, password)
+    api = Api(base, a.me, password, reconnect=tunnel.ensure if tunnel else (lambda: None))
     out = a.out or Path.home() / "argus-e2e" / f"{dt.datetime.now():%Y%m%d-%H%M%S}.jsonl"
     results: list[RunResult] = []
     stopped = None
