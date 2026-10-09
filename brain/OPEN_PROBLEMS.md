@@ -15,6 +15,8 @@ When a problem is fixed, set its status to `fixed` with the date, and add a jour
 | OP-006 | LangGraph `recursion_limit` is fixed at 100 and can be too small for larger step budgets | fixed 2026-10-05 | 2026-10-05 |
 | **OP-007** | A dependency probe disappears while its owner is restarting, hiding the cause of a crash loop | fixed 2026-10-07 (`owner_active`: running or restarting; deployed on vm-166) | 2026-10-07 |
 | **OP-008** | Postgres backups are never rotated, and the backup's consistency check will stop once the scheduler writes often | accepted 2026-10-07 (PR #31, approved by `juanbetancurm`) — to implement; independent of T-0014 | 2026-10-07 |
+| OP-009 | A worker that loses its lease keeps running the incident; with two workers the same run could execute twice | open (fix before a second worker) | 2026-10-08 |
+| OP-010 | The db-probe cannot connect when every usable slot is taken, so `postgresql_connection_exhaustion` cannot fire at 100 % | open | 2026-10-08 |
 
 ---
 
@@ -332,3 +334,59 @@ N and the newest verified one, and removes every file of a pruned backup; `verif
 
 **Done when.** The team accepts this proposal (or the alternative); then a task implements 1 and 2 with the tests
 above, runs `prune` as a dry-run on vm-095 first, and sets this item to `fixed`.
+
+---
+
+## OP-009 — A worker that loses its lease keeps running the incident
+
+**Status:** open · **Opened:** 2026-10-08 · **Found by:** `conantkd` (+ agent), after-merge review of PR #33 (T-0014) ·
+**Fix with:** its own small task, **before a second worker is ever started** (today vm-095 runs one)
+
+**Problem.** In `argus/infrastructure/worker.py`, `_renew` extends the claim every `lease_s / 3`. Two cases leave a live
+run without a lease:
+
+1. `renew_claim` returns False (the claim is no longer this worker's): the renewer logs and stops, but
+   `runner.run` keeps going (the `renew_claim` docstring says the worker "must stop").
+2. `renew_claim` raises (for example a transient database error): the exception ends the renewer thread silently;
+   the lease then expires in the middle of the run.
+
+With one worker nothing happens: `recover()` runs only between runs. With two or more, another worker would requeue
+and resume the same incident from its checkpoint while the first one still writes to it: duplicate model calls and
+evidence, and a race on the final status.
+
+**Also (minor).** In Postgres the claim uses the database clock (`now()`), while `renew_claim` and `requeue_expired`
+pass the worker's `utcnow()`. Same host today; using `now()` in all three keeps one clock.
+
+**Proposed fix.** `_renew` catches exceptions and retries until the lease has really expired; on a lost claim it sets a
+flag that the graph runner checks between nodes (cooperative cancel: stop at the next node, record
+`incident.claim_lost`, write nothing more).
+
+**Tests (red first).** A store whose `renew_claim` raises once and then succeeds: the run keeps its lease. A store whose
+`renew_claim` returns False: the run stops at the next node and writes no final status.
+
+**Done when.** Both tests pass, and this item is set to `fixed`.
+
+---
+
+## OP-010 — The db-probe is blind when every usable connection slot is taken
+
+**Status:** open · **Opened:** 2026-10-08 · **Found by:** `conantkd` (+ agent), risk review of the T-0020 PR ·
+**Fix with:** its own small task (vm-166 redeploy of `argus-lab-db` and SC-04 at 100 %)
+
+**Problem.** The db-probe connects as `argus_monitor`, an ordinary role that competes for the same usable slots as
+every client. `argus-lab-db` reserves only the superuser slots (`max_connections=20`,
+`superuser_reserved_connections=3`, no `reserved_connections`). If a leak takes all 17 usable slots, the probe
+cannot connect: it publishes only `argus_db_up 0`, `db_connection_usage` has no value, and the class does not match —
+at the worst moment (unknown is never zero, by design). SC-04 opens 16 of 17 on purpose, so this case was not run.
+Only the RB-003 branch (clients already failing) would catch it.
+
+**Proposed fix (general).** Postgres 16: `reserved_connections=1` on the database and
+`GRANT pg_use_reserved_connections TO argus_monitor`, so the monitoring role always has its own slot; the db-probe
+already subtracts `reserved_connections` from the usable count. For real (non-lab) databases, the same two settings
+become a documented prerequisite of the db-probe.
+
+**Tests (red first).** The lab compose declares `reserved_connections` and the init script grants the role; SC-04
+with `SESSIONS` equal to every usable slot still detects `postgresql_connection_exhaustion` (usage 1.0).
+
+**Done when.** The settings are in the lab and documented, SC-04 at 100 % is DIAGNOSED on vm-166, and this item is set
+to `fixed`.

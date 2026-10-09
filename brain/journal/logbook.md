@@ -553,6 +553,24 @@ Consequences: PR #36 needs a teammate's review (safety model). Until it merges, 
 the rollback (its api and worker would not start). The code default stays `direct`; flipping it is for the review.
 References: `tasks/current/T-0021-tool-isolation.md`, `execution/history/T-0021/step-05/evidence.md`, PR #36.
 
+## 2026-10-08 — SC-04 verified, reviews, T-0020 ready for review (T-0020)
+
+Type: verification
+Who: conantkd (+ agent)
+Context: T-0020 enables `postgresql_connection_exhaustion` (RB-004): the db-probe publishes `/metrics`, vm-166's
+Prometheus scrapes it, the signal `db_connection_usage` and the alert `DbConnectionsExhausted`; SC-04's leaker holds
+16 of 17 usable slots on `argus-lab-db`.
+Decision / result: run 1 (2026-10-07) was invalid: the lab's `pids_limit: 32` stopped the leaker at ~10 sessions; the
+diagnosis honestly answered UNSUPPORTED. Run 2: `inc_075fb0006098` DIAGNOSED, root cause `argus-lab-leaker`, RB-004,
+the database read, no restart proposed; RB-004 `last_tested` 1.0.2. nonint-check found two anonymous volumes from the
+leaker image's `VOLUME`: removed by ID after approval, and the leaker now uses a tmpfs. Session of 2026-10-08:
+reviews first — #34 and #35 approved and merged, #36 (T-0021) **changes requested** (a worker can plant a module in
+its working folder and run it as `argus-tools` through the sudo launcher, reproduced with fake tokens; an ACR is
+needed for `setpriv` → `sudo`), after-merge reviews of #33 and #37 posted. OP-009 opened from the #33 review.
+Consequences: T-0020 is done and waits for review. vm-095 runs T-0021 without T-0020, so the class reaches the agent
+when vm-095 is back on `main`. Phase 11 at 70 %.
+References: `tasks/current/T-0020-sc04-pg-connections.md`, `execution/history/T-0020/`, OPEN_PROBLEMS OP-009, PRs #33-#37.
+
 ## 2026-10-09 — T-0021: review fixes of PR #36, and ACR-0002 (T-0021)
 
 Type: implementation + architecture change (proposed)

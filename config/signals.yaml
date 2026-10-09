@@ -7,5 +7,9 @@ health_unhealthy:      'argus_container_health_unhealthy{argus_host="$host",cont
 dependency_probe_min:  'min(argus_probe_success{argus_host="$host",owner="$name"})'
 container_memory_bytes: 'argus_container_memory_bytes{argus_host="$host",container="$name"}'
 container_restart_count: 'argus_container_restart_count{argus_host="$host",container="$name"}'
+# T-0020 (db-probe /metrics): ordinary-slot usage sustained for 5 minutes (RB-004 calibration default); unknown
+# capacity (usable 0) gives no value. db_up 0 = the database could not be read (unknown, not healthy).
+db_connection_usage:   'min_over_time((argus_db_connections_used{argus_host="$host",container="$name"} / (argus_db_connections_usable{argus_host="$host",container="$name"} > 0))[5m:30s])'
+db_up:                 'argus_db_up{argus_host="$host",container="$name"}'
 # Freshness gate (not a detector signal): the host's exporter scrape must be up, otherwise detection is undiagnosable.
 _scrape_up:            'up{argus_host="$host",job="argus-v18-exporter"}'
