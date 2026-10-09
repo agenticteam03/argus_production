@@ -6,6 +6,10 @@
   "base_commit": "3317a047ad55168ae78d955523e6a545002f9530",
   "started_at": "2026-10-09T09:34:21+00:00",
   "expires_at": "2026-10-09T12:35:59+00:00",
-  "released": false,
-  "handoff": null
+  "released": true,
+  "handoff": {
+    "note": "For juanbetancurm. Both VMs run task/T-0024-sc05-disk b049086 (main + T-0022 + OP-010 + T-0024): vm-095 pulls firing alerts from both Alertmanagers every 60 s; vm-166 keeps the empty lab filesystem /srv/argus-lab-fill (testing only). LAB BASELINE OK, NO INTERFERENCE. Reviews for you: #45 (T-0022, your second approval of ACR-0003), #43 (CI step for OP-005); then #46 (OP-010) and #47 (T-0024) follow by fast-track. Owed by you: ACR-0002 status to accepted. New: OP-011 (two alerts on one target open two incidents, section 6.4 correlation). #44 (OP-001) not reviewed yet. Do not deploy main on the VMs before #45-#47 merge (it would drop the monitoring and the reserved slot).",
+    "branch": "task/T-0024-sc05-disk",
+    "at": "2026-10-09T11:30:47+00:00"
+  }
 }
