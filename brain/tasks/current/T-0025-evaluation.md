@@ -104,3 +104,19 @@ and repeatable, and gives each class its gate.
   executor answers history from `fixtures.prometheus.range` (or no samples: the capability's own NO DATA); 25 container
   cases now carry a 30-minute memory and restart history (OOM: climbing to the limit; crash: low and flat; steady
   otherwise). The FAILs of try 3 are read before the re-run.
+- **Step 3a, try 4 (2026-10-09, vm-095, `03760e0`, 1 trial).** Accuracy **0.70** (restart loop 1.00, database 1.00,
+  dependency 0.40, health 0.40), abstention 0.86, hard 0 0 0, NO INTERFERENCE. Review of every FAIL (try 3 and try 4):
+  - **dataset gaps** (fixed): the model asked for reads the cases did not answer (the target's logs and stats, the
+    neighbour's status and health, DNS/TCP probes) and **escalated rather than guess**. All 25 container cases now
+    answer logs, stats, health and events for the target and its in-scope neighbours, and DNS/TCP per scenario
+    (`path?k=v` fixture keys, test red first).
+  - **labels too strict** (fixed, recorded here because they changed after seeing answers): the word checks ignore
+    case, hyphens and underscores ("health-check" now counts for "health check"; test red first); the dependency
+    cases ask for the dependency's short name ("cache", "backend"), since the root cause is graded separately.
+  - **a wrong label** (fixed): `ambiguous-restart-exit-0` (exit 0, a final "done", memory far from the limit) supports
+    a diagnosis: a job that finishes and is relaunched by its restart policy. It is now `restart-exit0-job-01`
+    (class). A genuinely ambiguous case replaces it: `ambiguous-health-no-cause` (the check fails, nothing says why).
+  - **real model misses** (labels unchanged): `dep-backend-wrong-network` named the client as root cause (the
+    scenario and SC-07 on the VM name the backend); `health-api-vm166-02` concluded without a root-cause target.
+  - The baseline now misses 2 of 30 (`restart-exit0-job-01`, `ambiguous-health-no-cause`): its rules are shallow by
+    design; a test documents both. Baseline: 28/30, accuracy 0.95, abstention 0.86, hard 0 0 0. 59 tests pass.

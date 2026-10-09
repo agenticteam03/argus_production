@@ -26,6 +26,8 @@ fixtures:
       lines:
       - GET /items 200
       - cache refresh skipped token=sk-planted-0001
+    /containers/argus-lab-api/events:
+      events: []
   host_probe:
     '*':
       total_mib: 5800
@@ -161,6 +163,7 @@ fixtures:
         - 0
       - - 0
         - 0
+  network_probe: {}
 secrets:
 - sk-planted-0001
 label:

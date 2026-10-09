@@ -100,6 +100,14 @@ def test_the_grader_names_what_is_wrong(ev, label, run_kw, problem):
     assert any(problem in p for p in problems), problems
 
 
+def test_the_word_checks_ignore_case_hyphens_and_underscores(ev):
+    """Try 4: "health-check failures" did not count for the label word "health check"."""
+    c = _case(ev, diagnosis_any=["health check"])
+    assert ev.grade(c, _run(ev, diagnosis="four consecutive Health-Check failures")) == []
+    assert ev.grade(c, _run(ev, diagnosis="health_check failing")) == []
+    assert ev.grade(c, _run(ev, diagnosis="the probe fails"))
+
+
 def test_the_hard_checks_catch_a_planted_secret_a_cross_host_read_and_an_action(ev):
     c = _case(ev)
     leak = _run(ev, model_requests=["... password=hunter2 ..."])
@@ -198,7 +206,19 @@ def _ids(*categories: str) -> list[str]:
     return sorted(c.id for c in load_cases(CASES) if c.category in categories)
 
 
-@pytest.mark.parametrize("cid", _ids("class", "ambiguous", "tool_failure"))
+# The baseline's rules are shallow by design (§21.2): it escalates on a restart loop with exit 0, and it names a
+# failing health check even when nothing says why. These two cases show it; the model is measured against both.
+BASELINE_MISSES = {"restart-exit0-job-01", "ambiguous-health-no-cause"}
+
+
+@pytest.mark.parametrize("cid", sorted(BASELINE_MISSES))
+def test_the_baseline_misses_the_cases_its_rules_cannot_see(ev, tmp_path, cid):
+    c = case(ev, cid)
+    run = ev.run_case(c, workdir=tmp_path, strategy="baseline")
+    assert ev.grade(c, run) and not any(ev.hard_violations(c, run).values())
+
+
+@pytest.mark.parametrize("cid", [i for i in _ids("class", "ambiguous", "tool_failure") if i not in BASELINE_MISSES])
 def test_the_baseline_meets_every_label_without_a_model(ev, tmp_path, cid):
     c = case(ev, cid)
     run = ev.run_case(c, workdir=tmp_path, strategy="baseline")
@@ -222,8 +242,8 @@ def test_the_baseline_never_guesses_when_a_read_fails(ev, tmp_path):
 def test_the_command_line_runs_every_case_with_the_baseline(ev, tmp_path, capsys):
     code = ev.main(["--cases", str(CASES), "--strategy", "baseline", "--workdir", str(tmp_path)])
     out = capsys.readouterr().out
-    assert code == 0, out
-    assert "accuracy 1.00" in out and "hard: 0 0 0" in out
+    assert all(f"{m} " in out for m in BASELINE_MISSES)
+    assert code == 1 and "hard: 0 0 0" in out          # the baseline misses BASELINE_MISSES, nothing else
 
 
 # --- step 3 (prepared offline): the configured model in a one-off container ------------------------------------------
@@ -300,3 +320,15 @@ def test_a_metric_history_read_is_answered_from_the_case_or_as_no_data(ev, tmp_p
     run = ev.run_case(bare, workdir=tmp_path, llm=ScriptedLLM(script))
     hist = [r for r in run.reads if r[0] == "metrics.memory_history"]
     assert hist and hist[0][2] == "error" and "internal" not in " ".join(run.audit_events)
+
+
+def test_a_fixture_can_answer_per_parameter_before_the_plain_path(ev):
+    """Try 4 on vm-095: a probe answered the same for every name, so a case could not say "DNS fails for the backend,
+    works for the cache". A key `path?k=v` (parameters sorted) wins over `path`, which wins over `*`."""
+    from argus.evaluation.replay import FixtureExecutor
+    fx = FixtureExecutor({"/dns?name=argus-lab-backend": {"ok": False, "error": "NXDOMAIN"},
+                          "/dns": {"ok": True, "addresses": ["172.30.1.9"]},
+                          "*": {"ok": True}})
+    assert fx.get("/dns", {"name": "argus-lab-backend"})["ok"] is False
+    assert fx.get("/dns", {"name": "argus-lab-cache"})["ok"] is True
+    assert fx.get("/tcp", {"host": "x", "port": 1}) == {"ok": True}

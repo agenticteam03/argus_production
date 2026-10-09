@@ -24,6 +24,26 @@ fixtures:
     /containers/argus-lab-worker/logs:
       lines:
       - worker started
+    /containers/argus-lab-worker/stats:
+      memory_usage_bytes: 31457280
+      memory_limit_bytes: 67108864
+      cpu_percent: 3.0
+    /containers/argus-lab-worker/health:
+      status: none
+      failing_streak: 0
+      log: []
+    /containers/argus-lab-worker/events:
+      events:
+      - &id001
+        action: die
+      - &id002
+        action: start
+      - *id001
+      - *id002
+      - *id001
+      - *id002
+      - *id001
+      - *id002
   host_probe:
     '*':
       total_mib: 5800
@@ -159,6 +179,7 @@ fixtures:
         - 11
       - - 0
         - 12
+  network_probe: {}
 label:
   outcome: diagnosed
   class: container_restart_loop

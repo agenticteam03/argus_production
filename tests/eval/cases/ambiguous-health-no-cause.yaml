@@ -1,0 +1,178 @@
+# the check fails but nothing says why (empty probe output, clean logs, normal resources, no dependency):
+# escalate, do not name a cause (the baseline, which names the failing check, misses it)
+id: ambiguous-health-no-cause
+category: ambiguous
+target: vm-095/container:argus-lab-api
+request: report
+reason: health check is red
+metrics:
+  vm-095/container:argus-lab-api:
+    restarts_10m: 0
+    health_unhealthy: 1
+fixtures:
+  docker_read:
+    /containers/argus-lab-api/status:
+      id: c0ffee
+      state: running
+      health: unhealthy
+      restart_count: 0
+      oom_killed: false
+      exit_code: 0
+      memory_limit_bytes: 134217728
+      networks:
+      - argus-lab-app
+    /containers/argus-lab-api/health:
+      status: unhealthy
+      failing_streak: 6
+      log:
+      - exit_code: 1
+        output: ''
+    /containers/argus-lab-api/logs:
+      lines:
+      - GET /items 200
+      - GET /items 200
+    /containers/argus-lab-api/stats:
+      memory_usage_bytes: 31457280
+      memory_limit_bytes: 134217728
+      cpu_percent: 3.0
+    /containers/argus-lab-api/events:
+      events: []
+  host_probe:
+    '*':
+      total_mib: 5800
+      available_mib: 4000
+      cpu_busy_percent: 12
+      load1: 0.2
+      cpus: 1
+  prometheus:
+    range:
+      container_memory_bytes:
+      - - -1800
+        - 31457280
+      - - -1740
+        - 31457280
+      - - -1680
+        - 31457280
+      - - -1620
+        - 31457280
+      - - -1560
+        - 31457280
+      - - -1500
+        - 31457280
+      - - -1440
+        - 31457280
+      - - -1380
+        - 31457280
+      - - -1320
+        - 31457280
+      - - -1260
+        - 31457280
+      - - -1200
+        - 31457280
+      - - -1140
+        - 31457280
+      - - -1080
+        - 31457280
+      - - -1020
+        - 31457280
+      - - -960
+        - 31457280
+      - - -900
+        - 31457280
+      - - -840
+        - 31457280
+      - - -780
+        - 31457280
+      - - -720
+        - 31457280
+      - - -660
+        - 31457280
+      - - -600
+        - 31457280
+      - - -540
+        - 31457280
+      - - -480
+        - 31457280
+      - - -420
+        - 31457280
+      - - -360
+        - 31457280
+      - - -300
+        - 31457280
+      - - -240
+        - 31457280
+      - - -180
+        - 31457280
+      - - -120
+        - 31457280
+      - - -60
+        - 31457280
+      - - 0
+        - 31457280
+      container_restart_count:
+      - - -1800
+        - 0
+      - - -1740
+        - 0
+      - - -1680
+        - 0
+      - - -1620
+        - 0
+      - - -1560
+        - 0
+      - - -1500
+        - 0
+      - - -1440
+        - 0
+      - - -1380
+        - 0
+      - - -1320
+        - 0
+      - - -1260
+        - 0
+      - - -1200
+        - 0
+      - - -1140
+        - 0
+      - - -1080
+        - 0
+      - - -1020
+        - 0
+      - - -960
+        - 0
+      - - -900
+        - 0
+      - - -840
+        - 0
+      - - -780
+        - 0
+      - - -720
+        - 0
+      - - -660
+        - 0
+      - - -600
+        - 0
+      - - -540
+        - 0
+      - - -480
+        - 0
+      - - -420
+        - 0
+      - - -360
+        - 0
+      - - -300
+        - 0
+      - - -240
+        - 0
+      - - -180
+        - 0
+      - - -120
+        - 0
+      - - -60
+        - 0
+      - - 0
+        - 0
+label:
+  outcome: no_action_escalated
+  class: health_check_failed
+  abstain: true

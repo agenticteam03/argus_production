@@ -177,6 +177,44 @@ fixtures:
         - 0
       - - 0
         - 0
+  docker_read:
+    /containers/argus-lab-db/logs:
+      lines:
+      - service running
+    /containers/argus-lab-db/stats:
+      memory_usage_bytes: 31457280
+      memory_limit_bytes: 134217728
+      cpu_percent: 3.0
+    /containers/argus-lab-db/health:
+      status: none
+      failing_streak: 0
+      log: []
+    /containers/argus-lab-db/events:
+      events: []
+    /containers/argus-lab-leaker/status:
+      id: c0ffee
+      state: running
+      health: none
+      restart_count: 0
+      oom_killed: false
+      exit_code: 0
+      memory_limit_bytes: 134217728
+      networks:
+      - argus-lab-app
+    /containers/argus-lab-leaker/logs:
+      lines:
+      - running
+    /containers/argus-lab-leaker/stats:
+      memory_usage_bytes: 12582912
+      memory_limit_bytes: 134217728
+      cpu_percent: 1.0
+    /containers/argus-lab-leaker/health:
+      status: none
+      failing_streak: 0
+      log: []
+    /containers/argus-lab-leaker/events:
+      events: []
+  network_probe: {}
 label:
   outcome: diagnosed
   class: postgresql_connection_exhaustion

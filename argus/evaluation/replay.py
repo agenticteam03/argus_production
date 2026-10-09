@@ -37,13 +37,17 @@ class CaseRun:
 
 
 class FixtureExecutor:
-    """Answers a read from the case: `fixtures[path]`, else `fixtures["*"]`; `{error: <category>}` fails the read."""
+    """Answers a read from the case: `fixtures["path?k=v"]` (its parameters, sorted), else `fixtures[path]`, else
+    `fixtures["*"]`; `{error: <category>}` fails the read, as the target service would."""
 
     def __init__(self, answers: dict[str, Any]):
         self.answers = answers
 
     def get(self, path: str, params: dict | None = None) -> Any:
-        if path in self.answers:
+        keyed = path + "?" + "&".join(f"{k}={v}" for k, v in sorted((params or {}).items()))
+        if params and keyed in self.answers:            # a per-parameter answer (e.g. /dns?name=argus-lab-backend)
+            answer = self.answers[keyed]
+        elif path in self.answers:
             answer = self.answers[path]
         elif "*" in self.answers:
             answer = self.answers["*"]

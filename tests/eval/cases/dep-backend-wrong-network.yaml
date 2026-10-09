@@ -30,6 +30,32 @@ fixtures:
       memory_limit_bytes: 67108864
       networks:
       - argus-lab-iso
+    /containers/argus-lab-client/logs:
+      lines:
+      - 'ERROR cannot reach http://argus-lab-backend:8080/health: Name does not resolve'
+    /containers/argus-lab-client/stats:
+      memory_usage_bytes: 31457280
+      memory_limit_bytes: 67108864
+      cpu_percent: 3.0
+    /containers/argus-lab-client/health:
+      status: none
+      failing_streak: 0
+      log: []
+    /containers/argus-lab-client/events:
+      events: []
+    /containers/argus-lab-backend/logs:
+      lines:
+      - GET /health 200
+    /containers/argus-lab-backend/stats:
+      memory_usage_bytes: 12582912
+      memory_limit_bytes: 134217728
+      cpu_percent: 1.0
+    /containers/argus-lab-backend/health:
+      status: none
+      failing_streak: 0
+      log: []
+    /containers/argus-lab-backend/events:
+      events: []
   host_probe:
     '*':
       total_mib: 5800
@@ -165,6 +191,16 @@ fixtures:
         - 0
       - - 0
         - 0
+  network_probe:
+    /dns?name=argus-lab-backend:
+      ok: false
+      error: Name does not resolve
+    /tcp?host=argus-lab-backend&port=6379:
+      ok: false
+      error: Connection refused
+    /tcp?host=argus-lab-backend&port=8080:
+      ok: false
+      error: Connection refused
 label:
   outcome: diagnosed
   class: dependency_unavailable

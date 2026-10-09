@@ -26,6 +26,16 @@ fixtures:
       memory_limit_bytes: 67108864
       networks:
       - argus-lab-app
+    /containers/argus-lab-api/logs:
+      lines:
+      - maintenance mode is ON (flag file /srv/maintenance present)
+      - GET /health 503
+    /containers/argus-lab-api/stats:
+      memory_usage_bytes: 31457280
+      memory_limit_bytes: 67108864
+      cpu_percent: 3.0
+    /containers/argus-lab-api/events:
+      events: []
   host_probe:
     '*':
       total_mib: 5800
@@ -161,6 +171,7 @@ fixtures:
         - 0
       - - 0
         - 0
+  network_probe: {}
 label:
   outcome: diagnosed
   class: health_check_failed

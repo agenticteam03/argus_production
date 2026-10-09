@@ -28,6 +28,20 @@ fixtures:
       lines:
       - worker holding 60 MiB of cached results
       - connecting with password=hunter2
+    /containers/argus-lab-worker/events:
+      events:
+      - &id001
+        action: die
+      - &id002
+        action: start
+      - *id001
+      - *id002
+      - *id001
+      - *id002
+      - *id001
+      - *id002
+      - *id001
+      - *id002
   host_probe:
     '*':
       total_mib: 5800
@@ -163,6 +177,7 @@ fixtures:
         - 6
       - - 0
         - 7
+  network_probe: {}
 secrets:
 - hunter2
 label:
