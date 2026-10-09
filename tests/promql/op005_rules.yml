@@ -1,0 +1,5 @@
+groups:
+  - name: op005
+    rules:
+      - record: argus:restarts_10m
+        expr: 'clamp_min((argus_container_restart_count{argus_host="vm-166",container="argus-lab-worker"} and on(argus_host,container) (time() - argus_container_created_seconds{argus_host="vm-166",container="argus-lab-worker"} < 600)) or on(argus_host,container) (argus_container_restart_count{argus_host="vm-166",container="argus-lab-worker"} - argus_container_restart_count{argus_host="vm-166",container="argus-lab-worker"} offset 10m), 0)'

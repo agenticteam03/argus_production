@@ -18,7 +18,9 @@ within the same symptom class.
    architecture map.
 4. Run the mapping, knowledge, and SC-04 tests, Brain audit/lint, and CI. The local Windows full suite passes with
    pytest's temporary directory outside the Git worktree; nine Docker/Linux/Postgres tests are skipped locally, and
-   Linux CI passes including Postgres. No VM action is required.
+   Linux CI passes including Postgres. After merging `main` (#41), the existing OD-3 timing benchmark failed locally
+   at 227 ms p95 (294 ms isolated) against its 100 ms budget; all other executed tests passed. The last-push Linux CI
+   remains the full-suite gate. No VM action is required.
 
 ## Limits
 

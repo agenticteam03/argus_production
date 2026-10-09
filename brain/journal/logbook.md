@@ -651,3 +651,33 @@ promoted.
 Consequences: review the corpus-only PR. Library metadata revision is v1.1.1; the §1.3 v1.1.0 citation remains its
 original design baseline.
 References: `tasks/current/OP-001-runbook-detectors.md`, OPEN_PROBLEMS OP-001, `argus/runbooks/RUNBOOK-INDEX.md`.
+
+## 2026-10-09 — OP-005 offline implementation: young restart counts
+
+Type: implementation
+Who: conantkd (+ agent)
+Context: SC-01 can be missed when the container restarted before Prometheus's first scrape; the old range expression
+undercounts. The approved OP-005 design requires a creation-time guard so a scrape gap on an old container never
+becomes a false incident.
+Decision / result: the exporter publishes Docker's creation time and `restarts_10m` uses the young branch first.
+Three unit tests were red, then green. Five `promtool` synthetic-series cases pass and are added to CI. This is
+offline verification only; PR #38 and vm-166's T-0020 checkout must be reconciled before VM deployment and SC-01.
+References: `tasks/current/OP-005-restart-signal.md`, `tests/test_op005_young_restarts.py`,
+`tests/promql/op005_test.yml`, OPEN_PROBLEMS OP-005.
+
+## 2026-10-09 — OP-005 verified on both VMs; PR #41 reviewed and fast-tracked (OP-005)
+
+Type: verification + review
+Who: conantkd (+ agent)
+Context: PR #41 implemented the accepted OP-005 design offline; the VM proof was pending. `conantkd` asked to verify
+it and fast-track it.
+Decision / result: review fixes first: the alert `ContainerRestartLoop` now counts like `restarts_10m` (test first);
+the CI step for the PromQL cases moved to PR #43, because a change under `.github/workflows/` cannot be fast-tracked.
+On the VMs: vm-095 on `b26effa` (`main` + OP-005), vm-166 on a proof branch (the unmerged OP-010 stack + `main` +
+OP-005, so its Argus-owned Alertmanager and the reserved slot stay). At a young SC-01 container's counter 3 the new
+signal gave 3, the old one 1; the alert fired; `inc_312b18f2d8a8` DIAGNOSED. An exporter restart with an old
+container invented no restart. `/opt/argus-v18/secrets/prometheus` created on purpose on vm-095 (#38 review).
+NO INTERFERENCE on both.
+Consequences: OP-005 fixed. PR #43 (CI step) needs `juanbetancurm`. vm-166 runs `task/OP-005-vm166-proof` until the
+T-0022 and OP-010 PRs merge.
+References: `tasks/current/OP-005-restart-signal.md`, `execution/history/OP-005/step-02/evidence.md`, PRs #41, #43.
