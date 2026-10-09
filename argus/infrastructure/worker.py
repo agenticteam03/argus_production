@@ -90,16 +90,28 @@ class Worker:
 
     def _renew(self, incident_id: str, done: threading.Event, lost: threading.Event) -> None:
         expires = time.monotonic() + self.lease_s           # the claim was just taken for lease_s
-        while not done.wait(self.renew_every_s):
+        failing = False
+        while True:
+            # While renewals fail, wake at the lease's expiry at the latest: the run stops when the lease is gone,
+            # not up to one renewal interval later (review of PR #53).
+            wait = min(self.renew_every_s, max(0.0, expires - time.monotonic())) if failing else self.renew_every_s
+            if done.wait(wait):
+                return
+            if failing and time.monotonic() >= expires:
+                log.error("could not renew the claim on %s before it expired; stopping the run", incident_id)
+                lost.set()
+                return
             try:
                 renewed = self.app.store.renew_claim(incident_id, self.worker_id, lease_s=self.lease_s)
             except Exception:                  # noqa: BLE001 - a failed renewal is retried while the lease lasts
+                failing = True
                 if time.monotonic() < expires:
                     log.warning("renewing the claim on %s failed; retrying", incident_id, exc_info=True)
                     continue
                 log.error("could not renew the claim on %s before it expired; stopping the run", incident_id)
                 lost.set()
                 return
+            failing = False
             if not renewed:
                 log.error("lost the claim on %s (another worker may own it); stopping the run", incident_id)
                 lost.set()
