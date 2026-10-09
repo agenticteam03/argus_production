@@ -756,3 +756,17 @@ and **attached** to it (`concluded, same episode`); the next pass said `duplicat
 evidence version 2. LAB BASELINE OK, NO INTERFERENCE on both.
 Consequences: OP-011 fixed; its PR is stacked on T-0024 (with migration 004 and ACR-0004). Both VMs run it.
 References: OPEN_PROBLEMS OP-011, `execution/history/OP-011/step-03/evidence.md`.
+
+## 2026-10-09 — T-0026: resolved alerts (T-0026, ACR-0005)
+
+Type: implementation + architecture change
+Who: conantkd (+ agent)
+Context: §6.4 "Resolution" was not implemented, and this deployment pulls alerts, so Argus never receives a
+`resolved` notification: a resolved alert just stops being listed by the Alertmanager.
+Decision: ACR-0005 (accepted by `conantkd`): in a pull profile an occurrence resolves when its alert is absent from a
+successful read of the host's active alerts (silenced and inhibited included); an unreadable host resolves nothing.
+When all of an incident's alerts resolve: queued → closed `resolved_externally` without a run; running → it finishes;
+concluded → unchanged. Migration 005: `resolved_at`, `UPDATE (status, resolved_at)` forward only for the runtime role.
+Consequences: code and tests done (301 passed, 3 skipped with Postgres); the VM step (migration 005 on vm-095, SC-03
+on vm-166) is next. Stacked on OP-011 (#48).
+References: `tasks/current/T-0026-alert-resolution.md`, `architecture/changes/ACR-0005-pull-alert-resolution.md`.

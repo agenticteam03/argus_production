@@ -1,6 +1,13 @@
 # Current test state
 
-**Last updated:** 2026-10-09 · **Commit:** `task/T-0020-sc04-pg-connections` after merging `main` (#39, #40) and the review of PR #38
+**Last updated:** 2026-10-09 · **Commit:** `task/T-0026-alert-resolution` (on top of `task/OP-011-correlation`)
+
+**T-0026, 2026-10-09 (`task/T-0026-alert-resolution`):** 16 new tests in `tests/test_t0026_alert_resolution.py`
+(red seen 14/16: a `resolved` notification was `ignored`; `active_alerts`, `resolve_absent` and `resolved_at` were
+missing; the silenced-alert and the received-before guards were green from the start) and
+`tests/test_postgres.py::test_alert_occurrence_resolution` (migration 005: forward only, column grant, no DELETE), plus
+five `argus db check` lines. Full suite on the laptop with a throwaway `postgres:16-alpine`: **301 passed**, 3 skipped;
+the OD-3 timing benchmark failed once in the full run and passed alone (the known Windows timing flake).
 
 **OP-005, 2026-10-09 (`task/OP-005-young-restarts`):** three new unit tests were red against the old exporter/signal,
 then passed. Five PromQL synthetic-series cases passed with Prometheus 3.5.0 `promtool test rules` (young, old with

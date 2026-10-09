@@ -142,6 +142,9 @@ class FakeSource:
             raise AlertsUnavailable(str(v))
         return v or []
 
+    def active_alerts(self, host):                     # T-0026: nothing silenced, so the active ones are the firing ones
+        return self.firing_alerts(host)
+
 
 def test_reconcile_submits_every_host_and_survives_one_that_is_down(make_app):
     from argus.application.alerts import HandleAlertNotification, ReconcileFiringAlerts

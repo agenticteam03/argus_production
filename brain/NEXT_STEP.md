@@ -16,8 +16,9 @@ start` reports `59ffa39` (PR #44, OP-001) merged into `main` without a non-autho
    ACR-0004; step 03 one incident `inc_8a4cf92444ae`, occurrences `started` + `attached`). T-0024 steps 2-4 (SC-05
    DIAGNOSED; vm-166 keeps the lab filesystem `/srv/argus-lab-fill`, `ops/lab-fill-mount.sh --remove` takes it away).
    T-0022 steps 5-6 and OP-010.
-3. **Next code work:** resolved alerts (§6.4 "Resolution": an occurrence's `status`, needs UPDATE on
-   `alert_occurrence`), OP-009 before any second worker, OP-004 checkpoint cleanup, SC-06 / SC-08, phase 12 with the
+3. **Next code work:** resolved alerts are on `task/T-0026-alert-resolution` (ACR-0005, migration 005; step 2 on the
+   VMs next, [task file](tasks/current/T-0026-alert-resolution.md)); OP-009 is fixed on `task/OP-009-lease-loss`
+   (`main` merged in, PR not opened yet); OP-009 before any second worker, OP-004 checkpoint cleanup, SC-06 / SC-08, phase 12 with the
    runner (≥ 5 runs per scenario) and the §21.2 evaluation.
 4. **Open question (`conantkd`):** a host incident's scope holds only the host's declared dependents (T-0024 declares
    the filler `depends_on` the host). Opening it to every container of the host (useful for SC-06 CPU) would be an
