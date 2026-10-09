@@ -7,6 +7,12 @@ shared-Brain setup B1–B8 under way (three developers).
 > The VMs are authoritative for what runs there: run `sudo bash /opt/argus-v18/app/ops/deploy.sh status` (or read
 > `/opt/argus-v18/DEPLOYED`) and the state probe before trusting this file.
 
+> **Update 2026-10-08 late (`conantkd`):** vm-166 runs `task/OP-010-reserved-slot` `bc56923` (= T-0020 + T-0022 +
+> OP-010): Argus-owned `argus-v18-alertmanager` (127.0.0.1:18091), `-node-exporter`, `-cadvisor`; tunnel account
+> `permitopen` 18091; `argus-lab-db` with `reserved_connections=1` (16 ordinary slots, the db-probe has its own).
+> LAB BASELINE OK, NO INTERFERENCE. vm-095 runs `task/T-0021-tool-isolation`. Evidence:
+> `execution/history/T-0022/step-04/`, `execution/history/OP-010/step-01/`.
+
 ## 1. In one paragraph
 
 Argus v1.8 runs on the two VMs. The agent on vm-095 diagnoses incidents on both hosts through the per-host gateways
