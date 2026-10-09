@@ -1,6 +1,6 @@
 # OP-001 — Runbook detector metadata alignment
 
-**Owner:** `conantkd` · **Branch:** `task/OP-001-runbook-detectors` · **Status:** code complete; PR review pending.
+**Owner:** `conantkd` · **Branch:** `task/OP-001-runbook-detectors` · **PR:** #44 · **Status:** code complete; fast-track review.
 
 ## Goal
 
@@ -16,8 +16,9 @@ within the same symptom class.
    three already correct runbooks stay unchanged.
 3. Update the index with a detector-class column and a v1.1.1 metadata revision; check the index against the same
    architecture map.
-4. Run the mapping, knowledge, and SC-04 tests, Brain audit/lint, and CI. The local Windows full suite has five
-   pre-existing `test_deploy.py` path failures; Linux CI is the full-suite gate. No VM action is required.
+4. Run the mapping, knowledge, and SC-04 tests, Brain audit/lint, and CI. The local Windows full suite passes with
+   pytest's temporary directory outside the Git worktree; nine Docker/Linux/Postgres tests are skipped locally, and
+   Linux CI passes including Postgres. No VM action is required.
 
 ## Limits
 

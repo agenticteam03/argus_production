@@ -2,10 +2,11 @@
 
 **Last updated:** 2026-10-09 · **Commit:** `task/T-0020-sc04-pg-connections` after merging `main` (#39, #40) and the review of PR #38
 
-**OP-001, 2026-10-09 (`task/OP-001-runbook-detectors`):** the architecture-to-runbook metadata test failed before
-the edits, then passed. The new mapping and index tests plus 20 related knowledge/SC-04 tests pass locally. The
-Windows full suite had five existing `test_deploy.py` failures caused by its Git Bash path check for a temporary clone;
-all other executed tests passed (nine skipped). Linux CI is the full-suite gate and is pending.
+**OP-001, 2026-10-09 (`task/OP-001-runbook-detectors`, PR #44):** the architecture-to-runbook metadata test failed
+before the edits, then passed. The new mapping and index tests plus 20 related knowledge/SC-04 tests pass locally.
+The Windows full suite passed with nine skips when pytest's temporary directory was placed outside the Git worktree;
+the first local run used an in-worktree temporary directory and caused five unrelated `test_deploy.py` path failures.
+Linux CI `test` and `frontend` passed on the implementation commit; rerun CI after the fast-track record commit.
 
 | Stage | Result | Where / when |
 |---|---|---|
