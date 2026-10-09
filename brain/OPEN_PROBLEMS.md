@@ -17,7 +17,7 @@ When a problem is fixed, set its status to `fixed` with the date, and add a jour
 | **OP-008** | Postgres backups are never rotated, and the backup's consistency check will stop once the scheduler writes often | accepted 2026-10-07 (PR #31, approved by `juanbetancurm`) — to implement; independent of T-0014 | 2026-10-07 |
 | OP-009 | A worker that loses its lease keeps running the incident; with two workers the same run could execute twice | open (fix before a second worker) | 2026-10-08 |
 | OP-010 | The db-probe cannot connect when every usable slot is taken, so `postgresql_connection_exhaustion` cannot fire at 100 % | **fixed** 2026-10-09 — SC-04 at 100 % DIAGNOSED from the pulled alert | 2026-10-08 |
-| OP-011 | Two alerts on one target open two incidents: §6.4 correlation is not implemented | open | 2026-10-09 |
+| OP-011 | Two alerts on one target open two incidents: §6.4 correlation is not implemented | in progress 2026-10-09 (`task/OP-011-correlation`: code and tests done; VM proof next) | 2026-10-09 |
 
 ---
 
@@ -411,7 +411,7 @@ SC-04 with 16 of 16 ordinary slots, the probe stayed up, usage 1.0 for 5 min, `D
 
 ## OP-011 — Two alerts on one target open two incidents (§6.4 correlation not implemented)
 
-**Status:** open · **Opened:** 2026-10-09 · **Found by:** `conantkd` (T-0022 step 6)
+**Status:** in progress · **Opened:** 2026-10-09 · **Found by:** `conantkd` (T-0022 step 6)
 
 **Problem.** In SC-03 the cache stopped and vm-166 fired two alerts on `argus-lab-api`: `DependencyProbeFailed` and
 `ContainerUnhealthy` (its health check needs the cache). The scheduler pulled both in one pass and opened **two
@@ -429,3 +429,16 @@ known only after detection, so step 2 needs the detector at intake (the compatib
 
 **Done when.** A test with two alerts on one target and class gives one incident with two occurrences; SC-03 on
 vm-166 gives one incident.
+
+**Implementation (2026-10-09, `task/OP-011-correlation`, stacked on `task/T-0024-sc05-disk`).**
+`application/correlation.py` (`Correlator`, `CORRELATION_WINDOW` 30 min) is called by `HandleAlertNotification`, so
+the webhook and the pull share it. Order: (1) the alert identity is already recorded (an occurrence, or the key that
+opened an incident) → `duplicate`; (2) the target's open incident (queued or running) whose last evidence is within the
+window, whose alert labels name no other container or dependency, and for which the detectors on a fresh snapshot give
+its class (or any class while it is still queued: its own detection reads the same target) → `attached`, audited as
+`incident.alert_attached`; (3) else a new incident (`started`). A test that cannot run (stale or unavailable metrics)
+never merges. Migration 004 adds `alert_occurrence` (insert-only for the runtime role): the incident's evidence
+version is 1 + its attached occurrences and its last evidence time is the newest occurrence, kept out of the incident
+body so the worker's full-body writes cannot overwrite them. The intake processes (api, scheduler) now read the
+metrics port (`App.metrics`, `wiring.make_metrics`). Not in this fix: resolved alerts (occurrence `status`),
+related-incident links, showing the evidence version in the incident view and the run context.

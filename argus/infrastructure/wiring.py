@@ -95,6 +95,7 @@ class App:
     policy: PolicyEngine
     runner: SkeletonRunner
     catalogue: DirectProvider
+    metrics: Any                        # MetricsPort: the detectors' reads, also for alert correlation (§6.4)
     jwt_key: str
     alertmanager_token: str | None
     llm_configured: bool
@@ -136,6 +137,12 @@ def tools_dispatcher(s: Settings):
     if errors:
         raise SystemExit("tools process: startup validation failed:\n  " + "\n  ".join(errors))
     return build_catalog(), Dispatcher(inventory, _target_executors(signals), creds, Redactor()), inventory
+
+
+def make_metrics(s: Settings, inventory: YamlInventory) -> PrometheusMetrics:
+    """The detectors' MetricsPort, for a process that does not `build` (the scheduler: alert correlation, §6.4)."""
+    signals = yaml.safe_load((s.config_dir / "signals.yaml").read_text(encoding="utf-8"))
+    return PrometheusMetrics(inventory, signals, s.metrics_max_staleness_s)
 
 
 def build(settings: Settings | None = None, llm=None, metrics=None, executors: ExecutorRegistry | None = None,
@@ -219,8 +226,8 @@ def build(settings: Settings | None = None, llm=None, metrics=None, executors: E
     extra = {}
     if s.runner == "langgraph" and hasattr(store, "checkpointer"):   # Postgres: checkpoints survive a restart
         extra["checkpointer"] = store.checkpointer()
-    runner = runners[s.runner](**extra, memory=store, audit=store, inventory=inventory,
-                            metrics=metrics or PrometheusMetrics(inventory, signals, s.metrics_max_staleness_s),
+    metrics = metrics or PrometheusMetrics(inventory, signals, s.metrics_max_staleness_s)
+    runner = runners[s.runner](**extra, memory=store, audit=store, inventory=inventory, metrics=metrics,
                             knowledge=knowledge, notifier=store, invoke=invoke, events=store,
                             strategies=strategies, offered_specs=[sp for sp in specs if policy.capability_known(sp.name)],
                             redactor=redactor, policy_version=policy.version,
@@ -230,4 +237,4 @@ def build(settings: Settings | None = None, llm=None, metrics=None, executors: E
     if len(jwt_key) < 32:
         raise SystemExit("jwt_signing_key missing or shorter than 32 characters")
     return App(settings=s, store=store, inventory=inventory, policy=policy, runner=runner, catalogue=catalogue,
-               jwt_key=jwt_key, alertmanager_token=s.secret("alertmanager_token"), llm_configured=llm_configured)
+               metrics=metrics, jwt_key=jwt_key, alertmanager_token=s.secret("alertmanager_token"), llm_configured=llm_configured)

@@ -115,6 +115,35 @@ class PostgresStore:
                        (str(target), incident_class, k))
         return [Incident.model_validate(r[0]) for r in rows]
 
+    # --- alert occurrences (OP-011, §6.4; migration 004) -----------------------------------------------
+    def incident_for_trigger(self, identity: str) -> str | None:
+        """The incident an alert identity already belongs to: as an occurrence, or as the key that opened it."""
+        row = self._q("SELECT incident_id FROM alert_occurrence WHERE identity = %s UNION ALL "
+                      "SELECT id FROM incident WHERE idempotency_key = %s LIMIT 1", (identity, identity))
+        return row[0][0] if row else None
+
+    def add_alert_occurrence(self, identity: str, incident_id: str, fingerprint: str, starts_at: datetime,
+                             labels: dict[str, str], disposition: str, received_at: datetime | None = None) -> bool:
+        """Insert-only; False when the identity is already recorded (a concurrent copy of the same alert)."""
+        row = self._q("INSERT INTO alert_occurrence (identity, incident_id, fingerprint, starts_at, alertname, labels, "
+                      "disposition, received_at) VALUES (%s, %s, %s, %s, %s, %s, %s, %s) "
+                      "ON CONFLICT (identity) DO NOTHING RETURNING identity",
+                      (identity, incident_id, fingerprint, starts_at, labels.get("alertname", ""), Jsonb(labels),
+                       disposition, received_at or utcnow()))
+        return bool(row)
+
+    def alert_occurrences(self, incident_id: str) -> list[dict[str, Any]]:
+        rows = self._q("SELECT identity, fingerprint, starts_at, alertname, labels, disposition, status, received_at "
+                       "FROM alert_occurrence WHERE incident_id = %s ORDER BY received_at, identity", (incident_id,))
+        keys = ("identity", "fingerprint", "starts_at", "alertname", "labels", "disposition", "status", "received_at")
+        return [dict(zip(keys, r)) for r in rows]
+
+    def evidence_state(self, incident_id: str) -> tuple[int, datetime | None]:
+        """(evidence_version, last_evidence_at): 1 + the attached occurrences, and the newest occurrence's time."""
+        row = self._q("SELECT count(*) FILTER (WHERE disposition = 'attached'), max(received_at) "
+                      "FROM alert_occurrence WHERE incident_id = %s", (incident_id,))
+        return 1 + int(row[0][0]), row[0][1]
+
     # --- evidence ----------------------------------------------------------------------------------
     def append_evidence(self, record: EvidenceRecord) -> None:
         self._q("INSERT INTO evidence (evidence_id, incident_id, collected_at, host, executor, sha256, body) "
