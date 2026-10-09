@@ -637,3 +637,16 @@ never a PASS; before, the model and host checks passed on nothing. (2) The reset
 SC-07's reset succeeds when its network is already gone. 6 new tests, red seen; `test_e2e_runner.py` 33 passed.
 Consequences: run the batches as an operator user. Every catalogued reset must be idempotent.
 References: `tasks/current/T-0023-e2e-runner.md`, PR #40.
+
+## 2026-10-09 — OP-005 offline implementation: young restart counts
+
+Type: implementation
+Who: conantkd (+ agent)
+Context: SC-01 can be missed when the container restarted before Prometheus's first scrape; the old range expression
+undercounts. The approved OP-005 design requires a creation-time guard so a scrape gap on an old container never
+becomes a false incident.
+Decision / result: the exporter publishes Docker's creation time and `restarts_10m` uses the young branch first.
+Three unit tests were red, then green. Five `promtool` synthetic-series cases pass and are added to CI. This is
+offline verification only; PR #38 and vm-166's T-0020 checkout must be reconciled before VM deployment and SC-01.
+References: `tasks/current/OP-005-restart-signal.md`, `tests/test_op005_young_restarts.py`,
+`tests/promql/op005_test.yml`, OPEN_PROBLEMS OP-005.
