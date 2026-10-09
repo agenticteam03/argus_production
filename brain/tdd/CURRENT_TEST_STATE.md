@@ -2,7 +2,9 @@
 
 **Last updated:** 2026-10-09 · **Commit:** `task/OP-009-lease-loss` after merging `main` (up to #44)
 
-**OP-009, 2026-10-09 (`task/OP-009-lease-loss` after merging `main`):** 243 passed, 3 skipped on the laptop with a
+**OP-009, 2026-10-09 (`task/OP-009-lease-loss` after merging `main` up to #50):** **306 passed**, 3 skipped on the
+laptop with a throwaway `postgres:16-alpine` (the OD-3 benchmark passed too); the T-0025 baseline evaluation still
+gives hard 0 0 0 with the runners' new `cancel` argument. Before `main` up to #44: 243 passed, 3 skipped on the laptop with a
 throwaway `postgres:16-alpine` (the Postgres tests included; skipped: the two real-Docker tests and the `/proc`
 test). The OD-3 timing benchmark failed once in the full run (p95 overhead 123 ms against 100 ms) and passed alone:
 the known Windows timing flake. OP-009's own tests: 7 in `tests/test_op009_lease_loss.py` and
