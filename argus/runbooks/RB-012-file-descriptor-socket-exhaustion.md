@@ -7,12 +7,12 @@ id: RB-012
 title: File descriptor / socket exhaustion
 status: draft
 owner: Argus Team
-version: 1.0.0
+version: 1.0.1
 created: 2026-09-29
-last_reviewed: 2026-09-29
+last_reviewed: 2026-10-09
 source_review_date: 2026-09-29
 last_tested: null
-detector: null
+detector: fd_socket_exhaustion
 ```
 
 ## Scope

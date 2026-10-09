@@ -110,7 +110,7 @@ def test_the_worker_skips_a_scheduled_request_that_waited_too_long(make_app, inv
     Scheduler(app.store, load_schedules(ONE, inventory, min_interval_s=300)).tick(NOON)
     (inc,) = app.store.list_incidents()
     ran = []
-    app.runner = type("R", (), {"run": lambda self, iid: ran.append(iid)})()
+    app.runner = type("R", (), {"run": lambda self, iid, cancel=None: ran.append(iid)})()
     w = Worker(app, worker_id="w1", max_queued_age_s=900, now=lambda: NOON + timedelta(minutes=16))
     assert w.run_once() == inc.id
     done = app.store.get_incident(inc.id)
@@ -123,7 +123,7 @@ def test_a_fresh_scheduled_request_and_any_manual_request_are_run(make_app, inve
     app = make_app()
     Scheduler(app.store, load_schedules(ONE, inventory, min_interval_s=300)).tick(NOON)
     ran = []
-    app.runner = type("R", (), {"run": lambda self, iid: ran.append(iid)})()
+    app.runner = type("R", (), {"run": lambda self, iid, cancel=None: ran.append(iid)})()
     w = Worker(app, worker_id="w1", max_queued_age_s=900, now=lambda: NOON + timedelta(minutes=10))
     assert w.run_once() in ran
     old_manual = incident(app, "vm-095/container:argus-lab-worker")         # manual requests never go stale

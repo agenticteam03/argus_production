@@ -653,9 +653,13 @@ Docker API access is root-equivalent, so HTTP-method filtering alone is **not** 
 Argus **never** gets the Docker socket or a broad Docker API proxy. It reaches Docker only through two
 exact-route gateways on each Host T.
 
-**Accepted risk (ACR-0003):** the Argus-owned `cadvisor` mounts `/sys`, `/var/lib/docker` and the
-Docker socket **read-only** to publish container metrics. It is upstream code, not an Argus process; it
-has a memory limit, no host port, and no path from Host A except Prometheus' scrape.
+**Accepted risk (ACR-0003):** the Argus-owned `cadvisor` mounts `/sys`, `/var/lib/docker` and `/var/run`
+(which holds the Docker socket) to publish container metrics. **cAdvisor has the Docker socket, so it is
+root-equivalent on its host, whatever the mount flags:** a `:ro` bind mount of a Unix socket does not limit the
+Docker API, and a process that can open the socket can start a privileged container. Accepted because it is
+upstream code, not an Argus process; it has a memory limit, no host port, and no path from Host A except
+Prometheus' scrape. With that access the image is the whole trust boundary: pinning the monitoring images by
+digest and mounting only the socket instead of `/var/run` are follow-ups.
 
 ### 4.4 `docker-read-gateway`
 

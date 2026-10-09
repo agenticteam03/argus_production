@@ -7,12 +7,12 @@ id: RB-021
 title: Host/service overload and cascading failure
 status: draft
 owner: Argus Team
-version: 1.1.0
+version: 1.1.1
 created: 2026-09-29
-last_reviewed: 2026-09-29
+last_reviewed: 2026-10-09
 source_review_date: 2026-09-29
 last_tested: null
-detector: null
+detector: cascading_overload
 activation_prerequisite: validated_core_runbooks_and_service_load_policies
 ```
 

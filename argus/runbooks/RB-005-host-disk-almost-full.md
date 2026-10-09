@@ -7,9 +7,9 @@ id: RB-005
 title: Host disk almost full
 status: draft
 owner: Argus Team
-version: 1.0.2
+version: 1.0.3
 created: 2026-09-29
-last_reviewed: 2026-10-08
+last_reviewed: 2026-10-09
 source_review_date: 2026-09-29
 last_tested: 2026-10-09
 detector: disk_pressure
