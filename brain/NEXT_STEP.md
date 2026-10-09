@@ -1,6 +1,13 @@
 # Next step
 
-**Now (2026-10-08, end of `juanbetancurm`'s session; lease handed to `conantkd`):** T-0021 (tools in a separate
+**Now (2026-10-09, `juanbetancurm`):** the review of PR #36 is answered on `task/T-0021-tool-isolation`: the
+launcher runs `cd /` and `python -I` (a planted package no longer runs as `argus-tools`; `isolation_check` probes
+it), [ACR-0002](architecture/changes/ACR-0002-tools-uid-sudo-launcher.md) (proposed: the sudo launcher, OD-3 kept
+MCP) needs a second team member's approval, a hung tools process is replaced, and vm-095's compose defaults to
+`mcp`. Next: step 5e on vm-095 (redeploy the branch, isolation check with the new probe; needs the lease), then
+the re-review of #36. Do not deploy `main` on vm-095 before #36 merges (rollback block R first).
+
+**Earlier (2026-10-08, end of `juanbetancurm`'s session; lease handed to `conantkd`):** T-0021 (tools in a separate
 MCP process under `argus-tools`) is done and verified on vm-095 ([evidence](execution/history/T-0021/step-05/evidence.md)):
 TOOLS ISOLATION OK, OD-3 OK. **PR #36 needs a teammate's review** (safety model, no fast-track). vm-095 runs
 `task/T-0021-tool-isolation` `a5f330a` with the worker in `mcp` mode: do not deploy `main` there before #36 merges

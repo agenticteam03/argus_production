@@ -4,6 +4,8 @@ The worker is synchronous; MCP is async. One background thread runs an event loo
 (MCP/anyio contexts must be entered and left in the same task); calls are queued to it and wait for their answer.
 `server` is an in-process `Server` (tests) or `StdioServerParameters` (the real child process). A call that fails in
 the transport (the child died) ends the session: that call becomes `ToolsUnavailable`, the next one starts a new child.
+A call with no answer within `timeout_s` (the child hangs) ends the session the same way, so later calls never queue
+behind the stuck one.
 """
 from __future__ import annotations
 
@@ -38,6 +40,7 @@ class McpToolsClient:
         self._closed = False
         self._broken = False
         self._loop: asyncio.AbstractEventLoop | None = None
+        self._task: asyncio.Task | None = None
         self._queue: asyncio.Queue | None = None
         self._ready = threading.Event()
         self._error: BaseException | None = None
@@ -64,7 +67,8 @@ class McpToolsClient:
         loop = asyncio.new_event_loop()
         self._loop = loop
         try:
-            loop.run_until_complete(self._session())
+            self._task = loop.create_task(self._session())
+            loop.run_until_complete(self._task)
         except BaseException as e:            # noqa: BLE001 - reported to the callers, never raised in the thread
             self._error = e
         finally:
@@ -94,10 +98,22 @@ class McpToolsClient:
         try:
             result = cf.result(self.timeout_s)
         except Exception as e:                 # timeout or loop gone
+            self._abandon()
             raise ToolsUnavailable(f"no answer from the tools server: {e!r}") from e
         if isinstance(result, BaseException):
             raise ToolsUnavailable(f"tools server error: {result!r}") from result
         return result
+
+    def _abandon(self) -> None:
+        """No answer in time: end this session (closing its child), so the next call starts a new one."""
+        with self._lock:
+            self._broken = True
+            loop, task = self._loop, self._task
+        if loop is not None and task is not None:
+            try:
+                loop.call_soon_threadsafe(task.cancel)
+            except RuntimeError:               # the loop is already closed
+                pass
 
     async def _enqueue(self, fn):
         fut = asyncio.get_running_loop().create_future()

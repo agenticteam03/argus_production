@@ -1,6 +1,6 @@
 # Current state — the last verified shared state
 
-**As of:** 2026-10-08 (T-0021 step 5 on vm-095, by `juanbetancurm`) · **Architecture:** v1.8.1 (ACR-0001) · **Status:** `verified` on
+**As of:** 2026-10-08 (T-0021 step 5 on vm-095, by `juanbetancurm`) · **Architecture:** v1.8.1 (ACR-0001; 1.8.2 with ACR-0002 proposed in PR #36) · **Status:** `verified` on
 the VMs; T-0013 (LangGraph + Postgres checkpoints) merged and **deployed: both VMs run `main` `09f5ab1`** (§2) ·
 shared-Brain setup B1–B8 under way (three developers).
 

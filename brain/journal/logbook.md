@@ -552,3 +552,19 @@ can no longer list) was found on the VM and fixed with a test. 183 passed, 2 ski
 Consequences: PR #36 needs a teammate's review (safety model). Until it merges, vm-095 must not get `main` without
 the rollback (its api and worker would not start). The code default stays `direct`; flipping it is for the review.
 References: `tasks/current/T-0021-tool-isolation.md`, `execution/history/T-0021/step-05/evidence.md`, PR #36.
+
+## 2026-10-09 — T-0021: review fixes of PR #36, and ACR-0002 (T-0021)
+
+Type: implementation + architecture change (proposed)
+Who: juanbetancurm (+ agent)
+Context: `conantkd` requested changes on PR #36: a compromised worker could still get code to run as `argus-tools`
+(sudo keeps the working folder, `python -m` puts it first on `sys.path`; reproduced with fake tokens), and the
+switch from `setpriv` to a sudo rule changes the mechanism behind a safety principle (secrets), so it needs an ACR.
+Decision / result: the launcher runs `cd /` and `python -I -u`; `isolation_check` plants an `argus` package and
+starts the launcher from that folder (old launcher: STOP, fixed launcher: OK, on the agent image). ACR-0002
+(proposed) records the sudo launcher in §12.6 and closes OD-3 with "keep MCP" (architecture 1.8.2). A tools process
+that hangs is now replaced after the call times out. vm-095's compose defaults to `mcp`. 185 passed, 2 skipped.
+Consequences: PR #36 needs the re-review and the ACR's second approval; vm-095 gets the fixed launcher with a
+redeploy of the branch and a new isolation check (step 5e, with the lease).
+References: `architecture/changes/ACR-0002-tools-uid-sudo-launcher.md`, `tasks/current/T-0021-tool-isolation.md`,
+PR #36.

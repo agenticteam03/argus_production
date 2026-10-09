@@ -2,9 +2,9 @@
 
 | Field | Value |
 |---|---|
-| Status | `done` (2026-10-08): steps 1-5 done, verified on vm-095 (worker in `mcp` mode); waits for review (PR #36, normal review: safety model) |
+| Status | `done` (2026-10-08): steps 1-5 done, verified on vm-095 (worker in `mcp` mode). Review of PR #36 (`conantkd`, changes requested): fixed 2026-10-09, waits for re-review and the ACR's second approval |
 | Phase | 4 — tools and guarded execution ([`../../IMPLEMENTATION_PLAN.md`](../../IMPLEMENTATION_PLAN.md)): "MCP tools child, UID `argus-tools`, credential-isolation test" |
-| Architecture | no change (no ACR): implements §12.5 (`ToolCatalogue`, `McpChildProvider`, `InWorkerProvider`, `TOOL_CATALOGUE=mcp\|direct`), §12.6 (process identity), §25 OD-3 (benchmark) |
+| Architecture | implements §12.5 (`ToolCatalogue`, `McpChildProvider`, `InWorkerProvider`, `TOOL_CATALOGUE=mcp\|direct`), §12.6 (process identity), §25 OD-3 (benchmark). **[ACR-0002](../../architecture/changes/ACR-0002-tools-uid-sudo-launcher.md)** (proposed, safety principle: secrets): the UID switch is a fixed sudo launcher instead of `setpriv`/`gosu`; OD-3 decided (keep MCP). Architecture 1.8.2 |
 | Branch | `task/T-0021-tool-isolation` (steps 1-3 from `main`; `main` with T-0014 merged in before step 4) |
 | Owner | `juanbetancurm` (+ agent) |
 | Needs the VM lease | step 5 only (vm-095) |
@@ -141,6 +141,24 @@ stay in the worker (`InvokeCapability`). This is the main safety condition befor
   The code default stays `direct` (the decision to flip it is left to the review); vm-095 runs `mcp` through
   `/opt/argus-v18/hosts.env`. Not done here: SC-07 through the tools process (it needs vm-166's lab; SC-02 on
   vm-095 was used instead).
+- **Review of PR #36 (2026-10-09, requested by `conantkd`).**
+  - *Blocking 1, the launcher.* sudo keeps the caller's working folder and `python -m` put it first on `sys.path`:
+    a worker could plant its own `argus` package in `/tmp` and have it run as `argus-tools` (reproduced by the
+    reviewer with fake tokens). Fix: the launcher runs `cd /` and `python -I -u`. Red seen: the launcher test
+    (`test_sudoers_allows_only_the_launcher_without_arguments`) failed on the old launcher. `isolation_check` now
+    starts the launcher from a folder holding a planted `argus` package: on the agent image with the old launcher
+    `FAIL the launcher ignores code planted in the caller's folder: the fake argus package RAN as argus-tools`,
+    `TOOLS ISOLATION STOP`; with the fixed launcher `TOOLS ISOLATION OK` (16 capabilities).
+  - *Blocking 2, the ACR.* [ACR-0002](../../architecture/changes/ACR-0002-tools-uid-sudo-launcher.md) records the
+    sudo launcher (§12.6) and closes OD-3 (§25, keep MCP); architecture 1.8.2. It needs a second team member's
+    approval in PR #36.
+  - *Hung tools process.* A call with no answer within the timeout now ends its session (the child is closed), so the
+    next call starts a new one. Red seen: `test_a_hung_tools_server_is_replaced_after_a_timeout` (the second call
+    queued behind the stuck one and timed out too).
+  - *Default.* `deploy/vm-095/compose.core.yml`: `ARGUS_TOOL_CATALOGUE` defaults to `mcp`, `direct` is the
+    rollback. The code default (`Settings`) stays `direct`, for hosts without the token ownership change.
+  - Suite: **185 passed**, 2 skipped (Postgres tests included). vm-095 still runs the old launcher until the
+    redeploy (step 5e).
 
 ## Step 5 procedure (vm-095, with the lease)
 
