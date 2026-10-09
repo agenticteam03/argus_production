@@ -1,6 +1,6 @@
 # Signal catalogue: name → PromQL template ($host, $name). Every template filters on argus_host.
 # Used by detection (MetricsPort) and by the metrics.* capabilities. Free-form PromQL is never accepted.
-restarts_10m:          'max_over_time(argus_container_restart_count{argus_host="$host",container="$name"}[10m]) - min_over_time(argus_container_restart_count{argus_host="$host",container="$name"}[10m])'
+restarts_10m:          'clamp_min((argus_container_restart_count{argus_host="$host",container="$name"} and on(argus_host,container) (time() - argus_container_created_seconds{argus_host="$host",container="$name"} < 600)) or on(argus_host,container) (argus_container_restart_count{argus_host="$host",container="$name"} - argus_container_restart_count{argus_host="$host",container="$name"} offset 10m), 0)'
 oom_killed:            'argus_container_oom_killed{argus_host="$host",container="$name"}'
 last_exit_code:        'argus_container_last_exit_code{argus_host="$host",container="$name"}'
 health_unhealthy:      'argus_container_health_unhealthy{argus_host="$host",container="$name"}'

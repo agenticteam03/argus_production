@@ -1,5 +1,11 @@
 # Next step
 
+**OP-005 (2026-10-09, `conantkd`):** the exporter creation metric and young-first `restarts_10m` expression are
+implemented on `task/OP-005-young-restarts`. Offline unit and PromQL tests pass. VM verification is still needed:
+first resolve PR #38's review and merge, then take the VM lease, probe both hosts, deploy OP-005 from the updated
+`main`, and run the SC-01 and old-container checks in [the task file](tasks/current/OP-005-restart-signal.md).
+Do not replace vm-166's T-0020 checkout with a branch that predates PR #38.
+
 **Now (2026-10-09, `juanbetancurm`):** PR #36 (T-0021) was merged into `main` (`a9b4df8`) at its earlier head
 `289bb0d`, before the review fixes and before the re-review: **`main-guard` is red** and `main` has the OLD
 tools-server launcher (a package planted in the worker's folder would run as `argus-tools`). The fix is the

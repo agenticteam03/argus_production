@@ -2,6 +2,13 @@
 
 **Last updated:** 2026-10-09 · **Commit:** `task/T-0021-tool-isolation` (review fixes of PR #36)
 
+**OP-005, 2026-10-09 (`task/OP-005-young-restarts`):** three new unit tests were red against the old exporter/signal,
+then passed. Five PromQL synthetic-series cases passed with Prometheus 3.5.0 `promtool test rules` (young, old with
+scrape gap, old with continuous history, recreated same name, and missing creation metric). The full local Windows
+worktree suite finished with 6 unrelated failures: 5 `tests/test_deploy.py` fixtures see their temporary `app` as an
+existing Git clone; the OD-3 timing benchmark measured 155 ms p95 overhead against its 100 ms budget. CI on Linux and
+the VM checks are pending.
+
 | Stage | Result | Where / when |
 |---|---|---|
 | 3. Offline suite | **185 passed**, 2 skipped (Postgres tests included) on `task/T-0021-tool-isolation` after the review of PR #36: + `test_a_hung_tools_server_is_replaced_after_a_timeout`, and the launcher test now asks for `cd /` and `python -I` (red seen in both); the real-image test runs the new planted-package probe. Before: **183 passed**, 2 skipped (185, Postgres tests included) on `task/T-0021-tool-isolation` `a5f330a` (T-0014 merged in): + 8 `test_mcp_tools.py`, 6 `test_mcp_child.py`, 6 `test_tool_isolation.py` (+1 needs Docker), 1 `test_compose_split.py` (T-0021 steps 1-5, red seen in each). Before: **162 passed**, 1 skipped (163, Postgres tests included) on `task/T-0014-worker-scheduler` `169ca07`: + `test_a_running_worker_takes_back_a_claim_that_expires_later` (red seen: `recover_every_s` missing). Before: **161 passed**, 1 skipped (162, Postgres tests included with a throwaway `postgres:16-alpine`) on `task/T-0014-worker-scheduler` after merging `main`: + 8 `test_worker_lease.py`, 7 `test_worker_loop.py`, 16 `test_scheduler.py`, 4 `test_compose_split.py`, 1 `test_deploy.py` (T-0014 steps 1-4, red seen in each step). Before: **119 passed**, 6 skipped (125) on `task/T-0019-db-probe`: + 15 `test_db_probe.py` (red seen 15/15). Before: **104 passed**, 6 skipped (110) on `task/op-007-restarting-probe-fix`: + `test_exporter_keeps_the_probe_of_an_owner_in_a_restart_loop` (OP-007, red seen: `owner_active` missing). Before: **103 passed**, 6 skipped (109; the 5 Postgres tests and the real-Docker backup test): 89 before + 7 `test_sc07_network.py` + 7 `test_knowledge_runbook.py` (T-0018: `query_runbook` reads the library in-worker, refuses unknown/malformed ids, is limited by policy, and the context names the branch runbooks) | laptop, 2026-10-07 (OP-007 / T-0018) |

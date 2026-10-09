@@ -581,3 +581,16 @@ Consequences: per REVIEW_PROTOCOL, a follow-up PR (`task/T-0021-review-fixes`) b
 step 5e record to `main` and gets the missing review (no force push, no fast-track: ACR, safety principle). Until it
 merges, `main` must not be deployed on vm-095.
 References: `execution/history/T-0021/step-05e/evidence.md`, `tasks/current/T-0021-tool-isolation.md`, PR #36.
+
+## 2026-10-09 — OP-005 offline implementation: young restart counts
+
+Type: implementation
+Who: conantkd (+ agent)
+Context: SC-01 can be missed when the container restarted before Prometheus's first scrape; the old range expression
+undercounts. The approved OP-005 design requires a creation-time guard so a scrape gap on an old container never
+becomes a false incident.
+Decision / result: the exporter publishes Docker's creation time and `restarts_10m` uses the young branch first.
+Three unit tests were red, then green. Five `promtool` synthetic-series cases pass and are added to CI. This is
+offline verification only; PR #38 and vm-166's T-0020 checkout must be reconciled before VM deployment and SC-01.
+References: `tasks/current/OP-005-restart-signal.md`, `tests/test_op005_young_restarts.py`,
+`tests/promql/op005_test.yml`, OPEN_PROBLEMS OP-005.
