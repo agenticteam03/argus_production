@@ -9,7 +9,7 @@ When a problem is fixed, set its status to `fixed` with the date, and add a jour
 | **D-002** | Move the runbook library into this repository (the architecture expects it there) | **decided and done** 2026-10-02 | 2026-10-02 |
 | OP-001 | Runbook `detector` metadata uses old or empty class names | fixed 2026-10-09 on `task/OP-001-runbook-detectors` (review pending) | 2026-09-30 |
 | OP-002 | P0 safety gaps of the runbook library not yet reconciled with architecture v1.8 | open | 2026-09-30 |
-| OP-003 | Runbook safety classes not mapped to `CapabilitySpec.risk` | open | 2026-09-30 |
+| OP-003 | Runbook safety classes not mapped to `CapabilitySpec.risk` | proposal drafted in ACR-0005; team safety review pending | 2026-09-30 |
 | OP-004 | LangGraph checkpoints grow forever; checkpoints of failed runs are orphaned | accepted 2026-10-05 — to implement | 2026-10-05 |
 | **OP-005** | The `restarts_10m` signal undercounts restarts of a container younger than its window | **fixed** 2026-10-09 — verified on both VMs (PR #41) | 2026-10-05 |
 | OP-006 | LangGraph `recursion_limit` is fixed at 100 and can be too small for larger step budgets | fixed 2026-10-05 | 2026-10-05 |
@@ -125,6 +125,10 @@ equivalent).
 mandatory field allowlists (ties to G-006); `FORBIDDEN` operations are never registered; classify every capability in §12.2.
 
 **Done when.** §12.3 has one scheme; every capability has a class; policy and redaction rules refer to it.
+
+**Proposal (2026-10-09).** [ACR-0005](architecture/changes/ACR-0005-capability-safety-classes.md) inventories every
+§12.2 capability and identifies four read-class disagreements between the runtime and runbooks. It is proposed only;
+architecture and runtime remain unchanged until the team accepts the safety change and reviews output allowlists.
 
 ---
 

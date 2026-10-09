@@ -1,5 +1,10 @@
 # Next step
 
+**OP-003 proposal (2026-10-09, `conantkd`):** [ACR-0005](architecture/changes/ACR-0005-capability-safety-classes.md)
+maps every §12.2 capability to a runbook safety class and records four existing read-class disagreements. The team
+must review this safety change and its allowlist migration before implementation; no VM or runtime change was made.
+See [the task file](tasks/current/OP-003-safety-classes.md).
+
 **OP-005 (2026-10-09, `conantkd`): done, verified on both VMs (PR #41, fast-track).** vm-095 runs
 `task/OP-005-young-restarts` `b26effa` (= `main` after #41 merges: no rebuild needed to go to `main`). vm-166 runs
 `task/OP-005-vm166-proof` `4247dc8` (the unmerged OP-010 stack + `main` + OP-005): keep it until the T-0022 and OP-010
