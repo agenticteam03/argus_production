@@ -7,7 +7,7 @@
 | Accepted by | `conantkd` · 2026-10-09 |
 | Second approval (safety principle only) | not needed (no safety principle is touched) |
 | Architecture version | from `1.8.3` → `1.8.4` |
-| Task / PR | OP-011 · PR to follow (`task/OP-011-correlation`) |
+| Task / PR | OP-011 · PR #48 |
 
 ## 1. Detect and explain
 OP-011 step 02 ([evidence](../../execution/history/OP-011/step-02/evidence.md)) deployed §6.4 as written. SC-03 on

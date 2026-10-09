@@ -5,11 +5,11 @@
 `task/OP-011-correlation` (§6.4 correlation, **ACR-0004**, migration 004; **done**: SC-03 gives one incident). **Both VMs
 run `task/OP-011-correlation` `cb300df`**; vm-095's database has migration 004 (`alert_occurrence`; backup
 `argus-20261009T131715Z.dump` taken before). LAB BASELINE OK, NO INTERFERENCE. Open: #42 (OP-004, draft), #43 (CI step
-for OP-005), #45 (T-0022), #46 (OP-010), #47 (T-0024); the OP-011 PR follows. **Warning for the team:** `brain.py
+for OP-005), #45 (T-0022), #46 (OP-010), #47 (T-0024), #48 (OP-011). **Warning for the team:** `brain.py
 start` reports `59ffa39` (PR #44, OP-001) merged into `main` without a non-author approval of its last push.
 
 1. **PRs, in order:** T-0022 (needs `juanbetancurm`'s second approval: ACR-0003 touches host isolation), OP-010,
-   T-0024, OP-011 (ACR-0004 needs no second approval). After they merge, both VMs go to `main` (checkout + rebuild of
+   T-0024, OP-011 #48 (ACR-0004 needs no second approval). After they merge, both VMs go to `main` (checkout + rebuild of
    the agent image; migration 004 is already applied). Do not deploy `main` before: it would drop the monitoring, the
    reserved slot and the correlation (the table can stay; older code ignores it).
 2. **Done 2026-10-09:** OP-011 (step 02 showed the second SC-03 alert pulled after the first incident closed →
