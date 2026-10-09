@@ -1,6 +1,17 @@
 # Next step
 
-**Now (2026-10-08, end of `juanbetancurm`'s session; lease handed to `conantkd`):** T-0021 (tools in a separate
+**Now (2026-10-09, `juanbetancurm`):** PR #36 (T-0021) was merged into `main` (`a9b4df8`) at its earlier head
+`289bb0d`, before the review fixes and before the re-review: **`main-guard` is red** and `main` has the OLD
+tools-server launcher (a package planted in the worker's folder would run as `argus-tools`). The fix is the
+follow-up PR from `task/T-0021-review-fixes`: the launcher runs `cd /` and `python -I` (`isolation_check` probes
+it), [ACR-0002](architecture/changes/ACR-0002-tools-uid-sudo-launcher.md) (proposed: the sudo launcher, OD-3 kept
+MCP), a hung tools process is replaced, vm-095's compose defaults to `mcp`. **It needs `conantkd`'s review and
+his second approval of ACR-0002** (no fast-track: ACR, safety principle). Step 5e is done: vm-095 runs the fixed
+launcher (`6f45218`), TOOLS ISOLATION OK ([evidence](execution/history/T-0021/step-05e/evidence.md)).
+**Do not deploy `main` on vm-095 until the follow-up merges** (it would bring back the old launcher). vm-166 is
+untouched. Next work after it: OP-009, OP-010, OP-004, alerting (T-0022), the end-to-end runner (phase 12).
+
+**Earlier (2026-10-08, end of `juanbetancurm`'s session; lease handed to `conantkd`):** T-0021 (tools in a separate
 MCP process under `argus-tools`) is done and verified on vm-095 ([evidence](execution/history/T-0021/step-05/evidence.md)):
 TOOLS ISOLATION OK, OD-3 OK. **PR #36 needs a teammate's review** (safety model, no fast-track). vm-095 runs
 `task/T-0021-tool-isolation` `a5f330a` with the worker in `mcp` mode: do not deploy `main` there before #36 merges

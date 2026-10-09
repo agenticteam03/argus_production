@@ -43,7 +43,8 @@ sudo bash /opt/argus-v18/app/ops/nonint-check.sh after | tail -1
 # VERDICT: both OD-3 OK → step 5 done (the agent closes T-0021) · OD-3 STOP → paste it; the agent decides (rollback = R)
 
 # --- R [VM vm-095 · bash] ROLLBACK only if the agent says so: worker to direct, tokens back to 10010 -----------------
-# sudo sed -i '/^ARGUS_TOOL_CATALOGUE=/d' /opt/argus-v18/hosts.env
+# (2026-10-09: the compose default is now mcp, so the rollback writes direct instead of deleting the line)
+# sudo sed -i '/^ARGUS_TOOL_CATALOGUE=/d' /opt/argus-v18/hosts.env; echo 'ARGUS_TOOL_CATALOGUE=direct' | sudo tee -a /opt/argus-v18/hosts.env
 # S=/opt/argus-v18/secrets/agent; sudo find $S/vm-095 $S/vm-166 -type f -name '*_token' -exec chown 10010:10010 {} + ; sudo chown 10010:10010 $S/vm-095 $S/vm-166; sudo chmod 0500 $S
 # cd /opt/argus-v18/app/deploy/vm-095 && sudo docker compose --env-file /opt/argus-v18/hosts.env -f compose.core.yml up -d --no-deps argus-v18-worker; cd ~
 # sudo bash /opt/argus-v18/app/ops/nonint-check.sh after | tail -1
