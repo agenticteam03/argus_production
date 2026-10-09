@@ -59,3 +59,14 @@ def test_signal_uses_the_approved_promql_and_promtool_checks_the_same_expression
     assert signals["restarts_10m"] == expected
     rules = yaml.safe_load((ROOT / "tests/promql/op005_rules.yml").read_text(encoding="utf-8"))
     assert rules["groups"][0]["rules"][0]["expr"] == expected.replace("$host", "vm-166").replace("$name", "argus-lab-worker")
+
+
+def test_the_restart_loop_alert_counts_like_the_signal():
+    """Review of PR #41: the alert must count restarts like `restarts_10m` (young-first, a gap is unknown). With pulled
+    alerts (T-0022, ACR-0003 proposed) the alert opens the incident; an old `max - min` alert would see a young loop later than the
+    detector, or not at all."""
+    signals = yaml.safe_load((ROOT / "config/signals.yaml").read_text(encoding="utf-8"))
+    every_container = signals["restarts_10m"].replace('{argus_host="$host",container="$name"}', "")
+    rules = yaml.safe_load((ROOT / "deploy/monitoring/alerts.yml").read_text(encoding="utf-8"))
+    alert = next(r for g in rules["groups"] for r in g["rules"] if r.get("alert") == "ContainerRestartLoop")
+    assert alert["expr"] == f"{every_container} >= 3"

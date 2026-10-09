@@ -6,8 +6,9 @@
 then passed. Five PromQL synthetic-series cases passed with Prometheus 3.5.0 `promtool test rules` (young, old with
 scrape gap, old with continuous history, recreated same name, and missing creation metric). The full local Windows
 worktree suite finished with 6 unrelated failures: 5 `tests/test_deploy.py` fixtures see their temporary `app` as an
-existing Git clone; the OD-3 timing benchmark measured 155 ms p95 overhead against its 100 ms budget. CI on Linux and
-the VM checks are pending.
+existing Git clone; the OD-3 timing benchmark measured 155 ms p95 overhead against its 100 ms budget. Review of PR #41
+(`main` merged in, + 1 test: the restart alert counts like the signal, red seen): 228 passed, 9 skipped on the laptop
+(237); the only failure is the same timing-flaky benchmark (passes alone; green in CI). The VM checks follow.
 
 | Stage | Result | Where / when |
 |---|---|---|

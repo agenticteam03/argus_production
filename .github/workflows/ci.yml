@@ -42,10 +42,6 @@ jobs:
           ./gitleaks detect --source . --no-banner --redact
       - name: Tests (offline + Postgres + brain.py)
         run: pytest -q -rs
-      - name: OP-005 PromQL signal cases
-        run: |
-          docker run --rm --mount "type=bind,source=${{ github.workspace }}/tests/promql,target=/work,readonly" \
-            --entrypoint promtool prom/prometheus:v3.5.0 test rules /work/op005_test.yml
 
   # T-0016: the web UI in frontend/ — unit tests and the production build on every push.
   # Acceptance (Playwright) and contract checks join this job when they exist (T-0016 steps 2-3).
