@@ -6,6 +6,10 @@
   "base_commit": "a9b4df8c09123f80707f8292ed6530d631d9a851",
   "started_at": "2026-10-09T00:50:31+00:00",
   "expires_at": "2026-10-09T01:50:31+00:00",
-  "released": false,
-  "handoff": null
+  "released": true,
+  "handoff": {
+    "note": "For conantkd. vm-095 runs task/T-0021-tool-isolation 6f45218 (the fixed launcher, worker in mcp mode): TOOLS ISOLATION OK with the planted-package probe, NO INTERFERENCE. PR #36 reached main at 289bb0d before your re-review (main-guard red): main has the OLD launcher, so do NOT deploy main on vm-095 until PR #39 merges. Please review #39 (your four points, the second approval of ACR-0002, the main-exceptions line for #36). vm-166 untouched. #38 still waits for a reviewer.",
+    "branch": "main",
+    "at": "2026-10-09T01:11:00+00:00"
+  }
 }
