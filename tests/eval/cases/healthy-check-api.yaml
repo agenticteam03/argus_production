@@ -1,0 +1,8 @@
+id: healthy-check-api
+category: healthy_check
+target: vm-166/container:argus-lab-api
+request: check
+reason: is it healthy?
+metrics:
+  vm-166/container:argus-lab-api: {restarts_10m: 0, health_unhealthy: 0, dependency_probe_min: 1}
+label: {outcome: no_incident, class: null, abstain: true, model_calls: 0}

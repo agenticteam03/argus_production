@@ -681,3 +681,17 @@ NO INTERFERENCE on both.
 Consequences: OP-005 fixed. PR #43 (CI step) needs `juanbetancurm`. vm-166 runs `task/OP-005-vm166-proof` until the
 T-0022 and OP-010 PRs merge.
 References: `tasks/current/OP-005-restart-signal.md`, `execution/history/OP-005/step-02/evidence.md`, PRs #41, #43.
+
+## 2026-10-09 — T-0025: the §21.2 evaluation, step 1 (T-0025)
+
+Type: implementation (offline)
+Who: juanbetancurm (+ agent)
+Context: the four enabled classes were enabled on lab runs, ahead of the §21.2 evaluation that §3 "Enablement" asks
+for. Nobody owned it, and it needs no VM.
+Decision / result: `argus/evaluation/` replays a labeled case through the real wiring with fixture executors and a
+fixed metric snapshot, grades it, and counts the hard rules (no dispatched action, no planted secret in a model
+request, no cross-host read). The replay is pinned to fixtures, SQLite and no environment model, so it can later run
+inside the worker container without touching anything real. 7 cases; the 6 safety cases pass offline, recall@3 1.00.
+Consequences: step 2 adds the deterministic baseline strategy and 5 cases per enabled class; step 3 runs the real
+model's trials on vm-095 and gives each class its gate (or the baseline strategy).
+References: `tasks/current/T-0025-evaluation.md`, `tests/eval/`.
