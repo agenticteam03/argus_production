@@ -568,3 +568,16 @@ Consequences: PR #36 needs the re-review and the ACR's second approval; vm-095 g
 redeploy of the branch and a new isolation check (step 5e, with the lease).
 References: `architecture/changes/ACR-0002-tools-uid-sudo-launcher.md`, `tasks/current/T-0021-tool-isolation.md`,
 PR #36.
+
+## 2026-10-09 — T-0021: step 5e on vm-095, and PR #36 merged before its re-review (T-0021)
+
+Type: verification + incident (review rule)
+Who: juanbetancurm (+ agent)
+Context: the review fixes of PR #36 (`6f45218`) had to reach vm-095, and the PR needed `conantkd`'s re-review.
+Decision / result: step 5e on vm-095: the fixed launcher deployed, `isolation_check` with the planted-package probe
+TOOLS ISOLATION OK, NO INTERFERENCE. Meanwhile PR #36 was merged into `main` (`a9b4df8`) at its earlier head
+`289bb0d`, before the fixes and the re-review: `main-guard` red, and `main` has the old launcher.
+Consequences: per REVIEW_PROTOCOL, a follow-up PR (`task/T-0021-review-fixes`) brings the fixes, ACR-0002 and the
+step 5e record to `main` and gets the missing review (no force push, no fast-track: ACR, safety principle). Until it
+merges, `main` must not be deployed on vm-095.
+References: `execution/history/T-0021/step-05e/evidence.md`, `tasks/current/T-0021-tool-isolation.md`, PR #36.

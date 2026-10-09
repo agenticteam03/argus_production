@@ -157,8 +157,15 @@ stay in the worker (`InvokeCapability`). This is the main safety condition befor
     queued behind the stuck one and timed out too).
   - *Default.* `deploy/vm-095/compose.core.yml`: `ARGUS_TOOL_CATALOGUE` defaults to `mcp`, `direct` is the
     rollback. The code default (`Settings`) stays `direct`, for hosts without the token ownership change.
-  - Suite: **185 passed**, 2 skipped (Postgres tests included). vm-095 still runs the old launcher until the
-    redeploy (step 5e).
+  - Suite: **185 passed**, 2 skipped (Postgres tests included).
+- **Step 5e (2026-10-09, vm-095).** `DEPLOY OK: 6f452188813b`, the three programs rebuilt, `catalogue=mcp`; the
+  launcher in the image has `cd / || exit 1` and `python -I -u`; `isolation_check`: 7 lines `ok`, including "the
+  launcher ignores code planted in the caller's folder: the fake argus package did not run", **TOOLS ISOLATION OK**,
+  NO INTERFERENCE. Evidence: [`../../execution/history/T-0021/step-05e/evidence.md`](../../execution/history/T-0021/step-05e/evidence.md).
+- **PR #36 merged early (2026-10-09).** It was merged into `main` (`a9b4df8`) at its earlier head `289bb0d`, before
+  the review fixes (`6f45218`) and before the re-review: `main-guard` red. The fixes, ACR-0002 and step 5e go to
+  `main` in a follow-up PR (`task/T-0021-review-fixes`) that gets the missing review (REVIEW_PROTOCOL: never a
+  force push).
 
 ## Step 5 procedure (vm-095, with the lease)
 
