@@ -1,15 +1,11 @@
 {
-  "holder": "juanbetancurm",
-  "session_id": "355d37552a28",
+  "holder": "conantkd",
+  "session_id": "f94089c29baa",
   "task": "T-0025",
-  "branch": "main",
-  "base_commit": "59ffa39a6d00e8a961f09cf3a8b1a46d235bd0e0",
-  "started_at": "2026-10-09T15:29:46+00:00",
-  "expires_at": "2026-10-09T18:06:14+00:00",
-  "released": true,
-  "handoff": {
-    "note": "For conantkd. VMs unchanged: both on task/OP-011-correlation cb300df; nothing deployed or rebuilt this session. On vm-095 only the T-0025 evaluation ran, in a one-off container (model key, cases, config; no executor token, no database): image argus-v18-eval:t0025, results in /opt/argus-v18/eval-results/, NO INTERFERENCE every time. Reviews done: #46 #47 #48 #43 approved; #45 changes requested (cAdvisor docker socket text in ACR-0003, then my second approval). Waiting for you: #49 (ACR-0002 accepted), #50 (T-0025: 30 cases x 5 trials, hard 0 0 0, core 0.92, proposal dependency_unavailable to baseline), and #52, the PARALLEL_LANES proposal (lease per VM, Brain roll-up, lanes). #42 and #51 not reviewed yet.",
-    "branch": "main",
-    "at": "2026-10-09T17:59:50+00:00"
-  }
+  "branch": "task/T-0026-alert-resolution",
+  "base_commit": "ea01c68b7df57f9b53755bfbedf8f87df5eb8ad5",
+  "started_at": "2026-10-09T18:12:24+00:00",
+  "expires_at": "2026-10-09T19:12:24+00:00",
+  "released": false,
+  "handoff": null
 }
