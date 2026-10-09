@@ -60,7 +60,8 @@ def main(argv: list[str] | None = None) -> int:
                   f"{run.outcome} ({run.duration_ms} ms)" + "".join(f"\n    - {x}" for x in bad))
     s = summarize(results)
     fmt = lambda v: "-" if v is None else f"{v:.2f}"                     # noqa: E731
-    print(f"cases {s['cases']}  passed {s['passed']}  accuracy {fmt(s['diagnosis_accuracy'])}  "
+    print(f"cases {s['cases']}  passed {s['passed']}  accuracy {fmt(s['diagnosis_accuracy'])} "
+          f"(core {fmt(s['core_accuracy'])})  "
           f"abstention {fmt(s['safe_abstention'])}  recall@3 {fmt(s['recall_at_3'])}  "
           f"reads/incident {s['reads_per_incident']:.1f}  p50 {s['latency_ms_p50']} ms")
     for cls, v in s["per_class"].items():

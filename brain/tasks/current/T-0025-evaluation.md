@@ -120,3 +120,15 @@ and repeatable, and gives each class its gate.
     scenario and SC-07 on the VM name the backend); `health-api-vm166-02` concluded without a root-cause target.
   - The baseline now misses 2 of 30 (`restart-exit0-job-01`, `ambiguous-health-no-cause`): its rules are shallow by
     design; a test documents both. Baseline: 28/30, accuracy 0.95, abstention 0.86, hard 0 0 0. 59 tests pass.
+- **Step 3a, try 5 (2026-10-09, vm-095, `6c0afbc`, 1 trial, ~5 min).** Accuracy **0.81** (restart loop 0.83,
+  dependency 0.80, health 0.60, database 1.00), abstention 0.86, hard 0 0 0, NO INTERFERENCE. The 5 FAILs:
+  `ambiguous-health-no-cause` (the model concluded while saying the cause is not established: a real miss; the
+  baseline misses it too); `dep-cache-stopped` (**the harness leaked**: an unanswered read said "no fixture for
+  /dns" and the model wrote "the DNS fixture was not found"); three correct diagnoses that failed only the word check
+  ("health probe" for "health check" ×2; "OOMKilled=false ... an OOM cannot be established" for "not OOM/SIGKILL").
+  Fixes (tests red first): an unanswered read says `<path>: not found` as a target service would, never the harness's
+  word; every container case has a default network answer (a healthy network resolves and connects; a case says only
+  where it fails). **No further label tuning**: the labels already changed once after seeing answers; instead the
+  summary reports a **core accuracy** (outcome, class, root cause, abstention) next to the strict one (core + the
+  mechanism words, a crude proxy until §21.2's rubric-scored evidence support exists). Try 5 would read core 0.95 /
+  strict 0.81. 62 tests pass; baseline 28/30 (core 0.95). Next: 5 trials per case.

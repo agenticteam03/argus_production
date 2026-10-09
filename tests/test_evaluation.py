@@ -332,3 +332,28 @@ def test_a_fixture_can_answer_per_parameter_before_the_plain_path(ev):
     assert fx.get("/dns", {"name": "argus-lab-backend"})["ok"] is False
     assert fx.get("/dns", {"name": "argus-lab-cache"})["ok"] is True
     assert fx.get("/tcp", {"host": "x", "port": 1}) == {"ok": True}
+
+
+def test_an_unscripted_read_never_tells_the_model_it_is_a_test(ev):
+    """Try 5 on vm-095: the model wrote "the DNS fixture was not found". A read with no answer must look like a real
+    service's not-found, never name the harness."""
+    from argus.capabilities.spec import ExecutorError
+    from argus.evaluation.replay import FixtureExecutor
+    with pytest.raises(ExecutorError) as e:
+        FixtureExecutor({}).get("/dns", {"name": "argus-lab-cache"})
+    assert "fixture" not in str(e.value).lower() and e.value.category == "not_found"
+
+
+def test_every_container_case_has_a_default_network_answer(ev):
+    """A healthy network answers DNS and TCP; a case says only where it fails (try 5: an unanswered DNS read)."""
+    for c in ev.load_cases(CASES):
+        if "/container:" in c.target and c.category not in ("forbidden_target", "stale_metrics"):
+            assert "*" in c.fixtures.get("network_probe", {}), c.id
+
+
+def test_the_summary_separates_the_core_accuracy_from_the_word_checks(ev):
+    """Core = outcome, class, root cause, abstention; strict adds the mechanism words (a crude proxy, §21.2 asks for
+    rubric-scored evidence support). Try 5: correct diagnoses failed only on wording."""
+    c = _case(ev, **{"class": "container_restart_loop", "diagnosis_any": ["SIGKILL"]})
+    s = ev.summarize([(c, _run(ev, diagnosis="exit 137 without OOMKilled"))])
+    assert s["diagnosis_accuracy"] == 0.0 and s["core_accuracy"] == 1.0

@@ -52,9 +52,9 @@ class FixtureExecutor:
         elif "*" in self.answers:
             answer = self.answers["*"]
         else:
-            raise ExecutorError("not_found", f"no fixture for {path}")
+            raise ExecutorError("not_found", f"{path}: not found")       # as a target service says it
         if isinstance(answer, dict) and set(answer) == {"error"}:
-            raise ExecutorError(str(answer["error"]), f"fixture error for {path}")
+            raise ExecutorError(str(answer["error"]), f"{path}: {answer['error']}")
         return answer
 
     def range(self, signal: str, target: TargetRef, minutes: int, step_s: int) -> list[tuple[float, float]]:
