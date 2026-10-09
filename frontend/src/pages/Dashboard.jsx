@@ -1,17 +1,11 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import AgentChat from "../components/AgentChat.jsx";
-import { Arrow, Badge, Card, Empty, Inbox, Shield } from "../components/ui.jsx";
+import IncidentRow from "../components/IncidentRow.jsx";
+import { Arrow, Card, Empty, Inbox, Shield } from "../components/ui.jsx";
 import { useAuth } from "../context/AuthContext.jsx";
 import { useLiveOverview } from "../hooks/useLiveOverview.js";
 import { argus } from "../services/index.js";
-
-const TRIGGERS = { alert: "Alertmanager webhook", scheduled: "Scheduled check", manual: "Manual" };
-
-const timeAgo = (iso) => {
-  const m = Math.max(0, Math.round((Date.now() - new Date(iso)) / 60000));
-  return m < 1 ? "just now" : m < 60 ? `${m}m ago` : m < 1440 ? `${Math.round(m / 60)}h ago` : `${Math.round(m / 1440)}d ago`;
-};
 
 function IncidentsCard({ incidents, className }) {
   return (
@@ -20,16 +14,7 @@ function IncidentsCard({ incidents, className }) {
         <Empty icon={Inbox} title="No recent activity" text="Incidents from alerts, scheduled checks or manual runs will show up here." />
       ) : (
         <ul className="space-y-2">
-          {incidents.slice(0, 5).map((i) => (
-            <li key={i.id} className="rounded-xl bg-field p-3">
-              <div className="flex items-center justify-between gap-2">
-                <span className="truncate font-mono text-xs text-muted">{i.id}</span>
-                <Badge status={i.status} />
-              </div>
-              <p className="mt-1.5 text-sm font-medium">{i.target} <span className="font-normal text-muted">· {i.title}</span></p>
-              <p className="mt-1 text-xs text-muted">{timeAgo(i.createdAt)} · {TRIGGERS[i.trigger] ?? i.trigger} · {i.severity}</p>
-            </li>
-          ))}
+          {incidents.slice(0, 5).map((i) => <IncidentRow key={i.id} incident={i} compact />)}
         </ul>
       )}
       <Link to="/incidents" className="mt-3 inline-flex items-center gap-1.5 text-[13px] text-accent-hover hover:underline">
@@ -58,10 +43,10 @@ function HealthCard({ health }) {
         <Row label="WireGuard tunnel (A ↔ T)"><Status ok={health?.wireguard} yes="Connected" no="Down" /></Row>
         <Row label="Prometheus metrics"><Status ok={health?.prometheus} yes="Online" no="Offline" /></Row>
         <div>
-          <Row label="LLM tokens today"><span>{used ?? "—"} / {limit ?? "—"}</span></Row>
+          <Row label="LLM tokens today"><span>{used == null ? "No data" : `${used} / ${limit ?? "—"}`}</span></Row>
           <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/10"><div className="h-full rounded-full bg-accent" style={{ width: `${pct}%` }} /></div>
         </div>
-        <Row label="Resolved today"><span>{health?.resolvedToday ?? "—"}</span></Row>
+        <Row label="Resolved today"><span>{health?.resolvedToday ?? "No data"}</span></Row>
       </div>
     </Card>
   );

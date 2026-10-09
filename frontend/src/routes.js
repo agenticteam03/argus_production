@@ -21,5 +21,8 @@ export const routes = [
   },
 ];
 
+// Routes that exist but are not menu entries.
+export const subRoutes = [{ path: "/incidents/:id", label: "Incident" }];
+
 export const flat = routes.flatMap((r) => r.children ?? [r]);
 export const canSee = (item, role) => !item.roles || item.roles.includes(role);
