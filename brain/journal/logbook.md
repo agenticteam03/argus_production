@@ -715,3 +715,16 @@ root cause `argus-lab-leaker`, the database the victim). No password was needed:
 NO INTERFERENCE on both.
 Consequences: OP-010 fixed; its PR (stacked on T-0022) is ready.
 References: OPEN_PROBLEMS OP-010, `execution/history/OP-010/step-02/evidence.md`.
+
+## 2026-10-09 — SC-05 DIAGNOSED on vm-166 from the pulled alert (T-0024)
+
+Type: verification
+Who: conantkd (+ agent)
+Context: T-0024 (SC-05, `disk_pressure`, RB-005) was coded on 2026-10-08; with T-0022 on both VMs the alert path is
+complete.
+Decision / result: both VMs on `b049086`. vm-166 got the lab filesystem (`/srv/argus-lab-fill`, 224 MiB loop mount,
+testing only, not in fstab). The filler took it to 92.6 %; after 5 minutes `HostDiskPressure` fired, the scheduler
+pulled it and `inc_4d78232433a1` was DIAGNOSED (`disk_pressure`, root cause `argus-lab-filler`), with no unscoped
+deletion advised. Reset; the lab filesystem stays mounted and empty. RB-005 1.0.2. NO INTERFERENCE on both.
+Consequences: T-0024 done; phase 11 at 80 % (SC-06, SC-08 left). The time to full lags a stop by up to 15 minutes.
+References: `tasks/current/T-0024-sc05-disk.md`, `execution/history/T-0024/step-02/evidence.md`.

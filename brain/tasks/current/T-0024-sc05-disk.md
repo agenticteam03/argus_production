@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | `in progress` — 2026-10-08 (step 1: code, tests first) |
+| Status | `done` 2026-10-09 (steps 1-4: SC-05 DIAGNOSED on vm-166 from the pulled alert) |
 | Phase | 11 — synthetic incidents ([`../../IMPLEMENTATION_PLAN.md`](../../IMPLEMENTATION_PLAN.md) §7: SC-05); uses phase 7's node-exporter (T-0022) |
 | Architecture | no change (no ACR): §3 class table (`disk_pressure` · RB-005 · branch RB-019 · `model_loop`), §4.1 signal templates with a mount parameter, node-exporter (§3.5) |
 | Branch | `task/T-0024-sc05-disk`, on top of `task/OP-010-reserved-slot` (vm-166 runs it; T-0022's node-exporter is needed) |
@@ -59,3 +59,11 @@ estimate how fast it fills, and name the filling workload as the cause, without 
   - **green:** 15/15; full suite **207 passed, 7 skipped**. The scripted diagnosis first escalated: the filler was not
     in the host incident's scope; fixed with `depends_on: [vm-166/host:vm-166]` (the architecture's scope rule).
   - `promtool check rules` (5 rules) and both new PromQL expressions parse; `docker compose config` of the lab valid.
+- **Steps 2-4 (2026-10-09, both VMs, mutating):** `b049086` on both hosts (vm-095 got the class and the inventory). The
+  lab filesystem mounted (224 MiB ext4); node-exporter and the host-probe see it (not the root disk's numbers). The
+  filler reached 92.6 %; `host_disk_used_ratio_5m` 0.926 and `HostDiskPressure` firing at 11:19:39; the scheduler
+  pulled it and `inc_4d78232433a1` was **DIAGNOSED** (`disk_pressure`, root cause `argus-lab-filler`, every read on
+  vm-166, no unscoped deletion advised). Reset: the lab filesystem back to 1 %, kept mounted. RB-005 1.0.2
+  (`last_tested`). LAB BASELINE OK, NO INTERFERENCE on both
+  ([evidence](../../execution/history/T-0024/step-02/evidence.md)). Observation: `hours_to_full` lags a stop by up to
+  15 minutes (15-minute `deriv`).
