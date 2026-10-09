@@ -1,0 +1,10 @@
+#!/bin/sh
+# T-0021 (ARCHITECTURE §12.6): the ONLY program the worker (user argus) may start as argus-tools, through
+# deploy/agent/argus-tools.sudoers. Root-owned in the image; fixed environment; takes no arguments (sudo refuses any).
+# It runs the MCP tools server over stdin/stdout: the only process that can read the executor tokens.
+# sudo keeps the caller's working folder, and `python -m` would put it first on sys.path: a worker could plant its own
+# `argus` package there and have it run as argus-tools. So: leave that folder, and run Python isolated (-I: no
+# working folder or user site on sys.path, PYTHON* variables ignored; -u replaces PYTHONUNBUFFERED, which -I ignores).
+export ARGUS_CONFIG_DIR=/app/config ARGUS_SECRETS_DIR=/run/argus-secrets HOME=/nonexistent
+cd / || exit 1
+exec /usr/local/bin/python -I -u -m argus.tooling.mcp.tools_server

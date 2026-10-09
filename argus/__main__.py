@@ -38,7 +38,7 @@ def _servers(app):
 def api() -> None:
     """T-0014: the API and the webhook only; investigations run in `argus worker`."""
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
-    servers = _servers(build())
+    servers = _servers(build(require_credentials=False, load_credentials=False))   # T-0021: no executor token
 
     async def main():
         await asyncio.gather(*(s.serve() for s in servers))

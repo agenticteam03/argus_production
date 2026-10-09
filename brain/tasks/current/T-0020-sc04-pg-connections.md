@@ -83,3 +83,10 @@ worker as the root cause without proposing to restart the database.
   (176). State probe: vm-166 on `b1e7176`, vm-095 on `task/T-0021-tool-isolation` `a5f330a` (no T-0020 in its agent
   yet), LAB BASELINE OK and NO INTERFERENCE on both. After the merge: AFTER-MERGE on vm-166 (checkout only, block in
   `execution/current/code.bash`); vm-095 gets the class when it runs `main` again (after PR #36).
+- **Step 5 (2026-10-09, review of PR #38 by `juanbetancurm`):** `main` merged in (T-0021, #36; conflicts only in the
+  Brain, both sides kept). `db_metrics()` now catches any error per database, not only a failed connection: a query
+  that fails after connecting (the 3 s `statement_timeout` on a busy database, a lost link) is `argus_db_up 0`, never a
+  500 for the whole scrape (red seen: the exception escaped). The alert rule says it is meant to match the detector's
+  signal. **Note:** `compose.monitoring.yml` mounts `/opt/argus-v18/secrets/prometheus` on every host; only vm-166 has
+  it today. Create it on purpose (empty, root-owned) in the vm-095 monitoring step (T-0022 step 5), so Docker does not
+  create it implicitly. Full suite **197 passed, 2 skipped** (Postgres tests as in CI).

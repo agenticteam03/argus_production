@@ -1,0 +1,4 @@
+# T-0021 (ARCHITECTURE §12.6): the worker (argus) may start the tools server as argus-tools, and nothing else.
+# `""` = no arguments allowed. No password, no terminal; the environment is reset (the launcher sets its own).
+Defaults:argus !requiretty, !use_pty, env_reset, !lecture
+argus ALL=(argus-tools) NOPASSWD: /usr/local/bin/argus-tools-server ""
