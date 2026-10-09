@@ -852,3 +852,20 @@ Consequences: proposal for the team: `dependency_unavailable` → `baseline` (th
 `model_loop`, with the bias caveat (the baseline's rules and the cases were written together). Open: the abstention
 gap and a rubric for evidence support.
 References: `tasks/current/T-0025-evaluation.md`, `tests/eval/`.
+
+## 2026-10-09 — T-0027: the monitoring blind spot class; phase 7 complete (T-0027)
+
+Type: implementation + verification
+Who: conantkd (+ agent)
+Context: phase 7 lists four detectors; the blind spot (RB-014) was missing, and the freshness gate only watched
+`argus-v18-exporter`: with node-exporter down, a host check ended `no_incident`, unknown read as healthy (G-007).
+Decision / result: `monitoring_blind_spot` for host targets (before `disk_pressure`, `evidence_pack`, no model) on
+`scrape_targets_down = count(up{argus_host} == 0)`, and the alert `ArgusScrapeTargetDown` (2 minutes). 5 evaluation
+cases; the enabled-classes test now reads the registry, `disk_pressure` listed as awaiting its cases. To get there the
+stack (#46-#48, T-0026) was brought up to `main` (#49, #50, #53): Brain conflicts, RB-005 bumped to 1.0.3 (both sides
+had bumped it), `wiring.py` and `test_postgres.py` kept both sides. On the VMs (`c27546f`): node-exporter stopped on
+vm-166 → `inc_263f471e33e3` escalated as `monitoring_blind_spot`, evidence pack, 0 model calls; resolved after restart.
+NO INTERFERENCE.
+Consequences: phase 7 complete. Open: absent scrape targets need a pinned expected-jobs list; `disk_pressure` needs
+its 5 cases (quality lane). PR stacked on T-0026.
+References: `tasks/current/T-0027-blind-spot.md`, `execution/history/T-0027/step-02/evidence.md`.

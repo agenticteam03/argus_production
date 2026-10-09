@@ -1,18 +1,18 @@
 # Next step
 
-**Now (2026-10-09, evening, `conantkd`).** Five branches stacked on `main`, each with the previous one merged in:
-`task/T-0022-alerting` (phase 7, ACR-0003) → `task/OP-010-reserved-slot` → `task/T-0024-sc05-disk` (SC-05) →
-`task/OP-011-correlation` (§6.4 correlation, ACR-0004, migration 004) → `task/T-0026-alert-resolution` (§6.4
-resolution, **ACR-0005**, migration 005; **done**: SC-03's occurrences resolve when the cache is back). **Both VMs run
-`task/T-0026-alert-resolution` `ea01c68`**; vm-095's database has migrations 004 and 005 (backups
+**Now (2026-10-09, night, `conantkd`). Phase 7 is complete.** Six branches stacked on `main`, each with the previous
+one merged in and `main` up to #53: `task/T-0022-alerting` (#45, ACR-0003) → `task/OP-010-reserved-slot` (#46) →
+`task/T-0024-sc05-disk` (#47) → `task/OP-011-correlation` (#48, ACR-0004) → `task/T-0026-alert-resolution` (ACR-0005,
+migration 005) → `task/T-0027-blind-spot` (the monitoring blind spot class, RB-014). **Both VMs run
+`task/T-0027-blind-spot` `c27546f`**; vm-095's database has migrations 004 and 005 (backups
 `argus-20261009T131715Z.dump`, `argus-20261009T183857Z.dump`). LAB BASELINE OK, NO INTERFERENCE. Merged today: #49
-(ACR-0002 accepted), #50 (T-0025 evaluation). #45: the cAdvisor text fixed (`1809eef`), waits for `juanbetancurm`'s
-second approval. #52 (parallel lanes): changes requested (two text suggestions). OP-009 is ready on
-`task/OP-009-lease-loss` (`main` merged in), PR not opened. **Warning for the team:** `brain.py start` reports
-`59ffa39` (PR #44, OP-001) merged into `main` without a non-author approval of its last push.
+(ACR-0002 accepted), #50 (T-0025 evaluation), #53 (OP-009, fast-track). #45 waits for `juanbetancurm`'s second
+approval (cAdvisor text fixed). #52 (parallel lanes): changes requested (two text suggestions). **Warning for the
+team:** `brain.py start` reports `59ffa39` (PR #44, OP-001) merged into `main` without a non-author approval.
 
 1. **PRs, in order:** T-0022 (needs `juanbetancurm`'s second approval: ACR-0003 touches host isolation), OP-010,
-   T-0024, OP-011 #48 (ACR-0004 needs no second approval), then T-0026. After they merge, both VMs go to `main` (checkout + rebuild of
+   T-0024, OP-011 #48 (ACR-0004), then T-0026 (ACR-0005) and T-0027. After #45 merges, #46 and #47 (no ACR) can
+   be retargeted to `main`, updated and merged by fast-track; #48, T-0026 need a re-approval (ACRs). After they merge, both VMs go to `main` (checkout + rebuild of
    the agent image; migrations 004 and 005 are already applied). Do not deploy `main` before: it would drop the monitoring, the
    reserved slot and the correlation (the table can stay; older code ignores it).
 2. **Done 2026-10-09:** OP-011 (step 02 showed the second SC-03 alert pulled after the first incident closed →

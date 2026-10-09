@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | `in progress` — step 1 (code, tests, evaluation cases) done; step 2 (VMs) next |
+| Status | `done` 2026-10-09 (step 2: node-exporter stopped on vm-166 → `monitoring_blind_spot` escalated, no model call) |
 | Phase | 7 — monitoring and detection ([`../../IMPLEMENTATION_PLAN.md`](../../IMPLEMENTATION_PLAN.md): detectors restart loop, health, dependency, **blind spot**) |
 | Architecture | no change (no ACR): §3 class table (`monitoring_blind_spot` · RB-014 · `evidence_pack`), §9 (unknown is never healthy, G-007) |
 | Branch | `task/T-0027-blind-spot`, on top of `task/T-0026-alert-resolution` (the VMs run it) |
@@ -37,7 +37,8 @@ fixed evidence pack and no model call, and the alert `ArgusScrapeTargetDown` bri
 2. **VMs:** agent image on vm-095; both hosts' Prometheus reloaded with the new rule; on vm-166 stop
    `argus-v18-node-exporter`: `ArgusScrapeTargetDown` fires, the pulled alert opens a `monitoring_blind_spot`
    incident on `vm-166/host:vm-166`, escalated with the evidence pack, no model call; start it again: the alert
-   resolves (T-0026); NO INTERFERENCE.
+   resolves (T-0026); NO INTERFERENCE. **Done 2026-10-09** ([evidence](../../execution/history/T-0027/step-02/evidence.md)):
+   `inc_263f471e33e3` escalated as `monitoring_blind_spot`, evidence pack, 0 model calls; resolved at 20:09:52.
 
 ## Done when
 
