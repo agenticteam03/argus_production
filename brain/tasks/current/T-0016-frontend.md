@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | `in progress` — steps 1–2 started 2026-10-06, **before T-0015 merged** (deviation: the UI is mock-only and needs nothing from `contracts/` yet; the HTTP/contract work still waits for T-0015) |
+| Status | `in progress` — steps 1–2 merged (PR #24); **step 3 started 2026-10-09** (read-only API wiring, `task/T-0016-step3-screens`) |
 | Phase | 10 — output modes |
 | Architecture | ACR-0001 (from T-0015) |
 | Branch | `task/T-0016-frontend` (one PR per step is fine) |
@@ -93,3 +93,17 @@ a screen or a button in `frontend/`.
     (313 modules) after the hero image became a 136 KB JPEG (was 3.8 MB PNG);
   - the CI job `frontend` (unit tests + production build) is added in this pull request; it changes
     `.github/workflows/`, so a teammate must approve it (the fast-track excludes it).
+
+- **2026-10-09 — step 3 begins: read-only API wiring (branch `task/T-0016-step3-screens`), from the PR #24 review
+  (`juanbetancurm`) and ACR-0001 constraints (`conantkd`):**
+  - **red:** `npm test` → 7 failed: the new `session`/`httpAuthAdapter`/`httpArgusAdapter` tests could not load
+    their modules (they did not exist), `routes` still returned `admin` instead of `approver` and listed
+    `/approvals`, and `mockAuthAdapter` failed on the username / `/me` shape;
+  - **green:** 39/39 Vitest (`session` 3, `httpAuthAdapter` 4, `httpArgusAdapter` 6, `fileRunbooksAdapter` 1,
+    `index` 2, `parseRunbook` 11, `routes` 6, `mockAuthAdapter` 6) and `vite build` (348 modules);
+  - review items done: username login; form-encoded `scope=read` login then `GET /api/v1/me`; memory-only token,
+    401 → logout; roles `viewer`/`operator`/`approver` with Approvals/Simulator/Scheduler removed from the menu;
+    header shows the name; overview from `GET /incidents`; dev proxy + `fs.allow`; mocks behind `VITE_ARGUS_MOCK`;
+    runbooks read from `argus/runbooks/` (`demoRunbooks/` deleted).
+  - **still open (not this step):** Playwright acceptance tests, the read-only network guard and the
+    `contracts/ui-api.json` contract check; the write features stay mock-only until the new ACR.

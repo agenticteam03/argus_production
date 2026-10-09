@@ -71,7 +71,7 @@ function ApprovalItem({ approval, canDecide, onDecide }) {
           <button disabled={expired} onClick={() => onDecide(approval.id, "deny")} className="h-9 flex-1 cursor-pointer rounded-lg border border-line text-sm transition enabled:hover:bg-white/5 disabled:cursor-not-allowed disabled:text-[#4b5363]">Reject</button>
         </div>
       ) : (
-        <p className="mt-2 text-xs text-muted">Only operators and admins can decide.</p>
+        <p className="mt-2 text-xs text-muted">Only a token with the approve action can decide.</p>
       )}
     </li>
   );
@@ -80,6 +80,8 @@ function ApprovalItem({ approval, canDecide, onDecide }) {
 export default function Dashboard() {
   const { user } = useAuth();
   const { incidents, approvals, health, live, refresh } = useLiveOverview();
+  // A read token never lists `approve`, so the buttons stay hidden (ACR-0001); the UI never decides who may act.
+  const canDecide = user.actions?.includes("approve") ?? false;
   // The server derives the actor from the token; an expired/conflicting decision just triggers a refresh.
   const decide = (id, decision) => argus.decideApproval(id, decision).catch(() => {}).finally(refresh);
 
@@ -107,7 +109,7 @@ export default function Dashboard() {
               <Empty icon={Shield} title="No pending approvals" text="Remediations that need a human decision will appear here." />
             ) : (
               <ul className="space-y-2">
-                {approvals.map((a) => <ApprovalItem key={a.id} approval={a} canDecide={user.role !== "viewer"} onDecide={decide} />)}
+                {approvals.map((a) => <ApprovalItem key={a.id} approval={a} canDecide={canDecide} onDecide={decide} />)}
               </ul>
             )}
           </Card>

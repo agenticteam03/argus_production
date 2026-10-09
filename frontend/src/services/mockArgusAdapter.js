@@ -23,7 +23,7 @@ export const mockArgusAdapter = {
     const incident = demoIncident(id);
     if (!incident) throw httpError(404, "Incident not found");
     // Like the server: a viewer gets no evidence/audit keys at all (not empty lists).
-    if (demoSession.role === "operator" || demoSession.role === "admin") return incident;
+    if (demoSession.role === "operator" || demoSession.role === "approver") return incident;
     const { evidence, audit, ...visible } = incident;
     return visible;
   },
