@@ -19,7 +19,7 @@ two reviewer fixes) is merged too. Owed by `juanbetancurm`: ACR-0002's status se
 1. **AFTER-MERGE T-0020 on vm-166** (checkout only, block in `execution/current/code.bash`). vm-095 may now get
    `main` (it has the fixed launcher and defaults to `mcp`); its agent then gets `postgresql_connection_exhaustion`.
 2. Next work: alerting (phase 7, T-0022) and OP-010 (the db-probe's reserved slot) are ready on `conantkd`'s
-   branches; OP-009 before any second worker; OP-004 checkpoint cleanup; SC-05 (T-0024); phase 12 with the runner:
+   branches; OP-009 (before any second worker) is fixed on `task/OP-009-lease-loss`, `main` merged in, its PR next; OP-004 checkpoint cleanup; SC-05 (T-0024); phase 12 with the runner:
    SC-02 and SC-07 × 5, then an SC-04 catalogue entry.
 3. **Evaluation (§21.2, `tests/eval/`) and phase 12 (≥ 5 runs per scenario):** §3 "Enablement" enables a class only
    when its evaluation passes. The 4 classes enabled so far (including `postgresql_connection_exhaustion`) are

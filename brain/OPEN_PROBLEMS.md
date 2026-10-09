@@ -15,7 +15,7 @@ When a problem is fixed, set its status to `fixed` with the date, and add a jour
 | OP-006 | LangGraph `recursion_limit` is fixed at 100 and can be too small for larger step budgets | fixed 2026-10-05 | 2026-10-05 |
 | **OP-007** | A dependency probe disappears while its owner is restarting, hiding the cause of a crash loop | fixed 2026-10-07 (`owner_active`: running or restarting; deployed on vm-166) | 2026-10-07 |
 | **OP-008** | Postgres backups are never rotated, and the backup's consistency check will stop once the scheduler writes often | accepted 2026-10-07 (PR #31, approved by `juanbetancurm`) — to implement; independent of T-0014 | 2026-10-07 |
-| OP-009 | A worker that loses its lease keeps running the incident; with two workers the same run could execute twice | open (fix before a second worker) | 2026-10-08 |
+| OP-009 | A worker that loses its lease keeps running the incident; with two workers the same run could execute twice | fixed 2026-10-08 (`task/OP-009-lease-loss`: the renewer retries, a lost claim cancels the run) | 2026-10-08 |
 | OP-010 | The db-probe cannot connect when every usable slot is taken, so `postgresql_connection_exhaustion` cannot fire at 100 % | open | 2026-10-08 |
 | OP-011 | Two alerts on one target open two incidents: §6.4 correlation is not implemented | open | 2026-10-09 |
 
@@ -349,7 +349,8 @@ above, runs `prune` as a dry-run on vm-095 first, and sets this item to `fixed`.
 
 ## OP-009 — A worker that loses its lease keeps running the incident
 
-**Status:** open · **Opened:** 2026-10-08 · **Found by:** `conantkd` (+ agent), after-merge review of PR #33 (T-0014) ·
+**Status:** fixed 2026-10-08 on `task/OP-009-lease-loss` (tests `tests/test_op009_lease_loss.py`, red seen; see
+**Fix** below) · **Opened:** 2026-10-08 · **Found by:** `conantkd` (+ agent), after-merge review of PR #33 (T-0014) ·
 **Fix with:** its own small task, **before a second worker is ever started** (today vm-095 runs one)
 
 **Problem.** In `argus/infrastructure/worker.py`, `_renew` extends the claim every `lease_s / 3`. Two cases leave a live
@@ -375,6 +376,20 @@ flag that the graph runner checks between nodes (cooperative cancel: stop at the
 `renew_claim` returns False: the run stops at the next node and writes no final status.
 
 **Done when.** Both tests pass, and this item is set to `fixed`.
+
+**Fix (2026-10-08, `conantkd` + agent).**
+- `argus/infrastructure/worker.py`: `_renew` retries a failed renewal while the lease lasts; a lost claim
+  (`renew_claim` False, or the lease expired while retrying) sets a `lost` event that the worker passes to the runner
+  (`runner.run(id, cancel=lost)`).
+- `argus/orchestration/runner.py`: `ClaimLost`; the cancel signal is a context variable per run. `_guard` runs before
+  every investigation step, before every read and before `_record`. A lost claim audits `incident.claim_lost` and
+  writes no final status; a crash while the claim is lost records nothing either.
+- `argus/orchestration/graph_runner.py`: every graph node starts with the guard, so the checkpoint stays at the last
+  completed node and the new owner resumes from it (`incident.resumed`).
+- Postgres: `renew_claim` and `requeue_expired` use the database clock (`now()`) unless a test passes `now`.
+- Tests: 7 in `tests/test_op009_lease_loss.py` (red: `run()` had no `cancel`; the renewer died at the first error;
+  a lost claim did not cancel), and `test_worker_lease_uses_the_database_clock` (Postgres, a refactor: green from the
+  start). The runner test doubles in `test_worker_loop.py` and `test_scheduler.py` take `cancel`.
 
 ---
 
