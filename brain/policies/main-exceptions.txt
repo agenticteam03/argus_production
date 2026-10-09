@@ -20,3 +20,4 @@ pr 28  2026-10-07  juanbetancurm  fast-track: OP-007 recorded (documentation onl
 pr 33  2026-10-08  juanbetancurm  fast-track: T-0014 api / worker / scheduler split (lease, resume, scheduler; verified on vm-095)
 pr 37  2026-10-08  juanbetancurm  fast-track: record the PR #33 fast-track line (lost in a failed commit) + vm-095 on main (documentation only)
 pr 36  2026-10-09  juanbetancurm  retroactive: merged at 289bb0d before its re-review; review fixes, ACR-0002 and step 5e reviewed in PR #39
+pr 36  2026-10-09  juanbetancurm  retroactive: merged at 289bb0d before its re-review; review fixes, ACR-0002 and step 5e reviewed in PR #39
