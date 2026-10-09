@@ -5,7 +5,7 @@ When a problem is fixed, set its status to `fixed` with the date, and add a jour
 
 | ID | Item | Status | Opened |
 |---|---|---|---|
-| **D-001** | Cross-host path and alert direction: architecture text vs the running system | **decided** 2026-10-08 (`conantkd`): option B as transport profiles, [ACR-0002](architecture/changes/ACR-0002-transport-profiles.md); second approval in the T-0022 PR | 2026-10-02 |
+| **D-001** | Cross-host path and alert direction: architecture text vs the running system | **decided** 2026-10-08 (`conantkd`): option B as transport profiles, [ACR-0003](architecture/changes/ACR-0003-transport-profiles.md); second approval in the T-0022 PR | 2026-10-02 |
 | **D-002** | Move the runbook library into this repository (the architecture expects it there) | **decided and done** 2026-10-02 | 2026-10-02 |
 | OP-001 | Runbook `detector` metadata uses old or empty class names | open | 2026-09-30 |
 | OP-002 | P0 safety gaps of the runbook library not yet reconciled with architecture v1.8 | open | 2026-09-30 |
@@ -20,10 +20,10 @@ When a problem is fixed, set its status to `fixed` with the date, and add a jour
 
 ---
 
-## D-001 — Cross-host path and alert direction (decided by ACR-0002)
+## D-001 — Cross-host path and alert direction (decided by ACR-0003)
 
 **Status:** decided 2026-10-08 by `conantkd` — option B, generalized as **transport profiles**
-([ACR-0002](architecture/changes/ACR-0002-transport-profiles.md)): this deployment is `restricted-ssh` and pulls alerts
+([ACR-0003](architecture/changes/ACR-0003-transport-profiles.md)): this deployment is `restricted-ssh` and pulls alerts
 from an Argus-owned Alertmanager; the second team approval (`juanbetancurm`) is given in the T-0022 PR ·
 **Opened:** 2026-10-02 · **Decided by:** the whole team (including `conantkd`)
 

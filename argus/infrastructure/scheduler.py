@@ -6,7 +6,7 @@ twice. A target that already has a queued or running incident gets a `schedule.c
 incident instead of a second run (§6.5 skip-if-active). It never calls a detector, the model or the graph: the worker
 runs what it submits. Missed slots (scheduler down) are not replayed; only the latest due slot is submitted.
 
-T-0022 (ACR-0002): in a pull transport profile it also runs `ReconcileFiringAlerts` every `every_s` seconds
+T-0022 (ACR-0003): in a pull transport profile it also runs `ReconcileFiringAlerts` every `every_s` seconds
 (`reconcile_firing_alerts` in the same file): the firing alerts of each host's Alertmanager become incidents.
 """
 from __future__ import annotations

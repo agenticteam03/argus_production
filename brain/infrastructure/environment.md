@@ -46,7 +46,7 @@ vm-095                                               vm-166
 
 - The agent reaches vm-095's executors by container name on `argus-v18-core`, and vm-166's through the tunnel
   sidecar (`http://argus-v18-tunnel:18701` …). See `config/inventory.yaml`.
-- **Transport profile `restricted-ssh`** (ACR-0002): alerts are **pulled**. The scheduler on vm-095 reads each
+- **Transport profile `restricted-ssh`** (ACR-0003): alerts are **pulled**. The scheduler on vm-095 reads each
   host's Argus-owned Alertmanager (`/api/v2/alerts`; vm-166's through the tunnel on 18091) every 60 s
   (`reconcile_firing_alerts` in `deploy/scheduler/schedules.yaml`). There is no push webhook from vm-166.
 - **Argus-owned exporters (T-0022):** `argus-v18-node-exporter` (host view `/:/host:ro`, `pid: host` for the

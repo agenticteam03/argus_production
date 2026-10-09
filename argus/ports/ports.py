@@ -19,7 +19,7 @@ class MetricsUnavailable(Exception):
 
 
 class AlertsUnavailable(Exception):
-    """A host's Alertmanager could not be read (ACR-0002)."""
+    """A host's Alertmanager could not be read (ACR-0003)."""
 
 
 class AlertSourcePort(Protocol):

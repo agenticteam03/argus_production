@@ -75,7 +75,7 @@ def scheduler() -> None:
              sum(x.enabled for x in schedules), f"every {cfg.every_s} s" if cfg.enabled else "off")
     store = make_store(s)
     reconcile = None
-    if cfg.enabled:                     # ACR-0002: the pull transport profile
+    if cfg.enabled:                     # ACR-0003: the pull transport profile
         hosts = {h.name: h.alertmanager for h in inventory.hosts() if h.alertmanager}
         reconcile = ReconcileFiringAlerts(AlertmanagerSource(hosts), HandleAlertNotification(store, inventory),
                                           sorted(hosts))

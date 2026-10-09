@@ -1,4 +1,4 @@
-# T-0022 (ACR-0002): the Argus-owned Alertmanager of one host. Transport profile restricted-ssh: it is PULLED by
+# T-0022 (ACR-0003): the Argus-owned Alertmanager of one host. Transport profile restricted-ssh: it is PULLED by
 # the Argus scheduler (/api/v2/alerts) and sends nothing anywhere; the only receiver is empty. In a push profile a
 # webhook receiver to Argus would be added here (bearer token file, §4.2).
 route:
