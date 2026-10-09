@@ -592,6 +592,18 @@ order; vm-095 work waits for #36. Session closed, lease released.
 References: `tasks/current/T-0022-alerting.md`, `tasks/current/T-0024-sc05-disk.md`, OPEN_PROBLEMS OP-010,
 `execution/history/T-0022/step-04/`, `execution/history/OP-010/step-01/`.
 
+## 2026-10-08 — OP-009: a worker that loses its lease stops its run (OP-009)
+
+Type: fix
+Who: conantkd (+ agent)
+Context: the after-merge review of PR #33 found that the renewer only logged a lost claim, and died silently on a
+database error, while the run went on; with two workers the same incident could run twice.
+Decision: cooperative cancel instead of fencing every write: the worker owns the decision (retry while the lease
+lasts, then cancel), the runner checks one signal at its node boundaries, before reads and before the final record.
+The LangGraph checkpoint stays at the last completed node, so the new owner resumes. One clock per lease in Postgres.
+Consequences: a second worker is safe from double runs. Code only, no VM change; reaches vm-095 with the next agent
+rebuild. Branch on top of T-0020 (PR #38), because OP-009 is written there.
+References: OPEN_PROBLEMS OP-009, `tests/test_op009_lease_loss.py`.
 ## 2026-10-09 — T-0021: review fixes of PR #36, and ACR-0002 (T-0021)
 
 Type: implementation + architecture change (proposed)
@@ -658,6 +670,20 @@ never a PASS; before, the model and host checks passed on nothing. (2) The reset
 SC-07's reset succeeds when its network is already gone. 6 new tests, red seen; `test_e2e_runner.py` 33 passed.
 Consequences: run the batches as an operator user. Every catalogued reset must be idempotent.
 References: `tasks/current/T-0023-e2e-runner.md`, PR #40.
+
+## 2026-10-09 — OP-001 runbook detector metadata alignment
+
+Type: implementation
+Who: conantkd (+ agent)
+Context: the authored runbooks retained an old detector name or null metadata despite architecture §1.3 assigning
+every runbook to an incident class.
+Decision / result: 18 changed runbooks now name their architecture class, with patch versions and `last_reviewed`
+updated; RB-002, RB-003, and RB-004 already matched and stayed unchanged. The index names all 21 mappings, and a
+test compares both surfaces with the architecture table (red before, green after). No detector was enabled or runbook
+promoted.
+Consequences: review the corpus-only PR. Library metadata revision is v1.1.1; the §1.3 v1.1.0 citation remains its
+original design baseline.
+References: `tasks/current/OP-001-runbook-detectors.md`, OPEN_PROBLEMS OP-001, `argus/runbooks/RUNBOOK-INDEX.md`.
 
 ## 2026-10-09 — OP-005 offline implementation: young restart counts
 
@@ -783,3 +809,46 @@ active); the cache started at 18:46:13, the alerts cleared at 18:46:54, and the 
 occurrences (`absent_from_pull`), audited, the concluded incident unchanged. LAB BASELINE OK, NO INTERFERENCE.
 Consequences: T-0026 done; its PR is stacked on #48. Both VMs run `task/T-0026-alert-resolution`.
 References: `tasks/current/T-0026-alert-resolution.md`, `execution/history/T-0026/step-02/evidence.md`.
+
+## 2026-10-09 — T-0025: the §21.2 evaluation, step 1 (T-0025)
+
+Type: implementation (offline)
+Who: juanbetancurm (+ agent)
+Context: the four enabled classes were enabled on lab runs, ahead of the §21.2 evaluation that §3 "Enablement" asks
+for. Nobody owned it, and it needs no VM.
+Decision / result: `argus/evaluation/` replays a labeled case through the real wiring with fixture executors and a
+fixed metric snapshot, grades it, and counts the hard rules (no dispatched action, no planted secret in a model
+request, no cross-host read). The replay is pinned to fixtures, SQLite and no environment model, so it can later run
+inside the worker container without touching anything real. 7 cases; the 6 safety cases pass offline, recall@3 1.00.
+Consequences: step 2 adds the deterministic baseline strategy and 5 cases per enabled class; step 3 runs the real
+model's trials on vm-095 and gives each class its gate (or the baseline strategy).
+References: `tasks/current/T-0025-evaluation.md`, `tests/eval/`.
+
+## 2026-10-09 — T-0025: the deterministic baseline and 29 evaluation cases (T-0025)
+
+Type: implementation (offline)
+Who: juanbetancurm (+ agent)
+Context: §21.2 measures every model strategy against a deterministic baseline on the same labeled cases.
+Decision / result: `baseline` is a registered strategy (fixed reads per class, a rule per class, escalation when no
+rule decides). 29 cases: 5+ per enabled class, 2 ambiguous, 1 tool failure, 6 safety. Baseline: 29/29 PASS,
+accuracy 1.00, safe abstention 1.00, hard 0 0 0. The cases and rules were written together, so this proves
+consistency, not generality; the class registry is unchanged (all four classes still `model_loop`).
+Consequences: step 3 runs the configured model on the same cases on vm-095 (lease), ≥ 5 trials each; a class whose
+model results do not match the baseline switches to `baseline` in the registry (a data change).
+References: `tasks/current/T-0025-evaluation.md`, `tests/eval/`.
+
+## 2026-10-09 — T-0025: the configured model measured on the §21.2 cases (T-0025)
+
+Type: verification
+Who: juanbetancurm (+ agent)
+Context: the four enabled classes had lab runs only; §3 "Enablement" asks for the §21.2 evaluation.
+Decision / result: 30 cases × 5 trials on vm-095, in a one-off container with only the model key, the cases and the
+config (no executor token, no database; the VM checkout and running containers untouched). Hard 0 0 0; core accuracy
+0.92 (strict 0.86); abstention 0.86 (threshold 0.9 not met). Per class (core, model vs baseline): database 1.00/1.00,
+health 1.00/1.00, restart loop 0.87/0.83, dependency 0.84/1.00. Five earlier tries found and fixed harness and dataset
+problems (missing config, missing metric history, incomplete fixtures, a harness word reaching the model, over-strict
+and one wrong label); every fix is recorded in the task file.
+Consequences: proposal for the team: `dependency_unavailable` → `baseline` (the rule of §21.2), the others stay
+`model_loop`, with the bias caveat (the baseline's rules and the cases were written together). Open: the abstention
+gap and a rubric for evidence support.
+References: `tasks/current/T-0025-evaluation.md`, `tests/eval/`.
