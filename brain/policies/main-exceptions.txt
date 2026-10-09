@@ -23,3 +23,4 @@ pr 36  2026-10-09  juanbetancurm  retroactive: merged at 289bb0d before its re-r
 pr 38  2026-10-09  conantkd  fast-track: T-0020 SC-04 PostgreSQL connection exhaustion (reviewed by juanbetancurm, requested fixes made in f1d1f3e; verified on vm-166)
 pr 41  2026-10-09  conantkd  fast-track: OP-005 young restarts counted (exporter creation time, restarts_10m and its alert; verified on both VMs; the CI step is PR #43)
 pr 44  2026-10-09  conantkd  fast-track: OP-001 runbook detector metadata alignment (21 runbooks; no runtime enablement)
+pr 53  2026-10-09  conantkd  fast-track: OP-009 a worker that loses its lease stops its run (code only; no VM change)
