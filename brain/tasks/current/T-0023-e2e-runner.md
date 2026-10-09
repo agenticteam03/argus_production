@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | `in progress` — step 1 (runner + catalogue, offline tests) started 2026-10-09 |
+| Status | `in progress` — steps 1-2 `verified` 2026-10-09 (SC-01 and SC-03 5/5 each on the VMs); step 3 `planned` |
 | Phase | 12 — end-to-end tests ([`../../IMPLEMENTATION_PLAN.md`](../../IMPLEMENTATION_PLAN.md): "scripted e2e suite; ≥ 5 runs per scenario") |
 | Architecture | no change (no ACR): a client of the HTTP API (§7.1) and of the lab; feeds the §21.2 evaluation later |
 | Branch | `task/T-0023-e2e-runner` (from `main`) |
@@ -74,3 +74,6 @@ way every time, grades each result against the expected one and writes one line 
   vm-095 (local port 18001, keepalives, `ExitOnForwardFailure`) and reopens it when the API cannot be reached; an API
   call retries for about 2 minutes; ssh gets `ConnectTimeout`/`ServerAliveInterval` and retries a connection failure
   (rc 255) or a timeout, never a command that failed on the VM. 27 tests in `test_e2e_runner.py`.
+- **Step 2, second part (2026-10-09).** With `4f8ae43`: SC-01 three more runs, 3/3 PASS. **Step 2 done: SC-01 5/5,
+  SC-03 5/5**, H-1, H-2, SC-09, SC-11 1/1 each, NO INTERFERENCE after every run. Evidence:
+  [`../../execution/history/T-0023/step-02/evidence.md`](../../execution/history/T-0023/step-02/evidence.md).

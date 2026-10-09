@@ -565,3 +565,16 @@ runbook, model use and the host of every read, and writes one JSON line per run 
 H-1, H-2, SC-01, SC-02, SC-03, SC-07, SC-09, SC-11. 22 new tests; 206 passed, 2 skipped.
 Consequences: step 2 is the first real batch with the lease (H-1, H-2, SC-09, SC-11 once; SC-01 and SC-03 × 5).
 References: `tasks/current/T-0023-e2e-runner.md`, `ops/e2e/scenarios.yaml`.
+
+## 2026-10-09 — T-0023: the first real batch of the scenario runner (T-0023)
+
+Type: verification
+Who: juanbetancurm (+ agent)
+Context: step 2 of T-0023, the runner's first batch on vm-095 and vm-166.
+Decision / result: H-1, H-2, SC-09, SC-11 1/1; **SC-03 5/5** and **SC-01 5/5 PASS** (class, root cause, first runbook
+and the host of every read graded), NO INTERFERENCE after every run. One SC-01 run lost the laptop's API tunnel: it
+was reset and checked clean, the batch stopped as designed, and the runner now keeps its own tunnel and retries a
+dropped connection (`4f8ae43`).
+Consequences: phase 12 has its first repeated runs. Next: SC-02 and SC-07 × 5; each new scenario (SC-04 after #38)
+gets a catalogue entry and 5 runs.
+References: `tasks/current/T-0023-e2e-runner.md`, `execution/history/T-0023/step-02/evidence.md`.
