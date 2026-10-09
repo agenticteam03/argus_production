@@ -12,7 +12,7 @@ from both Alertmanagers. Both LAB BASELINE OK, NO INTERFERENCE. Open: #42 (OP-00
    `/srv/argus-lab-fill`; then the deploy and the SC-05 run). Needs `conantkd`'s go. Its deploy ref must include
    OP-005 now (merge `main` first).
 3. **Done 2026-10-09:** T-0022 steps 5-6 (alerts pulled from both hosts; SC-03 and SC-02 DIAGNOSED from their alerts).
-   Next on the VMs: the OP-010 DIAGNOSED run at 100 % (`argus diagnose`, `conantkd`'s password) and T-0024 step 4.
+   OP-010 DIAGNOSED at 100 % from the pulled alert (fixed). Next on the VMs: T-0024 steps 2-4 (SC-05).
    **OP-011:** two alerts on one target open two incidents (§6.4 correlation) — the next code task.
 4. **Open question (`conantkd`):** a host incident's scope holds only the host's declared dependents (T-0024 declares
    the filler `depends_on` the host). Opening it to every container of the host (useful for SC-06 CPU) would be an
