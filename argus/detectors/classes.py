@@ -85,6 +85,21 @@ def disk_pressure(snap: MetricSnapshot) -> DetectorResult:
     return DetectorResult(matched=True, findings=f)
 
 
+def monitoring_blind_spot(snap: MetricSnapshot) -> DetectorResult:
+    """RB-014 (T-0027): a scrape target of the host's Prometheus is down, so the signals it feeds are empty. That is
+    a loss of visibility, never a healthy host (G-007). The gate exporter's own outage ends earlier, as
+    `undiagnosable`."""
+    down = snap.values.get("scrape_targets_down")
+    if down is None:
+        return DetectorResult(matched=False, findings=["signal missing (unknown, not healthy): scrape_targets_down"])
+    if down < 1:
+        return DetectorResult(matched=False)
+    n = int(down)
+    return DetectorResult(matched=True, findings=[
+        f"{n} scrape target{'s' if n != 1 else ''} down on the host's Prometheus: the signals they feed are unknown",
+        "monitoring blind spot (RB-014): no diagnosis of the host's state is claimed from missing telemetry"])
+
+
 # Priority order: the first matching class becomes the incident class; others become findings.
 CLASSES: list[IncidentClassSpec] = [
     IncidentClassSpec(name="container_restart_loop", family="stability", target_kinds={"container"},
@@ -106,6 +121,10 @@ CLASSES: list[IncidentClassSpec] = [
                       branch_runbook_ids=["RB-013"], strategy="model_loop",
                       tool_tags={"database", "logs", "container", "dependency", "knowledge"},
                       detector=postgresql_connection_exhaustion),
+    # T-0027: a host that lost part of its telemetry is a blind spot before it is anything else (unknown first).
+    IncidentClassSpec(name="monitoring_blind_spot", family="platform", target_kinds={"host"},
+                      required_signals={"scrape_targets_down"}, runbook_ids=["RB-014"], strategy="evidence_pack",
+                      tool_tags={"host", "container", "logs"}, detector=monitoring_blind_spot),
     IncidentClassSpec(name="disk_pressure", family="saturation", target_kinds={"host"},
                       required_signals={"host_disk_used_ratio_5m", "host_disk_hours_to_full"}, runbook_ids=["RB-005"],
                       branch_runbook_ids=["RB-019"], strategy="model_loop",
