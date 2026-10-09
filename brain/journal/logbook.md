@@ -553,6 +553,24 @@ Consequences: PR #36 needs a teammate's review (safety model). Until it merges, 
 the rollback (its api and worker would not start). The code default stays `direct`; flipping it is for the review.
 References: `tasks/current/T-0021-tool-isolation.md`, `execution/history/T-0021/step-05/evidence.md`, PR #36.
 
+## 2026-10-08 — SC-04 verified, reviews, T-0020 ready for review (T-0020)
+
+Type: verification
+Who: conantkd (+ agent)
+Context: T-0020 enables `postgresql_connection_exhaustion` (RB-004): the db-probe publishes `/metrics`, vm-166's
+Prometheus scrapes it, the signal `db_connection_usage` and the alert `DbConnectionsExhausted`; SC-04's leaker holds
+16 of 17 usable slots on `argus-lab-db`.
+Decision / result: run 1 (2026-10-07) was invalid: the lab's `pids_limit: 32` stopped the leaker at ~10 sessions; the
+diagnosis honestly answered UNSUPPORTED. Run 2: `inc_075fb0006098` DIAGNOSED, root cause `argus-lab-leaker`, RB-004,
+the database read, no restart proposed; RB-004 `last_tested` 1.0.2. nonint-check found two anonymous volumes from the
+leaker image's `VOLUME`: removed by ID after approval, and the leaker now uses a tmpfs. Session of 2026-10-08:
+reviews first — #34 and #35 approved and merged, #36 (T-0021) **changes requested** (a worker can plant a module in
+its working folder and run it as `argus-tools` through the sudo launcher, reproduced with fake tokens; an ACR is
+needed for `setpriv` → `sudo`), after-merge reviews of #33 and #37 posted. OP-009 opened from the #33 review.
+Consequences: T-0020 is done and waits for review. vm-095 runs T-0021 without T-0020, so the class reaches the agent
+when vm-095 is back on `main`. Phase 11 at 70 %.
+References: `tasks/current/T-0020-sc04-pg-connections.md`, `execution/history/T-0020/`, OPEN_PROBLEMS OP-009, PRs #33-#37.
+
 ## 2026-10-09 — T-0021: review fixes of PR #36, and ACR-0002 (T-0021)
 
 Type: implementation + architecture change (proposed)
@@ -581,6 +599,44 @@ Consequences: per REVIEW_PROTOCOL, a follow-up PR (`task/T-0021-review-fixes`) b
 step 5e record to `main` and gets the missing review (no force push, no fast-track: ACR, safety principle). Until it
 merges, `main` must not be deployed on vm-095.
 References: `execution/history/T-0021/step-05e/evidence.md`, `tasks/current/T-0021-tool-isolation.md`, PR #36.
+
+## 2026-10-09 — T-0023: a runner for repeated end-to-end scenario runs (T-0023)
+
+Type: implementation (step 1, offline)
+Who: juanbetancurm (+ agent)
+Context: phase 12 needs at least 5 graded runs per scenario; every run so far was a set of manual blocks.
+Decision / result: `ops/e2e/run.py` runs catalogued scenarios from the laptop (ssh for the reviewed commands, the
+HTTP API on the tunnel for the investigation), waits on the detector's own signal (pre-gate and gate, no fixed
+sleeps), always resets, stops the batch on interference or a failed reset, grades outcome, class, root cause, first
+runbook, model use and the host of every read, and writes one JSON line per run outside the repository. Catalogue:
+H-1, H-2, SC-01, SC-02, SC-03, SC-07, SC-09, SC-11. 22 new tests; 206 passed, 2 skipped.
+Consequences: step 2 is the first real batch with the lease (H-1, H-2, SC-09, SC-11 once; SC-01 and SC-03 × 5).
+References: `tasks/current/T-0023-e2e-runner.md`, `ops/e2e/scenarios.yaml`.
+
+## 2026-10-09 — T-0023: the first real batch of the scenario runner (T-0023)
+
+Type: verification
+Who: juanbetancurm (+ agent)
+Context: step 2 of T-0023, the runner's first batch on vm-095 and vm-166.
+Decision / result: H-1, H-2, SC-09, SC-11 1/1; **SC-03 5/5** and **SC-01 5/5 PASS** (class, root cause, first runbook
+and the host of every read graded), NO INTERFERENCE after every run. One SC-01 run lost the laptop's API tunnel: it
+was reset and checked clean, the batch stopped as designed, and the runner now keeps its own tunnel and retries a
+dropped connection (`4f8ae43`).
+Consequences: phase 12 has its first repeated runs. Next: SC-02 and SC-07 × 5; each new scenario (SC-04 after #38)
+gets a catalogue entry and 5 runs.
+References: `tasks/current/T-0023-e2e-runner.md`, `execution/history/T-0023/step-02/evidence.md`.
+
+## 2026-10-09 — review of PR #40: two runner fixes made by the reviewer (T-0023)
+
+Type: review
+Who: conantkd (+ agent)
+Context: review of PR #40 (`juanbetancurm`'s end-to-end runner). REVIEW_PROTOCOL: small fixes are made by the
+reviewer on the same branch, journaled.
+Decision / result: (1) an incident view without `evidence` and `audit` (the runner's user not an operator) is an ERROR,
+never a PASS; before, the model and host checks passed on nothing. (2) The reset runs only once a start was attempted;
+SC-07's reset succeeds when its network is already gone. 6 new tests, red seen; `test_e2e_runner.py` 33 passed.
+Consequences: run the batches as an operator user. Every catalogued reset must be idempotent.
+References: `tasks/current/T-0023-e2e-runner.md`, PR #40.
 
 ## 2026-10-09 — OP-005 offline implementation: young restart counts
 

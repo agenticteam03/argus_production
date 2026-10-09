@@ -156,7 +156,7 @@ def test_database_health_is_level_3_on_the_db_probe_executor():
     from argus.capabilities.catalog import build_catalog
     spec = next(s for s in build_catalog() if s.name == "database.health")
     assert spec.model_name == "inspect_database_health"
-    assert (spec.level, spec.executor, spec.safety_class) == (3, "db_probe", "READ_ONLY_SAFE")
+    assert (spec.level, spec.executor) == (3, "db_probe")       # safety class: test_sc04_pg_connections.py
     assert "database" in spec.tags
 
 

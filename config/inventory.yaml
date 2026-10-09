@@ -40,3 +40,6 @@ targets:
     tcp_ports: [8080]
   - ref: vm-166/container:argus-lab-db            # T-0019 / SC-04: lab PostgreSQL, TESTING ONLY (see compose.lab.yml)
     database: {dbname: argus_lab, port: 5432}     # read by argus-v18-db-probe with the argus_monitor role
+    tcp_ports: [5432]
+  - ref: vm-166/container:argus-lab-leaker        # SC-04 (T-0020): leaks idle-in-transaction sessions on argus-lab-db
+    depends_on: [vm-166/container:argus-lab-db]

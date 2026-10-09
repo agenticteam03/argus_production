@@ -6,24 +6,21 @@ first resolve PR #38's review and merge, then take the VM lease, probe both host
 `main`, and run the SC-01 and old-container checks in [the task file](tasks/current/OP-005-restart-signal.md).
 Do not replace vm-166's T-0020 checkout with a branch that predates PR #38.
 
-**Now (2026-10-09, `juanbetancurm`):** PR #36 (T-0021) was merged into `main` (`a9b4df8`) at its earlier head
-`289bb0d`, before the review fixes and before the re-review: **`main-guard` is red** and `main` has the OLD
-tools-server launcher (a package planted in the worker's folder would run as `argus-tools`). The fix is the
-follow-up PR from `task/T-0021-review-fixes`: the launcher runs `cd /` and `python -I` (`isolation_check` probes
-it), [ACR-0002](architecture/changes/ACR-0002-tools-uid-sudo-launcher.md) (proposed: the sudo launcher, OD-3 kept
-MCP), a hung tools process is replaced, vm-095's compose defaults to `mcp`. **It needs `conantkd`'s review and
-his second approval of ACR-0002** (no fast-track: ACR, safety principle). Step 5e is done: vm-095 runs the fixed
-launcher (`6f45218`), TOOLS ISOLATION OK ([evidence](execution/history/T-0021/step-05e/evidence.md)).
-**Do not deploy `main` on vm-095 until the follow-up merges** (it would bring back the old launcher). vm-166 is
-untouched. Next work after it: OP-009, OP-010, OP-004, alerting (T-0022), the end-to-end runner (phase 12).
+**Now (2026-10-09, `conantkd`; read as the state after the T-0020 PR merges):** T-0020 (SC-04,
+`postgresql_connection_exhaustion`, RB-004) is done: verified on vm-166 (`inc_075fb0006098` DIAGNOSED). #36 (T-0021)
+was merged before its re-review; its fixes and ACR-0002 came in **#39, approved by `conantkd` (second approval of
+ACR-0002) and merged**: `main-guard` green, `main` has the fixed launcher. **#40** (T-0023, the scenario runner, with
+two reviewer fixes) is merged too. Owed by `juanbetancurm`: ACR-0002's status set to `accepted` (small PR).
 
-**Earlier (2026-10-08, end of `juanbetancurm`'s session; lease handed to `conantkd`):** T-0021 (tools in a separate
-MCP process under `argus-tools`) is done and verified on vm-095 ([evidence](execution/history/T-0021/step-05/evidence.md)):
-TOOLS ISOLATION OK, OD-3 OK. **PR #36 needs a teammate's review** (safety model, no fast-track). vm-095 runs
-`task/T-0021-tool-isolation` `a5f330a` with the worker in `mcp` mode: do not deploy `main` there before #36 merges
-without the rollback (evidence, block R). vm-166 is untouched on `task/T-0020-sc04-pg-connections`. Owed:
-after-merge reviews of #33 and #37; reviews of #34, #35, #36. Next work: T-0020 (SC-04) PR by `conantkd`; OP-004
-checkpoint cleanup; alerting (phase 7).
+1. **AFTER-MERGE T-0020 on vm-166** (checkout only, block in `execution/current/code.bash`). vm-095 may now get
+   `main` (it has the fixed launcher and defaults to `mcp`); its agent then gets `postgresql_connection_exhaustion`.
+2. Next work: alerting (phase 7, T-0022) and OP-010 (the db-probe's reserved slot) are ready on `conantkd`'s
+   branches; OP-009 before any second worker; OP-004 checkpoint cleanup; SC-05 (T-0024); phase 12 with the runner:
+   SC-02 and SC-07 × 5, then an SC-04 catalogue entry.
+3. **Evaluation (§21.2, `tests/eval/`) and phase 12 (≥ 5 runs per scenario):** §3 "Enablement" enables a class only
+   when its evaluation passes. The 4 classes enabled so far (including `postgresql_connection_exhaustion`) are
+   enabled ahead of it: they have lab runs, not the §21.2 dataset (≥ 5 labeled cases per class, ≥ 5 trials, compared
+   with the deterministic baseline). This is the task that closes that gap.
 
 **Earlier (2026-10-08, `juanbetancurm`):** T-0014 (api / worker / scheduler) is done and verified on vm-095
 ([evidence](execution/history/T-0014/step-05/evidence.md)); PR #33 merged by fast-track (after-merge review by a

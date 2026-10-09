@@ -6,7 +6,8 @@
     "argus-lab-cache",
     "argus-lab-client",
     "argus-lab-backend",
-    "argus-lab-db"
+    "argus-lab-db",
+    "argus-lab-leaker"
   ],
   "dns_names": [
     "argus-lab-worker",
@@ -14,7 +15,8 @@
     "argus-lab-cache",
     "argus-lab-client",
     "argus-lab-backend",
-    "argus-lab-db"
+    "argus-lab-db",
+    "argus-lab-leaker"
   ],
   "tcp": [
     [
@@ -24,6 +26,10 @@
     [
       "argus-lab-backend",
       8080
+    ],
+    [
+      "argus-lab-db",
+      5432
     ]
   ],
   "http_endpoints": [
@@ -41,6 +47,12 @@
       "dependency": "argus-lab-backend",
       "host": "argus-lab-backend",
       "port": 8080
+    },
+    {
+      "owner": "argus-lab-leaker",
+      "dependency": "argus-lab-db",
+      "host": "argus-lab-db",
+      "port": 5432
     }
   ],
   "mounts": [
