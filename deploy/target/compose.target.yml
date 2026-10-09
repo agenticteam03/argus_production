@@ -26,7 +26,7 @@ services:
     environment: {<<: *env, ROLE: host_probe}
     volumes:
       - /proc:/host/proc:ro
-      - /:/rootfs:ro
+      - /:/rootfs:ro,rslave              # T-0024: sees mounts made after it started
       - ./config/${ARGUS_HOST}.json:/etc/argus-v18/target.json:ro
       - /opt/argus-v18/secrets/host_probe_token:/run/argus-v18/host_probe_token:ro
     networks: [argus-v18-mon]

@@ -27,6 +27,9 @@ class YamlInventory:
         self._targets: dict[TargetRef, TargetInfo] = {}
         for t in data.get("targets") or []:
             ref = TargetRef.parse(t["ref"])
+            for m in t.get("mounts", []):            # T-0024: mounts fill a PromQL regex ($mounts): plain paths only
+                if not _MOUNT.fullmatch(m):
+                    raise ValueError(f"inventory target {ref}: mount {m!r} is not a plain absolute path")
             if ref.host not in self._hosts:
                 raise ValueError(f"inventory target {ref} names unknown host {ref.host}")
             self._targets[ref] = TargetInfo(ref=ref, scope=t.get("scope", "lab"),
@@ -62,6 +65,7 @@ class YamlInventory:
 
 
 # --- Metrics -----------------------------------------------------------------------------------
+_MOUNT = re.compile(r"/[A-Za-z0-9_/-]*")
 class PrometheusMetrics:
     """Signal names → PromQL templates with $host/$name. Per-series freshness (G-003/G-007)."""
 
@@ -90,13 +94,15 @@ class PrometheusMetrics:
             up = r.json().get("data", {}).get("result", [])
             if not up or any(float(x["value"][1]) < 1 for x in up):
                 raise StaleMetrics(f"exporter scrape is down on {target.host} (monitoring blind spot)")
+        info = self.inventory.target(target)
+        mounts = "|".join(info.mounts) if info else ""      # validated plain paths; none: matches no series
         values: dict[str, float | None] = {}
         newest: float | None = None
         now = time.time()
         for s in sorted(signals):
             if s not in self.signals:
                 raise ValueError(f"unknown signal {s}")
-            expr = Template(self.signals[s]).substitute(host=target.host, name=target.name)
+            expr = Template(self.signals[s]).substitute(host=target.host, name=target.name, mounts=mounts)
             try:
                 r = httpx.get(f"{base}/api/v1/query", params={"query": expr}, timeout=8)
                 r.raise_for_status()

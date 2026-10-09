@@ -69,6 +69,21 @@ services:
     mem_limit: 192m                     # ~5 MiB per psql
     memswap_limit: 192m
     restart: "no"
+  argus-lab-filler:                     # SC-05 (vm-166): fills the lab filesystem /srv/argus-lab-fill (ops/lab-fill-mount.sh)
+    image: python:3.12-alpine
+    container_name: argus-lab-filler
+    profiles: [sc05]
+    command: ["python", "-u", "/w/fill.py"]
+    environment: {TARGET_PCT: "92", CHUNK_MIB: "2", EVERY_S: "3", MAX_FS_MIB: "512"}   # refuses a big (root) disk
+    volumes:
+      - ./workloads:/w:ro
+      - /srv/argus-lab-fill:/fill
+    network_mode: none
+    mem_limit: 48m
+    memswap_limit: 48m
+    cpus: 0.2
+    pids_limit: 16
+    restart: "no"
   argus-lab-api-twin:                   # vm-095 baseline: SAME container name, no dependency, healthy
     <<: *lim
     image: python:3.12-alpine
