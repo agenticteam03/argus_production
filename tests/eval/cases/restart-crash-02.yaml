@@ -1,0 +1,199 @@
+# non-OOM crash with exit 2 (bad arguments)
+id: restart-crash-02
+category: class
+target: vm-166/container:argus-lab-worker
+request: report
+reason: keeps restarting
+metrics:
+  vm-166/container:argus-lab-worker:
+    restarts_10m: 5
+    oom_killed: 0
+    last_exit_code: 2
+fixtures:
+  docker_read:
+    /containers/argus-lab-worker/status:
+      id: c0ffee
+      state: restarting
+      health: none
+      restart_count: 7
+      oom_killed: false
+      exit_code: 2
+      memory_limit_bytes: 67108864
+      networks:
+      - argus-lab-app
+    /containers/argus-lab-worker/logs:
+      lines:
+      - 'error: invalid option --queue'
+    /containers/argus-lab-worker/stats:
+      memory_usage_bytes: 31457280
+      memory_limit_bytes: 67108864
+      cpu_percent: 3.0
+    /containers/argus-lab-worker/health:
+      status: none
+      failing_streak: 0
+      log: []
+    /containers/argus-lab-worker/events:
+      events:
+      - &id001
+        action: die
+      - &id002
+        action: start
+      - *id001
+      - *id002
+      - *id001
+      - *id002
+      - *id001
+      - *id002
+      - *id001
+      - *id002
+  host_probe:
+    '*':
+      total_mib: 5800
+      available_mib: 4000
+      cpu_busy_percent: 12
+      load1: 0.2
+      cpus: 1
+  prometheus:
+    range:
+      container_memory_bytes:
+      - - -1800
+        - 6291456
+      - - -1740
+        - 7340032
+      - - -1680
+        - 6291456
+      - - -1620
+        - 7340032
+      - - -1560
+        - 6291456
+      - - -1500
+        - 7340032
+      - - -1440
+        - 6291456
+      - - -1380
+        - 7340032
+      - - -1320
+        - 6291456
+      - - -1260
+        - 7340032
+      - - -1200
+        - 6291456
+      - - -1140
+        - 7340032
+      - - -1080
+        - 6291456
+      - - -1020
+        - 7340032
+      - - -960
+        - 6291456
+      - - -900
+        - 7340032
+      - - -840
+        - 6291456
+      - - -780
+        - 7340032
+      - - -720
+        - 6291456
+      - - -660
+        - 7340032
+      - - -600
+        - 6291456
+      - - -540
+        - 7340032
+      - - -480
+        - 6291456
+      - - -420
+        - 7340032
+      - - -360
+        - 6291456
+      - - -300
+        - 7340032
+      - - -240
+        - 6291456
+      - - -180
+        - 7340032
+      - - -120
+        - 6291456
+      - - -60
+        - 7340032
+      - - 0
+        - 6291456
+      container_restart_count:
+      - - -1800
+        - 2
+      - - -1740
+        - 2
+      - - -1680
+        - 2
+      - - -1620
+        - 3
+      - - -1560
+        - 3
+      - - -1500
+        - 3
+      - - -1440
+        - 4
+      - - -1380
+        - 4
+      - - -1320
+        - 4
+      - - -1260
+        - 5
+      - - -1200
+        - 5
+      - - -1140
+        - 5
+      - - -1080
+        - 6
+      - - -1020
+        - 6
+      - - -960
+        - 6
+      - - -900
+        - 7
+      - - -840
+        - 7
+      - - -780
+        - 7
+      - - -720
+        - 8
+      - - -660
+        - 8
+      - - -600
+        - 8
+      - - -540
+        - 9
+      - - -480
+        - 9
+      - - -420
+        - 9
+      - - -360
+        - 10
+      - - -300
+        - 10
+      - - -240
+        - 10
+      - - -180
+        - 11
+      - - -120
+        - 11
+      - - -60
+        - 11
+      - - 0
+        - 12
+  network_probe:
+    '*':
+      ok: true
+      addresses:
+      - 172.30.1.20
+      duration_ms: 2
+      status: 200
+label:
+  outcome: diagnosed
+  class: container_restart_loop
+  root_cause: vm-166/container:argus-lab-worker
+  diagnosis_any:
+  - non-OOM
+  - exit
+  runbooks:
+  - RB-008
