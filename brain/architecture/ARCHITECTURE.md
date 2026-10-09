@@ -1,7 +1,7 @@
 # Argus — Production Architecture Specification
 
 **Document type:** consolidated target architecture and implementation blueprint ·
-**Version:** 1.8.3 (2026-10-08, ACR-0003; 1.8.2 2026-10-08, ACR-0002, PR #39; 1.8.1 2026-10-06, ACR-0001; base 1.8.0 of 30 September 2026, sanitized for the shared repository 2026-10-02) · **Audience:** engineers and AI coding agents implementing
+**Version:** 1.8.3 (2026-10-08, ACR-0003; 1.8.2 2026-10-09, ACR-0002; 1.8.1 2026-10-06, ACR-0001; base 1.8.0 of 30 September 2026, sanitized for the shared repository 2026-10-02) · **Audience:** engineers and AI coding agents implementing
 Argus from an empty repository.
 
 
@@ -1817,12 +1817,16 @@ in-process registry (tests, and the fallback of OD-3). Orchestration and tests d
 2. a tested contract for external and peer tool providers (§23);
 3. it is a stated course learning objective.
 
-Its retention is decided by a benchmark (**Open Decision OD-3**, §25).
+Its retention was decided by a benchmark (**OD-3**, §25: kept, ACR-0002).
 
 ### 12.6 Local process identity for the tools server
 
 - The tools server is spawned by `argus-worker` as a child process under a dedicated non-root UID
-  (`argus-tools`), dropped at spawn (`setpriv`/`gosu`).
+  (`argus-tools`). The worker is not root, so the switch is **one fixed sudo rule** (ACR-0002): the worker UID may
+  start exactly one root-owned launcher as `argus-tools`, with no arguments, and nothing else. The launcher sets its
+  own environment, leaves the caller's working folder (`cd /`) and runs Python isolated (`-I`), so nothing the
+  worker can write (its working folder, `PYTHON*` variables) runs as `argus-tools`. The credential-isolation check
+  starts the launcher from a folder holding a planted package and expects the real server.
 - Executor credentials (read gateway, probes, Prometheus if protected) are mounted read-only, mode
   `0400`, owned by `argus-tools`. The worker UID cannot read them, and the api/scheduler containers
   never receive them.
@@ -2676,7 +2680,7 @@ The goal of this architecture is that Argus's diagnostic reach grows **without c
 |---|---|---|
 | OD-1 | Model and provider | provisionally OpenAI `gpt-5.6-luna` through the OpenAI-dialect adapter; confirmed or replaced by the §21.2 evaluation on quality, latency and cost |
 | OD-2 | Calibration of quality thresholds and context budgets | initial values in §10.6 and §21.2; recalibrate after the first evaluation run (hard safety thresholds are not open) |
-| OD-3 | Keep MCP for the tools-child set or bind the registry directly | benchmark in step 8: keep MCP if p95 overhead < 100 ms per call, no eval regression, and the credential-isolation test passes; otherwise `TOOL_CATALOGUE=direct` with process isolation by other means |
+| OD-3 | Keep MCP for the tools-child set or bind the registry directly | **decided by ACR-0002 (2026-10-09): keep MCP.** On vm-095, p95 overhead 45.7 ms (`container.status`) and 43.1 ms (`container.logs`) per read, under the 100 ms budget; the credential-isolation check passes. `direct` stays as the rollback. The "no eval regression" part is checked when the §21.2 evaluation exists (Phase 12); until then, SC-02 run through the tools process on vm-095 gave the expected diagnosis |
 | OD-7 | Numeric values for `MAX_STEPS`, `MAX_TOKENS_PER_INCIDENT`, `MAX_MODEL_COST_PER_DAY`, per-principal quotas, approval expiry, `METRICS_MAX_STALENESS`, `VERIFY_TIMEOUT`, `RESUME_MAX_ATTEMPTS`, evidence retention per kind | set from measurements and the project model budget |
 | OD-8 | Schedule cadence per target | derived from the measured p95 investigation duration (§6.5) |
 | OD-9 | Plain SQL vs SQLAlchemy; migration tooling | adopt SQLAlchemy only if schema complexity justifies it |
@@ -2845,4 +2849,5 @@ erDiagram
 |---|---|---|---|
 | 1.8.0 | 2026-10-02 | v1.8 (30 Sep 2026) imported into the shared repository; addresses replaced by placeholders, nothing else changed | — |
 | 1.8.1 | 2026-10-06 | user interfaces as read-only-capable clients of the HTTP API (§25 OD-10, §17.3); `GET /api/v1/me`; the existing read routes `/incidents/{id}/events`, `/evidence/{id}`, `/escalations` documented (§7.1); `frontend/` (§2.4) | [ACR-0001](changes/ACR-0001-ui-read-access.md) |
+| 1.8.2 | 2026-10-09 | the tools server's UID switch is a fixed sudo launcher (`cd /`, `python -I`) (§12.6); OD-3 decided: keep MCP (§12.5, §25) | [ACR-0002](changes/ACR-0002-tools-uid-sudo-launcher.md) |
 | 1.8.3 | 2026-10-08 | transport profiles (`direct-private`, `wireguard-overlay`, `restricted-ssh`) for the cross-host path (§3.2, §3.3, §3.6, §17.1, OD-16); alert delivery by profile: push webhook or pull reconciliation from the Argus-owned Alertmanager (§4.2, §7.3, `AlertSourcePort` §8.1); Argus-owned node-exporter and cAdvisor (§3.5, §4.3) | [ACR-0003](changes/ACR-0003-transport-profiles.md) |
