@@ -6,6 +6,10 @@
   "base_commit": "a9b4df8c09123f80707f8292ed6530d631d9a851",
   "started_at": "2026-10-09T01:40:32+00:00",
   "expires_at": "2026-10-09T03:33:20+00:00",
-  "released": false,
-  "handoff": null
+  "released": true,
+  "handoff": {
+    "note": "For conantkd. VMs: vm-095 runs task/T-0021-tool-isolation 6f45218 (fixed launcher, worker in mcp mode). Do NOT deploy main on vm-095 until PR #39 merges: main has the old launcher. vm-166 is clean; the lab was reset after every runner run. Reviews: #39 (the fixes from your #36 review, your second approval of ACR-0002, and the main-exceptions line for #36); #38 (my comment: merge main and the db_metrics() fix; I approve its new head); #40 (T-0023, the scenario runner: SC-01 and SC-03 5/5 on the VMs; try python ops/e2e/run.py --list). Next phase 12 work: SC-02 and SC-07 x 5 with the runner.",
+    "branch": "main",
+    "at": "2026-10-09T03:10:14+00:00"
+  }
 }
