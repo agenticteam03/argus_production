@@ -62,12 +62,12 @@ export default function Header() {
         </button>
         <details className="relative">
           <summary className={summary} aria-label="Account menu">
-            <span className="grid size-10 place-items-center rounded-full bg-accent/20 text-sm font-medium text-accent-hover">{user.email[0].toUpperCase()}</span>
+            <span className="grid size-10 place-items-center rounded-full bg-accent/20 text-sm font-medium text-accent-hover">{user.name[0].toUpperCase()}</span>
             <Chevron width="14" height="14" className="text-muted" />
           </summary>
           <div className={`${menu} right-0`}>
             <div className="px-3 py-2">
-              <p className="truncate text-sm">{user.email}</p>
+              <p className="truncate text-sm">{user.name}</p>
               <p className="text-xs text-muted">{ROLES[user.role]}</p>
             </div>
             <button onClick={logout} className="w-full cursor-pointer rounded-lg px-3 py-2 text-left text-sm hover:bg-white/5">Log out</button>

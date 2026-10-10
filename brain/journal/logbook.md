@@ -798,6 +798,25 @@ Consequences: proposal for the team: `dependency_unavailable` → `baseline` (th
 gap and a rubric for evidence support.
 References: `tasks/current/T-0025-evaluation.md`, `tests/eval/`.
 
+## 2026-10-09 — T-0016 step 3: connect the read-only UI to the real API (T-0016)
+
+Type: implementation
+Who: juanes6554 (+ agent)
+Context: PR #24 (the mock UI, steps 1-2) was reviewed by juanbetancurm (next-step list) and conantkd (ACR-0001 scope:
+a UI only reads and shows a control only when /me lists its action). The HTTP/contract work was waiting for T-0015,
+which has merged; the code needs no VM lease.
+Decision: added the HTTP adapters (form-encoded POST /api/v1/auth/token with scope=read, then GET /api/v1/me; and
+GET incidents list/detail/events with the overview built from the list), an in-memory token store where any 401
+forgets the token, the VITE_ARGUS_MOCK switch (mock is the default), the dev proxy /api -> 127.0.0.1:18000, a
+username login, the viewer/operator/approver roles with the write screens (approvals, simulator, scheduler) removed
+from the menu, and runbooks read from argus/runbooks (demoRunbooks deleted). Tests first: 7 red, then 39 green plus
+the Vite build.
+Consequences: the frontend needs CI `frontend` green and a reviewer (fast-track, since it does not touch
+`.github/workflows/` or `contracts/`). Approvals, the agent chat that starts an investigation, the simulator, the
+scheduler and the health data stay mock-only until the new ACR agreed in the PR #24 comments. Open: Playwright
+acceptance, the read-only network guard and the contracts/ui-api.json check.
+References: `frontend/README.md`, `docs/API-FOR-UI.md`, `tasks/current/T-0016-frontend.md`.
+
 ## 2026-10-10 — T-0028: SC-06 DIAGNOSED on vm-166; two defects found by the lab (T-0028)
 
 Type: implementation + verification
