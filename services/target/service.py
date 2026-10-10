@@ -93,6 +93,15 @@ def created_seconds(value: str | None) -> float | None:
         return None
 
 
+def cpu_limit_cores(hc: dict) -> float | None:
+    """The container's CPU limit in cores (T-0028, RB-006): `--cpus` (NanoCpus) or a CFS quota/period; None when
+    unlimited or unknown."""
+    if hc.get("NanoCpus"):
+        return round(hc["NanoCpus"] / 1e9, 3)
+    quota, period = hc.get("CpuQuota") or 0, hc.get("CpuPeriod") or 100_000
+    return round(quota / period, 3) if quota > 0 else None
+
+
 def inspect(name: str) -> dict:
     d = djson(f"/containers/{urllib.parse.quote(name)}/json")
     st, hc = d.get("State", {}), d.get("HostConfig", {})
@@ -102,7 +111,8 @@ def inspect(name: str) -> dict:
             "oom_killed": st.get("OOMKilled"), "exit_code": st.get("ExitCode"),
             "started_at": st.get("StartedAt"), "finished_at": st.get("FinishedAt"), "error": st.get("Error") or None,
             "health": (st.get("Health") or {}).get("Status", "none"), "image": d.get("Config", {}).get("Image"),
-            "memory_limit_bytes": hc.get("Memory") or None, "restart_policy": (hc.get("RestartPolicy") or {}).get("Name"),
+            "memory_limit_bytes": hc.get("Memory") or None, "cpu_limit_cores": cpu_limit_cores(hc),
+            "restart_policy": (hc.get("RestartPolicy") or {}).get("Name"),
             "tty": d.get("Config", {}).get("Tty"),
             # network names only (SC-07: which network is each side on?); addresses never leave the gateway
             "networks": sorted(((d.get("NetworkSettings") or {}).get("Networks") or {}).keys()),

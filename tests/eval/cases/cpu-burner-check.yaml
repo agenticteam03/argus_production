@@ -1,0 +1,62 @@
+# T-0028 (SC-06, RB-006): found by a scheduled check, not an alert
+id: cpu-burner-check
+category: class
+target: vm-166/container:argus-lab-burner
+request: check
+reason: scheduled check
+metrics:
+  vm-166/container:argus-lab-burner:
+    container_cpu_throttled_ratio_5m: 0.99
+    restarts_10m: 0
+    health_unhealthy: 0
+    container_cpu_quota_used_ratio_5m: 1.0
+fixtures:
+  docker_read:
+    /containers/argus-lab-burner/status:
+      id: e0e0e0
+      state: running
+      health: none
+      restart_count: 0
+      oom_killed: false
+      exit_code: 0
+      memory_limit_bytes: 33554432
+      cpu_limit_cores: 0.3
+      networks: []
+    /containers/argus-lab-burner/stats:
+      memory_usage_bytes: 9000000
+      memory_limit_bytes: 33554432
+      memory_percent: 26.8
+      cpu_percent: 30.1
+      pids: 1
+    /containers/argus-lab-burner/logs:
+      lines:
+      - 'burner: spinning for up to 1200 s'
+    /containers/argus-lab-burner/health:
+      status: none
+      failing_streak: 0
+      log: []
+    /containers/argus-lab-burner/events:
+      events: []
+  host_probe:
+    '*':
+      total_mib: 5800
+      available_mib: 3900
+      cpu_busy_percent: 18
+      load1: 0.4
+      cpus: 2
+  network_probe:
+    '*':
+      ok: true
+      addresses: []
+      duration_ms: 2
+      status: 200
+label:
+  outcome: diagnosed
+  class: cpu_saturation
+  root_cause: vm-166/container:argus-lab-burner
+  diagnosis_any:
+  - quota
+  - limit
+  - throttl
+  runbooks:
+  - RB-006
