@@ -50,7 +50,8 @@ def _bash() -> str | None:
 FAKE_DOCKER = r"""#!/usr/bin/env bash
 # ps -a: container names; exec -i <c> python - (the report's source on stdin): the report; inspect: mounts or env.
 case "$1" in
-  ps) printf '%s\n' argus-v18-agent argus-v18-worker argus-v18-scheduler argus-v18-postgres $FAKE_EXTRA_CONTAINER ;;
+  ps) [ -n "$FAKE_PS_FAIL" ] && { echo "Cannot connect to the Docker daemon" >&2; exit 1; }
+      printf '%s\n' argus-v18-agent argus-v18-worker argus-v18-scheduler argus-v18-postgres $FAKE_EXTRA_CONTAINER ;;
   exec) [ -n "$FAKE_NO_EXEC" ] && { echo "exec called in host-only mode" >&2; exit 3; }
         c=$3; grep -q "def report" || { echo "no report source on stdin" >&2; exit 2; }
         [ "$c" = "$FAKE_MISSING" ] && { echo "Error: No such container: $c" >&2; exit 1; }
@@ -131,6 +132,7 @@ def test_host_only_mode_checks_the_host_without_any_service_report(check):
     ({"extra_container": "argus-v18-action-gateway"}, "action container present: argus-v18-action-gateway"),
     ({"action_mount": "1"}, "argus-v18-postgres: action mount"),           # every argus-v18 container, not only services
     ({"action_env": "1"}, "argus-v18-postgres: action environment ARGUS_ACTION_TOKEN"),
+    ({"ps_fail": "1"}, "docker ps failed: containers not checked"),   # never CLOSED on what was not looked at
 ])
 def test_host_only_mode_stops_and_names_the_reason(check, fake, reason):
     result = check("--host-only", no_exec="1", **fake)

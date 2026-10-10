@@ -19,7 +19,8 @@ SERVICES=${ARGUS_WRITE_GATE_SERVICES:-"argus-v18-agent argus-v18-worker argus-v1
 REPORT="$(cd "$(dirname "$0")/.." && pwd)/argus/infrastructure/gate_report.py"
 problems=()
 
-containers=$("$DOCKER" ps -a --format '{{.Names}}')
+containers=$("$DOCKER" ps -a --format '{{.Names}}') \
+  || problems+=("docker ps failed: containers not checked")    # never CLOSED on what was not looked at
 action=$(echo "$containers" | grep -iE 'action' | tr '\n' ' ' | sed 's/ $//')
 [ -z "$action" ] || problems+=("action container present: $action")
 

@@ -45,7 +45,9 @@ stricter. When a write capability is built, this test is the one that must keep 
    named like an action credential. 6 new check cases, red seen before the change. With both leases: vm-166
    `--host-only` → `WRITE GATE CLOSED` (9 Argus containers, read tokens only in `secrets/`); vm-095 full check again
    → `WRITE GATE CLOSED` (agent, worker, scheduler `gate_open=0 write_capabilities=0 action_gateway_resolves=0`, 13
-   containers inspected); NO INTERFERENCE on both.
+   containers inspected); NO INTERFERENCE on both. Second review: the host-only mode failed open when `docker ps`
+   failed (no container listed, no service to fail); now that is a STOP reason (1 more case, red seen: it printed
+   CLOSED). Both checks re-run with the final script: CLOSED, NO INTERFERENCE.
 
 ## Not covered
 
