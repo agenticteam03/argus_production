@@ -1,11 +1,11 @@
 {
   "holder": "conantkd",
-  "session_id": "558fb5a747f8",
-  "task": "T-0025",
-  "branch": "task/OP-003-safety-classes",
-  "base_commit": "450242ce4465bfd81f361ecacadff20907a251de",
-  "started_at": "2026-10-09T21:31:49+00:00",
-  "expires_at": "2026-10-09T22:31:49+00:00",
+  "session_id": "d550d6afba41",
+  "task": "T-0028",
+  "branch": "task/T-0028-sc06-cpu",
+  "base_commit": "2f39cecaf3150d00a7934d29b4932123e265957f",
+  "started_at": "2026-10-10T00:37:44+00:00",
+  "expires_at": "2026-10-10T01:37:44+00:00",
   "released": false,
   "handoff": null
 }
