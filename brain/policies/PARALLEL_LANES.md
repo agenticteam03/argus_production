@@ -38,6 +38,12 @@ Three developers, but most work runs in a single line. Seen in the week of 2026-
   `journal/logbook.md`. `brain.py lint` refuses those edits on a `task/*` branch (exception: the roll-up branch).
 - **Roll-up:** after merges, `brain.py rollup` (a small PR, fast to review) appends the new entries to the logbook and
   regenerates the status lines of the summaries from the merged task files. Whoever merges last that day runs it.
+- **As built (LANES-2):** an entry file starts with `## <date> — <title>` and may end with the sections
+  `### Test state` and `### Next step`. `brain.py rollup` appends the journal part to the logbook (oldest first),
+  puts each section at the top of `tdd/CURRENT_TEST_STATE.md` / `NEXT_STEP.md`, rewrites the relative links for
+  their new folder and removes the entry files. The lint rule covers the three files that conflicted:
+  `journal/logbook.md`, `tdd/CURRENT_TEST_STATE.md`, `NEXT_STEP.md`; `CURRENT_STATE.md` and
+  `IMPLEMENTATION_PLAN.md` stay editable until the roll-up can produce them.
 - **Transition:** branches opened before the lint rule merges (for example `task/T-0026-alert-resolution`,
   `task/OP-009-lease-loss`) keep their edits to the summaries; the rule applies to branches created after it, and
   the first roll-up reconciles the summaries.
@@ -80,6 +86,7 @@ Three developers, but most work runs in a single line. Seen in the week of 2026-
 
 1. The lease per VM (`brain.py`, `GIT_WORKFLOW.md`), with tests: LANES-1
    ([task](../tasks/current/LANES-1-lease-per-vm.md)).
-2. Journal entries as files and `brain.py rollup`, with the lint rule.
+2. Journal entries as files and `brain.py rollup`, with the lint rule: LANES-2
+   ([task](../tasks/current/LANES-2-journal-rollup.md)).
 3. CI split into parallel jobs; the runner and the evaluation as background jobs.
 4. The lane board in `NEXT_STEP.md` and the reviewer rotation in `REVIEW_PROTOCOL.md`.
