@@ -26,3 +26,8 @@ groups:
         expr: up{job=~"argus-v18-.*"} == 0
         for: 2m
         annotations: {summary: "scrape target {{ $labels.job }} is down: its signals are unknown"}
+      - alert: ContainerCpuThrottled       # T-0028 / RB-006: an Argus container throttled at its CPU quota in half or more
+        # of its CPU periods for 5 minutes. cAdvisor names the container `name`; the intake reads `container`.
+        expr: label_replace(rate(container_cpu_cfs_throttled_periods_total{name=~"argus-.*"}[1m]) / (rate(container_cpu_cfs_periods_total{name=~"argus-.*"}[1m]) > 0), "container", "$1", "name", "(.*)") >= 0.5
+        for: 5m
+        annotations: {summary: "container {{ $labels.name }} is throttled at its CPU quota"}

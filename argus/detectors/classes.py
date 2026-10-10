@@ -100,6 +100,21 @@ def monitoring_blind_spot(snap: MetricSnapshot) -> DetectorResult:
         "monitoring blind spot (RB-014): no diagnosis of the host's state is claimed from missing telemetry"])
 
 
+def cpu_saturation(snap: MetricSnapshot) -> DetectorResult:
+    """RB-006, the container trigger (T-0028): half or more of the container's CPU periods throttled at its quota for
+    5 minutes (the signal is the 5-minute minimum; an initial threshold, calibrated in the lab). The busy-host trigger
+    is separate and not registered yet."""
+    ratio = snap.values.get("container_cpu_throttled_ratio_5m")
+    if ratio is None:
+        return DetectorResult(matched=False,
+                              findings=["signal missing (unknown, not healthy): container_cpu_throttled_ratio_5m"])
+    if ratio < 0.5:
+        return DetectorResult(matched=False)
+    return DetectorResult(matched=True, findings=[
+        f"{round(ratio * 100)}% of its CPU periods throttled at its CPU quota for at least 5 minutes",
+        "CPU saturation of the container (RB-006): its work needs more CPU than its limit gives"])
+
+
 # Priority order: the first matching class becomes the incident class; others become findings.
 CLASSES: list[IncidentClassSpec] = [
     IncidentClassSpec(name="container_restart_loop", family="stability", target_kinds={"container"},
@@ -125,6 +140,10 @@ CLASSES: list[IncidentClassSpec] = [
     IncidentClassSpec(name="monitoring_blind_spot", family="platform", target_kinds={"host"},
                       required_signals={"scrape_targets_down"}, runbook_ids=["RB-014"], strategy="evidence_pack",
                       tool_tags={"host", "container", "logs"}, detector=monitoring_blind_spot),
+    IncidentClassSpec(name="cpu_saturation", family="saturation", target_kinds={"container"},
+                      required_signals={"container_cpu_throttled_ratio_5m"}, runbook_ids=["RB-006"],
+                      strategy="model_loop", tool_tags={"cpu", "container", "logs", "host", "knowledge"},
+                      detector=cpu_saturation),
     IncidentClassSpec(name="disk_pressure", family="saturation", target_kinds={"host"},
                       required_signals={"host_disk_used_ratio_5m", "host_disk_hours_to_full"}, runbook_ids=["RB-005"],
                       branch_runbook_ids=["RB-019"], strategy="model_loop",
