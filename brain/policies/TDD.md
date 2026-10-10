@@ -30,4 +30,6 @@ Tests run **all the time**, not only at approval. The pull-request check is the 
   docker stop argus-pgtest
   ```
   The fixture drops and recreates the `public` schema: **never** point it at a real database.
-- After stage 3–7 results change, update [`../tdd/CURRENT_TEST_STATE.md`](../tdd/CURRENT_TEST_STATE.md).
+- After stage 3–7 results change, write them in the `### Test state` section of the task's journal entry file
+  (`journal/entries/`); `brain.py rollup` moves them into
+  [`../tdd/CURRENT_TEST_STATE.md`](../tdd/CURRENT_TEST_STATE.md) after the merge.

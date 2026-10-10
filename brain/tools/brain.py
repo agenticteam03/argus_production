@@ -12,7 +12,10 @@
   checkpoint "message"         tests → stage → audit → commit → push the task branch → renew
   archive-step T-xxxx NN       move execution/current/code.bash into execution/history/T-xxxx/step-NN/
   audit [--staged]             forbidden files and patterns (secrets, addresses, local paths)
-  lint                         Brain structure, relative links, LF line endings
+  lint                         Brain structure, relative links, LF line endings; a task branch made after LANES-2
+                               must not edit the logbook, CURRENT_TEST_STATE or NEXT_STEP
+  rollup                       fold brain/journal/entries/*.md into those three files (after merges, on a
+                               task/rollup-<date> branch) and remove the entry files
   verify-main [--ref R]        every commit on main came from a PR approved by someone other than its author
                                (our free-plan substitute for GitHub branch protection; exceptions in
                                brain/policies/main-exceptions.txt)
@@ -495,7 +498,93 @@ def lint() -> list[str]:
                     continue
                 if not (p.parent / target.split("#")[0]).exists():
                     problems.append(f"{f}: broken link {target}")
-    return problems
+    return problems + summary_edits()
+
+
+# ------------------------------------------------- journal entries as files and the roll-up (PARALLEL_LANES, LANES-2)
+ENTRIES = Path("brain/journal/entries")
+LOGBOOK = Path("brain/journal/logbook.md")
+TEST_STATE = Path("brain/tdd/CURRENT_TEST_STATE.md")
+NEXT = Path("brain/NEXT_STEP.md")
+SUMMARIES = (LOGBOOK, TEST_STATE, NEXT)          # edited only by a roll-up (task/rollup-*) or on main
+SECTIONS = {"### Test state": TEST_STATE, "### Next step": NEXT}
+
+
+def summary_edits() -> list[str]:
+    """A task branch created from a main that has the roll-up must not edit the shared summaries: two parallel PRs
+    that both append there always conflict. Branches made before the rule keep their edits (PARALLEL_LANES
+    transition); a roll-up branch (task/rollup-*) and main are exempt."""
+    branch = os.environ.get("GITHUB_HEAD_REF") or git("rev-parse", "--abbrev-ref", "HEAD", check=False)
+    if not branch.startswith("task/") or branch.startswith("task/rollup"):
+        return []
+    base = git("merge-base", "HEAD", "refs/remotes/origin/main", check=False)
+    if not base or "def cmd_rollup" not in git("show", f"{base}:brain/tools/brain.py", check=False):
+        return []
+    changed = set(git("diff", "--name-only", base, check=False).splitlines())
+    return [f"{p.as_posix()}: a task branch does not edit the shared summaries; write "
+            f"brain/journal/entries/<YYYY-MM-DD>-<task>.md instead (brain.py rollup folds it in after the merge)"
+            for p in SUMMARIES if p.as_posix() in changed]
+
+
+def rebase_links(text: str, src: str, dst: str) -> str:
+    """Rewrite the relative Markdown links of text written in folder `src` so they work from folder `dst`."""
+    def moved(target: str) -> str:
+        if re.match(r"[a-z]+:", target) or target.startswith(("#", "/")):
+            return target
+        path, _, frag = target.partition("#")
+        new = os.path.relpath(os.path.normpath(os.path.join(src, path)), dst).replace(os.sep, "/")
+        return new + ("#" + frag if frag else "")
+
+    def fix(m: re.Match) -> str:                          # [`path`](path): the shown path moves with the link
+        label, tick, target = m.group(2), m.group(1), m.group(3)
+        shown = moved(label) if label == target else label
+        return f"[{tick}{shown}{tick}]({moved(target)})"
+    return re.sub(r"\[(`?)([^\]`]+)\1\]\(([^)\s]+)\)", fix, text)
+
+
+def split_entry(name: str, text: str) -> tuple[str, dict[Path, str]]:
+    """(the journal part, {summary file: its section}) of one entry file."""
+    if not text.startswith("## "):
+        raise BrainError(f"{name}: an entry must start with '## <date> — <title>' (nothing was rolled up)")
+    parts = re.split(r"(?m)^(### Test state|### Next step)[ \t]*$", text)
+    journal, sections = parts[0].strip(), {}
+    for heading, body in zip(parts[1::2], parts[2::2]):
+        sections[SECTIONS[heading]] = body.strip()
+    return journal, sections
+
+
+def insert_after(text: str, marker: str, block: str) -> str:
+    """Insert block (with blank lines around it) after the paragraph that starts with marker, else after the title."""
+    lines = text.split("\n")
+    at = next((i for i, ln in enumerate(lines) if ln.startswith(marker)), 0)
+    while at < len(lines) and lines[at].strip():          # the end of that paragraph (its blank line follows)
+        at += 1
+    return "\n".join(lines[:at] + ["", block] + lines[at:])
+
+
+def cmd_rollup(args) -> int:
+    """Fold brain/journal/entries/*.md (oldest first) into the logbook, CURRENT_TEST_STATE and NEXT_STEP, and remove
+    them. Run it on a task/rollup-<date> branch after merges; review the diff; open a small PR."""
+    root = repo_root()
+    files = sorted((root / ENTRIES).glob("*.md")) if (root / ENTRIES).is_dir() else []
+    if not files:
+        print("nothing to roll up (no file in brain/journal/entries/)")
+        return 0
+    parsed = [(f, *split_entry(f.name, f.read_text(encoding="utf-8"))) for f in files]   # all checked before writing
+    texts = {p: (root / p).read_text(encoding="utf-8") for p in SUMMARIES}
+    for _, journal, sections in parsed:
+        texts[LOGBOOK] = texts[LOGBOOK].rstrip("\n") + "\n\n" + rebase_links(journal, ENTRIES.as_posix(),
+                                                                             LOGBOOK.parent.as_posix()) + "\n"
+        for target, body in sections.items():
+            body = rebase_links(body, ENTRIES.as_posix(), target.parent.as_posix())
+            texts[target] = insert_after(texts[target], "**Last updated:**" if target == TEST_STATE else "# ", body)
+    for p, text in texts.items():
+        (root / p).write_bytes(text.encode("utf-8"))
+    for f, _, _ in parsed:
+        f.unlink()
+    print(f"{len(parsed)} journal entries rolled up into the logbook, CURRENT_TEST_STATE and NEXT_STEP:\n  "
+          + "\n  ".join(f.name for f, _, _ in parsed) + "\nReview `git diff`, then commit on a task/rollup-<date> branch.")
+    return 0
 
 
 def cmd_lint(args) -> int:
@@ -611,6 +700,7 @@ def main(argv: list[str] | None = None) -> int:
     au.add_argument("--staged", action="store_true")
     au.set_defaults(fn=cmd_audit)
     sub.add_parser("lint").set_defaults(fn=cmd_lint)
+    sub.add_parser("rollup").set_defaults(fn=cmd_rollup)
     v = sub.add_parser("verify-main")
     v.add_argument("--ref", default="refs/remotes/origin/main")
     v.set_defaults(fn=cmd_verify_main)
