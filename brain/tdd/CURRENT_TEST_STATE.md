@@ -1,34 +1,15 @@
 # Current test state
 
-**Last updated:** 2026-10-09 · **Commit:** `task/OP-009-lease-loss` after merging `main` (up to #44)
+**Last updated:** 2026-10-09 · **Commit:** `task/T-0026-alert-resolution` (on top of `task/OP-011-correlation`)
 
-**T-0028 (SC-06), 2026-10-09 (`task/T-0028-sc06-cpu`):** 11 tests in `tests/test_t0028_sc06_cpu.py` (red seen
-11/11: no CPU limit in the gateway, no signal, class, alert, burner or inventory entry); 5 evaluation cases
-`tests/eval/cases/cpu-*.yaml` (baseline 5/5, hard 0 0 0). Full suite on the laptop: green.
-
-**OP-009 follow-up, 2026-10-09 (`task/OP-009-renew-gap`, review note of PR #53):**
-`test_a_failing_renewer_cancels_at_the_lease_expiry_not_at_its_next_attempt` (red seen: cancelled at 1.44 s with a
-1 s lease and 0.7 s attempts; now at the expiry; 5/5 stable runs). Full suite on the laptop: green.
-
-**Alert identity to milliseconds, 2026-10-09 (`task/alert-identity-ms`, review note of PR #45):** 3 tests in
-`tests/test_alert_identity.py` (red seen: a pushed copy with a nanosecond `startsAt` and a pulled one with milliseconds
-opened two incidents); the stored identity format is pinned by a test. Full suite on the laptop: green.
-
-**OP-009, 2026-10-09 (`task/OP-009-lease-loss` after merging `main` up to #50):** **306 passed**, 3 skipped on the
-laptop with a throwaway `postgres:16-alpine` (the OD-3 benchmark passed too); the T-0025 baseline evaluation still
-gives hard 0 0 0 with the runners' new `cancel` argument. Before `main` up to #44: 243 passed, 3 skipped on the laptop with a
-throwaway `postgres:16-alpine` (the Postgres tests included; skipped: the two real-Docker tests and the `/proc`
-test). The OD-3 timing benchmark failed once in the full run (p95 overhead 123 ms against 100 ms) and passed alone:
-the known Windows timing flake. OP-009's own tests: 7 in `tests/test_op009_lease_loss.py` and
-`test_worker_lease_uses_the_database_clock` (red seen on 2026-10-08, see below).
-
-**OP-001, 2026-10-09 (`task/OP-001-runbook-detectors`, PR #44):** the architecture-to-runbook metadata test failed
-before the edits, then passed. The new mapping and index tests plus 20 related knowledge/SC-04 tests pass locally.
-The Windows full suite passed with nine skips when pytest's temporary directory was placed outside the Git worktree;
-the first local run used an in-worktree temporary directory and caused five unrelated `test_deploy.py` path failures.
-After merging `main` (#41), only the existing OD-3 timing benchmark failed locally: p95 MCP overhead was 227 ms
-against its 100 ms budget (294 ms isolated). It is unaffected by OP-001 and is recorded as timing-flaky on the OP-005
-branch too. Linux CI `test` and `frontend` passed on the fast-track record commit; rerun after this merge from `main`.
+**T-0026, 2026-10-09 (`task/T-0026-alert-resolution`):** 16 new tests in `tests/test_t0026_alert_resolution.py`
+(red seen 14/16: a `resolved` notification was `ignored`; `active_alerts`, `resolve_absent` and `resolved_at` were
+missing; the silenced-alert and the received-before guards were green from the start) and
+`tests/test_postgres.py::test_alert_occurrence_resolution` (migration 005: forward only, column grant, no DELETE), plus
+five `argus db check` lines. Full suite on the laptop with a throwaway `postgres:16-alpine`: **301 passed**, 3 skipped;
+the OD-3 timing benchmark failed once in the full run and passed alone (the known Windows timing flake).
+Stage 7 (2026-10-09, both VMs on `ea01c68`): `argus db check` 20/20; SC-03 `inc_ed6a85ccd28f`, both occurrences
+resolved one pass after the alerts cleared, the incident unchanged; NO INTERFERENCE.
 
 **OP-005, 2026-10-09 (`task/OP-005-young-restarts`):** three new unit tests were red against the old exporter/signal,
 then passed. Five PromQL synthetic-series cases passed with Prometheus 3.5.0 `promtool test rules` (young, old with

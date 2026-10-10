@@ -141,10 +141,34 @@ class PostgresStore:
         return bool(row)
 
     def alert_occurrences(self, incident_id: str) -> list[dict[str, Any]]:
-        rows = self._q("SELECT identity, fingerprint, starts_at, alertname, labels, disposition, status, received_at "
-                       "FROM alert_occurrence WHERE incident_id = %s ORDER BY received_at, identity", (incident_id,))
-        keys = ("identity", "fingerprint", "starts_at", "alertname", "labels", "disposition", "status", "received_at")
+        rows = self._q("SELECT identity, fingerprint, starts_at, alertname, labels, disposition, status, received_at, "
+                       "resolved_at FROM alert_occurrence WHERE incident_id = %s ORDER BY received_at, identity",
+                       (incident_id,))
+        keys = ("identity", "fingerprint", "starts_at", "alertname", "labels", "disposition", "status", "received_at",
+                "resolved_at")
         return [dict(zip(keys, r)) for r in rows]
+
+    def firing_occurrences(self, host: str, received_before: datetime) -> list[dict[str, Any]]:
+        """The host's occurrences still firing that were recorded before `received_before` (T-0026, pull)."""
+        rows = self._q("SELECT identity, incident_id FROM alert_occurrence WHERE status = 'firing' "
+                       "AND labels->>'argus_host' = %s AND received_at <= %s ORDER BY received_at, identity",
+                       (host, received_before))
+        return [{"identity": r[0], "incident_id": r[1]} for r in rows]
+
+    def resolve_alert_occurrence(self, identity: str, resolved_at: datetime) -> dict[str, Any] | None:
+        """firing → resolved (migration 005: forward only). None when unknown or already resolved."""
+        row = self._q("UPDATE alert_occurrence SET status = 'resolved', resolved_at = %s "
+                      "WHERE identity = %s AND status = 'firing' RETURNING incident_id, fingerprint, alertname",
+                      (resolved_at, identity))
+        return {"incident_id": row[0][0], "fingerprint": row[0][1], "alertname": row[0][2]} if row else None
+
+    def close_queued_incident(self, incident_id: str, outcome: str, diagnosis: str, closed_at: datetime) -> bool:
+        """Close an incident no worker has claimed (T-0026). False when it is no longer queued (claimed meanwhile)."""
+        patch = {"status": "closed", "outcome": outcome, "diagnosis": diagnosis,
+                 "closed_at": closed_at.isoformat()}
+        row = self._q("UPDATE incident SET status = 'closed', body = body || %s WHERE id = %s AND status = 'queued' "
+                      "RETURNING id", (Jsonb(patch), incident_id))
+        return bool(row)
 
     def evidence_state(self, incident_id: str) -> tuple[int, datetime | None]:
         """(evidence_version, last_evidence_at): 1 + the attached occurrences, and the newest occurrence's time."""
@@ -280,6 +304,16 @@ CHECKS_SQL: list[tuple[str, str, bool]] = [
     ("insert checkpoint (T-0013)", "INSERT INTO checkpoints (thread_id, checkpoint_id, checkpoint) VALUES "
                                    "('dbcheck', 'c1', '{}')", True),
     ("DELETE checkpoint refused", "DELETE FROM checkpoints WHERE thread_id = 'dbcheck'", False),
+    ("insert alert occurrence (OP-011)", "INSERT INTO alert_occurrence (identity, incident_id, fingerprint, starts_at, "
+                                         "labels, disposition, received_at) VALUES "
+                                         "('alert:dbcheck', 'inc_dbcheck', 'fp', now(), '{}', 'started', now())", True),
+    ("resolve alert occurrence (T-0026)", "UPDATE alert_occurrence SET status = 'resolved', resolved_at = now() "
+                                          "WHERE identity = 'alert:dbcheck'", True),
+    ("resolved occurrence cannot fire again", "UPDATE alert_occurrence SET status = 'firing' "
+                                              "WHERE identity = 'alert:dbcheck'", False),
+    ("occurrence's incident cannot change", "UPDATE alert_occurrence SET incident_id = 'inc_x' "
+                                            "WHERE identity = 'alert:dbcheck'", False),
+    ("DELETE alert occurrence refused", "DELETE FROM alert_occurrence WHERE identity = 'alert:dbcheck'", False),
     ("runtime role is not superuser", "DO $$ BEGIN IF (SELECT rolsuper FROM pg_roles WHERE rolname = current_user) "
                                       "THEN RAISE EXCEPTION 'superuser'; END IF; END $$", True),
 ]

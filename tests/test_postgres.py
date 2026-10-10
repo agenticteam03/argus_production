@@ -122,6 +122,39 @@ def test_alert_occurrences(runtime_dsn, store):
     assert store.latest_concluded_incident(inc.target).id == inc.id
 
 
+def test_alert_occurrence_resolution(runtime_dsn, store):
+    """T-0026 (migration 005): the runtime role resolves an occurrence, forward only, and changes nothing else."""
+    import psycopg
+    from argus.domain.model import IncidentOutcome, IncidentStatus, utcnow
+    inc = _incident(target="vm-166/container:t0026-pg")
+    store.create_incident(inc, None)
+    t = utcnow()
+    labels = {"alertname": "A", "argus_host": "vm-166"}
+    store.add_alert_occurrence("alert:t26-a", inc.id, "fp-a", t, labels, "started", t)
+    store.add_alert_occurrence("alert:t26-b", inc.id, "fp-b", t, {**labels, "argus_host": "vm-095"}, "attached",
+                               t + timedelta(seconds=5))
+    assert [o["identity"] for o in store.firing_occurrences("vm-166", t + timedelta(seconds=1))] == ["alert:t26-a"]
+    assert store.firing_occurrences("vm-166", t - timedelta(seconds=1)) == []      # recorded after the read
+    occ = store.resolve_alert_occurrence("alert:t26-a", t + timedelta(minutes=1))
+    assert occ == {"incident_id": inc.id, "fingerprint": "fp-a", "alertname": "A"}
+    assert store.resolve_alert_occurrence("alert:t26-a", t) is None                  # already resolved
+    by_id = {o["identity"]: o for o in store.alert_occurrences(inc.id)}
+    assert by_id["alert:t26-a"]["status"] == "resolved"
+    assert by_id["alert:t26-a"]["resolved_at"] == t + timedelta(minutes=1)
+    with psycopg.connect(runtime_dsn, autocommit=True) as c:
+        for sql in ("UPDATE alert_occurrence SET status = 'firing' WHERE identity = 'alert:t26-a'",
+                    "UPDATE alert_occurrence SET incident_id = 'inc_x' WHERE identity = 'alert:t26-b'",
+                    "UPDATE alert_occurrence SET status = 'resolved' WHERE identity = 'alert:t26-b'",  # no resolved_at
+                    "DELETE FROM alert_occurrence WHERE identity = 'alert:t26-b'"):
+            with pytest.raises(psycopg.Error):
+                c.execute(sql)
+    assert store.close_queued_incident(inc.id, "resolved_externally", "every alert resolved", t)
+    after = store.get_incident(inc.id)
+    assert after.status == IncidentStatus.closed and after.outcome == IncidentOutcome.resolved_externally
+    assert after.closed_at == t and after.target == inc.target
+    assert not store.close_queued_incident(inc.id, "resolved_externally", "again", t)   # no longer queued
+
+
 def test_worker_lease_uses_the_database_clock(store):
     """OP-009: without `now`, renew and requeue use the database clock, the same one the claim used."""
     from argus.domain.model import IncidentStatus, utcnow

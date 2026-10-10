@@ -35,7 +35,7 @@ CREATE TABLE IF NOT EXISTS notification (key TEXT PRIMARY KEY, at TEXT NOT NULL,
 CREATE TABLE IF NOT EXISTS alert_occurrence (
   identity TEXT PRIMARY KEY, incident_id TEXT NOT NULL, fingerprint TEXT NOT NULL, starts_at TEXT NOT NULL,
   alertname TEXT NOT NULL DEFAULT '', labels TEXT NOT NULL, disposition TEXT NOT NULL,
-  status TEXT NOT NULL DEFAULT 'firing', received_at TEXT NOT NULL);
+  status TEXT NOT NULL DEFAULT 'firing', received_at TEXT NOT NULL, resolved_at TEXT);
 CREATE INDEX IF NOT EXISTS alert_occurrence_incident ON alert_occurrence(incident_id, received_at);
 CREATE TRIGGER IF NOT EXISTS evidence_no_update BEFORE UPDATE ON evidence
   BEGIN SELECT RAISE(ABORT, 'evidence is insert-only'); END;
@@ -57,6 +57,8 @@ class SqliteStore:
         for col in ("claimed_by", "claimed_until"):              # T-0014: files created before the worker lease
             if col not in cols:
                 self._db.execute(f"ALTER TABLE incident ADD COLUMN {col} TEXT")
+        if "resolved_at" not in {r[1] for r in self._db.execute("PRAGMA table_info(alert_occurrence)")}:
+            self._db.execute("ALTER TABLE alert_occurrence ADD COLUMN resolved_at TEXT")     # T-0026 (migration 005)
 
     def _q(self, sql: str, params: tuple = ()) -> list[tuple]:
         with self._lock:
@@ -171,11 +173,42 @@ class SqliteStore:
             return True
 
     def alert_occurrences(self, incident_id: str) -> list[dict[str, Any]]:
-        rows = self._q("SELECT identity,fingerprint,starts_at,alertname,labels,disposition,status,received_at "
-                       "FROM alert_occurrence WHERE incident_id=? ORDER BY received_at, rowid", (incident_id,))
+        rows = self._q("SELECT identity,fingerprint,starts_at,alertname,labels,disposition,status,received_at,"
+                       "resolved_at FROM alert_occurrence WHERE incident_id=? ORDER BY received_at, rowid",
+                       (incident_id,))
         return [{"identity": r[0], "fingerprint": r[1], "starts_at": datetime.fromisoformat(r[2]), "alertname": r[3],
                  "labels": json.loads(r[4]), "disposition": r[5], "status": r[6],
-                 "received_at": datetime.fromisoformat(r[7])} for r in rows]
+                 "received_at": datetime.fromisoformat(r[7]),
+                 "resolved_at": datetime.fromisoformat(r[8]) if r[8] else None} for r in rows]
+
+    def firing_occurrences(self, host: str, received_before: datetime) -> list[dict[str, Any]]:
+        """The host's occurrences still firing that were recorded before `received_before` (T-0026, pull)."""
+        rows = self._q("SELECT identity,incident_id,received_at FROM alert_occurrence WHERE status='firing' "
+                       "AND json_extract(labels, '$.argus_host')=? ORDER BY received_at, rowid", (host,))
+        return [{"identity": r[0], "incident_id": r[1]} for r in rows
+                if datetime.fromisoformat(r[2]) <= received_before]
+
+    def resolve_alert_occurrence(self, identity: str, resolved_at: datetime) -> dict[str, Any] | None:
+        """firing → resolved, forward only. None when unknown or already resolved."""
+        with self._lock:
+            row = self._q("SELECT incident_id,fingerprint,alertname FROM alert_occurrence "
+                          "WHERE identity=? AND status='firing'", (identity,))
+            if not row:
+                return None
+            self._q("UPDATE alert_occurrence SET status='resolved', resolved_at=? WHERE identity=?",
+                    (resolved_at.isoformat(), identity))
+            return {"incident_id": row[0][0], "fingerprint": row[0][1], "alertname": row[0][2]}
+
+    def close_queued_incident(self, incident_id: str, outcome: str, diagnosis: str, closed_at: datetime) -> bool:
+        """Close an incident no worker has claimed (T-0026). False when it is no longer queued (claimed meanwhile)."""
+        with self._lock:
+            row = self._q("SELECT body FROM incident WHERE id=? AND status='queued'", (incident_id,))
+            if not row:
+                return False
+            body = {**json.loads(row[0][0]), "status": "closed", "outcome": outcome, "diagnosis": diagnosis,
+                    "closed_at": closed_at.isoformat()}
+            self._q("UPDATE incident SET status='closed', body=? WHERE id=?", (json.dumps(body), incident_id))
+            return True
 
     def evidence_state(self, incident_id: str) -> tuple[int, datetime | None]:
         """(evidence_version, last_evidence_at): 1 + the attached occurrences, and the newest occurrence's time."""
