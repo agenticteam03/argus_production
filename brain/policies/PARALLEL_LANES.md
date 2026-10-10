@@ -78,7 +78,8 @@ Three developers, but most work runs in a single line. Seen in the week of 2026-
 
 ## Order of work
 
-1. The lease per VM (`brain.py`, `GIT_WORKFLOW.md`), with tests.
+1. The lease per VM (`brain.py`, `GIT_WORKFLOW.md`), with tests: LANES-1
+   ([task](../tasks/current/LANES-1-lease-per-vm.md)).
 2. Journal entries as files and `brain.py rollup`, with the lint rule.
 3. CI split into parallel jobs; the runner and the evaluation as background jobs.
 4. The lane board in `NEXT_STEP.md` and the reviewer rotation in `REVIEW_PROTOCOL.md`.
