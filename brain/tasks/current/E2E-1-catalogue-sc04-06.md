@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | `in progress` — step 1 (the catalogue entries, offline) done 2026-10-10; step 2 (a batch on vm-166) needs its lease |
+| Status | `in progress` — step 1 (the catalogue entries) and step 2 (batch 1 on vm-166: 17/20) done 2026-10-10; step 3 (read the three misses, batch 2 of SC-07 and SC-05) next |
 | Phase | 12 (end-to-end tests) — [`../../IMPLEMENTATION_PLAN.md`](../../IMPLEMENTATION_PLAN.md) |
 | Architecture | no change (no ACR) |
 | Branch | `task/E2E-1-catalogue-sc04-06` (from `main`) |
@@ -35,8 +35,24 @@ Tests: `tests/test_e2e_runner.py` (red seen: the 3 scenarios were missing; 36 pa
 gate holds the detector's signal expression exactly as the agent fills it. `run.py --dry-run SC-05` prints the steps
 and executes nothing.
 
-## Step 2 (needs vm-166's lease)
+## Step 2 (vm-166's lease, done 2026-10-10)
 
-`ops/e2e/run.py --runs 5 SC-04 SC-05 SC-06` from the laptop, as a background batch, once the VMs run a commit with
-`cpu_saturation` (`main` since #59) and the holder of vm-166's lease agrees. Record the per-scenario result in
-`execution/history/E2E-1/` and the phase-12 line in the next roll-up.
+Both VMs on `main` `ebbe9c9`. An SC-04 trial passed, then batch 1 (`--runs 5 SC-07 SC-04 SC-06 SC-05`, 13:23-16:12
+UTC; [evidence](../../execution/history/E2E-1/step-02/evidence.md)):
+
+| Scenario | Pass | Misses |
+|---|---|---|
+| SC-04 | 5/5 | — |
+| SC-06 | 5/5 | — |
+| SC-07 | 4/5 | run 4: root cause the client, not the backend (a wrong conclusion) |
+| SC-05 | 3/5 | runs 1, 3: escalated without naming the filler (a safe abstention) |
+
+0 errors; every reset clean, NO INTERFERENCE after every run. Detection, class and first runbook right in all 20
+runs: the misses are in the model's conclusion.
+
+## Step 3 (next)
+
+1. Read the evidence of the three missed incidents on vm-095 (`inc_e7e415955549`, `inc_3e6af419ab13`,
+   `inc_c18ea3c6bcf3`): what the model read and why it concluded or abstained. No change before that.
+2. Batch 2: `--runs 5 SC-07 SC-05` (vm-166's lease), to tell variance from a systematic gap.
+3. SC-02 × 5 when vm-095's lease is free (its failure runs on vm-095's lab).
