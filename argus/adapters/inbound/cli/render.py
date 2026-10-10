@@ -17,7 +17,8 @@ EXECUTOR_TAG = {"docker_read": ("bl", "docker"), "host_probe": ("m", "host"), "n
 OUTCOME = {"diagnosed": ("g", "DIAGNOSED"), "no_incident": ("g", "HEALTHY — nothing to do"),
            "unsupported_escalated": ("y", "UNSUPPORTED → escalated to a human with evidence"),
            "undiagnosable": ("y", "UNDIAGNOSABLE → escalated (metrics missing)"),
-           "no_action_escalated": ("y", "ESCALATED to a human"), "refused": ("r", "REFUSED")}
+           "no_action_escalated": ("y", "ESCALATED to a human"), "refused": ("r", "REFUSED"),
+           "resolved_externally": ("g", "RESOLVED externally — every alert cleared before a run")}
 
 
 class Formatter:

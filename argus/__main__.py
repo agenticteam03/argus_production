@@ -10,7 +10,7 @@ import signal
 import threading
 import time
 
-from argus.infrastructure.wiring import Settings, build, make_store
+from argus.infrastructure.wiring import Settings, build, make_metrics, make_store
 from argus.infrastructure.worker import Worker
 
 
@@ -77,7 +77,8 @@ def scheduler() -> None:
     reconcile = None
     if cfg.enabled:                     # ACR-0003: the pull transport profile
         hosts = {h.name: h.alertmanager for h in inventory.hosts() if h.alertmanager}
-        reconcile = ReconcileFiringAlerts(AlertmanagerSource(hosts), HandleAlertNotification(store, inventory),
+        reconcile = ReconcileFiringAlerts(AlertmanagerSource(hosts),
+                                          HandleAlertNotification(store, inventory, make_metrics(s, inventory)),
                                           sorted(hosts))
     stop = threading.Event()
     signal.signal(signal.SIGTERM, lambda *_: stop.set())

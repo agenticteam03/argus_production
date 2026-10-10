@@ -177,19 +177,23 @@ def build_webhook(app_ctx) -> FastAPI:
         if not expected or not hmac.compare_digest(given, expected):
             raise HTTPException(401, "unauthorized")
         # ACR-0003: the same use case as the pull reconciliation, so a pushed and a pulled alert are one incident.
-        handle = HandleAlertNotification(app_ctx.store, app_ctx.inventory)
+        handle = HandleAlertNotification(app_ctx.store, app_ctx.inventory, app_ctx.metrics)
         created = []
         for a in payload.get("alerts", []):
+            ends = a.get("endsAt") if a.get("status") == "resolved" else None   # T-0026: when it stopped
+            if isinstance(ends, str) and ends.startswith("0001-"):           # Alertmanager's zero time = unset
+                ends = None
             try:
                 note = AlertNotification(fingerprint=str(a.get("fingerprint", "")), status=a.get("status"),
-                                         starts_at=a.get("startsAt"), ends_at=None,
+                                         starts_at=a.get("startsAt"), ends_at=ends,
                                          labels=a.get("labels") or {}, annotations=a.get("annotations") or {})
             except ValueError:
                 continue
             host = note.labels.get("argus_host", "?")
             r = handle(note, source=f"alertmanager@{host}")
             if r.incident_id:
-                created.append({"incident_id": r.incident_id, "duplicate": r.disposition == "duplicate"})
+                created.append({"incident_id": r.incident_id, "disposition": r.disposition,
+                                "duplicate": r.disposition == "duplicate"})
         return {"accepted": created}
 
     @hook.get("/healthz")

@@ -24,6 +24,8 @@ class AlertsUnavailable(Exception):
 
 class AlertSourcePort(Protocol):
     def firing_alerts(self, host: str) -> list[AlertNotification]: ...   # only alerts labelled with that host
+    # every active alert of that host, silenced and inhibited included: what is absent is resolved (ACR-0005)
+    def active_alerts(self, host: str) -> list[AlertNotification]: ...
 
 
 class MetricsPort(Protocol):

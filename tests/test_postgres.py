@@ -94,6 +94,67 @@ def test_worker_lease(store):
     assert store.active_incident(_incident(target="vm-095/container:t0014-never-used").target) is None
 
 
+def test_alert_occurrences(runtime_dsn, store):
+    """OP-011 (migration 004): one row per alert identity, insert-only; the evidence version counts the attaches."""
+    import psycopg
+    from argus.domain.model import utcnow
+    inc = _incident(target="vm-166/container:op011-pg")
+    store.create_incident(inc, f"alert:fp-a:{inc.opened_at.isoformat()}")
+    assert store.evidence_state(inc.id) == (1, None)
+    assert store.incident_for_trigger(f"alert:fp-a:{inc.opened_at.isoformat()}") == inc.id   # the opening key
+    t = utcnow()
+    assert store.add_alert_occurrence("alert:fp-a:t", inc.id, "fp-a", t, {"alertname": "A"}, "started", t)
+    assert store.add_alert_occurrence("alert:fp-b:t", inc.id, "fp-b", t, {"alertname": "B", "dependency": "db"},
+                                      "attached", t + timedelta(seconds=1))
+    assert not store.add_alert_occurrence("alert:fp-b:t", inc.id, "fp-b", t, {}, "attached")   # already recorded
+    assert store.incident_for_trigger("alert:fp-b:t") == inc.id and store.incident_for_trigger("alert:x") is None
+    occ = store.alert_occurrences(inc.id)
+    assert [(o["alertname"], o["disposition"]) for o in occ] == [("A", "started"), ("B", "attached")]
+    assert occ[1]["labels"]["dependency"] == "db"
+    version, last = store.evidence_state(inc.id)
+    assert version == 2 and last == t + timedelta(seconds=1)
+    with psycopg.connect(runtime_dsn, autocommit=True) as c, pytest.raises(psycopg.Error, match="permission"):
+        c.execute("DELETE FROM alert_occurrence")
+    assert store.latest_concluded_incident(inc.target) is None                  # ACR-0004: queued is not concluded
+    from argus.domain.model import IncidentStatus
+    inc.status, inc.incident_class, inc.closed_at = IncidentStatus.escalated, "dependency_unavailable", t
+    store.update_incident(inc)
+    assert store.latest_concluded_incident(inc.target).id == inc.id
+
+
+def test_alert_occurrence_resolution(runtime_dsn, store):
+    """T-0026 (migration 005): the runtime role resolves an occurrence, forward only, and changes nothing else."""
+    import psycopg
+    from argus.domain.model import IncidentOutcome, IncidentStatus, utcnow
+    inc = _incident(target="vm-166/container:t0026-pg")
+    store.create_incident(inc, None)
+    t = utcnow()
+    labels = {"alertname": "A", "argus_host": "vm-166"}
+    store.add_alert_occurrence("alert:t26-a", inc.id, "fp-a", t, labels, "started", t)
+    store.add_alert_occurrence("alert:t26-b", inc.id, "fp-b", t, {**labels, "argus_host": "vm-095"}, "attached",
+                               t + timedelta(seconds=5))
+    assert [o["identity"] for o in store.firing_occurrences("vm-166", t + timedelta(seconds=1))] == ["alert:t26-a"]
+    assert store.firing_occurrences("vm-166", t - timedelta(seconds=1)) == []      # recorded after the read
+    occ = store.resolve_alert_occurrence("alert:t26-a", t + timedelta(minutes=1))
+    assert occ == {"incident_id": inc.id, "fingerprint": "fp-a", "alertname": "A"}
+    assert store.resolve_alert_occurrence("alert:t26-a", t) is None                  # already resolved
+    by_id = {o["identity"]: o for o in store.alert_occurrences(inc.id)}
+    assert by_id["alert:t26-a"]["status"] == "resolved"
+    assert by_id["alert:t26-a"]["resolved_at"] == t + timedelta(minutes=1)
+    with psycopg.connect(runtime_dsn, autocommit=True) as c:
+        for sql in ("UPDATE alert_occurrence SET status = 'firing' WHERE identity = 'alert:t26-a'",
+                    "UPDATE alert_occurrence SET incident_id = 'inc_x' WHERE identity = 'alert:t26-b'",
+                    "UPDATE alert_occurrence SET status = 'resolved' WHERE identity = 'alert:t26-b'",  # no resolved_at
+                    "DELETE FROM alert_occurrence WHERE identity = 'alert:t26-b'"):
+            with pytest.raises(psycopg.Error):
+                c.execute(sql)
+    assert store.close_queued_incident(inc.id, "resolved_externally", "every alert resolved", t)
+    after = store.get_incident(inc.id)
+    assert after.status == IncidentStatus.closed and after.outcome == IncidentOutcome.resolved_externally
+    assert after.closed_at == t and after.target == inc.target
+    assert not store.close_queued_incident(inc.id, "resolved_externally", "again", t)   # no longer queued
+
+
 def test_worker_lease_uses_the_database_clock(store):
     """OP-009: without `now`, renew and requeue use the database clock, the same one the claim used."""
     from argus.domain.model import IncidentStatus, utcnow
