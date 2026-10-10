@@ -5,7 +5,7 @@
   "branch": "task/T-0028-sc06-cpu",
   "base_commit": "2f39cecaf3150d00a7934d29b4932123e265957f",
   "started_at": "2026-10-10T00:37:44+00:00",
-  "expires_at": "2026-10-10T01:37:44+00:00",
+  "expires_at": "2026-10-10T02:32:53+00:00",
   "released": false,
   "handoff": null
 }
