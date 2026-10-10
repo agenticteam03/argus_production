@@ -12,7 +12,9 @@
 #             every read must stay on it), findings_any
 #   reset     runs once a start was attempted, also after an error; a failed reset stops the batch. Idempotent:
 #             it must succeed when what it removes is already gone
-# Not here yet: SC-10 and SC-12 (they stop Argus's own services), SC-04 (after PR #38), SC-05, SC-06, SC-08.
+# Not here yet: SC-10 and SC-12 (they stop Argus's own services), SC-08 (after PR #60).
+# SC-04, SC-05, SC-06 (E2E-1): the commands and gates of their VM proofs (T-0020, T-0024, T-0028); the gates use
+# the detector's own signal and threshold.
 
 scenarios:
   - id: H-1
@@ -87,6 +89,70 @@ scenarios:
              first_runbook: RB-003, reads_on: vm-166}
     reset:
       - sudo docker start argus-lab-cache
+
+  - id: SC-04
+    title: a worker leaks database sessions; the leaker is the root cause, not the database (vm-166)
+    host: vm-166
+    pre_gate:
+      promql: 'min_over_time((argus_db_connections_used{argus_host="vm-166",container="argus-lab-db"} / (argus_db_connections_usable{argus_host="vm-166",container="argus-lab-db"} > 0))[5m:30s])'
+      expect: "<0.9"
+      timeout_s: 600
+      every_s: 30
+    start:
+      - cd /opt/argus-v18/app/deploy/lab && sudo docker compose -f compose.lab.yml --profile sc04 up -d argus-lab-leaker
+    gate:
+      promql: 'min_over_time((argus_db_connections_used{argus_host="vm-166",container="argus-lab-db"} / (argus_db_connections_usable{argus_host="vm-166",container="argus-lab-db"} > 0))[5m:30s])'
+      expect: ">=0.9"
+      timeout_s: 900
+      every_s: 30
+    request: {target: "vm-166/container:argus-lab-db", reason: "clients cannot get a database connection", kind: report}
+    expect: {outcome: diagnosed, class: postgresql_connection_exhaustion, root_cause: "vm-166/container:argus-lab-leaker",
+             first_runbook: RB-004, reads_on: vm-166}
+    reset:
+      - sudo docker rm -f argus-lab-leaker
+
+  - id: SC-05
+    title: a filler writes the lab filesystem to 92 %; the writer is the root cause (vm-166)
+    host: vm-166
+    # needs the lab filesystem /srv/argus-lab-fill (ops/lab-fill-mount.sh, T-0024), kept mounted on vm-166
+    pre_gate:
+      promql: 'max(min_over_time((1 - node_filesystem_avail_bytes{argus_host="vm-166",mountpoint=~"/|/srv/argus-lab-fill"} / node_filesystem_size_bytes{argus_host="vm-166",mountpoint=~"/|/srv/argus-lab-fill"})[5m:30s]))'
+      expect: "<0.9"
+      timeout_s: 600
+      every_s: 30
+    start:
+      - cd /opt/argus-v18/app/deploy/lab && sudo docker compose -f compose.lab.yml --profile sc05 up -d argus-lab-filler
+    gate:
+      promql: 'max(min_over_time((1 - node_filesystem_avail_bytes{argus_host="vm-166",mountpoint=~"/|/srv/argus-lab-fill"} / node_filesystem_size_bytes{argus_host="vm-166",mountpoint=~"/|/srv/argus-lab-fill"})[5m:30s]))'
+      expect: ">=0.9"
+      timeout_s: 1500
+      every_s: 30
+    request: {target: "vm-166/host:vm-166", reason: "the disk is almost full", kind: report}
+    expect: {outcome: diagnosed, class: disk_pressure, root_cause: "vm-166/container:argus-lab-filler",
+             first_runbook: RB-005, reads_on: vm-166}
+    reset:
+      - sudo docker rm -f argus-lab-filler && sudo rm -f /srv/argus-lab-fill/argus-lab-filler.dat
+
+  - id: SC-06
+    title: a burner throttled at its 0.3-core CPU quota; the container itself is CPU-bound (vm-166)
+    host: vm-166
+    pre_gate:                     # no burner samples in the last 5 minutes: run N never sees run N-1's throttling
+      promql: 'min_over_time((rate(container_cpu_cfs_throttled_periods_total{argus_host="vm-166",name="argus-lab-burner"}[3m]) / (rate(container_cpu_cfs_periods_total{argus_host="vm-166",name="argus-lab-burner"}[3m]) > 0))[5m:30s])'
+      expect: "^none$"
+      timeout_s: 900
+      every_s: 30
+    start:
+      - cd /opt/argus-v18/app/deploy/lab && sudo docker compose -f compose.lab.yml --profile sc06 up -d argus-lab-burner
+    gate:                         # the detector's two conditions: throttled >= 0.5 and quota used >= 0.8, 5-minute minimums
+      promql: 'min_over_time((rate(container_cpu_cfs_throttled_periods_total{argus_host="vm-166",name="argus-lab-burner"}[3m]) / (rate(container_cpu_cfs_periods_total{argus_host="vm-166",name="argus-lab-burner"}[3m]) > 0))[5m:30s]) >= 0.5 and on(name) min_over_time((rate(container_cpu_usage_seconds_total{argus_host="vm-166",name="argus-lab-burner"}[3m]) / on(name) (container_spec_cpu_quota{argus_host="vm-166",name="argus-lab-burner"} / container_spec_cpu_period{argus_host="vm-166",name="argus-lab-burner"}))[5m:30s]) >= 0.8'
+      expect: ">=0.5"
+      timeout_s: 900
+      every_s: 30
+    request: {target: "vm-166/container:argus-lab-burner", reason: "this container is slow", kind: report}
+    expect: {outcome: diagnosed, class: cpu_saturation, root_cause: "vm-166/container:argus-lab-burner",
+             first_runbook: RB-006, reads_on: vm-166}
+    reset:
+      - sudo docker rm -f argus-lab-burner
 
   - id: SC-07
     title: a healthy backend on the wrong network (vm-166)
