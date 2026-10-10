@@ -11,7 +11,7 @@ shared-Brain setup B1–B8 under way (three developers).
 > #60, #62, #42, #51 merged): agent, worker and scheduler rebuilt on vm-095 (`argus db check` 20/20, restarts 0),
 > target services and Prometheus rebuilt on both (rules `HttpGatewayErrors`, `ArgusScrapeTargetDown`,
 > `ContainerCpuThrottled` loaded). Backup `argus-20261010T124807Z.dump` before. LAB BASELINE OK, NO INTERFERENCE.
-> Evidence: `execution/history/DEPLOY-MAIN-2/step-01/`.
+> H-1 HEALTHY (`inc_ccfcdf8b5758`). Evidence: `execution/history/DEPLOY-MAIN-2/step-01/`.
 
 > **Update 2026-10-09 (`conantkd`, read as the state after the OP-011 PR merges):** alerts are correlated (§6.4,
 > ACR-0004, architecture 1.8.4): an alert on the target and class of an open incident, or of the incident of the same

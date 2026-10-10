@@ -11,6 +11,7 @@ deploy; vm-166's released afterwards.
 | vm-166 rebuild | target services (exporter, read-gateway, host-probe, network-probe) rebuilt; Prometheus recreated. Rules loaded: `HttpGatewayErrors`, `ArgusScrapeTargetDown`, `ContainerCpuThrottled` |
 | vm-095 rebuild | agent, worker, scheduler (one image) rebuilt, **restarts=0**; target services rebuilt; Prometheus recreated, the same three rules loaded, `count(up == 0)` empty. `argus db check`: **20/20**; `/healthz` ok, LLM configured |
 | After | `LAB BASELINE OK`, **NO INTERFERENCE** on both |
+| H-1 (run by `conantkd`, shared password) | `argus diagnose vm-166/container:argus-lab-api --check` on vm-095: `inc_ccfcdf8b5758`, **outcome HEALTHY** (cross-host path through the tunnel works on `main`) |
 
-**Result:** both VMs run `main` `ebbe9c9` with T-0026 to T-0030, OP-004 and OP-008 deployed. No diagnosis was run
-(an `argus diagnose --check` needs the shared password, a developer step).
+**Result:** both VMs run `main` `ebbe9c9` with T-0026 to T-0030, OP-004 and OP-008 deployed. H-1 is HEALTHY from vm-095
+through the tunnel.
