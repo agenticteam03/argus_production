@@ -1,17 +1,11 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import AgentChat from "../components/AgentChat.jsx";
-import { Arrow, Badge, Card, Empty, Inbox, Shield } from "../components/ui.jsx";
+import IncidentRow from "../components/IncidentRow.jsx";
+import { Arrow, Card, Empty, Inbox, Shield } from "../components/ui.jsx";
 import { useAuth } from "../context/AuthContext.jsx";
 import { useLiveOverview } from "../hooks/useLiveOverview.js";
 import { argus } from "../services/index.js";
-
-const TRIGGERS = { alert: "Alertmanager webhook", scheduled: "Scheduled check", manual: "Manual" };
-
-const timeAgo = (iso) => {
-  const m = Math.max(0, Math.round((Date.now() - new Date(iso)) / 60000));
-  return m < 1 ? "just now" : m < 60 ? `${m}m ago` : m < 1440 ? `${Math.round(m / 60)}h ago` : `${Math.round(m / 1440)}d ago`;
-};
 
 function IncidentsCard({ incidents, className }) {
   return (
@@ -20,16 +14,7 @@ function IncidentsCard({ incidents, className }) {
         <Empty icon={Inbox} title="No recent activity" text="Incidents from alerts, scheduled checks or manual runs will show up here." />
       ) : (
         <ul className="space-y-2">
-          {incidents.slice(0, 5).map((i) => (
-            <li key={i.id} className="rounded-xl bg-field p-3">
-              <div className="flex items-center justify-between gap-2">
-                <span className="truncate font-mono text-xs text-muted">{i.id}</span>
-                <Badge status={i.status} />
-              </div>
-              <p className="mt-1.5 text-sm font-medium">{i.target} <span className="font-normal text-muted">· {i.title}</span></p>
-              <p className="mt-1 text-xs text-muted">{timeAgo(i.createdAt)} · {TRIGGERS[i.trigger] ?? i.trigger} · {i.severity}</p>
-            </li>
-          ))}
+          {incidents.slice(0, 5).map((i) => <IncidentRow key={i.id} incident={i} compact />)}
         </ul>
       )}
       <Link to="/incidents" className="mt-3 inline-flex items-center gap-1.5 text-[13px] text-accent-hover hover:underline">
@@ -58,10 +43,10 @@ function HealthCard({ health }) {
         <Row label="WireGuard tunnel (A ↔ T)"><Status ok={health?.wireguard} yes="Connected" no="Down" /></Row>
         <Row label="Prometheus metrics"><Status ok={health?.prometheus} yes="Online" no="Offline" /></Row>
         <div>
-          <Row label="LLM tokens today"><span>{used ?? "—"} / {limit ?? "—"}</span></Row>
+          <Row label="LLM tokens today"><span>{used == null ? "No data" : `${used} / ${limit ?? "—"}`}</span></Row>
           <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/10"><div className="h-full rounded-full bg-accent" style={{ width: `${pct}%` }} /></div>
         </div>
-        <Row label="Resolved today"><span>{health?.resolvedToday ?? "—"}</span></Row>
+        <Row label="Resolved today"><span>{health?.resolvedToday ?? "No data"}</span></Row>
       </div>
     </Card>
   );
@@ -86,7 +71,7 @@ function ApprovalItem({ approval, canDecide, onDecide }) {
           <button disabled={expired} onClick={() => onDecide(approval.id, "deny")} className="h-9 flex-1 cursor-pointer rounded-lg border border-line text-sm transition enabled:hover:bg-white/5 disabled:cursor-not-allowed disabled:text-[#4b5363]">Reject</button>
         </div>
       ) : (
-        <p className="mt-2 text-xs text-muted">Only operators and admins can decide.</p>
+        <p className="mt-2 text-xs text-muted">Only a token with the approve action can decide.</p>
       )}
     </li>
   );
@@ -95,6 +80,8 @@ function ApprovalItem({ approval, canDecide, onDecide }) {
 export default function Dashboard() {
   const { user } = useAuth();
   const { incidents, approvals, health, live, refresh } = useLiveOverview();
+  // A read token never lists `approve`, so the buttons stay hidden (ACR-0001); the UI never decides who may act.
+  const canDecide = user.actions?.includes("approve") ?? false;
   // The server derives the actor from the token; an expired/conflicting decision just triggers a refresh.
   const decide = (id, decision) => argus.decideApproval(id, decision).catch(() => {}).finally(refresh);
 
@@ -122,7 +109,7 @@ export default function Dashboard() {
               <Empty icon={Shield} title="No pending approvals" text="Remediations that need a human decision will appear here." />
             ) : (
               <ul className="space-y-2">
-                {approvals.map((a) => <ApprovalItem key={a.id} approval={a} canDecide={user.role !== "viewer"} onDecide={decide} />)}
+                {approvals.map((a) => <ApprovalItem key={a.id} approval={a} canDecide={canDecide} onDecide={decide} />)}
               </ul>
             )}
           </Card>

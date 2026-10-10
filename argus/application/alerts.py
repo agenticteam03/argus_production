@@ -37,8 +37,11 @@ class IntakeResult:
 
 
 def alert_identity(a: AlertNotification) -> str:
-    """§6.6: the same string for a pushed and a pulled copy of one alert firing."""
-    return f"alert:{a.fingerprint}:{a.starts_at.isoformat()}"
+    """§6.6: the same string for a pushed and a pulled copy of one alert firing. `startsAt` is truncated to
+    milliseconds: the webhook's comes from Go (nanoseconds, kept to microseconds), the API v2's has milliseconds.
+    `isoformat()` keeps the format of the identities already stored (".123000", or no fraction)."""
+    starts = a.starts_at.replace(microsecond=a.starts_at.microsecond // 1000 * 1000)
+    return f"alert:{a.fingerprint}:{starts.isoformat()}"
 
 
 class HandleAlertNotification:
