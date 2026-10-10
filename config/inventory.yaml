@@ -31,6 +31,7 @@ targets:
   - ref: vm-166/host:vm-166
     mounts: ["/", "/srv/argus-lab-fill"]
   - ref: vm-166/container:argus-lab-worker        # SC-01 OOM restart loop
+  - ref: vm-166/container:argus-lab-burner        # SC-06 (T-0028): a busy loop under a 0.3-core CPU quota
   - ref: vm-166/container:argus-lab-filler        # SC-05: fills /srv/argus-lab-fill (the lab filesystem)
     depends_on: [vm-166/host:vm-166]              # writes to the host's lab filesystem: in a host incident's scope (§5)
   - ref: vm-166/container:argus-lab-api           # SC-03 victim of its dependency

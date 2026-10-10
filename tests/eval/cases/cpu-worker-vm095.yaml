@@ -1,0 +1,61 @@
+# T-0028 (SC-06, RB-006): a worker on vm-095 throttled at its 0.5-core quota
+id: cpu-worker-vm095
+category: class
+target: vm-095/container:argus-lab-worker
+request: report
+reason: 'ContainerCpuThrottled: throttled at its CPU quota'
+metrics:
+  vm-095/container:argus-lab-worker:
+    container_cpu_throttled_ratio_5m: 0.88
+    restarts_10m: 0
+    health_unhealthy: 0
+fixtures:
+  docker_read:
+    /containers/argus-lab-worker/status:
+      id: e0e0e0
+      state: running
+      health: none
+      restart_count: 0
+      oom_killed: false
+      exit_code: 0
+      memory_limit_bytes: 33554432
+      cpu_limit_cores: 0.5
+      networks: []
+    /containers/argus-lab-worker/stats:
+      memory_usage_bytes: 9000000
+      memory_limit_bytes: 33554432
+      memory_percent: 26.8
+      cpu_percent: 48.9
+      pids: 1
+    /containers/argus-lab-worker/logs:
+      lines:
+      - 'worker: batch 41 started'
+    /containers/argus-lab-worker/health:
+      status: none
+      failing_streak: 0
+      log: []
+    /containers/argus-lab-worker/events:
+      events: []
+  host_probe:
+    '*':
+      total_mib: 5800
+      available_mib: 3900
+      cpu_busy_percent: 18
+      load1: 0.4
+      cpus: 2
+  network_probe:
+    '*':
+      ok: true
+      addresses: []
+      duration_ms: 2
+      status: 200
+label:
+  outcome: diagnosed
+  class: cpu_saturation
+  root_cause: vm-095/container:argus-lab-worker
+  diagnosis_any:
+  - quota
+  - limit
+  - throttl
+  runbooks:
+  - RB-006

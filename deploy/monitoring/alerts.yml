@@ -21,3 +21,8 @@ groups:
         expr: max by (argus_host) (1 - node_filesystem_avail_bytes{job="argus-v18-node-exporter",fstype=~"ext4|xfs|btrfs"} / node_filesystem_size_bytes{job="argus-v18-node-exporter",fstype=~"ext4|xfs|btrfs"}) >= 0.9
         for: 5m
         annotations: {summary: "a filesystem of the host is above 90 % used for 5 minutes"}
+      - alert: ContainerCpuThrottled       # T-0028 / RB-006: an Argus container throttled at its CPU quota in half or more
+        # of its CPU periods for 5 minutes. cAdvisor names the container `name`; the intake reads `container`.
+        expr: label_replace(rate(container_cpu_cfs_throttled_periods_total{name=~"argus-.*"}[1m]) / (rate(container_cpu_cfs_periods_total{name=~"argus-.*"}[1m]) > 0), "container", "$1", "name", "(.*)") >= 0.5
+        for: 5m
+        annotations: {summary: "container {{ $labels.name }} is throttled at its CPU quota"}
