@@ -80,6 +80,7 @@ def container_status(args: NoArgs, target: TargetRef, info, client) -> Capabilit
             f"restarts={_fmt(d.get('restart_count'))} oom_killed={_fmt(d.get('oom_killed'))} "
             f"exit_code={_fmt(d.get('exit_code'))} started_at={_fmt(d.get('started_at'))} "
             f"memory_limit_bytes={_fmt(d.get('memory_limit_bytes'))} "
+            f"cpu_limit_cores={_fmt(d.get('cpu_limit_cores'))} "
             f"networks={','.join(d['networks']) if d.get('networks') is not None else 'unknown'}")
     ident = {"container_id": d["id"]} if d.get("id") else {}
     return CapabilityResult(values=d, model_text=text, source_time=_ts(d.get("collected_at")),

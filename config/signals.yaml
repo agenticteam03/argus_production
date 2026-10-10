@@ -16,6 +16,14 @@ host_disk_used_ratio:  '1 - node_filesystem_avail_bytes{argus_host="$host",mount
 host_cpu_busy_ratio:   '1 - avg(rate(node_cpu_seconds_total{argus_host="$host",mode="idle"}[5m]))'
 host_memory_available_ratio: 'node_memory_MemAvailable_bytes{argus_host="$host"} / node_memory_MemTotal_bytes{argus_host="$host"}'
 container_cpu_throttled_ratio: 'rate(container_cpu_cfs_throttled_periods_total{argus_host="$host",name="$name"}[5m]) / (rate(container_cpu_cfs_periods_total{argus_host="$host",name="$name"}[5m]) > 0)'
+# T-0028 (SC-06, RB-006): the share of the container's CPU periods throttled at its quota (cAdvisor CFS counters), its
+# minimum over 5 minutes; no value for a container without a quota (no periods). The rate window is 3m: cAdvisor
+# stamps its samples at each housekeeping (35-53 s apart on vm-166), so a 1m window rarely holds two samples.
+container_cpu_throttled_ratio_5m: 'min_over_time((rate(container_cpu_cfs_throttled_periods_total{argus_host="$host",name="$name"}[3m]) / (rate(container_cpu_cfs_periods_total{argus_host="$host",name="$name"}[3m]) > 0))[5m:30s])'
+# T-0028: how much of its CPU quota the container uses (usage / (quota / period)), the 5-minute minimum. The throttled
+# share counts only the periods the container ran in, so a bursty container far below its quota can show a high
+# share (argus-lab-api on vm-166: 0.61 throttled at 0.04 of its quota): saturation needs both.
+container_cpu_quota_used_ratio_5m: 'min_over_time((rate(container_cpu_usage_seconds_total{argus_host="$host",name="$name"}[3m]) / on(name) (container_spec_cpu_quota{argus_host="$host",name="$name"} / container_spec_cpu_period{argus_host="$host",name="$name"}))[5m:30s])'
 # T-0024 (SC-05, RB-005): every DECLARED mount of the host target ($mounts, from the inventory), not only `/`.
 # The worst mount's used ratio, its minimum over 5 minutes; the soonest time to full (hours) at the 15-minute fill rate
 # (no value when nothing is growing).
