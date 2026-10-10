@@ -270,3 +270,109 @@ def test_guard_push_refuses_main_only(monkeypatch, capsys):
     assert "pull request" in capsys.readouterr().err
     monkeypatch.setenv("PRE_COMMIT_REMOTE_BRANCH", "refs/heads/task/T-0013-x")
     assert brain.main(["guard-push"]) == 0
+
+
+# --- one lease per VM (PARALLEL_LANES change 1, LANES-1) ------------------------------------------------------------
+
+def vm_lease(repo: Path, vm: str) -> dict:
+    return lease_of(repo)["vms"][vm]
+
+
+def test_two_developers_hold_one_vm_each(repos, monkeypatch, capsys):
+    as_(monkeypatch, repos["alice"])
+    assert brain.main(["start", "--vm", "vm-166", "--task", "T-0029"]) == 0
+    as_(monkeypatch, repos["bob"], T0 + dt.timedelta(minutes=5))
+    assert brain.main(["start", "--vm", "vm-095", "--task", "T-0025"]) == 0
+    assert vm_lease(repos["bob"], "vm-166")["holder"] == "alice"
+    assert vm_lease(repos["bob"], "vm-095")["holder"] == "bob"
+    capsys.readouterr()
+    assert brain.main(["status"]) == 0
+    out = capsys.readouterr().out
+    assert "vm-095: ACTIVE: bob" in out and "vm-166: ACTIVE: alice" in out
+    as_(monkeypatch, repos["alice"], T0 + dt.timedelta(minutes=10))
+    assert brain.main(["start", "--vm", "vm-095"]) == 2
+    assert "vm-095 is in use by bob" in capsys.readouterr().err
+
+
+def test_claiming_both_vms_is_refused_while_one_is_held(repos, monkeypatch, capsys):
+    as_(monkeypatch, repos["alice"])
+    assert brain.main(["start", "--vm", "vm-166"]) == 0
+    as_(monkeypatch, repos["bob"], T0 + dt.timedelta(minutes=5))
+    assert brain.main(["start"]) == 2                       # the default is both VMs, as before
+    assert "vm-166 is in use by alice" in capsys.readouterr().err
+    assert vm_lease(repos["bob"], "vm-095") is None         # nothing claimed: all or nothing
+
+
+def test_the_summary_keeps_an_older_brain_py_out_of_a_busy_lab(repos, monkeypatch):
+    """Branches made before LANES-1 run the old brain.py, which reads only the top-level fields."""
+    as_(monkeypatch, repos["alice"])
+    assert brain.main(["start", "--vm", "vm-166"]) == 0
+    as_(monkeypatch, repos["bob"], T0 + dt.timedelta(minutes=5))
+    assert brain.main(["start", "--vm", "vm-095"]) == 0
+    top = lease_of(repos["bob"])
+    assert top["holder"] == "alice+bob" and top["released"] is False   # an old start refuses: not its own holder
+    assert top["expires_at"] == (T0 + dt.timedelta(minutes=65)).isoformat()
+    assert brain.main(["release"]) == 0
+    top = lease_of(repos["bob"])
+    assert top["holder"] == "alice" and top["released"] is False
+
+
+def test_a_lease_in_the_old_format_holds_both_vms(repos, monkeypatch, capsys):
+    as_(monkeypatch, repos["alice"])
+    old = {"holder": "alice", "session_id": "s1", "task": "T-0028", "branch": "task/T-0028-x", "base_commit": "x",
+           "started_at": T0.isoformat(), "expires_at": (T0 + dt.timedelta(minutes=60)).isoformat(),
+           "released": False, "handoff": None}
+    brain.write_lease(old, None, "claim: alice (T-0028)")
+    as_(monkeypatch, repos["bob"], T0 + dt.timedelta(minutes=5))
+    assert brain.main(["start", "--vm", "vm-095"]) == 2
+    assert "vm-095 is in use by alice" in capsys.readouterr().err
+    as_(monkeypatch, repos["bob"], T0 + dt.timedelta(minutes=61))
+    assert brain.main(["start", "--vm", "vm-095"]) == 0
+    assert vm_lease(repos["bob"], "vm-095")["took_over_from"]["holder"] == "alice"
+    assert vm_lease(repos["bob"], "vm-166")["holder"] == "alice"       # still hers (expired), not taken
+
+
+def test_an_older_brain_py_renew_and_release_of_the_summary_are_honoured(repos, monkeypatch):
+    as_(monkeypatch, repos["alice"])
+    assert brain.main(["start"]) == 0
+    raw, sha = brain.read_lease()
+    raw["expires_at"] = (T0 + dt.timedelta(minutes=180)).isoformat()     # what the old `renew` writes
+    sha = brain.write_lease(raw, sha, "renew: alice")
+    vms, _, _ = brain.read_leases()
+    assert all(v["expires_at"] == raw["expires_at"] for v in vms.values())
+    raw["released"] = True                                                 # what the old `release` writes
+    brain.write_lease(raw, sha, "release: alice")
+    as_(monkeypatch, repos["bob"], T0 + dt.timedelta(minutes=5))
+    assert brain.main(["start", "--vm", "vm-095"]) == 0
+
+
+def test_renew_and_release_touch_only_my_own_vm(repos, monkeypatch):
+    as_(monkeypatch, repos["alice"])
+    assert brain.main(["start", "--vm", "vm-166"]) == 0
+    as_(monkeypatch, repos["bob"], T0 + dt.timedelta(minutes=5))
+    assert brain.main(["start", "--vm", "vm-095"]) == 0
+    as_(monkeypatch, repos["bob"], T0 + dt.timedelta(minutes=30))
+    assert brain.main(["renew", "--minutes", "120"]) == 0
+    assert vm_lease(repos["bob"], "vm-095")["expires_at"] == (T0 + dt.timedelta(minutes=150)).isoformat()
+    assert vm_lease(repos["bob"], "vm-166")["expires_at"] == (T0 + dt.timedelta(minutes=60)).isoformat()
+    assert brain.main(["handoff", "evaluation running; results in eval-results"]) == 0
+    assert vm_lease(repos["bob"], "vm-095")["released"] is True
+    assert vm_lease(repos["bob"], "vm-166")["released"] is False
+
+
+def test_renewing_one_vm_does_not_renew_the_other(repos, monkeypatch):
+    """The summary then carries the later expiry; that is not an old brain.py's renew."""
+    as_(monkeypatch, repos["alice"])
+    assert brain.main(["start"]) == 0
+    assert brain.main(["renew", "--vm", "vm-166", "--minutes", "120"]) == 0
+    vms, _, _ = brain.read_leases()
+    assert vms["vm-166"]["expires_at"] == (T0 + dt.timedelta(minutes=120)).isoformat()
+    assert vms["vm-095"]["expires_at"] == (T0 + dt.timedelta(minutes=60)).isoformat()
+
+
+def test_vm095_alone_reminds_that_an_agent_change_needs_both(repos, monkeypatch, capsys):
+    as_(monkeypatch, repos["alice"])
+    assert brain.main(["start", "--vm", "vm-095"]) == 0
+    out = capsys.readouterr().out
+    assert "needs BOTH leases" in out
+    assert "[VM vm-095 · bash]" in out and "[VM vm-166 · bash]" not in out
