@@ -1,0 +1,28 @@
+# T-0027 (RB-014): node-exporter stopped on vm-166: the disk signals are empty
+id: blind-node-exporter-vm166
+category: class
+target: vm-166/host:vm-166
+request: report
+reason: 'ArgusScrapeTargetDown: scrape target argus-v18-node-exporter is down'
+metrics:
+  vm-166/host:vm-166:
+    scrape_targets_down: 1
+    host_disk_used_ratio_5m: null
+    host_disk_hours_to_full: null
+fixtures:
+  host_probe:
+    '*':
+      total_mib: 5800
+      available_mib: 3900
+      cpu_busy_percent: 15
+      load1: 0.3
+      cpus: 1
+label:
+  outcome: no_action_escalated
+  class: monitoring_blind_spot
+  abstain: true
+  model_calls: 0
+  findings_any:
+  - scrape target
+  runbooks:
+  - RB-014

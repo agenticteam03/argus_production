@@ -26,6 +26,11 @@ groups:
         expr: max by (argus_host, owner) (avg_over_time(argus_http_probe_gateway_error[5m])) >= 0.5
         for: 2m
         annotations: {summary: "the proxy {{ $labels.owner }} answers 502/504: its upstream fails or is too slow"}
+      - alert: ArgusScrapeTargetDown       # T-0027 / RB-014: an Argus scrape target down for two scrape intervals+ (the
+        # monitoring blind spot class). The gate exporter's own outage also fires it; that incident ends undiagnosable.
+        expr: up{job=~"argus-v18-.*"} == 0
+        for: 2m
+        annotations: {summary: "scrape target {{ $labels.job }} is down: its signals are unknown"}
       - alert: ContainerCpuThrottled       # T-0028 / RB-006: an Argus container throttled at its CPU quota in half or more
         # of its CPU periods AND using 80 %+ of its quota, for 5 minutes (the detector's test). cAdvisor names the
         # container `name`; the intake reads `container`. 3m rates: cAdvisor's samples are 35-53 s apart. The quota

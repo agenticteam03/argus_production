@@ -755,6 +755,61 @@ deletion advised. Reset; the lab filesystem stays mounted and empty. RB-005 1.0.
 Consequences: T-0024 done; phase 11 at 80 % (SC-06, SC-08 left). The time to full lags a stop by up to 15 minutes.
 References: `tasks/current/T-0024-sc05-disk.md`, `execution/history/T-0024/step-02/evidence.md`.
 
+## 2026-10-09 — OP-011: alert correlation deployed; ACR-0004 (the same episode) accepted
+
+Type: decision
+Who: conantkd (+ agent)
+Context: OP-011 (two alerts on one target opened two incidents). Step 01 implemented ARCHITECTURE §6.4 in the alert
+intake (webhook and pull) with migration 004 (`alert_occurrence`); step 02 deployed it on both VMs and ran SC-03.
+Decision / result: SC-03 still gave two incidents: the alerts started 30 s apart and were pulled one pass apart, and
+the first incident was diagnosed and closed in 31 s, so §6.4 (open incidents only) did not apply. The second alert
+started 9 s before the first incident closed. `conantkd` accepted ACR-0004 (architecture 1.8.4): an alert that started
+at or before the latest concluded incident of its target and class closed, within the window and compatible, is
+attached to it, without a new run and without reopening it. Rejected: a grouping wait (latency on every alert) and
+keeping §6.4 as written.
+Consequences: step 03 deploys the rule and repeats SC-03 (done when one incident). No safety principle touched.
+References: OPEN_PROBLEMS OP-011, `architecture/changes/ACR-0004-correlation-same-episode.md`,
+`execution/history/OP-011/step-02/evidence.md`.
+
+## 2026-10-09 — OP-011 fixed: SC-03 gives one incident (OP-011, ACR-0004)
+
+Type: verification
+Who: conantkd (+ agent)
+Context: ACR-0004 (an alert of the same episode joins the concluded incident) was implemented after step 02.
+Decision / result: both VMs on `task/OP-011-correlation` `cb300df`. SC-03 reproduced step 02's timing: the incident
+`inc_8a4cf92444ae` was DIAGNOSED and closed at 13:36:22; `ContainerUnhealthy` (started 13:36:01) was pulled at 13:36:57
+and **attached** to it (`concluded, same episode`); the next pass said `duplicate` twice. One incident, one diagnosis,
+evidence version 2. LAB BASELINE OK, NO INTERFERENCE on both.
+Consequences: OP-011 fixed; its PR is stacked on T-0024 (with migration 004 and ACR-0004). Both VMs run it.
+References: OPEN_PROBLEMS OP-011, `execution/history/OP-011/step-03/evidence.md`.
+
+## 2026-10-09 — T-0026: resolved alerts (T-0026, ACR-0005)
+
+Type: implementation + architecture change
+Who: conantkd (+ agent)
+Context: §6.4 "Resolution" was not implemented, and this deployment pulls alerts, so Argus never receives a
+`resolved` notification: a resolved alert just stops being listed by the Alertmanager.
+Decision: ACR-0005 (accepted by `conantkd`): in a pull profile an occurrence resolves when its alert is absent from a
+successful read of the host's active alerts (silenced and inhibited included); an unreadable host resolves nothing.
+When all of an incident's alerts resolve: queued → closed `resolved_externally` without a run; running → it finishes;
+concluded → unchanged. Migration 005: `resolved_at`, `UPDATE (status, resolved_at)` forward only for the runtime role.
+Consequences: code and tests done (301 passed, 3 skipped with Postgres); the VM step (migration 005 on vm-095, SC-03
+on vm-166) is next. Stacked on OP-011 (#48).
+References: `tasks/current/T-0026-alert-resolution.md`, `architecture/changes/ACR-0005-pull-alert-resolution.md`.
+
+## 2026-10-09 — T-0026 verified: SC-03's alerts resolve when the cache is back (T-0026, ACR-0005)
+
+Type: verification
+Who: conantkd (+ agent)
+Context: step 01 implemented §6.4 "Resolution" with ACR-0005 (pull: absence from a successful read of every active
+alert).
+Decision / result: backup, migration 005 and the agent image on vm-095 (`ea01c68`), `argus db check` 20/20; vm-166
+checkout. SC-03: one incident `inc_ed6a85ccd28f` (DIAGNOSED, two occurrences, nothing resolved while the alerts were
+active); the cache started at 18:46:13, the alerts cleared at 18:46:54, and the pass at 18:46:56 resolved both
+occurrences (`absent_from_pull`), audited, the concluded incident unchanged. LAB BASELINE OK, NO INTERFERENCE.
+Consequences: T-0026 done; its PR is stacked on #48. Both VMs run `task/T-0026-alert-resolution`.
+References: `tasks/current/T-0026-alert-resolution.md`, `execution/history/T-0026/step-02/evidence.md`.
+
 ## 2026-10-09 — T-0025: the §21.2 evaluation, step 1 (T-0025)
 
 Type: implementation (offline)
@@ -797,6 +852,23 @@ Consequences: proposal for the team: `dependency_unavailable` → `baseline` (th
 `model_loop`, with the bias caveat (the baseline's rules and the cases were written together). Open: the abstention
 gap and a rubric for evidence support.
 References: `tasks/current/T-0025-evaluation.md`, `tests/eval/`.
+
+## 2026-10-09 — T-0027: the monitoring blind spot class; phase 7 complete (T-0027)
+
+Type: implementation + verification
+Who: conantkd (+ agent)
+Context: phase 7 lists four detectors; the blind spot (RB-014) was missing, and the freshness gate only watched
+`argus-v18-exporter`: with node-exporter down, a host check ended `no_incident`, unknown read as healthy (G-007).
+Decision / result: `monitoring_blind_spot` for host targets (before `disk_pressure`, `evidence_pack`, no model) on
+`scrape_targets_down = count(up{argus_host} == 0)`, and the alert `ArgusScrapeTargetDown` (2 minutes). 5 evaluation
+cases; the enabled-classes test now reads the registry, `disk_pressure` listed as awaiting its cases. To get there the
+stack (#46-#48, T-0026) was brought up to `main` (#49, #50, #53): Brain conflicts, RB-005 bumped to 1.0.3 (both sides
+had bumped it), `wiring.py` and `test_postgres.py` kept both sides. On the VMs (`c27546f`): node-exporter stopped on
+vm-166 → `inc_263f471e33e3` escalated as `monitoring_blind_spot`, evidence pack, 0 model calls; resolved after restart.
+NO INTERFERENCE.
+Consequences: phase 7 complete. Open: absent scrape targets need a pinned expected-jobs list; `disk_pressure` needs
+its 5 cases (quality lane). PR stacked on T-0026.
+References: `tasks/current/T-0027-blind-spot.md`, `execution/history/T-0027/step-02/evidence.md`.
 
 ## 2026-10-10 — T-0029: SC-08 DIAGNOSED on vm-166; phase 11's planned scenarios done (T-0029)
 

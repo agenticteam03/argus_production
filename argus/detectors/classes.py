@@ -98,6 +98,21 @@ def nginx_upstream_failure(snap: MetricSnapshot) -> DetectorResult:
         "the proxy cannot get an answer from its upstream in time (RB-015): look at the upstream it depends on"])
 
 
+def monitoring_blind_spot(snap: MetricSnapshot) -> DetectorResult:
+    """RB-014 (T-0027): a scrape target of the host's Prometheus is down, so the signals it feeds are empty. That is
+    a loss of visibility, never a healthy host (G-007). The gate exporter's own outage ends earlier, as
+    `undiagnosable`."""
+    down = snap.values.get("scrape_targets_down")
+    if down is None:
+        return DetectorResult(matched=False, findings=["signal missing (unknown, not healthy): scrape_targets_down"])
+    if down < 1:
+        return DetectorResult(matched=False)
+    n = int(down)
+    return DetectorResult(matched=True, findings=[
+        f"{n} scrape target{'s' if n != 1 else ''} down on the host's Prometheus: the signals they feed are unknown",
+        "monitoring blind spot (RB-014): no diagnosis of the host's state is claimed from missing telemetry"])
+
+
 def cpu_saturation(snap: MetricSnapshot) -> DetectorResult:
     """RB-006, the container trigger (T-0028): for 5 minutes, half or more of the container's CPU periods throttled at
     its quota AND 80 % or more of the quota used (both signals are 5-minute minimums). The throttled share alone counts
@@ -141,6 +156,12 @@ CLASSES: list[IncidentClassSpec] = [
                       branch_runbook_ids=["RB-002", "RB-003"], strategy="plan_then_reason",
                       tool_tags={"availability", "network", "dependency", "logs", "container", "knowledge"},
                       detector=nginx_upstream_failure),
+
+
+    # T-0027: a host that lost part of its telemetry is a blind spot before it is anything else (unknown first).
+    IncidentClassSpec(name="monitoring_blind_spot", family="platform", target_kinds={"host"},
+                      required_signals={"scrape_targets_down"}, runbook_ids=["RB-014"], strategy="evidence_pack",
+                      tool_tags={"host", "container", "logs"}, detector=monitoring_blind_spot),
     IncidentClassSpec(name="cpu_saturation", family="saturation", target_kinds={"container"},
                       required_signals={"container_cpu_throttled_ratio_5m", "container_cpu_quota_used_ratio_5m"},
                       runbook_ids=["RB-006"],

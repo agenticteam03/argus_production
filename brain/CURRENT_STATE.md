@@ -7,6 +7,12 @@ shared-Brain setup B1–B8 under way (three developers).
 > The VMs are authoritative for what runs there: run `sudo bash /opt/argus-v18/app/ops/deploy.sh status` (or read
 > `/opt/argus-v18/DEPLOYED`) and the state probe before trusting this file.
 
+> **Update 2026-10-09 (`conantkd`, read as the state after the OP-011 PR merges):** alerts are correlated (§6.4,
+> ACR-0004, architecture 1.8.4): an alert on the target and class of an open incident, or of the incident of the same
+> episode that already concluded, is attached as an `alert_occurrence` (migration 004) instead of opening another
+> incident. Verified with SC-03 on vm-166: one incident `inc_8a4cf92444ae`, two occurrences. Evidence:
+> `execution/history/OP-011/step-02/`, `step-03/`.
+
 > **Update 2026-10-08 late (`conantkd`):** vm-166 runs `task/OP-010-reserved-slot` `bc56923` (= T-0020 + T-0022 +
 > OP-010): Argus-owned `argus-v18-alertmanager` (127.0.0.1:18091), `-node-exporter`, `-cadvisor`; tunnel account
 > `permitopen` 18091; `argus-lab-db` with `reserved_connections=1` (16 ordinary slots, the db-probe has its own).
