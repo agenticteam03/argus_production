@@ -1,6 +1,6 @@
 """T-0031, phase 8: the deployment half of the standing write-gate test (ARCHITECTURE §22.2).
 
-`python -m argus.policy.gate_report` reports what a running container really loaded (policy write gate, catalogue
+`python -m argus.infrastructure.gate_report` reports what a running container really loaded (policy write gate, catalogue
 safety classes, whether an action gateway name resolves); `ops/write-gate-check.sh` runs it in the agent, worker and
 scheduler on vm-095 and adds what only the host sees (an action container, action mounts or environment). Read-only.
 """
@@ -21,7 +21,7 @@ CLOSED = "gate_open=0 write_capabilities=0 action_gateway_resolves=0"
 
 def _report(config_dir: Path) -> subprocess.CompletedProcess:
     env = {**os.environ, "ARGUS_CONFIG_DIR": str(config_dir), "PYTHONPATH": str(ROOT)}
-    return subprocess.run([sys.executable, "-m", "argus.policy.gate_report"], env=env, capture_output=True, text=True)
+    return subprocess.run([sys.executable, "-m", "argus.infrastructure.gate_report"], env=env, capture_output=True, text=True)
 
 
 def test_gate_report_of_this_repository_is_closed():

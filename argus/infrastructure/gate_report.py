@@ -1,6 +1,6 @@
 """What this process would really load about writes (T-0031, ARCHITECTURE §22.2 deployment check).
 
-`python -m argus.policy.gate_report` prints one line and exits 0 only when nothing can write:
+`python -m argus.infrastructure.gate_report` prints one line and exits 0 only when nothing can write:
     gate_open=<n> write_capabilities=<n> action_gateway_resolves=<0|1> policy=<version>
 It reads the policy file and the catalogue the way `wiring.build` does, but without the startup refusal, so an open
 gate is reported instead of hidden behind a crash. Read-only; ops/write-gate-check.sh runs it in each container.
