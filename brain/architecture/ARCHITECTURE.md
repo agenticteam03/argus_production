@@ -1,7 +1,7 @@
 # Argus — Production Architecture Specification
 
 **Document type:** consolidated target architecture and implementation blueprint ·
-**Version:** 1.8.3 (2026-10-08, ACR-0003; 1.8.2 2026-10-09, ACR-0002; 1.8.1 2026-10-06, ACR-0001; base 1.8.0 of 30 September 2026, sanitized for the shared repository 2026-10-02) · **Audience:** engineers and AI coding agents implementing
+**Version:** 1.8.4 (2026-10-09, ACR-0004; 1.8.3 2026-10-08, ACR-0003; 1.8.2 2026-10-09, ACR-0002; 1.8.1 2026-10-06, ACR-0001; base 1.8.0 of 30 September 2026, sanitized for the shared repository 2026-10-02) · **Audience:** engineers and AI coding agents implementing
 Argus from an empty repository.
 
 
@@ -1129,7 +1129,12 @@ matched in this order:
 2. otherwise, an open incident with the same target and incident class **whose `last_evidence_at` is
    within `CORRELATION_WINDOW`** *(default 30 min)* **and which passes the compatibility test** →
    attach;
-3. otherwise, create a new incident.
+3. otherwise, the target's latest concluded incident (closed or escalated) of the same class, **if the alert
+   started (`startsAt`) at or before that incident's `closed_at`, the incident closed within `CORRELATION_WINDOW`,
+   and the compatibility test passes** → attach (same episode; ACR-0004). No investigation starts and the concluded
+   incident is not reopened: the alert is recorded as an `attached` occurrence. An alert that started after the
+   incident closed is a recurrence and goes to step 4;
+4. otherwise, create a new incident.
 
 **Compatibility test:** re-run the class's detector on a fresh snapshot for the new alert's target.
 The alert is compatible only if the detector returns the same class for the same target, *and* its
@@ -1142,7 +1147,8 @@ They are **linked, never merged automatically**; the context of each includes a 
 the other. Merging is Open Decision OD-13.
 
 **Evidence version:** every attach increments `Incident.evidence_version` and updates
-`last_evidence_at`.
+`last_evidence_at`. The version of a concluded incident can grow by such late occurrences (step 3); a
+consumer that needs the version a diagnosis used reads it from that run's state (§10), not from the incident.
 
 **Resolution:** each `AlertOccurrence` has its own status, and a `resolved` notification marks only
 that fingerprint resolved. An incident may close from alert resolution **only when all attached
@@ -2855,3 +2861,4 @@ erDiagram
 | 1.8.1 | 2026-10-06 | user interfaces as read-only-capable clients of the HTTP API (§25 OD-10, §17.3); `GET /api/v1/me`; the existing read routes `/incidents/{id}/events`, `/evidence/{id}`, `/escalations` documented (§7.1); `frontend/` (§2.4) | [ACR-0001](changes/ACR-0001-ui-read-access.md) |
 | 1.8.2 | 2026-10-09 | the tools server's UID switch is a fixed sudo launcher (`cd /`, `python -I`) (§12.6); OD-3 decided: keep MCP (§12.5, §25) | [ACR-0002](changes/ACR-0002-tools-uid-sudo-launcher.md) |
 | 1.8.3 | 2026-10-08 | transport profiles (`direct-private`, `wireguard-overlay`, `restricted-ssh`) for the cross-host path (§3.2, §3.3, §3.6, §17.1, OD-16); alert delivery by profile: push webhook or pull reconciliation from the Argus-owned Alertmanager (§4.2, §7.3, `AlertSourcePort` §8.1); Argus-owned node-exporter and cAdvisor (§3.5, §4.3) | [ACR-0003](changes/ACR-0003-transport-profiles.md) |
+| 1.8.4 | 2026-10-09 | correlation: an alert that started before the latest concluded incident of its target and class closed is attached to it (same episode), without a new run (§6.4) | [ACR-0004](changes/ACR-0004-correlation-same-episode.md) |

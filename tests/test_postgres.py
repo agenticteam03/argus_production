@@ -94,6 +94,34 @@ def test_worker_lease(store):
     assert store.active_incident(_incident(target="vm-095/container:t0014-never-used").target) is None
 
 
+def test_alert_occurrences(runtime_dsn, store):
+    """OP-011 (migration 004): one row per alert identity, insert-only; the evidence version counts the attaches."""
+    import psycopg
+    from argus.domain.model import utcnow
+    inc = _incident(target="vm-166/container:op011-pg")
+    store.create_incident(inc, f"alert:fp-a:{inc.opened_at.isoformat()}")
+    assert store.evidence_state(inc.id) == (1, None)
+    assert store.incident_for_trigger(f"alert:fp-a:{inc.opened_at.isoformat()}") == inc.id   # the opening key
+    t = utcnow()
+    assert store.add_alert_occurrence("alert:fp-a:t", inc.id, "fp-a", t, {"alertname": "A"}, "started", t)
+    assert store.add_alert_occurrence("alert:fp-b:t", inc.id, "fp-b", t, {"alertname": "B", "dependency": "db"},
+                                      "attached", t + timedelta(seconds=1))
+    assert not store.add_alert_occurrence("alert:fp-b:t", inc.id, "fp-b", t, {}, "attached")   # already recorded
+    assert store.incident_for_trigger("alert:fp-b:t") == inc.id and store.incident_for_trigger("alert:x") is None
+    occ = store.alert_occurrences(inc.id)
+    assert [(o["alertname"], o["disposition"]) for o in occ] == [("A", "started"), ("B", "attached")]
+    assert occ[1]["labels"]["dependency"] == "db"
+    version, last = store.evidence_state(inc.id)
+    assert version == 2 and last == t + timedelta(seconds=1)
+    with psycopg.connect(runtime_dsn, autocommit=True) as c, pytest.raises(psycopg.Error, match="permission"):
+        c.execute("DELETE FROM alert_occurrence")
+    assert store.latest_concluded_incident(inc.target) is None                  # ACR-0004: queued is not concluded
+    from argus.domain.model import IncidentStatus
+    inc.status, inc.incident_class, inc.closed_at = IncidentStatus.escalated, "dependency_unavailable", t
+    store.update_incident(inc)
+    assert store.latest_concluded_incident(inc.target).id == inc.id
+
+
 def test_worker_lease_uses_the_database_clock(store):
     """OP-009: without `now`, renew and requeue use the database clock, the same one the claim used."""
     from argus.domain.model import IncidentStatus, utcnow

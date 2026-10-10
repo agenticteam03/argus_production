@@ -1,18 +1,24 @@
 # Next step
 
-**Now (2026-10-09, `conantkd`).** `main` has #38 (T-0020), #39 (T-0021 fixes, ACR-0002), #40 (T-0023 runner) and
-#41 (OP-005, verified on both VMs). Three branches stacked on `main`, each with `main` merged in:
-`task/T-0022-alerting` (phase 7, ACR-0003, **done**: verified on both VMs) → `task/OP-010-reserved-slot` (verified on vm-166) →
-`task/T-0024-sc05-disk` (SC-05, **done**: DIAGNOSED on vm-166). Both VMs now run `task/T-0024-sc05-disk` `b049086` (T-0022 + OP-010 + T-0024 + `main`): vm-095 pulls firing alerts
-from both Alertmanagers. Both LAB BASELINE OK, NO INTERFERENCE. Open: #42 (OP-004, draft, reviewed), #43 (CI step for OP-005, waits for `juanbetancurm`).
+**Now (2026-10-09, late, `conantkd`).** Four branches stacked on `main`, each with the previous one merged in:
+`task/T-0022-alerting` (phase 7, ACR-0003) → `task/OP-010-reserved-slot` → `task/T-0024-sc05-disk` (SC-05) →
+`task/OP-011-correlation` (§6.4 correlation, **ACR-0004**, migration 004; **done**: SC-03 gives one incident). **Both VMs
+run `task/OP-011-correlation` `cb300df`**; vm-095's database has migration 004 (`alert_occurrence`; backup
+`argus-20261009T131715Z.dump` taken before). LAB BASELINE OK, NO INTERFERENCE. Open: #42 (OP-004, draft), #43 (CI step
+for OP-005), #45 (T-0022), #46 (OP-010), #47 (T-0024), #48 (OP-011). **Warning for the team:** `brain.py
+start` reports `59ffa39` (PR #44, OP-001) merged into `main` without a non-author approval of its last push.
 
-1. **PRs:** T-0022 (needs `juanbetancurm`'s second approval: ACR-0003 touches host isolation), then OP-010, then
-   T-0024 (draft until its VM steps). After T-0022 and OP-010 merge, vm-166 goes to `main`.
-2. **Done 2026-10-09:** T-0024 steps 2-4: SC-05 DIAGNOSED from the pulled alert (`inc_4d78232433a1`). vm-166 keeps the
-   lab filesystem `/srv/argus-lab-fill` (testing only; `ops/lab-fill-mount.sh --remove` takes it away).
-3. **Done 2026-10-09:** T-0022 steps 5-6 (alerts pulled from both hosts; SC-03 and SC-02 DIAGNOSED from their alerts).
-   OP-010 DIAGNOSED at 100 % from the pulled alert (fixed). After the PRs merge: both VMs to `main`.
-   **OP-011:** two alerts on one target open two incidents (§6.4 correlation) — the next code task.
+1. **PRs, in order:** T-0022 (needs `juanbetancurm`'s second approval: ACR-0003 touches host isolation), OP-010,
+   T-0024, OP-011 #48 (ACR-0004 needs no second approval). After they merge, both VMs go to `main` (checkout + rebuild of
+   the agent image; migration 004 is already applied). Do not deploy `main` before: it would drop the monitoring, the
+   reserved slot and the correlation (the table can stay; older code ignores it).
+2. **Done 2026-10-09:** OP-011 (step 02 showed the second SC-03 alert pulled after the first incident closed →
+   ACR-0004; step 03 one incident `inc_8a4cf92444ae`, occurrences `started` + `attached`). T-0024 steps 2-4 (SC-05
+   DIAGNOSED; vm-166 keeps the lab filesystem `/srv/argus-lab-fill`, `ops/lab-fill-mount.sh --remove` takes it away).
+   T-0022 steps 5-6 and OP-010.
+3. **Next code work:** resolved alerts (§6.4 "Resolution": an occurrence's `status`, needs UPDATE on
+   `alert_occurrence`), OP-009 before any second worker, OP-004 checkpoint cleanup, SC-06 / SC-08, phase 12 with the
+   runner (≥ 5 runs per scenario) and the §21.2 evaluation.
 4. **Open question (`conantkd`):** a host incident's scope holds only the host's declared dependents (T-0024 declares
    the filler `depends_on` the host). Opening it to every container of the host (useful for SC-06 CPU) would be an
    ACR (§5 scope rule).
