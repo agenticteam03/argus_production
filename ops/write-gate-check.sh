@@ -1,20 +1,26 @@
 #!/usr/bin/env bash
-# The deployment half of the standing write-gate test (T-0031, phase 8, ARCHITECTURE §22.2 and §13.3). Run on vm-095:
-#   sudo bash /opt/argus-v18/app/ops/write-gate-check.sh
+# The deployment half of the standing write-gate test (T-0031, phase 8, ARCHITECTURE §22.2 and §13.3).
+#   on vm-095 (the agent host):  sudo bash /opt/argus-v18/app/ops/write-gate-check.sh
+#   on vm-166 (a Host T):        sudo bash /opt/argus-v18/app/ops/write-gate-check.sh --host-only
 # Read-only. While no (capability, target) pair is released it checks that nothing on this host can write:
-#   - no container named like an action gateway exists;
+#   - no container named like an action gateway exists (§2 would place it on each Host T);
 #   - in each Argus service, the loaded policy has an empty write gate, the catalogue has no write capability and
 #     the action gateway's name does not resolve (argus/infrastructure/gate_report.py from this checkout, fed to the
 #     container's python on stdin, so it checks what the running image loaded even if the image predates it);
-#   - no service mounts an action credential or carries an ARGUS_ACTION* variable (names are printed, never values).
-# Last line: WRITE GATE CLOSED: <services checked>   or   WRITE GATE STOP: <reasons>
+#     --host-only skips this: a Host T runs no Argus service;
+#   - no argus-v18 container mounts an action credential or carries an ARGUS_ACTION* variable, and no file under the
+#     deploy home's secrets/ is named like one (names are printed, never values).
+# Last line: WRITE GATE CLOSED: <what was checked>   or   WRITE GATE STOP: <reasons>
 set -uo pipefail
 DOCKER=${ARGUS_DOCKER:-docker}
+HOME_DIR=${ARGUS_DEPLOY_HOME:-/opt/argus-v18}
 SERVICES=${ARGUS_WRITE_GATE_SERVICES:-"argus-v18-agent argus-v18-worker argus-v18-scheduler"}
+[ "${1:-}" = "--host-only" ] && SERVICES=""
 REPORT="$(cd "$(dirname "$0")/.." && pwd)/argus/infrastructure/gate_report.py"
 problems=()
 
-action=$("$DOCKER" ps -a --format '{{.Names}}' | grep -iE 'action' | tr '\n' ' ' | sed 's/ $//')
+containers=$("$DOCKER" ps -a --format '{{.Names}}')
+action=$(echo "$containers" | grep -iE 'action' | tr '\n' ' ' | sed 's/ $//')
 [ -z "$action" ] || problems+=("action container present: $action")
 
 for c in $SERVICES; do
@@ -25,6 +31,9 @@ for c in $SERVICES; do
                    || problems+=("$c: ${line% policy=*}") ;;
     *) problems+=("$c: no report (container missing or the check failed)") ;;
   esac
+done
+
+for c in $(echo "$containers" | grep '^argus-v18-'); do
   "$DOCKER" inspect -f '{{range .Mounts}}{{.Source}} {{.Destination}}{{"\n"}}{{end}}' "$c" 2>/dev/null \
     | grep -qi 'action' && problems+=("$c: action mount")
   names=$("$DOCKER" inspect -f '{{range .Config.Env}}{{println .}}{{end}}' "$c" 2>/dev/null \
@@ -32,8 +41,12 @@ for c in $SERVICES; do
   [ -z "$names" ] || problems+=("$c: action environment $names")
 done
 
+on_disk=$(cd "$HOME_DIR" 2>/dev/null && find secrets -iname '*action*' 2>/dev/null | tr '\n' ' ' | sed 's/ $//')
+[ -z "$on_disk" ] || problems+=("action credential on disk: $on_disk")
+
 if [ ${#problems[@]} -eq 0 ]; then
-  echo "WRITE GATE CLOSED: $(echo $SERVICES | tr ' ' ',') read-only; no action gateway, mount or credential"
+  checked=${SERVICES:+$(echo $SERVICES | tr ' ' ',') read-only}
+  echo "WRITE GATE CLOSED: ${checked:-host-only (no Argus service here)}; no action gateway, mount or credential"
   exit 0
 fi
 printf '  %s\n' "${problems[@]}"

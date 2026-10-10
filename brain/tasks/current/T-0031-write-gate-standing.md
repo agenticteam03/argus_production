@@ -38,11 +38,15 @@ stricter. When a write capability is built, this test is the one that must keep 
    before the module and the script existed.
 2. **vm-095** (done, [evidence](../../execution/history/T-0031/step-02/evidence.md)): `WRITE GATE CLOSED` on `main`
    `ebbe9c9`; NO INTERFERENCE.
-3. **vm-166, pending (needs vm-166's lease):** §2 places the action gateway on each Host T, so the host where it
-   must be absent is above all vm-166, which step 2 did not check. Make `ops/write-gate-check.sh` run its host-only
-   part where no Argus agent runs (no action container, nothing listening for one) and record it on vm-166.
+3. **vm-166** (code done; the run waits for vm-166's lease): §2 places the action gateway on each Host T, so the
+   host where it must be absent is above all vm-166, which step 2 did not check. `write-gate-check.sh --host-only`
+   skips the service reports (a Host T runs no Argus service). Both modes now inspect every `argus-v18-*`
+   container for action mounts and variables, not only the three services, and stop on a file under `secrets/`
+   named like an action credential. 6 new check cases, red seen before the change. To record: `--host-only` on
+   vm-166, and the full check again on vm-095 (the script changed).
 
 ## Not covered
 
 The action gateway does not exist yet, so "unreachable from Host A" is checked as "absent and unresolvable". When it
-is built, the check must also prove its firewall rule closed while nothing is released.
+is built, the check must also prove its firewall rule closed and its port not listening while nothing is released
+(today it has no port to look for).
