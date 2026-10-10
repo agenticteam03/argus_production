@@ -55,4 +55,5 @@ INTERFERENCE). Batch 22:27-23:30 UTC: **SC-07 5/5** (before 6/10), **SC-05 4/5**
 INTERFERENCE after every run. Both gaps are closed: every SC-05 run read the full filesystem (no escalation on a
 contradiction), every SC-07 run named the backend. The SC-05 miss (`inc_de65a12688bc`) is another gap: the model did
 not read the filler's logs, nothing else links the filler to `/srv/argus-lab-fill`, so it named the host and said the
-writer was unproven. Possible general fix, not in this task: `container.status` reports the container's host mounts.
+writer was unproven. The general fix (`container.status` reports the container's host mounts) is the pending task
+[E2E-3](E2E-3-container-mounts.md).
