@@ -816,3 +816,18 @@ Consequences: the frontend needs CI `frontend` green and a reviewer (fast-track,
 scheduler and the health data stay mock-only until the new ACR agreed in the PR #24 comments. Open: Playwright
 acceptance, the read-only network guard and the contracts/ui-api.json check.
 References: `frontend/README.md`, `docs/API-FOR-UI.md`, `tasks/current/T-0016-frontend.md`.
+
+## 2026-10-10 — T-0028: SC-06 DIAGNOSED on vm-166; two defects found by the lab (T-0028)
+
+Type: implementation + verification
+Who: conantkd (+ agent)
+Context: phase 11's SC-06: a burner under a 0.3-core quota; `cpu_saturation` (RB-006), the container trigger only.
+Decision / result: the first run found two defects the offline tests could not: (1) cAdvisor's samples are 35-53 s
+apart, so a 1m rate was empty and the alert never fired (now 3m); (2) the throttled share alone fired for the bursty
+`argus-lab-api` on both hosts (61 % throttled at 4 % of its quota) and two api incidents were wrongly diagnosed (now
+the quota used must be ≥ 80 % too, a new signal; checked on vm-166's Prometheus). Second run: `inc_39bbec3df928`
+DIAGNOSED with high confidence (quota-constrained, RB-006 H5; "do not restart or kill speculatively"), no false
+positive, resolved after the burner was removed. NO INTERFERENCE.
+Consequences: SC-06 done (phase 11). Both VMs run `task/T-0028-vm-proof` `ed689b0` (T-0027 + T-0028) until the stack
+merges. The busy-host CPU trigger stays open (needs the host-scope ACR).
+References: `tasks/current/T-0028-sc06-cpu.md`, `execution/history/T-0028/step-02/evidence.md`.
