@@ -3,6 +3,8 @@
   "containers": [
     "argus-lab-worker",
     "argus-lab-burner",
+    "argus-lab-nginx",
+    "argus-lab-slow",
     "argus-lab-filler",
     "argus-lab-api",
     "argus-lab-cache",
@@ -14,6 +16,8 @@
   "dns_names": [
     "argus-lab-worker",
     "argus-lab-burner",
+    "argus-lab-nginx",
+    "argus-lab-slow",
     "argus-lab-filler",
     "argus-lab-api",
     "argus-lab-cache",
@@ -23,6 +27,10 @@
     "argus-lab-leaker"
   ],
   "tcp": [
+    [
+      "argus-lab-slow",
+      8080
+    ],
     [
       "argus-lab-cache",
       6379
@@ -37,9 +45,26 @@
     ]
   ],
   "http_endpoints": [
+    "http://argus-lab-nginx:8080/",
     "http://argus-lab-api:8080/health"
   ],
+  "http_probes": [
+    {
+      "owner": "argus-lab-nginx",
+      "url": "http://argus-lab-nginx:8080/"
+    },
+    {
+      "owner": "argus-lab-api",
+      "url": "http://argus-lab-api:8080/health"
+    }
+  ],
   "probes": [
+    {
+      "owner": "argus-lab-nginx",
+      "dependency": "argus-lab-slow",
+      "host": "argus-lab-slow",
+      "port": 8080
+    },
     {
       "owner": "argus-lab-api",
       "dependency": "argus-lab-cache",

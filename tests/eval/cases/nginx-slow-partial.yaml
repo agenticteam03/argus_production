@@ -1,0 +1,90 @@
+# T-0029 (SC-08, RB-015): most probes time out (the upstream is sometimes just under the timeout)
+id: nginx-slow-partial
+category: class
+target: vm-166/container:argus-lab-nginx
+request: report
+reason: 'HttpGatewayErrors: the proxy answers 504'
+metrics:
+  vm-166/container:argus-lab-nginx:
+    http_gateway_error_ratio_5m: 0.7
+    dependency_probe_min: 1
+    restarts_10m: 0
+fixtures:
+  docker_read:
+    /containers/argus-lab-nginx/status:
+      id: f1f1f1
+      state: running
+      health: none
+      restart_count: 0
+      oom_killed: false
+      exit_code: 0
+      memory_limit_bytes: 33554432
+      cpu_limit_cores: 0.2
+      networks:
+      - argus-lab-app
+    /containers/argus-lab-nginx/stats:
+      memory_usage_bytes: 6000000
+      memory_limit_bytes: 33554432
+      memory_percent: 17.9
+      cpu_percent: 1.2
+      pids: 3
+    /containers/argus-lab-nginx/logs:
+      lines:
+      - 'upstream timed out (110: Connection timed out) while reading response header
+        from upstream'
+      - 'upstream timed out (110: Connection timed out) while reading response header
+        from upstream'
+    /containers/argus-lab-nginx/health:
+      status: none
+      failing_streak: 0
+      log: []
+    /containers/argus-lab-nginx/events:
+      events: []
+    /containers/argus-lab-slow/status:
+      id: f1f1f1
+      state: running
+      health: none
+      restart_count: 0
+      oom_killed: false
+      exit_code: 0
+      memory_limit_bytes: 33554432
+      cpu_limit_cores: 0.2
+      networks:
+      - argus-lab-app
+    /containers/argus-lab-slow/stats:
+      memory_usage_bytes: 6000000
+      memory_limit_bytes: 33554432
+      memory_percent: 17.9
+      cpu_percent: 1.2
+      pids: 3
+    /containers/argus-lab-slow/logs:
+      lines:
+      - 'slow: GET / answered after 5 s'
+    /containers/argus-lab-slow/health:
+      status: none
+      failing_streak: 0
+      log: []
+    /containers/argus-lab-slow/events:
+      events: []
+  network_probe:
+    '*':
+      ok: true
+      addresses: []
+      duration_ms: 2001
+      status: 504
+  host_probe:
+    '*':
+      total_mib: 5800
+      available_mib: 3900
+      cpu_busy_percent: 12
+      load1: 0.2
+      cpus: 2
+label:
+  outcome: diagnosed
+  class: nginx_upstream_failure
+  root_cause: vm-166/container:argus-lab-slow
+  diagnosis_any:
+  - argus-lab-slow
+  - upstream
+  runbooks:
+  - RB-015

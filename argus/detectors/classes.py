@@ -117,6 +117,19 @@ def cpu_saturation(snap: MetricSnapshot) -> DetectorResult:
         "more CPU than its limit gives"])
 
 
+def nginx_upstream_failure(snap: MetricSnapshot) -> DetectorResult:
+    """RB-015 (T-0029): half or more of the synthetic probes through the proxy's endpoint got 502/504 over 5 minutes:
+    the proxy could not get an answer from its upstream. An app's own 5xx (for example 503) is not counted."""
+    share = snap.values.get("http_gateway_error_ratio_5m")
+    if share is None:
+        return DetectorResult(matched=False, findings=["signal missing (unknown, not healthy): http_gateway_error_ratio_5m"])
+    if share < 0.5:
+        return DetectorResult(matched=False)
+    return DetectorResult(matched=True, findings=[
+        f"{round(share * 100)}% of the probes through its endpoint got a gateway error (502/504) in the last 5 minutes",
+        "the proxy cannot get an answer from its upstream in time (RB-015): look at the upstream it depends on"])
+
+
 # Priority order: the first matching class becomes the incident class; others become findings.
 CLASSES: list[IncidentClassSpec] = [
     IncidentClassSpec(name="container_restart_loop", family="stability", target_kinds={"container"},
@@ -147,6 +160,11 @@ CLASSES: list[IncidentClassSpec] = [
                       runbook_ids=["RB-006"],
                       strategy="model_loop", tool_tags={"cpu", "container", "logs", "host", "knowledge"},
                       detector=cpu_saturation),
+    IncidentClassSpec(name="nginx_upstream_failure", family="availability", target_kinds={"container"},
+                      required_signals={"http_gateway_error_ratio_5m"}, runbook_ids=["RB-015"],
+                      branch_runbook_ids=["RB-002", "RB-003"], strategy="plan_then_reason",
+                      tool_tags={"availability", "network", "dependency", "logs", "container", "knowledge"},
+                      detector=nginx_upstream_failure),
     IncidentClassSpec(name="disk_pressure", family="saturation", target_kinds={"host"},
                       required_signals={"host_disk_used_ratio_5m", "host_disk_hours_to_full"}, runbook_ids=["RB-005"],
                       branch_runbook_ids=["RB-019"], strategy="model_loop",

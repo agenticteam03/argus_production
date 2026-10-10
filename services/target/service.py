@@ -260,6 +260,19 @@ def tcp(host: str, port: int, timeout: float = 3) -> dict:
         return {"ok": False, "error": f"{type(e).__name__}: {e}", "duration_ms": round((time.monotonic() - t0) * 1000, 1)}
 
 
+def http_check(url: str, timeout: float = 5) -> dict:
+    """One GET of an allowlisted URL: the status code (None when nothing answered), the error, the duration."""
+    t0 = time.monotonic()
+    try:
+        with urllib.request.urlopen(url, timeout=timeout) as r:
+            code, err = r.status, None
+    except urllib.error.HTTPError as e:
+        code, err = e.code, None
+    except (urllib.error.URLError, OSError) as e:
+        code, err = None, str(getattr(e, "reason", e))
+    return {"status": code, "error": err, "duration_ms": round((time.monotonic() - t0) * 1000, 1)}
+
+
 def network_probe(parts: list[str], q: dict) -> dict:
     if parts == ["dns"]:
         name = q.get("name", [""])[0]
@@ -278,15 +291,7 @@ def network_probe(parts: list[str], q: dict) -> dict:
         url = q.get("url", [""])[0]
         if url not in CONFIG.get("http_endpoints", []):
             raise Err(400, "url not allowlisted")
-        t0 = time.monotonic()
-        try:
-            with urllib.request.urlopen(url, timeout=5) as r:
-                code, err = r.status, None
-        except urllib.error.HTTPError as e:
-            code, err = e.code, None
-        except (urllib.error.URLError, OSError) as e:
-            code, err = None, str(getattr(e, "reason", e))
-        return {"status": code, "error": err, "duration_ms": round((time.monotonic() - t0) * 1000, 1), "collected_at": now()}
+        return {**http_check(url), "collected_at": now()}
     raise Err(404, "no such route")
 
 
@@ -404,6 +409,24 @@ def probe_lines(probes: list[dict], active: set[str]) -> list[str]:
     return lines
 
 
+GATEWAY_ERRORS = (502, 504)    # the proxy's own answers when its upstream fails or is too slow (an app's 503 is not)
+
+
+def http_probe_lines(probes: list[dict], active: set[str]) -> list[str]:
+    """T-0029: a synthetic GET of every declared endpoint of an active owner (SC-08 runs only during its scenario).
+    `gateway_error` is 1 for 502/504: the proxy could not get an answer from its upstream (RB-015)."""
+    lines = []
+    for p in probes:
+        if p["owner"] not in active:
+            continue
+        r = http_check(p["url"])
+        lab = f'owner="{p["owner"]}",url="{p["url"]}"'
+        lines += [f"argus_http_probe_status{{{lab}}} {r['status'] or 0}",
+                  f"argus_http_probe_gateway_error{{{lab}}} {1 if r['status'] in GATEWAY_ERRORS else 0}",
+                  f"argus_http_probe_duration_seconds{{{lab}}} {r['duration_ms'] / 1000:.4f}"]
+    return lines
+
+
 def collect() -> None:
     global _metrics
     while True:
@@ -436,6 +459,7 @@ def collect() -> None:
                 except Exception:
                     pass
         lines += probe_lines(CONFIG.get("probes", []), active)
+        lines += http_probe_lines(CONFIG.get("http_probes", []), active)
         with _lock:
             _metrics = "\n".join(lines) + "\n"
         time.sleep(10)

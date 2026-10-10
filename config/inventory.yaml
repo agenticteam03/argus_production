@@ -32,6 +32,11 @@ targets:
     mounts: ["/", "/srv/argus-lab-fill"]
   - ref: vm-166/container:argus-lab-worker        # SC-01 OOM restart loop
   - ref: vm-166/container:argus-lab-burner        # SC-06 (T-0028): a busy loop under a 0.3-core CPU quota
+  - ref: vm-166/container:argus-lab-nginx         # SC-08 (T-0029): a reverse proxy in front of a slow upstream
+    depends_on: [vm-166/container:argus-lab-slow]
+    http_endpoints: ["http://argus-lab-nginx:8080/"]  # probed by the exporter (T-0029): 502/504 = a gateway error
+  - ref: vm-166/container:argus-lab-slow          # SC-08: answers after DELAY_S, longer than nginx's proxy_read_timeout
+    tcp_ports: [8080]
   - ref: vm-166/container:argus-lab-filler        # SC-05: fills /srv/argus-lab-fill (the lab filesystem)
     depends_on: [vm-166/host:vm-166]              # writes to the host's lab filesystem: in a host incident's scope (§5)
   - ref: vm-166/container:argus-lab-api           # SC-03 victim of its dependency

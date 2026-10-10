@@ -33,3 +33,8 @@ groups:
         expr: label_replace((rate(container_cpu_cfs_throttled_periods_total{name=~"argus-.*"}[3m]) / (rate(container_cpu_cfs_periods_total{name=~"argus-.*"}[3m]) > 0) >= 0.5) and on(argus_host, name) (rate(container_cpu_usage_seconds_total{name=~"argus-.*"}[3m]) / on(argus_host, name) (container_spec_cpu_quota{name=~"argus-.*"} / container_spec_cpu_period{name=~"argus-.*"}) >= 0.8), "container", "$1", "name", "(.*)")
         for: 5m
         annotations: {summary: "container {{ $labels.name }} is throttled at its CPU quota and uses all of it"}
+      - alert: HttpGatewayErrors           # T-0029 / RB-015: half or more of the exporter's probes through a declared
+        # endpoint got 502/504 (the proxy's answer when its upstream fails) over 5 minutes. `owner` names the target.
+        expr: max by (argus_host, owner) (avg_over_time(argus_http_probe_gateway_error[5m])) >= 0.5
+        for: 2m
+        annotations: {summary: "the proxy {{ $labels.owner }} answers 502/504: its upstream fails or is too slow"}

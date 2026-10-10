@@ -10,6 +10,7 @@
   ],
   "tcp": [],
   "http_endpoints": [],
+  "http_probes": [],
   "probes": [],
   "mounts": [
     "/"
