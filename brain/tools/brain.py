@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
 """Argus Brain helper — Python standard library + git only.
 
-  status                       who holds the session lease, branches in flight, pull requests waiting for review
+  status                       who holds each VM's lease, branches in flight, pull requests waiting for review
   start [--task T-xxxx]        clean tree → fetch → fast-forward main → show status → claim the lease
+        [--vm VM]              vm-095, vm-166 or both (the default); all or nothing
         [--no-claim]           (code-only work: no VM lease)
-  renew [--minutes N]          extend your lease (default 60 minutes)
-  handoff "note"               release your lease, leaving a note for the next developer (task unfinished)
-  release                      release your lease (task finished or nothing left in flight)
+  renew [--minutes N]          extend your leases (default 60 minutes)
+  handoff "note"               release your leases, leaving a note for the next developer (task unfinished)
+  release                      release your leases (task finished or nothing left in flight)
+                               renew, handoff and release take --vm too (default: every VM you hold)
   checkpoint "message"         tests → stage → audit → commit → push the task branch → renew
   archive-step T-xxxx NN       move execution/current/code.bash into execution/history/T-xxxx/step-NN/
   audit [--staged]             forbidden files and patterns (secrets, addresses, local paths)
@@ -16,8 +18,9 @@
                                brain/policies/main-exceptions.txt)
   guard-push                   pre-push hook: refuses a push to main (changes reach main only through PRs)
 
-The live lease is session.json on the `session` branch. A claim is a fast-forward push: if two developers claim at
-the same moment, Git accepts exactly one. Your GitHub handle comes from --as, $ARGUS_DEVELOPER or
+The live leases are session.json on the `session` branch, one per VM (brain/policies/PARALLEL_LANES.md); a change to
+the agent on vm-095 (deploy, rebuild, hosts.env, a migration or a restore) needs both. A claim is a fast-forward push:
+if two developers claim at the same moment, Git accepts exactly one. Your GitHub handle comes from --as, $ARGUS_DEVELOPER or
 `git config argus.developer <handle>`.
 """
 from __future__ import annotations
@@ -36,6 +39,7 @@ from pathlib import Path
 SESSION_BRANCH = "session"
 SESSION_FILE = "session.json"
 DEFAULT_TTL = 60
+VMS = ("vm-095", "vm-166")
 CURRENT = Path("brain/execution/current")
 CODE_BASH_HEADER = """\
 # =====================================================================================
@@ -127,6 +131,54 @@ def write_lease(lease: dict, parent: str | None, message: str) -> str:
     return commit
 
 
+def read_leases(fetch: bool = True) -> tuple[dict[str, dict | None], dict | None, str | None]:
+    """({vm: lease or None}, the raw session.json, its commit)."""
+    raw, sha = read_lease(fetch)
+    return per_vm(raw), raw, sha
+
+
+def per_vm(raw: dict | None) -> dict[str, dict | None]:
+    """One lease per VM. A session.json in the old format (one lease, no `vms`) holds both VMs."""
+    if not raw:
+        return {vm: None for vm in VMS}
+    if "vms" not in raw:
+        return {vm: dict(raw) for vm in VMS}
+    vms = {vm: (dict(raw["vms"][vm]) if raw["vms"].get(vm) else None) for vm in VMS}
+    # A brain.py older than LANES-1 (run from a branch made before it) edits only the top-level summary. When the
+    # summary no longer matches the leases and its holder is the only holder, its renew, release and handoff apply to
+    # that holder's leases.
+    held = [v for v in vms.values() if v and not v.get("released")]
+    expected = summary(vms)
+    edited = (raw.get("released"), raw.get("expires_at")) != (expected["released"], expected["expires_at"])
+    if edited and held and {v["holder"] for v in held} == {raw.get("holder")}:
+        for v in held:
+            if raw.get("released"):
+                v.update(released=True, handoff=raw.get("handoff"))
+            elif raw.get("expires_at") and (dt.datetime.fromisoformat(raw["expires_at"])
+                                            > dt.datetime.fromisoformat(v["expires_at"])):
+                v["expires_at"] = raw["expires_at"]
+    return vms
+
+
+def summary(vms: dict[str, dict | None]) -> dict:
+    """The top-level fields, for a brain.py older than LANES-1: busy while any VM is held, and held by `a+b` when two
+    developers hold one VM each, so an old `start` refuses everyone."""
+    known = [v for v in vms.values() if v]
+    held = [v for v in known if not v.get("released")]
+    if not held:
+        return {**max(known, key=lambda v: v.get("started_at") or ""), "released": True}
+    top = dict(max(held, key=lambda v: dt.datetime.fromisoformat(v["expires_at"])))
+    holders = sorted({v["holder"] for v in held})
+    if len(holders) > 1:
+        top.update(holder="+".join(holders), session_id=None, task=None, branch=None, handoff=None)
+        top.pop("took_over_from", None)
+    return {**top, "released": False}
+
+
+def write_leases(vms: dict[str, dict | None], parent: str | None, message: str) -> str:
+    return write_lease({**summary(vms), "vms": vms}, parent, message)
+
+
 def describe(lease: dict | None, t: dt.datetime) -> str:
     state = lease_state(lease, t)
     if state == "none":
@@ -139,22 +191,41 @@ def describe(lease: dict | None, t: dt.datetime) -> str:
     return f"released by {base}"
 
 
-def own_active_lease(args) -> tuple[dict, str]:
+def chosen_vms(args) -> tuple[str, ...]:
+    vm = getattr(args, "vm", None) or "both"
+    return VMS if vm == "both" else (vm,)
+
+
+def own_leases(args) -> tuple[dict[str, dict | None], str | None, list[str]]:
+    """Your unreleased leases among the VMs asked (--vm, default both): ({vm: lease}, commit, [your VMs])."""
     who = me(args)
-    lease, sha = read_lease()
-    if not lease or lease["holder"] != who or lease.get("released"):
-        raise BrainError(f"you ({who}) do not hold the lease: {describe(lease, now())}")
-    return lease, sha
+    vms, _, sha = read_leases()
+    mine = [vm for vm in chosen_vms(args) if vms[vm] and vms[vm]["holder"] == who and not vms[vm].get("released")]
+    if not mine:
+        raise BrainError(f"you ({who}) do not hold a lease on {' or '.join(chosen_vms(args))}: "
+                         + "; ".join(f"{vm}: {describe(vms[vm], now())}" for vm in VMS))
+    return vms, sha, mine
+
+
+def print_leases(vms: dict[str, dict | None], t: dt.datetime) -> None:
+    a, b = (vms[vm] for vm in VMS)
+    if a == b:
+        print(f"Lease (both VMs): {describe(a, t)}")
+    else:
+        for vm in VMS:
+            print(f"Lease {vm}: {describe(vms[vm], t)}")
+    notes = []
+    for lease in (a, b):
+        h = (lease or {}).get("handoff")
+        if h and h.get("note") not in notes:
+            notes.append(h.get("note"))
+            print(f"Handoff: from {lease['holder']} at {h.get('at')} on branch {h.get('branch')}:\n         {h.get('note')}")
 
 
 # --------------------------------------------------------------------------------------------------- commands
 def cmd_status(args) -> int:
-    lease, _ = read_lease()
-    t = now()
-    print(f"Lease:   {describe(lease, t)}")
-    if lease and lease.get("handoff"):
-        h = lease["handoff"]
-        print(f"Handoff: from {lease['holder']} at {h.get('at')} on branch {h.get('branch')}:\n         {h.get('note')}")
+    vms, _, _ = read_leases()
+    print_leases(vms, now())
     branches = [b.strip() for b in git("branch", "-r", "--list", "origin/task/*", check=False).splitlines() if b.strip()]
     print("Task branches on GitHub: " + (", ".join(b.removeprefix("origin/") for b in branches) or "none"))
     print_prs()
@@ -206,48 +277,65 @@ def cmd_start(args) -> int:
     if args.no_claim:
         print("\nNo lease claimed (code-only work). Do not run mutating VM steps.")
         return 0
-    lease, sha = read_lease(fetch=False)
+    vms, _, sha = read_leases(fetch=False)
     t = now()
-    state = lease_state(lease, t)
-    if state == "active" and lease["holder"] != who:
-        raise BrainError(f"STOP: the VMs are in use by {lease['holder']} until {lease['expires_at']}. "
-                         "Do code-only work (--no-claim) or wait.")
-    new = {"holder": who, "session_id": uuid.uuid4().hex[:12], "task": args.task or (lease or {}).get("task"),
-           "branch": branch, "base_commit": git("rev-parse", "HEAD"), "started_at": iso(t),
-           "expires_at": iso(t + dt.timedelta(minutes=DEFAULT_TTL)), "released": False, "handoff": None}
-    if state == "expired" and lease["holder"] != who:
-        new["took_over_from"] = {"holder": lease["holder"], "task": lease.get("task"), "branch": lease.get("branch"),
-                                 "expired_at": lease["expires_at"]}
-        print(f"\nNOTE: taking over an EXPIRED lease of {lease['holder']}. Record it in the journal, start with the "
-              f"state probe, and do not modify their branch without talking to them.")
-    write_lease(new, sha, f"claim: {who} ({new['task'] or 'no task'})")
-    print(f"\nLease CLAIMED by {who} until {new['expires_at']} (renew at every step: brain.py renew).")
-    print("VM marker (first block of your VM session):\n"
-          f"  echo 'holder={who} session={new['session_id']}' | sudo tee /opt/argus-v18/SESSION >/dev/null")
+    wanted = chosen_vms(args)
+    busy = [vm for vm in wanted if lease_state(vms[vm], t) == "active" and vms[vm]["holder"] != who]
+    if busy:                                        # all or nothing: no lease is claimed when one VM is taken
+        raise BrainError("STOP: " + "; ".join(f"{vm} is in use by {vms[vm]['holder']} until {vms[vm]['expires_at']}"
+                                              for vm in busy)
+                         + ". Claim the other VM (--vm), do code-only work (--no-claim) or wait.")
+    session_id, base = uuid.uuid4().hex[:12], git("rev-parse", "HEAD")
+    for vm in wanted:
+        old = vms[vm]
+        new = {"holder": who, "session_id": session_id, "task": args.task or (old or {}).get("task"),
+               "branch": branch, "base_commit": base, "started_at": iso(t),
+               "expires_at": iso(t + dt.timedelta(minutes=DEFAULT_TTL)), "released": False, "handoff": None}
+        if lease_state(old, t) == "expired" and old["holder"] != who:
+            new["took_over_from"] = {"holder": old["holder"], "task": old.get("task"), "branch": old.get("branch"),
+                                     "expired_at": old["expires_at"]}
+            print(f"\nNOTE: taking over an EXPIRED lease of {old['holder']} on {vm}. Record it in the journal, start "
+                  f"with the state probe, and do not modify their branch without talking to them.")
+        vms[vm] = new
+    task = vms[wanted[0]]["task"]
+    write_leases(vms, sha, f"claim: {who} ({task or 'no task'}) {'+'.join(wanted)}")
+    print(f"\nLease CLAIMED by {who} on {' and '.join(wanted)} until {vms[wanted[0]]['expires_at']} "
+          "(renew at every step: brain.py renew).")
+    if wanted == ("vm-095",):
+        print("vm-095 only: a change to the agent (deploy, rebuild, hosts.env, a migration or a restore of "
+              "argus-v18-postgres) needs BOTH leases (brain/policies/PARALLEL_LANES.md).")
+    print("VM marker (first block of your session on each VM claimed):")
+    for vm in wanted:
+        print(f"  [VM {vm} · bash]  echo 'holder={who} session={session_id}' | sudo tee /opt/argus-v18/SESSION >/dev/null")
     return 0
 
 
 def cmd_renew(args) -> int:
-    lease, sha = own_active_lease(args)
-    lease["expires_at"] = iso(now() + dt.timedelta(minutes=args.minutes))
-    write_lease(lease, sha, f"renew: {lease['holder']}")
-    print(f"Lease renewed until {lease['expires_at']}.")
+    vms, sha, mine = own_leases(args)
+    until = iso(now() + dt.timedelta(minutes=args.minutes))
+    for vm in mine:
+        vms[vm]["expires_at"] = until
+    write_leases(vms, sha, f"renew: {me(args)} {'+'.join(mine)}")
+    print(f"Lease renewed on {' and '.join(mine)} until {until}.")
     return 0
 
 
 def cmd_handoff(args) -> int:
-    lease, sha = own_active_lease(args)
-    lease.update(released=True, handoff={"note": args.note, "branch": current_branch(), "at": iso(now())})
-    write_lease(lease, sha, f"handoff: {lease['holder']}")
-    print("Lease released with a handoff note. Make sure your task branch is pushed (git push).")
+    vms, sha, mine = own_leases(args)
+    for vm in mine:
+        vms[vm].update(released=True, handoff={"note": args.note, "branch": current_branch(), "at": iso(now())})
+    write_leases(vms, sha, f"handoff: {me(args)} {'+'.join(mine)}")
+    print(f"Lease released with a handoff note on {' and '.join(mine)}. Make sure your task branch is pushed "
+          "(git push).")
     return 0
 
 
 def cmd_release(args) -> int:
-    lease, sha = own_active_lease(args)
-    lease.update(released=True, handoff=None)
-    write_lease(lease, sha, f"release: {lease['holder']}")
-    print("Lease released.")
+    vms, sha, mine = own_leases(args)
+    for vm in mine:
+        vms[vm].update(released=True, handoff=None)
+    write_leases(vms, sha, f"release: {me(args)} {'+'.join(mine)}")
+    print(f"Lease released on {' and '.join(mine)}.")
     return 0
 
 
@@ -272,11 +360,14 @@ def cmd_checkpoint(args) -> int:
     git("commit", "-m", args.message)
     git("push", "-u", "origin", branch)
     print(f"Pushed {branch} (CI runs on this push).")
-    lease, sha = read_lease()
-    if lease and lease["holder"] == me(args) and lease_state(lease, now()) == "active":
-        lease["expires_at"] = iso(now() + dt.timedelta(minutes=DEFAULT_TTL))
-        write_lease(lease, sha, f"renew: {lease['holder']}")
-        print(f"Lease renewed until {lease['expires_at']}.")
+    vms, _, sha = read_leases()
+    mine = [vm for vm in VMS if vms[vm] and vms[vm]["holder"] == me(args) and lease_state(vms[vm], now()) == "active"]
+    if mine:
+        until = iso(now() + dt.timedelta(minutes=DEFAULT_TTL))
+        for vm in mine:
+            vms[vm]["expires_at"] = until
+        write_leases(vms, sha, f"renew: {me(args)} {'+'.join(mine)}")
+        print(f"Lease renewed on {' and '.join(mine)} until {until}.")
     return 0
 
 
@@ -500,14 +591,14 @@ def main(argv: list[str] | None = None) -> int:
     s = sub.add_parser("start")
     s.add_argument("--task")
     s.add_argument("--no-claim", action="store_true")
-    s.set_defaults(fn=cmd_start)
     r = sub.add_parser("renew")
     r.add_argument("--minutes", type=int, default=DEFAULT_TTL)
-    r.set_defaults(fn=cmd_renew)
     h = sub.add_parser("handoff")
     h.add_argument("note")
-    h.set_defaults(fn=cmd_handoff)
-    sub.add_parser("release").set_defaults(fn=cmd_release)
+    rl = sub.add_parser("release")
+    for parser, fn in ((s, cmd_start), (r, cmd_renew), (h, cmd_handoff), (rl, cmd_release)):
+        parser.add_argument("--vm", choices=[*VMS, "both"], default="both", help="vm-095, vm-166 or both (default)")
+        parser.set_defaults(fn=fn)
     c = sub.add_parser("checkpoint")
     c.add_argument("message")
     c.add_argument("--no-tests", action="store_true")
