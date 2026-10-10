@@ -671,6 +671,20 @@ SC-07's reset succeeds when its network is already gone. 6 new tests, red seen; 
 Consequences: run the batches as an operator user. Every catalogued reset must be idempotent.
 References: `tasks/current/T-0023-e2e-runner.md`, PR #40.
 
+## 2026-10-09 — OP-004 offline checkpoint retention implementation
+
+Type: implementation
+Who: conantkd (+ agent)
+Context: LangGraph checkpoint rows grow indefinitely, including failed runs whose incidents are final. The accepted
+OP-004 proposal keeps runtime DELETE forbidden and requires a dry run before any live cleanup.
+Decision / result: `argus db prune-checkpoints` defaults to a read-only preview; `--apply` uses the owner role and one
+transaction to remove the three checkpoint tables' eligible rows and append `maintenance.checkpoints_pruned` to audit.
+The one-off wrapper mounts only the owner credential; the daily systemd timer is shipped but not installed. Six tests
+pass with throwaway PostgreSQL 16; no live database rows have been deleted.
+Consequences: VM dry run and review of its counts and backup evidence are next; apply and timer enablement remain
+pending.
+References: `tasks/current/OP-004-checkpoint-retention.md`, `tests/test_checkpoint_retention.py`, OPEN_PROBLEMS OP-004.
+
 ## 2026-10-09 — OP-001 runbook detector metadata alignment
 
 Type: implementation
@@ -884,6 +898,34 @@ Consequences: phase 7 complete. Open: absent scrape targets need a pinned expect
 its 5 cases (quality lane). PR stacked on T-0026.
 References: `tasks/current/T-0027-blind-spot.md`, `execution/history/T-0027/step-02/evidence.md`.
 
+## 2026-10-10 — T-0029: SC-08 DIAGNOSED on vm-166; phase 11's planned scenarios done (T-0029)
+
+Type: implementation + verification
+Who: conantkd (+ agent)
+Context: SC-08, nginx in front of a slow upstream (`nginx_upstream_failure`, RB-015). Argus had no HTTP signal.
+Decision / result: a synthetic HTTP probe in the exporter (every declared `http_endpoints` of an active container;
+502/504 count as gateway errors, an app's 503 does not), the class (plan_then_reason) and `HttpGatewayErrors`. The
+access-log option (real traffic, per route) was left out: it needs a new Host T component and an ACR. On vm-166:
+nginx answered 504, the api's probe 200; `inc_46cdffa78fdb` DIAGNOSED with high confidence, root cause
+`argus-lab-slow` (the model cited the upstream's 5 s answers and nginx's timeout), nginx the victim; no side alert;
+resolved after the scenario went down. NO INTERFERENCE.
+Consequences: SC-08 done; with SC-06 (T-0028) the planned scenarios of phase 11 are done. Both VMs run
+`task/T-0029-vm-proof` `eebfa72`. Open: `http_errors_latency` (RB-011), the access-log metrics (ACR).
+References: `tasks/current/T-0029-sc08-nginx.md`, `execution/history/T-0029/step-02/evidence.md`.
+
+## 2026-10-10 — T-0030: a Postgres restart is a pause, never a crash (T-0030)
+
+Type: fix + verification
+Who: conantkd (+ agent)
+Context: phase 13 asks that failures become escalations, never crashes. Reading the loops before the VM test: the
+scheduler guarded its database calls, the worker's `run_forever` did not (a database error ended it).
+Decision / result: the worker logs, waits and retries (tests first, red seen). On vm-095: Postgres restarted during an
+SC-03 run (the run DIAGNOSED) and stopped 30 s (the worker logged one retry, the scheduler resumed, the api answered);
+no Argus container restarted; NO INTERFERENCE.
+Consequences: phase 13's Postgres restart is done. Next: Prometheus down on one host; token rotation. vm-095 runs
+`task/T-0030-vm-proof` `a56f014`, vm-166 `task/T-0029-vm-proof` `eebfa72`.
+References: `tasks/current/T-0030-pg-restart.md`, `execution/history/T-0030/step-02/evidence.md`.
+
 ## 2026-10-09 — T-0016 step 3: connect the read-only UI to the real API (T-0016)
 
 Type: implementation
@@ -917,6 +959,18 @@ positive, resolved after the burner was removed. NO INTERFERENCE.
 Consequences: SC-06 done (phase 11). Both VMs run `task/T-0028-vm-proof` `ed689b0` (T-0027 + T-0028) until the stack
 merges. The busy-host CPU trigger stays open (needs the host-scope ACR).
 References: `tasks/current/T-0028-sc06-cpu.md`, `execution/history/T-0028/step-02/evidence.md`.
+
+## 2026-10-10 — OP-004: checkpoint retention dry run on vm-095; the owner secret is not root's (OP-004)
+
+Type: verification + fix
+Who: conantkd (+ agent)
+Context: step 02 of OP-004, the dry run before any deletion; vm-095 lease only, the deployed checkout unchanged.
+Decision / result: the first run stopped with `missing credential`: the owner secret on vm-095 is `0400`, owned by
+uid 70 (the Postgres image's user), and the wrapper's root container has no capabilities to bypass that. The wrapper
+now runs the container as the secret's owner. Then the 30-day dry run found nothing eligible; a 1-day preview counted
+88 threads (783 checkpoints, 1825 blobs, 3900 writes). No row deleted, NO INTERFERENCE.
+Consequences: the first `--apply` waits for a teammate's review of the counts; the timer stays uninstalled.
+References: `tasks/current/OP-004-checkpoint-retention.md`, `execution/history/OP-004/step-02/evidence.md`.
 
 ## 2026-10-10 — OP-008: backup verify and prune dry run on vm-095 (OP-008)
 

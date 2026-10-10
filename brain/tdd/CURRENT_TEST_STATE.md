@@ -2,6 +2,13 @@
 
 **Last updated:** 2026-10-09 · **Commit:** `task/T-0026-alert-resolution` (on top of `task/OP-011-correlation`)
 
+**T-0030 (phase 13), 2026-10-10 (`task/T-0030-pg-restart`):** 3 tests in `tests/test_t0030_pg_restart.py` (red seen: a
+database error from `recover()` or the claim ended the worker's loop). Full suite on the laptop: green.
+
+**T-0029 (SC-08), 2026-10-10 (`task/T-0029-sc08-nginx`):** 12 tests in `tests/test_t0029_sc08_nginx.py` (red seen
+12/12: no probe, signal, class, alert, lab or inventory entries); 6 evaluation cases `tests/eval/cases/nginx-*.yaml`
+(baseline 6/6, hard 0 0 0). Full suite on the laptop: green.
+
 **OP-008, 2026-10-09 (`task/OP-008-backup-retention`):** three new retention/verification tests and the changed
 snapshot-consistency test failed before implementation, then passed. `tests/test_db_backup.py`: 15 passed locally,
 including two real Docker/PostgreSQL cases; one writes to the live throwaway database between snapshot export and
@@ -34,6 +41,10 @@ worktree suite finished with 6 unrelated failures: 5 `tests/test_deploy.py` fixt
 existing Git clone; the OD-3 timing benchmark measured 155 ms p95 overhead against its 100 ms budget. Review of PR #41
 (`main` merged in, + 1 test: the restart alert counts like the signal, red seen): 228 passed, 9 skipped on the laptop
 (237); the only failure is the same timing-flaky benchmark (passes alone; green in CI). The VM checks follow.
+
+**OP-004, 2026-10-09 (`task/OP-004-checkpoint-cleanup`):** six new tests pass against a throwaway PostgreSQL 16 and
+the manual/timer wrapper. Three PostgreSQL cases were red before the command existed. VM dry run and CI are pending. 2026-10-10: the wrapper test now requires the container to run as the secret's
+owner (red with `--user 0:0`, green after); VM dry run done (OP-004 step 02).
 
 | Stage | Result | Where / when |
 |---|---|---|
