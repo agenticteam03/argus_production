@@ -62,6 +62,7 @@ def test_the_signal_is_the_5_minute_minimum_of_the_throttled_share():
     assert sig.startswith("min_over_time(") and "[5m:30s]" in sig
     assert 'container_cpu_cfs_throttled_periods_total{argus_host="$host",name="$name"}' in sig
     assert 'container_cpu_cfs_periods_total{argus_host="$host",name="$name"}' in sig and "> 0" in sig
+    assert sig.count("[3m]") == 2 and "[1m]" not in sig     # cAdvisor's samples are 35-53 s apart: 1m is mostly empty
 
 
 def test_the_detector_matches_at_half_the_periods_throttled():
@@ -91,6 +92,7 @@ def test_the_throttling_alert_names_the_container_and_only_argus_objects():
     rules = _yaml("deploy", "monitoring", "alerts.yml")["groups"][0]["rules"]
     a = next(r for r in rules if r.get("alert") == "ContainerCpuThrottled")
     assert a["for"] == "5m" and ">= 0.5" in a["expr"]
+    assert a["expr"].count("[3m]") == 2 and "[1m]" not in a["expr"]   # step 2 on vm-166: a 1m rate never fired
     assert 'label_replace(' in a["expr"] and '"container", "$1", "name", "(.*)"' in a["expr"]   # the intake's label
     assert 'name=~"argus-.*"' in a["expr"]                                    # never another deployment's container
 
