@@ -982,3 +982,133 @@ Decision / result: `verify latest` restored `argus-20261010T023316Z.dump` in the
 `KEEP=2` preview lists the two oldest and keeps the verified one. No file deleted, NO INTERFERENCE.
 Consequences: the first `prune --apply` waits for a teammate's review; scheduling stays a team decision.
 References: `tasks/current/OP-008-backup-retention.md`, `execution/history/OP-008/step-02/evidence.md`.
+
+## 2026-10-10 — LANES-1: one lease per VM
+
+Type: implementation
+Who: juanbetancurm (+ agent)
+Context: PARALLEL_LANES (PR #52) change 1. One lease covered both VMs, so every VM run waited for one person.
+Decision / result: `brain.py start --vm vm-095|vm-166|both` (default both); `session.json` keeps one lease per VM
+under `vms`, and the old top-level fields as a summary, so a `brain.py` older than this one stays out of a VM someone
+else holds. The old format holds both VMs: the lease held at the merge stays valid. 8 new tests (red seen); all 27
+brain tests pass. This is the first journal entry written as its own file (PARALLEL_LANES change 2): the shared
+summaries are not edited by this task.
+Consequences: after the merge, `git pull` on `main`; claim only the VM you need. A change to the agent on vm-095
+still needs both leases.
+References: [`../tasks/current/LANES-1-lease-per-vm.md`](../tasks/current/LANES-1-lease-per-vm.md),
+[`../policies/PARALLEL_LANES.md`](../policies/PARALLEL_LANES.md).
+
+## 2026-10-10 — E2E-1: SC-04, SC-05, SC-06 in the runner catalogue
+
+Type: implementation
+Who: juanbetancurm (+ agent)
+Context: phase 12 needs repeated runs; the three scenarios proven by hand on vm-166 (T-0020, T-0024, T-0028) were not
+in `ops/e2e/scenarios.yaml`, so the runner could not repeat them.
+Decision / result: the catalogue entries use the commands of the VM proofs and gate on the detector's own signal and
+threshold. Resets remove only the lab container the scenario started (`rm -f`). 4 new test cases (red seen); the 36
+runner tests pass. No VM was touched.
+Consequences: a 5-run batch on vm-166 (step 2) needs that VM's lease. The shared summaries are left to the roll-up.
+References: [`../tasks/current/E2E-1-catalogue-sc04-06.md`](../tasks/current/E2E-1-catalogue-sc04-06.md).
+
+## 2026-10-10 — E2E-1 step 2: the runner's first batch on vm-166, 17/20 (E2E-1)
+
+Type: verification
+Who: juanbetancurm (+ agent)
+Context: phase 12 asks for repeated runs. Both VMs on `main` `ebbe9c9`; vm-166's lease for the batch (the first use
+of the lease per VM, LANES-1), vm-095's held by conantkd without touching the agent.
+Decision / result: an SC-04 trial passed, then 5 runs each: SC-04 5/5, SC-06 5/5, SC-07 4/5, SC-05 3/5; 0 errors,
+every reset clean, NO INTERFERENCE after every run. Detection, class and first runbook were right in all 20; the
+misses are the model's: SC-07 once named the client instead of the backend (a wrong root cause), SC-05 twice
+escalated without naming the filler (a safe abstention).
+Consequences: read the three incidents' evidence before changing anything; then a second batch of SC-07 and SC-05,
+and SC-02 when vm-095 is free. Phase 12: SC-01, SC-03, SC-04, SC-06 at 5/5.
+References: [`../tasks/current/E2E-1-catalogue-sc04-06.md`](../tasks/current/E2E-1-catalogue-sc04-06.md),
+[`../execution/history/E2E-1/step-02/evidence.md`](../execution/history/E2E-1/step-02/evidence.md).
+
+## 2026-10-10 — T-0032: Prometheus down on one host (phase 13)
+
+Type: verification
+Who: conantkd (+ agent)
+Context: phase 13 asks "partition ⇒ escalation for one host only"; T-0030 left Prometheus down on one host as next.
+Decision / result: `tests/test_t0032_prometheus_down.py` (3, both runners and the real adapter; red seen by removing
+the handling in each runner). On vm-095 Prometheus was stopped about 2 min: a vm-095 check ended UNDIAGNOSABLE
+(`ConnectError`, no model call), a vm-166 check HEALTHY, no Argus container restarted, vm-095 HEALTHY after the start;
+LAB BASELINE OK, NO INTERFERENCE. No code change was needed.
+Consequences: no alert fires while a host's own Prometheus is down; a cross-host watcher or dead-man alert is a
+follow-up. The shared summaries are left to the roll-up.
+References: [`../tasks/current/T-0032-prometheus-down.md`](../tasks/current/T-0032-prometheus-down.md),
+[`../execution/history/T-0032/step-02/evidence.md`](../execution/history/T-0032/step-02/evidence.md).
+
+## 2026-10-10 — LANES-2: journal entries as files and brain.py rollup (LANES-2)
+
+Type: implementation
+Who: juanbetancurm (+ agent)
+Context: PARALLEL_LANES change 2. Every PR of the 2026-10-10 merge queue needed a by-hand fix of the logbook,
+CURRENT_TEST_STATE and NEXT_STEP, one after the other, because every task appends to them.
+Decision / result: a task writes `journal/entries/<date>-<task>.md` (with optional `### Test state` and `### Next
+step` sections); `brain.py rollup` folds the entries into the three files after the merges and removes them; `brain.py
+lint` refuses those three edits on task branches made after this rule (roll-up branches and older branches exempt).
+6 new tests (red seen); the roll-up was tried on a clean copy of `main`. Review fix (`conantkd`): the tests clear CI's
+`GITHUB_HEAD_REF`, and a 7th pins the CI case (detached HEAD, PR branch from that variable).
+Consequences: after the merge, agents write entry files; whoever merges last that day runs the roll-up on a
+`task/rollup-<date>` branch.
+References: [`../tasks/current/LANES-2-journal-rollup.md`](../tasks/current/LANES-2-journal-rollup.md).
+
+## 2026-10-10 — E2E-1 step 3: the misses are two evidence gaps; batch 2 (E2E-1)
+
+Type: verification
+Who: juanbetancurm (+ agent)
+Context: batch 1 missed SC-07 once and SC-05 twice. Before changing anything, the three incidents were read from the
+store on vm-095 (read-only) and SC-07 and SC-05 ran 5 more times on vm-166.
+Decision / result: SC-07 6/10 and SC-05 6/10 over both batches; 0 errors, NO INTERFERENCE. Not model noise: in SC-05
+every disk read hit `/` (28 %) while the detector fired on the lab mount (92.6 %), so the model saw a contradiction
+and escalated; in SC-07 the backend's assigned network exists only in comments, so the model guessed which container
+was misplaced. The labels are right.
+Consequences: E2E-2 (code): `host.disk_usage` without a mount reports every declared mount; the inventory declares each
+container's networks and `container.status` shows a container that is not on them. Then a rebuild of vm-095's agent
+(both leases) and 5 runs each of SC-05 and SC-07.
+References: [`../execution/history/E2E-1/step-03/evidence.md`](../execution/history/E2E-1/step-03/evidence.md).
+
+## 2026-10-10 — E2E-2: the model gets the facts it was missing in SC-05 and SC-07 (E2E-2)
+
+Type: implementation
+Who: juanbetancurm (+ agent)
+Context: E2E-1 found SC-05 and SC-07 at 6/10 each; reading the incidents showed two evidence gaps, not model noise:
+every disk read hit `/` while the detector fired on the lab mount, and the backend's assigned network was only a
+comment.
+Decision / result: `host.disk_usage` without a mount reads every declared mount; the inventory declares a container's
+`networks` and `container.status` says when it is not on them (declared for SC-07's client and backend). 8 new tests
+(red seen 6/8); the baseline evaluation is unchanged (hard 0 0 0).
+Consequences: after the merge, rebuild vm-095's agent (both leases) and run SC-05 and SC-07 five times each.
+References: [`../tasks/current/E2E-2-evidence-gaps.md`](../tasks/current/E2E-2-evidence-gaps.md).
+
+## 2026-10-10 — E2E-2 follow-up: an unmounted disk is a stated fact, not a failed read (E2E-2)
+
+Type: implementation
+Who: conantkd (+ agent)
+Context: #70's review. Without a mount `host.disk_usage` reads every declared mount, but one 409 from the host-probe
+(the lab filesystem not mounted) failed the whole read, so the model would also lose `/`.
+Decision / result: a mount that cannot be read is reported as `unavailable (<reason>)` and the others are still read;
+the read fails only when every mount fails; an explicit mount fails as before; `source_time` is the oldest read. 4
+tests (red seen 2/4). No VM step of its own: it ships with E2E-2's step 2 rebuild.
+Consequences: SC-05's re-run is unaffected while the lab filesystem is mounted; when it is removed, the model still
+sees the root disk and is told the lab mount is missing.
+References: [`../tasks/current/E2E-2-evidence-gaps.md`](../tasks/current/E2E-2-evidence-gaps.md).
+
+## 2026-10-10 — T-0031: the standing write-gate test (phase 8)
+
+Type: implementation + verification
+Who: conantkd (+ agent)
+Context: §22.2 asks for a standing test in every build while no write is released, and a deployment check; phase 8
+listed it as the open item.
+Decision / result: `tests/test_write_gate_standing.py` injects four forms of a `container.restart` proposal on both
+runners: always `no_action_escalated`, a security event, no approval or write node, no request beyond reads. Red seen
+by three mutations (open gate accepted, an unoffered tool accepted, a write safety class registered).
+`ops/write-gate-check.sh` (read-only) on vm-095: `WRITE GATE CLOSED` for agent, worker and scheduler; NO INTERFERENCE.
+Step 3 (both leases): `--host-only` on vm-166, the Host T where §2 would place the action gateway: `WRITE GATE
+CLOSED` (no action container, mount, variable or credential); the extended check again on vm-095: `WRITE GATE CLOSED`.
+Consequences: phase 8's standing test is done. The code is stricter than §12 (`container.restart` is not registered at
+all). The shared summaries are left to the roll-up.
+References: [`../tasks/current/T-0031-write-gate-standing.md`](../tasks/current/T-0031-write-gate-standing.md),
+[`../execution/history/T-0031/step-02/evidence.md`](../execution/history/T-0031/step-02/evidence.md),
+[`../execution/history/T-0031/step-03/evidence.md`](../execution/history/T-0031/step-03/evidence.md).
