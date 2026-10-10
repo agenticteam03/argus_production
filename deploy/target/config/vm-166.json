@@ -2,6 +2,8 @@
   "host": "vm-166",
   "containers": [
     "argus-lab-worker",
+    "argus-lab-burner",
+    "argus-lab-filler",
     "argus-lab-api",
     "argus-lab-cache",
     "argus-lab-client",
@@ -11,6 +13,8 @@
   ],
   "dns_names": [
     "argus-lab-worker",
+    "argus-lab-burner",
+    "argus-lab-filler",
     "argus-lab-api",
     "argus-lab-cache",
     "argus-lab-client",

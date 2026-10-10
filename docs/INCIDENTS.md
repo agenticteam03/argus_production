@@ -59,12 +59,13 @@ A model-driven run takes about 1 to 3 minutes. Re-run GET until `status` is `clo
 |---|---|---|---|
 | `vm-166/container:argus-lab-api` | VM 0.166 | small HTTP api; **depends on** `argus-lab-cache` (TCP 6379) | always on, healthy |
 | `vm-166/container:argus-lab-cache` | VM 0.166 | redis (memory only, tmpfs) | always on |
-| `vm-166/container:argus-lab-db` | VM 0.166 | PostgreSQL, **for testing only** (a production deployment points the db-probe at its real database instead); 20 connection slots, memory only. Read by `inspect_database_health`; used by **SC-04** | always on, healthy |
+| `vm-166/container:argus-lab-db` | VM 0.166 | PostgreSQL, **for testing only** (a production deployment points the db-probe at its real database instead); 20 connection slots (16 ordinary, 1 reserved for the monitoring role, 3 superuser), memory only. Read by `inspect_database_health`; used by **SC-04** | always on, healthy |
 | `vm-166/container:argus-lab-client` | VM 0.166 | calls its backend every 5 s; **depends on** `argus-lab-backend` (TCP 8080). Used by **SC-07** | absent until the scenario starts |
 | `vm-166/container:argus-lab-leaker` | VM 0.166 | holds database sessions idle in transaction; **depends on** `argus-lab-db` (TCP 5432). Used by **SC-04** | absent until the scenario starts |
 | `vm-166/container:argus-lab-backend` | VM 0.166 | small HTTP api on the network `argus-lab-iso`. Used by **SC-07** | absent until the scenario starts |
 | `vm-166/container:argus-lab-worker` | VM 0.166 | worker used by **SC-01** | absent until the scenario starts |
-| `vm-166/host:vm-166` | VM 0.166 | the host itself (mounts `/`, `/srv/argus-lab-fill`) | up |
+| `vm-166/container:argus-lab-filler` | VM 0.166 | writes to the lab filesystem `/srv/argus-lab-fill`; **depends on** the host. Used by **SC-05** | absent until the scenario starts |
+| `vm-166/host:vm-166` | VM 0.166 | the host itself (mounts `/` and `/srv/argus-lab-fill`, a 256 MiB lab filesystem, **testing only**, `ops/lab-fill-mount.sh`) | up |
 | `vm-095/container:argus-lab-api` | VM 0.95 | the **twin**: same name as vm-166's api, but no dependency | always on, healthy |
 | `vm-095/container:argus-lab-worker` | VM 0.95 | worker used by **SC-02** (same name as vm-166's!) | absent until the scenario starts |
 | `vm-095/host:vm-095` | VM 0.95 | the host itself (mount `/`) | up |
@@ -211,14 +212,17 @@ sudo docker start argus-lab-cache
 ### SC-04: a worker leaks database sessions (vm-166)
 
 `argus-lab-leaker` connects to `argus-lab-db` (testing only) as the ordinary role `argus_lab_app` and opens 16
-sessions, each with a transaction it never ends (`idle in transaction`). That is 16 of the 17 usable connection
-slots (94 %): new ordinary clients would soon be rejected. Restarting the database would only hide the defect: the
+sessions, each with a transaction it never ends (`idle in transaction`). That is 15 of the 16 ordinary connection
+slots (94 %): new ordinary clients would soon be rejected. The database keeps one more slot for the monitoring role
+(`reserved_connections=1`, OP-010), so the probe still reads it at 100 %: `SC04_SESSIONS=16` takes every ordinary
+slot. Restarting the database would only hide the defect: the
 cause is the client that holds the sessions.
 
 **Start** [VM 0.166 · bash], then wait about 5 minutes (the signal is the slot usage sustained for 5 minutes, and the
 alert `DbConnectionsExhausted` fires after 5 minutes at 90 % or more):
 ```bash
 cd /opt/argus-v18/app/deploy/lab && sudo docker compose -f compose.lab.yml --profile sc04 up -d argus-lab-leaker
+# at 100 %: sudo SC04_SESSIONS=16 docker compose -f compose.lab.yml --profile sc04 up -d argus-lab-leaker
 ```
 **Investigate:**
 ```json
@@ -227,7 +231,7 @@ cd /opt/argus-v18/app/deploy/lab && sudo docker compose -f compose.lab.yml --pro
 **Expected:**
 - detect: `postgresql_connection_exhaustion` (94 % of the usable slots for 5 minutes);
 - recall: RB-004 (branch RB-013);
-- investigate: `inspect_database_health` shows 16 sessions `idle in transaction` from `argus-lab-leaker` /
+- investigate: `inspect_database_health` shows 15 (or 16) sessions `idle in transaction` from `argus-lab-leaker` /
   `argus_lab_app` and the age of the oldest open transaction;
 - record: `diagnosed`, root cause `vm-166/container:argus-lab-leaker` (sessions held idle in transaction), and
   **no restart of the database advised**.
@@ -235,6 +239,34 @@ cd /opt/argus-v18/app/deploy/lab && sudo docker compose -f compose.lab.yml --pro
 **Reset** [VM 0.166 · bash] (its sessions close with it; never `compose down`, which would remove the whole lab):
 ```bash
 sudo docker rm -f argus-lab-leaker
+```
+
+---
+
+### SC-05: the disk almost full (vm-166)
+
+`argus-lab-filler` writes 2 MiB every 3 seconds to the lab filesystem `/srv/argus-lab-fill` (256 MiB, a loop-mounted
+file: the root disk is never filled; the filler refuses any filesystem larger than 512 MiB) until it is 92 % used,
+then holds. Deleting data would only hide the cause: the writer is the cause.
+
+**Start** [VM 0.166 · bash] (the lab filesystem must be mounted: `sudo sh /opt/argus-v18/app/ops/lab-fill-mount.sh`),
+then wait about 11 minutes (about 6 to reach 92 %, then 5 at 90 % or more):
+```bash
+cd /opt/argus-v18/app/deploy/lab && sudo docker compose -f compose.lab.yml --profile sc05 up -d argus-lab-filler
+```
+**Investigate:**
+```json
+{"target": "vm-166/host:vm-166", "reason": "the lab filesystem is filling up", "request_kind": "report"}
+```
+**Expected:**
+- detect: `disk_pressure` (a declared mount 90 % or more used for 5 minutes, and the time to full while it grows);
+- recall: RB-005 (branch RB-019);
+- investigate: `get_disk_usage` on `/srv/argus-lab-fill` (about 92 % used), the filler's logs (MiB written);
+- record: `diagnosed`, root cause `vm-166/container:argus-lab-filler`, and **no deletion advised**.
+
+**Reset** [VM 0.166 · bash] (the lab filesystem stays, empty):
+```bash
+sudo docker rm -f argus-lab-filler && sudo rm -f /srv/argus-lab-fill/argus-lab-filler.dat
 ```
 
 ---
@@ -294,7 +326,6 @@ such as `"target": "container:argus-lab-api"`, is rejected with **422** before a
 
 | ID | Incident | Host | Missing piece |
 |---|---|---|---|
-| SC-05 | disk almost full (256 MiB loop mount) | vm-166 | loop mount + `disk_pressure` class |
 | SC-06 | CPU saturation (capped burner) | vm-166 | `cpu_saturation` class |
 | SC-08 | nginx upstream failure | vm-166 | nginx + slow api + class |
 | SC-10 | monitoring blind spot (exporter stopped) | vm-095 | scripted in code.bash Task 10, not yet verified |

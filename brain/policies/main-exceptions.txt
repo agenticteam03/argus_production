@@ -22,3 +22,9 @@ pr 37  2026-10-08  juanbetancurm  fast-track: record the PR #33 fast-track line 
 pr 36  2026-10-09  juanbetancurm  retroactive: merged at 289bb0d before its re-review; review fixes, ACR-0002 and step 5e reviewed in PR #39
 pr 38  2026-10-09  conantkd  fast-track: T-0020 SC-04 PostgreSQL connection exhaustion (reviewed by juanbetancurm, requested fixes made in f1d1f3e; verified on vm-166)
 pr 41  2026-10-09  conantkd  fast-track: OP-005 young restarts counted (exporter creation time, restarts_10m and its alert; verified on both VMs; the CI step is PR #43)
+pr 44  2026-10-09  conantkd  fast-track: OP-001 runbook detector metadata alignment (21 runbooks; no runtime enablement)
+pr 53  2026-10-09  conantkd  fast-track: OP-009 a worker that loses its lease stops its run (code only; no VM change)
+pr 46  2026-10-09  conantkd  fast-track: OP-010 the db-probe keeps a reserved connection slot (approved by juanbetancurm on 2ddcfb1; re-merged after #45; verified on vm-166)
+pr 47  2026-10-09  conantkd  fast-track: T-0024 SC-05 disk almost full (disk_pressure, RB-005; approved by juanbetancurm on 22a924d; re-merged after #46; verified on vm-166)
+pr 57  2026-10-09  conantkd  fast-track: alert identity startsAt truncated to milliseconds (review note of #45; code only, no VM change)
+pr 58  2026-10-09  conantkd  fast-track: OP-009 follow-up: a failing renewer cancels the run at the lease expiry (review note of #53; code only, no VM change)

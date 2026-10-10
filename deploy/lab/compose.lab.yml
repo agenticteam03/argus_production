@@ -30,6 +30,7 @@ services:
     container_name: argus-lab-db        # not need it: the probe points at the real database (inventory `database`).
     profiles: [base-166]
     command: ["postgres", "-c", "max_connections=20", "-c", "superuser_reserved_connections=3",
+              "-c", "reserved_connections=1",               # OP-010: argus_monitor's own slot (16 ordinary left)
               "-c", "shared_buffers=16MB"]                   # 20 slots: RB-004's lab case (SC-04 fills them)
     environment:
       POSTGRES_DB: argus_lab
@@ -58,7 +59,7 @@ services:
     profiles: [sc04]
     entrypoint: ["sh", "/w/leaker.sh"]
     environment: {PGHOST: argus-lab-db, PGDATABASE: argus_lab, PGUSER: argus_lab_app, PGAPPNAME: argus-lab-leaker,
-                  SESSIONS: "16"}       # 16 of 17 usable slots = 94 % (the monitoring role still gets in)
+                  SESSIONS: "${SC04_SESSIONS:-15}"}   # 15 of 16 usable = 94 %; SC04_SESSIONS=16 = 100 % (OP-010)
     volumes:
       - ./workloads:/w:ro
       - /opt/argus-v18/secrets/lab-db/app_password:/run/secrets/app_password:ro
@@ -67,6 +68,35 @@ services:
     pids_limit: 64                      # ~3 processes per session (subshell, sleep, psql); 32 failed with "can't fork"
     mem_limit: 192m                     # ~5 MiB per psql
     memswap_limit: 192m
+    restart: "no"
+  argus-lab-filler:                     # SC-05 (vm-166): fills the lab filesystem /srv/argus-lab-fill (ops/lab-fill-mount.sh)
+    image: python:3.12-alpine
+    container_name: argus-lab-filler
+    profiles: [sc05]
+    command: ["python", "-u", "/w/fill.py"]
+    environment: {TARGET_PCT: "92", CHUNK_MIB: "2", EVERY_S: "3", MAX_FS_MIB: "512"}   # refuses a big (root) disk
+    volumes:
+      - ./workloads:/w:ro
+      - /srv/argus-lab-fill:/fill
+    network_mode: none
+    mem_limit: 48m
+    memswap_limit: 48m
+    cpus: 0.2
+    pids_limit: 16
+    restart: "no"
+  argus-lab-burner:                     # SC-06 (vm-166, T-0028): a busy loop under a 0.3-core quota (throttled, RB-006)
+    image: python:3.12-alpine
+    container_name: argus-lab-burner
+    profiles: [sc06]
+    command: ["python", "-u", "/w/burn.py"]
+    environment: {MAX_S: "1200"}         # stops by itself after 20 minutes
+    volumes:
+      - ./workloads:/w:ro
+    network_mode: none
+    mem_limit: 32m
+    memswap_limit: 32m
+    cpus: 0.3
+    pids_limit: 8
     restart: "no"
   argus-lab-api-twin:                   # vm-095 baseline: SAME container name, no dependency, healthy
     <<: *lim

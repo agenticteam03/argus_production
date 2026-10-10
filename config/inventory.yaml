@@ -4,12 +4,14 @@
 # Ports follow the port matrix in brain/IMPLEMENTATION_PLAN.md (section "Ports and networks").
 hosts:
   vm-095:
+    alertmanager: http://argus-v18-alertmanager:9093    # T-0022: read by the scheduler (not an executor)
     executors:
       docker_read:   http://argus-v18-read-gateway:8700
       host_probe:    http://argus-v18-host-probe:8700
       network_probe: http://argus-v18-network-probe:8700
       prometheus:    http://argus-v18-prometheus:9090
   vm-166:
+    alertmanager: http://argus-v18-tunnel:18091          # T-0022: through the tunnel (not an executor)
     # Reached through the restricted SSH tunnel sidecar on vm-095 (encrypted path, v1.8 §3.2); on vm-166
     # these services listen on 127.0.0.1 only. Changing transport later = changing only these URLs.
     executors:
@@ -29,6 +31,9 @@ targets:
   - ref: vm-166/host:vm-166
     mounts: ["/", "/srv/argus-lab-fill"]
   - ref: vm-166/container:argus-lab-worker        # SC-01 OOM restart loop
+  - ref: vm-166/container:argus-lab-burner        # SC-06 (T-0028): a busy loop under a 0.3-core CPU quota
+  - ref: vm-166/container:argus-lab-filler        # SC-05: fills /srv/argus-lab-fill (the lab filesystem)
+    depends_on: [vm-166/host:vm-166]              # writes to the host's lab filesystem: in a host incident's scope (§5)
   - ref: vm-166/container:argus-lab-api           # SC-03 victim of its dependency
     depends_on: [vm-166/container:argus-lab-cache]
     http_endpoints: ["http://argus-lab-api:8080/health"]

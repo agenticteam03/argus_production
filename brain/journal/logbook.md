@@ -571,6 +571,39 @@ Consequences: T-0020 is done and waits for review. vm-095 runs T-0021 without T-
 when vm-095 is back on `main`. Phase 11 at 70 %.
 References: `tasks/current/T-0020-sc04-pg-connections.md`, `execution/history/T-0020/`, OPEN_PROBLEMS OP-009, PRs #33-#37.
 
+## 2026-10-08 — phase 7 on vm-166, OP-010 verified, SC-05 coded (T-0022, OP-010, T-0024)
+
+Type: verification
+Who: conantkd (+ agent)
+Context: after T-0020 (#38) and the OP-009 branch, `conantkd` chose all of phase 7: D-001 decided as transport
+profiles (ACR-0003, this deployment `restricted-ssh`, alerts pulled), Argus-owned Alertmanager, node-exporter and
+cAdvisor.
+Decision / result: T-0022 steps 1-3 (ACR-0003, architecture 1.8.3, the alert intake shared by webhook and pull, the
+scheduler's reconciliation, the monitoring stack; 186 passed). Step 4 on vm-166: all jobs up, the root filesystem
+seen (`pid: host`), 1 Alertmanager, nothing firing; nonint showed only the new listener 18091. OP-010: the lab
+database reserves a slot for `argus_monitor` and the probe reports `monitor_slot_reserved` (general: a real database
+without it is visible); SC-04 at 16 of 16 ordinary slots on vm-166: the probe stayed up, usage 1.0, the alert fired
+and reached vm-166's Alertmanager. A mis-extracted block (the T-0020 AFTER-MERGE `M.1`) ran only a SESSION grep and
+`nonint-check before`, then stopped on its `<you>` placeholder: nothing changed. T-0024 (SC-05) step 1: signals per
+declared mount, `disk_pressure`, `rslave`, the bounded filler and the lab mount script (207 passed); the scripted
+diagnosis showed the filler outside a host incident's scope, fixed with `depends_on` (the §5 rule).
+Consequences: vm-166 on `task/OP-010-reserved-slot`; T-0024 local only; PRs wait for #38 and for `conantkd`'s
+order; vm-095 work waits for #36. Session closed, lease released.
+References: `tasks/current/T-0022-alerting.md`, `tasks/current/T-0024-sc05-disk.md`, OPEN_PROBLEMS OP-010,
+`execution/history/T-0022/step-04/`, `execution/history/OP-010/step-01/`.
+
+## 2026-10-08 — OP-009: a worker that loses its lease stops its run (OP-009)
+
+Type: fix
+Who: conantkd (+ agent)
+Context: the after-merge review of PR #33 found that the renewer only logged a lost claim, and died silently on a
+database error, while the run went on; with two workers the same incident could run twice.
+Decision: cooperative cancel instead of fencing every write: the worker owns the decision (retry while the lease
+lasts, then cancel), the runner checks one signal at its node boundaries, before reads and before the final record.
+The LangGraph checkpoint stays at the last completed node, so the new owner resumes. One clock per lease in Postgres.
+Consequences: a second worker is safe from double runs. Code only, no VM change; reaches vm-095 with the next agent
+rebuild. Branch on top of T-0020 (PR #38), because OP-009 is written there.
+References: OPEN_PROBLEMS OP-009, `tests/test_op009_lease_loss.py`.
 ## 2026-10-09 — T-0021: review fixes of PR #36, and ACR-0002 (T-0021)
 
 Type: implementation + architecture change (proposed)
@@ -638,6 +671,20 @@ SC-07's reset succeeds when its network is already gone. 6 new tests, red seen; 
 Consequences: run the batches as an operator user. Every catalogued reset must be idempotent.
 References: `tasks/current/T-0023-e2e-runner.md`, PR #40.
 
+## 2026-10-09 — OP-001 runbook detector metadata alignment
+
+Type: implementation
+Who: conantkd (+ agent)
+Context: the authored runbooks retained an old detector name or null metadata despite architecture §1.3 assigning
+every runbook to an incident class.
+Decision / result: 18 changed runbooks now name their architecture class, with patch versions and `last_reviewed`
+updated; RB-002, RB-003, and RB-004 already matched and stayed unchanged. The index names all 21 mappings, and a
+test compares both surfaces with the architecture table (red before, green after). No detector was enabled or runbook
+promoted.
+Consequences: review the corpus-only PR. Library metadata revision is v1.1.1; the §1.3 v1.1.0 citation remains its
+original design baseline.
+References: `tasks/current/OP-001-runbook-detectors.md`, OPEN_PROBLEMS OP-001, `argus/runbooks/RUNBOOK-INDEX.md`.
+
 ## 2026-10-09 — OP-005 offline implementation: young restart counts
 
 Type: implementation
@@ -667,3 +714,120 @@ NO INTERFERENCE on both.
 Consequences: OP-005 fixed. PR #43 (CI step) needs `juanbetancurm`. vm-166 runs `task/OP-005-vm166-proof` until the
 T-0022 and OP-010 PRs merge.
 References: `tasks/current/OP-005-restart-signal.md`, `execution/history/OP-005/step-02/evidence.md`, PRs #41, #43.
+
+## 2026-10-09 — T-0022 verified on both VMs: firing alerts are pulled and open incidents (T-0022)
+
+Type: verification
+Who: conantkd (+ agent)
+Context: T-0022 steps 5-6 waited for #36; `main` now has #38-#41. Both VMs got `50f33ae` (T-0022 + OP-010 + `main`).
+Decision / result: vm-095 runs its Argus-owned Alertmanager, node-exporter and cAdvisor, and the tunnel forwards
+vm-166's Alertmanager (18091); the scheduler reads both every 60 s. SC-03 on vm-166 and SC-02 on vm-095: each firing
+alert opened one incident (principal `alertmanager@<host>`), all DIAGNOSED, and the next passes reported `duplicate`.
+Two alerts on one target (SC-03) opened two incidents: §6.4 correlation is not implemented, recorded as OP-011.
+NO INTERFERENCE on both.
+Consequences: T-0022 done; its PR needs `juanbetancurm`'s second approval of ACR-0003. Next: OP-011, the OP-010
+DIAGNOSED run at 100 %, T-0024 (SC-05).
+References: `tasks/current/T-0022-alerting.md`, `execution/history/T-0022/step-05/`, `step-06/`, OPEN_PROBLEMS OP-011.
+
+## 2026-10-09 — OP-010 fixed: SC-04 at 100 % DIAGNOSED from the pulled alert (OP-010)
+
+Type: verification
+Who: conantkd (+ agent)
+Context: OP-010's fix (a reserved slot for the monitoring role) was verified on vm-166 on 2026-10-08; the diagnosis
+waited for vm-095 to pull alerts (T-0022 step 5, done today).
+Decision / result: with 16 of 16 ordinary slots taken the probe kept `argus_db_up=1`; `DbConnectionsExhausted` fired
+after 5 minutes; the scheduler pulled it and opened `inc_03e42714762f`, DIAGNOSED (`postgresql_connection_exhaustion`,
+root cause `argus-lab-leaker`, the database the victim). No password was needed: the alert opened the incident.
+NO INTERFERENCE on both.
+Consequences: OP-010 fixed; its PR (stacked on T-0022) is ready.
+References: OPEN_PROBLEMS OP-010, `execution/history/OP-010/step-02/evidence.md`.
+
+## 2026-10-09 — SC-05 DIAGNOSED on vm-166 from the pulled alert (T-0024)
+
+Type: verification
+Who: conantkd (+ agent)
+Context: T-0024 (SC-05, `disk_pressure`, RB-005) was coded on 2026-10-08; with T-0022 on both VMs the alert path is
+complete.
+Decision / result: both VMs on `b049086`. vm-166 got the lab filesystem (`/srv/argus-lab-fill`, 224 MiB loop mount,
+testing only, not in fstab). The filler took it to 92.6 %; after 5 minutes `HostDiskPressure` fired, the scheduler
+pulled it and `inc_4d78232433a1` was DIAGNOSED (`disk_pressure`, root cause `argus-lab-filler`), with no unscoped
+deletion advised. Reset; the lab filesystem stays mounted and empty. RB-005 1.0.2. NO INTERFERENCE on both.
+Consequences: T-0024 done; phase 11 at 80 % (SC-06, SC-08 left). The time to full lags a stop by up to 15 minutes.
+References: `tasks/current/T-0024-sc05-disk.md`, `execution/history/T-0024/step-02/evidence.md`.
+
+## 2026-10-09 — T-0025: the §21.2 evaluation, step 1 (T-0025)
+
+Type: implementation (offline)
+Who: juanbetancurm (+ agent)
+Context: the four enabled classes were enabled on lab runs, ahead of the §21.2 evaluation that §3 "Enablement" asks
+for. Nobody owned it, and it needs no VM.
+Decision / result: `argus/evaluation/` replays a labeled case through the real wiring with fixture executors and a
+fixed metric snapshot, grades it, and counts the hard rules (no dispatched action, no planted secret in a model
+request, no cross-host read). The replay is pinned to fixtures, SQLite and no environment model, so it can later run
+inside the worker container without touching anything real. 7 cases; the 6 safety cases pass offline, recall@3 1.00.
+Consequences: step 2 adds the deterministic baseline strategy and 5 cases per enabled class; step 3 runs the real
+model's trials on vm-095 and gives each class its gate (or the baseline strategy).
+References: `tasks/current/T-0025-evaluation.md`, `tests/eval/`.
+
+## 2026-10-09 — T-0025: the deterministic baseline and 29 evaluation cases (T-0025)
+
+Type: implementation (offline)
+Who: juanbetancurm (+ agent)
+Context: §21.2 measures every model strategy against a deterministic baseline on the same labeled cases.
+Decision / result: `baseline` is a registered strategy (fixed reads per class, a rule per class, escalation when no
+rule decides). 29 cases: 5+ per enabled class, 2 ambiguous, 1 tool failure, 6 safety. Baseline: 29/29 PASS,
+accuracy 1.00, safe abstention 1.00, hard 0 0 0. The cases and rules were written together, so this proves
+consistency, not generality; the class registry is unchanged (all four classes still `model_loop`).
+Consequences: step 3 runs the configured model on the same cases on vm-095 (lease), ≥ 5 trials each; a class whose
+model results do not match the baseline switches to `baseline` in the registry (a data change).
+References: `tasks/current/T-0025-evaluation.md`, `tests/eval/`.
+
+## 2026-10-09 — T-0025: the configured model measured on the §21.2 cases (T-0025)
+
+Type: verification
+Who: juanbetancurm (+ agent)
+Context: the four enabled classes had lab runs only; §3 "Enablement" asks for the §21.2 evaluation.
+Decision / result: 30 cases × 5 trials on vm-095, in a one-off container with only the model key, the cases and the
+config (no executor token, no database; the VM checkout and running containers untouched). Hard 0 0 0; core accuracy
+0.92 (strict 0.86); abstention 0.86 (threshold 0.9 not met). Per class (core, model vs baseline): database 1.00/1.00,
+health 1.00/1.00, restart loop 0.87/0.83, dependency 0.84/1.00. Five earlier tries found and fixed harness and dataset
+problems (missing config, missing metric history, incomplete fixtures, a harness word reaching the model, over-strict
+and one wrong label); every fix is recorded in the task file.
+Consequences: proposal for the team: `dependency_unavailable` → `baseline` (the rule of §21.2), the others stay
+`model_loop`, with the bias caveat (the baseline's rules and the cases were written together). Open: the abstention
+gap and a rubric for evidence support.
+References: `tasks/current/T-0025-evaluation.md`, `tests/eval/`.
+
+## 2026-10-09 — T-0016 step 3: connect the read-only UI to the real API (T-0016)
+
+Type: implementation
+Who: juanes6554 (+ agent)
+Context: PR #24 (the mock UI, steps 1-2) was reviewed by juanbetancurm (next-step list) and conantkd (ACR-0001 scope:
+a UI only reads and shows a control only when /me lists its action). The HTTP/contract work was waiting for T-0015,
+which has merged; the code needs no VM lease.
+Decision: added the HTTP adapters (form-encoded POST /api/v1/auth/token with scope=read, then GET /api/v1/me; and
+GET incidents list/detail/events with the overview built from the list), an in-memory token store where any 401
+forgets the token, the VITE_ARGUS_MOCK switch (mock is the default), the dev proxy /api -> 127.0.0.1:18000, a
+username login, the viewer/operator/approver roles with the write screens (approvals, simulator, scheduler) removed
+from the menu, and runbooks read from argus/runbooks (demoRunbooks deleted). Tests first: 7 red, then 39 green plus
+the Vite build.
+Consequences: the frontend needs CI `frontend` green and a reviewer (fast-track, since it does not touch
+`.github/workflows/` or `contracts/`). Approvals, the agent chat that starts an investigation, the simulator, the
+scheduler and the health data stay mock-only until the new ACR agreed in the PR #24 comments. Open: Playwright
+acceptance, the read-only network guard and the contracts/ui-api.json check.
+References: `frontend/README.md`, `docs/API-FOR-UI.md`, `tasks/current/T-0016-frontend.md`.
+
+## 2026-10-10 — T-0028: SC-06 DIAGNOSED on vm-166; two defects found by the lab (T-0028)
+
+Type: implementation + verification
+Who: conantkd (+ agent)
+Context: phase 11's SC-06: a burner under a 0.3-core quota; `cpu_saturation` (RB-006), the container trigger only.
+Decision / result: the first run found two defects the offline tests could not: (1) cAdvisor's samples are 35-53 s
+apart, so a 1m rate was empty and the alert never fired (now 3m); (2) the throttled share alone fired for the bursty
+`argus-lab-api` on both hosts (61 % throttled at 4 % of its quota) and two api incidents were wrongly diagnosed (now
+the quota used must be ≥ 80 % too, a new signal; checked on vm-166's Prometheus). Second run: `inc_39bbec3df928`
+DIAGNOSED with high confidence (quota-constrained, RB-006 H5; "do not restart or kill speculatively"), no false
+positive, resolved after the burner was removed. NO INTERFERENCE.
+Consequences: SC-06 done (phase 11). Both VMs run `task/T-0028-vm-proof` `ed689b0` (T-0027 + T-0028) until the stack
+merges. The busy-host CPU trigger stays open (needs the host-scope ACR).
+References: `tasks/current/T-0028-sc06-cpu.md`, `execution/history/T-0028/step-02/evidence.md`.

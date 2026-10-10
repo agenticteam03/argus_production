@@ -5,9 +5,9 @@ When a problem is fixed, set its status to `fixed` with the date, and add a jour
 
 | ID | Item | Status | Opened |
 |---|---|---|---|
-| **D-001** | Cross-host path and alert direction: architecture text vs the running system | **pending team decision** | 2026-10-02 |
+| **D-001** | Cross-host path and alert direction: architecture text vs the running system | **decided** 2026-10-08 (`conantkd`): option B as transport profiles, [ACR-0003](architecture/changes/ACR-0003-transport-profiles.md); second approval in the T-0022 PR | 2026-10-02 |
 | **D-002** | Move the runbook library into this repository (the architecture expects it there) | **decided and done** 2026-10-02 | 2026-10-02 |
-| OP-001 | Runbook `detector` metadata uses old or empty class names | open | 2026-09-30 |
+| OP-001 | Runbook `detector` metadata uses old or empty class names | fixed 2026-10-09 on `task/OP-001-runbook-detectors` (review pending) | 2026-09-30 |
 | OP-002 | P0 safety gaps of the runbook library not yet reconciled with architecture v1.8 | open | 2026-09-30 |
 | OP-003 | Runbook safety classes not mapped to `CapabilitySpec.risk` | open | 2026-09-30 |
 | OP-004 | LangGraph checkpoints grow forever; checkpoints of failed runs are orphaned | accepted 2026-10-05 — to implement | 2026-10-05 |
@@ -15,14 +15,18 @@ When a problem is fixed, set its status to `fixed` with the date, and add a jour
 | OP-006 | LangGraph `recursion_limit` is fixed at 100 and can be too small for larger step budgets | fixed 2026-10-05 | 2026-10-05 |
 | **OP-007** | A dependency probe disappears while its owner is restarting, hiding the cause of a crash loop | fixed 2026-10-07 (`owner_active`: running or restarting; deployed on vm-166) | 2026-10-07 |
 | **OP-008** | Postgres backups are never rotated, and the backup's consistency check will stop once the scheduler writes often | accepted 2026-10-07 (PR #31, approved by `juanbetancurm`) — to implement; independent of T-0014 | 2026-10-07 |
-| OP-009 | A worker that loses its lease keeps running the incident; with two workers the same run could execute twice | open (fix before a second worker) | 2026-10-08 |
-| OP-010 | The db-probe cannot connect when every usable slot is taken, so `postgresql_connection_exhaustion` cannot fire at 100 % | open | 2026-10-08 |
+| OP-009 | A worker that loses its lease keeps running the incident; with two workers the same run could execute twice | fixed 2026-10-08 (`task/OP-009-lease-loss`: the renewer retries, a lost claim cancels the run) | 2026-10-08 |
+| OP-010 | The db-probe cannot connect when every usable slot is taken, so `postgresql_connection_exhaustion` cannot fire at 100 % | **fixed** 2026-10-09 — SC-04 at 100 % DIAGNOSED from the pulled alert | 2026-10-08 |
+| OP-011 | Two alerts on one target open two incidents: §6.4 correlation is not implemented | open | 2026-10-09 |
 
 ---
 
-## D-001 — Cross-host path and alert direction (pending team decision)
+## D-001 — Cross-host path and alert direction (decided by ACR-0003)
 
-**Status:** pending · **Opened:** 2026-10-02 · **Decided by:** the whole team (including `conantkd`)
+**Status:** decided 2026-10-08 by `conantkd` — option B, generalized as **transport profiles**
+([ACR-0003](architecture/changes/ACR-0003-transport-profiles.md)): this deployment is `restricted-ssh` and pulls alerts
+from an Argus-owned Alertmanager; the second team approval (`juanbetancurm`) is given in the T-0022 PR ·
+**Opened:** 2026-10-02 · **Decided by:** the whole team (including `conantkd`)
 
 **The difference.** Architecture §3.6 (reference values) says the two hosts talk over the **private network with no
 tunnel**, and that alerts are **pushed** (Alertmanager on vm-166 → webhook on vm-095). The running system uses a
@@ -71,18 +75,22 @@ deployment no longer mounts `/opt/argus-runbooks`) and the journal records it.
 
 ## OP-001 — Runbook `detector` metadata uses old or empty class names
 
-**Status:** open · **Opened:** 2026-09-30
+**Status:** fixed 2026-10-09 on `task/OP-001-runbook-detectors` (review pending) · **Opened:** 2026-09-30
 
-**Problem.** Each runbook in the library (`agenticteam03/runbooks`, `runbooks/RB-*.md`) has a `detector:` field. It
-still uses v1.7 names or is empty: RB-001 `oom_restart_loop` (v1.8: `container_restart_loop`, shared with RB-008);
-RB-002 `health_check_failed` and RB-003 `dependency_unavailable` already match; RB-004…RB-021 `null`. Architecture
-§15.3 requires that "a runbook's `detector` metadata names the class that uses it".
+**Problem.** Each runbook in the library (`argus/runbooks/RB-*.md`) has a `detector:` field. The original corpus used
+v1.7 names or left the field empty: RB-001 had `oom_restart_loop` (v1.8: `container_restart_loop`, shared with RB-008),
+and many later runbooks had `null`. Architecture §15.3 requires that "a runbook's `detector` metadata names the class
+that uses it".
 
-**Fix.** In the runbooks repository: set `detector:` in every runbook to its v1.8 class (§1.3); bump `version` and
-`last_reviewed`; update `RUNBOOK-INDEX.md`. Now done in this repository (`argus/runbooks/`), through a pull request.
+**Fix.** Set `detector:` in every runbook to its v1.8 class (§1.3), bump `version` and `last_reviewed` on changed
+runbooks, and update `RUNBOOK-INDEX.md`. The metadata-only library revision is v1.1.1. This does not enable draft
+classes or promote untested runbooks.
 
 **Done when.** All 21 runbooks name a class that exists in §1.3, and a check shows no class without a runbook and no
 runbook without a class.
+
+**Verification.** `tests/test_runbook_detector_metadata.py` compares the 21 metadata fields and index rows with the
+20 classes and their primary runbooks in architecture §1.3. The test was red before the edits and is green afterward.
 
 ---
 
@@ -341,7 +349,8 @@ above, runs `prune` as a dry-run on vm-095 first, and sets this item to `fixed`.
 
 ## OP-009 — A worker that loses its lease keeps running the incident
 
-**Status:** open · **Opened:** 2026-10-08 · **Found by:** `conantkd` (+ agent), after-merge review of PR #33 (T-0014) ·
+**Status:** fixed 2026-10-08 on `task/OP-009-lease-loss` (tests `tests/test_op009_lease_loss.py`, red seen; see
+**Fix** below) · **Opened:** 2026-10-08 · **Found by:** `conantkd` (+ agent), after-merge review of PR #33 (T-0014) ·
 **Fix with:** its own small task, **before a second worker is ever started** (today vm-095 runs one)
 
 **Problem.** In `argus/infrastructure/worker.py`, `_renew` extends the claim every `lease_s / 3`. Two cases leave a live
@@ -368,12 +377,30 @@ flag that the graph runner checks between nodes (cooperative cancel: stop at the
 
 **Done when.** Both tests pass, and this item is set to `fixed`.
 
+**Fix (2026-10-08, `conantkd` + agent).**
+- `argus/infrastructure/worker.py`: `_renew` retries a failed renewal while the lease lasts; a lost claim
+  (`renew_claim` False, or the lease expired while retrying) sets a `lost` event that the worker passes to the runner
+  (`runner.run(id, cancel=lost)`).
+- `argus/orchestration/runner.py`: `ClaimLost`; the cancel signal is a context variable per run. `_guard` runs before
+  every investigation step, before every read and before `_record`. A lost claim audits `incident.claim_lost` and
+  writes no final status; a crash while the claim is lost records nothing either.
+- `argus/orchestration/graph_runner.py`: every graph node starts with the guard, so the checkpoint stays at the last
+  completed node and the new owner resumes from it (`incident.resumed`).
+- Postgres: `renew_claim` and `requeue_expired` use the database clock (`now()`) unless a test passes `now`.
+- Tests: 7 in `tests/test_op009_lease_loss.py` (red: `run()` had no `cancel`; the renewer died at the first error;
+  a lost claim did not cancel), and `test_worker_lease_uses_the_database_clock` (Postgres, a refactor: green from the
+  start). The runner test doubles in `test_worker_loop.py` and `test_scheduler.py` take `cancel`.
+
 ---
 
 ## OP-010 — The db-probe is blind when every usable connection slot is taken
 
-**Status:** open · **Opened:** 2026-10-08 · **Found by:** `conantkd` (+ agent), risk review of the T-0020 PR ·
-**Fix with:** its own small task (vm-166 redeploy of `argus-lab-db` and SC-04 at 100 %)
+**Status:** fixed 2026-10-09 — SC-04 at 100 % on vm-166: the probe stayed up, the alert fired, and the pulled alert's
+incident `inc_03e42714762f` was DIAGNOSED (root cause the leaker;
+[evidence](execution/history/OP-010/step-02/evidence.md); first run
+[step-01](execution/history/OP-010/step-01/evidence.md)) · branch `task/OP-010-reserved-slot` · **Opened:**
+2026-10-08 · **Found by:** `conantkd` (+ agent), risk review of the T-0020 PR · **Fix with:** its own small task
+(vm-166 redeploy of `argus-lab-db` and SC-04 at 100 %)
 
 **Problem.** The db-probe connects as `argus_monitor`, an ordinary role that competes for the same usable slots as
 every client. `argus-lab-db` reserves only the superuser slots (`max_connections=20`,
@@ -392,3 +419,32 @@ with `SESSIONS` equal to every usable slot still detects `postgresql_connection_
 
 **Done when.** The settings are in the lab and documented, SC-04 at 100 % is DIAGNOSED on vm-166, and this item is set
 to `fixed`.
+
+**Done so far (2026-10-08).** Lab `reserved_connections=1` + the grant; the probe reports
+`monitor_slot_reserved` / `argus_db_monitor_slot_reserved` and `inspect_database_health` warns without it (general:
+a real database missing the prerequisite is visible); documented in `infrastructure/environment.md` and
+`docs/INCIDENTS.md`. Tests `test_op010_reserved_slot.py` (red 6/6, green; suite 192 passed, 7 skipped). On vm-166:
+SC-04 with 16 of 16 ordinary slots, the probe stayed up, usage 1.0 for 5 min, `DbConnectionsExhausted` firing.
+
+---
+
+## OP-011 — Two alerts on one target open two incidents (§6.4 correlation not implemented)
+
+**Status:** open · **Opened:** 2026-10-09 · **Found by:** `conantkd` (T-0022 step 6)
+
+**Problem.** In SC-03 the cache stopped and vm-166 fired two alerts on `argus-lab-api`: `DependencyProbeFailed` and
+`ContainerUnhealthy` (its health check needs the cache). The scheduler pulled both in one pass and opened **two
+incidents** (`inc_6f6f3aacfef8`, `inc_d02d9c397b7f`), both DIAGNOSED with the same class and root cause: twice the
+reads and model cost, and two answers for one failure. Each alert is deduplicated by its identity (the next passes
+say `duplicate`), but ARCHITECTURE §6.4 also says: an alert whose target and class match an open incident (within
+`CORRELATION_WINDOW`, after the compatibility test) is **attached** to it, not opened as a new one. There is no
+`application/correlation.py`; the webhook path has the same gap.
+
+**Proposed solution (to discuss).** Implement §6.4 in the alert intake: (1) an open incident containing the
+fingerprint → attach (exists as `duplicate`); (2) an open incident with the same target and class within the window,
+compatible by a fresh detector run → attach as an `AlertOccurrence` (`attached`), `evidence_version` + 1; (3) else a
+new incident. Alerts in the same pass are handled in order, so the second sees the first's open incident. The class is
+known only after detection, so step 2 needs the detector at intake (the compatibility test already requires it).
+
+**Done when.** A test with two alerts on one target and class gives one incident with two occurrences; SC-03 on
+vm-166 gives one incident.

@@ -1,9 +1,26 @@
 # Next step
 
-**OP-005 (2026-10-09, `conantkd`): done, verified on both VMs (PR #41, fast-track).** vm-095 runs
-`task/OP-005-young-restarts` `b26effa` (= `main` after #41 merges: no rebuild needed to go to `main`). vm-166 runs
-`task/OP-005-vm166-proof` `4247dc8` (the unmerged OP-010 stack + `main` + OP-005): keep it until the T-0022 and OP-010
-PRs merge, then deploy `main`. PR #43 (the CI step for the PromQL cases) needs `juanbetancurm`'s approval.
+**Now (2026-10-09, `conantkd`).** `main` has #38 (T-0020), #39 (T-0021 fixes, ACR-0002), #40 (T-0023 runner) and
+#41 (OP-005, verified on both VMs). Three branches stacked on `main`, each with `main` merged in:
+`task/T-0022-alerting` (phase 7, ACR-0003, **done**: verified on both VMs) → `task/OP-010-reserved-slot` (verified on vm-166) →
+`task/T-0024-sc05-disk` (SC-05, **done**: DIAGNOSED on vm-166). Both VMs now run `task/T-0024-sc05-disk` `b049086` (T-0022 + OP-010 + T-0024 + `main`): vm-095 pulls firing alerts
+from both Alertmanagers. Both LAB BASELINE OK, NO INTERFERENCE. Open: #42 (OP-004, draft, reviewed), #43 (CI step for OP-005, waits for `juanbetancurm`).
+
+1. **PRs:** T-0022 (needs `juanbetancurm`'s second approval: ACR-0003 touches host isolation), then OP-010, then
+   T-0024 (draft until its VM steps). After T-0022 and OP-010 merge, vm-166 goes to `main`.
+2. **Done 2026-10-09:** T-0024 steps 2-4: SC-05 DIAGNOSED from the pulled alert (`inc_4d78232433a1`). vm-166 keeps the
+   lab filesystem `/srv/argus-lab-fill` (testing only; `ops/lab-fill-mount.sh --remove` takes it away).
+3. **Done 2026-10-09:** T-0022 steps 5-6 (alerts pulled from both hosts; SC-03 and SC-02 DIAGNOSED from their alerts).
+   OP-010 DIAGNOSED at 100 % from the pulled alert (fixed). After the PRs merge: both VMs to `main`.
+   **OP-011:** two alerts on one target open two incidents (§6.4 correlation) — the next code task.
+4. **Open question (`conantkd`):** a host incident's scope holds only the host's declared dependents (T-0024 declares
+   the filler `depends_on` the host). Opening it to every container of the host (useful for SC-06 CPU) would be an
+   ACR (§5 scope rule).
+
+**OP-001 (2026-10-09, `conantkd`):** the 21 runbook `detector` metadata fields and index now match the 20 incident
+classes in architecture §1.3 on `task/OP-001-runbook-detectors`. PR #44 passed the local full suite and CI; fast-track
+review and merge are next. This metadata update does not enable draft detectors or promote runbooks. See
+[the task file](tasks/current/OP-001-runbook-detectors.md).
 
 **Now (2026-10-09, `conantkd`; read as the state after the T-0020 PR merges):** T-0020 (SC-04,
 `postgresql_connection_exhaustion`, RB-004) is done: verified on vm-166 (`inc_075fb0006098` DIAGNOSED). #36 (T-0021)
@@ -14,7 +31,7 @@ two reviewer fixes) is merged too. Owed by `juanbetancurm`: ACR-0002's status se
 1. **AFTER-MERGE T-0020 on vm-166** (checkout only, block in `execution/current/code.bash`). vm-095 may now get
    `main` (it has the fixed launcher and defaults to `mcp`); its agent then gets `postgresql_connection_exhaustion`.
 2. Next work: alerting (phase 7, T-0022) and OP-010 (the db-probe's reserved slot) are ready on `conantkd`'s
-   branches; OP-009 before any second worker; OP-004 checkpoint cleanup; SC-05 (T-0024); phase 12 with the runner:
+   branches; OP-009 (before any second worker) is fixed on `task/OP-009-lease-loss`, `main` merged in, its PR next; OP-004 checkpoint cleanup; SC-05 (T-0024); phase 12 with the runner:
    SC-02 and SC-07 × 5, then an SC-04 catalogue entry.
 3. **Evaluation (§21.2, `tests/eval/`) and phase 12 (≥ 5 runs per scenario):** §3 "Enablement" enables a class only
    when its evaluation passes. The 4 classes enabled so far (including `postgresql_connection_exhaustion`) are

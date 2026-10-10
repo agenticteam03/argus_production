@@ -11,3 +11,10 @@ schedules:
     target: "vm-166/container:argus-lab-worker"
     reason: "scheduled health investigation"
     enabled: false
+
+# T-0022 (ACR-0003): this deployment's transport profile is restricted-ssh (forward-only), so firing alerts are
+# PULLED: every every_s seconds the scheduler reads each host's Argus-owned Alertmanager (inventory `alertmanager`)
+# and opens an incident per firing alert (identity fingerprint + startsAt: never twice). Minimum every_s: 30.
+reconcile_firing_alerts:
+  enabled: true
+  every_s: 60

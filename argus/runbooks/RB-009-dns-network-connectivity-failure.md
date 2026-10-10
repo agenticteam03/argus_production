@@ -7,12 +7,12 @@ id: RB-009
 title: DNS/network connectivity failure
 status: draft
 owner: Argus Team
-version: 1.1.0
+version: 1.1.1
 created: 2026-09-29
-last_reviewed: 2026-10-07
+last_reviewed: 2026-10-09
 source_review_date: 2026-09-29
 last_tested: 2026-10-07   # SC-07 on vm-166 (T-0018): v1.0.0 in inc_21f900ee6139, v1.1.0 in inc_6a1511e19269; still draft
-detector: null
+detector: dns_network_failure
 ```
 
 ## Scope

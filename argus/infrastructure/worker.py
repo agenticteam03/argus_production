@@ -4,6 +4,10 @@ A claim is a lease. The worker renews it while a run lasts; when the worker dies
 (or this one after a restart) requeues the incident, and the graph runner resumes it from its checkpoint. The worker
 recovers only expired claims, so it never takes a run another live worker holds; it checks at start and every
 `recover_every_s` while it runs (a restarted worker comes back before the dead one's lease has expired).
+
+OP-009: a renewal that fails (a database error) is retried until the lease has really expired. A lost claim
+(another worker owns it, or the lease expired while retrying) cancels the run: the runner stops at its next node and
+writes nothing more, so two workers never run the same incident.
 """
 from __future__ import annotations
 
@@ -49,12 +53,12 @@ class Worker:
         if stale(inc, self.now(), self.max_queued_age_s):
             self._skip_stale(inc)
             return inc.id
-        done = threading.Event()
-        renewer = threading.Thread(target=self._renew, args=(inc.id, done), daemon=True)
+        done, lost = threading.Event(), threading.Event()
+        renewer = threading.Thread(target=self._renew, args=(inc.id, done, lost), daemon=True)
         renewer.start()
         log.info("running %s on %s", inc.id, inc.target)
         try:
-            self.app.runner.run(inc.id)
+            self.app.runner.run(inc.id, cancel=lost)
         except Exception:                      # the runner records outcomes; anything else must not stop the worker
             log.exception("run %s failed", inc.id)
         finally:
@@ -84,11 +88,35 @@ class Worker:
                                           detail={"waited_s": waited, "max_queued_age_s": self.max_queued_age_s}))
         log.warning("skipped %s: scheduled check waited %d s", inc.id, waited)
 
-    def _renew(self, incident_id: str, done: threading.Event) -> None:
-        while not done.wait(self.renew_every_s):
-            if not self.app.store.renew_claim(incident_id, self.worker_id, lease_s=self.lease_s):
-                log.error("lost the claim on %s (lease expired); another worker may resume it", incident_id)
+    def _renew(self, incident_id: str, done: threading.Event, lost: threading.Event) -> None:
+        expires = time.monotonic() + self.lease_s           # the claim was just taken for lease_s
+        failing = False
+        while True:
+            # While renewals fail, wake at the lease's expiry at the latest: the run stops when the lease is gone,
+            # not up to one renewal interval later (review of PR #53).
+            wait = min(self.renew_every_s, max(0.0, expires - time.monotonic())) if failing else self.renew_every_s
+            if done.wait(wait):
                 return
+            if failing and time.monotonic() >= expires:
+                log.error("could not renew the claim on %s before it expired; stopping the run", incident_id)
+                lost.set()
+                return
+            try:
+                renewed = self.app.store.renew_claim(incident_id, self.worker_id, lease_s=self.lease_s)
+            except Exception:                  # noqa: BLE001 - a failed renewal is retried while the lease lasts
+                failing = True
+                if time.monotonic() < expires:
+                    log.warning("renewing the claim on %s failed; retrying", incident_id, exc_info=True)
+                    continue
+                log.error("could not renew the claim on %s before it expired; stopping the run", incident_id)
+                lost.set()
+                return
+            failing = False
+            if not renewed:
+                log.error("lost the claim on %s (another worker may own it); stopping the run", incident_id)
+                lost.set()
+                return
+            expires = time.monotonic() + self.lease_s
 
 
 def stale(inc: Incident, now: datetime, max_queued_age_s: int) -> bool:

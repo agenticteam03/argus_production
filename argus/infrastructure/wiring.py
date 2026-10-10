@@ -17,7 +17,8 @@ from argus.capabilities.redaction import Redactor
 from argus.detectors.classes import CLASSES
 from argus.orchestration.graph_runner import GraphRunner
 from argus.orchestration.runner import SkeletonRunner
-from argus.orchestration.strategies import EvidencePackStrategy, ModelLoopStrategy, PlanThenReasonStrategy
+from argus.orchestration.strategies import (BaselineStrategy, EvidencePackStrategy, ModelLoopStrategy,
+                                           PlanThenReasonStrategy)
 from argus.policy.engine import PolicyEngine
 from argus.tooling.dispatch import DirectProvider, Dispatcher
 from argus.tooling.executors import ExecutorRegistry, KnowledgeClient, PrometheusClient, TargetAgentClient
@@ -138,6 +139,22 @@ def tools_dispatcher(s: Settings):
     return build_catalog(), Dispatcher(inventory, _target_executors(signals), creds, Redactor()), inventory
 
 
+def make_llm(s: Settings):
+    """The configured model (key from the secret file or OPENAI_API_KEY), or None when no key exists. Also used by
+    the evaluation (T-0025 step 3) to give the replay harness the same model the worker uses."""
+    key = s.secret("openai_api_key") or os.getenv("OPENAI_API_KEY")
+    if not key:
+        return None
+    extra = {"temperature": float(s.llm_temperature)} if s.llm_temperature else {}
+    if s.llm_api == "chat":
+        return OpenAIChat(key, s.llm_model, s.llm_base_url, s.llm_timeout_s, extra)
+    if s.llm_api == "responses":
+        if s.llm_reasoning_effort:
+            extra["reasoning"] = {"effort": s.llm_reasoning_effort}
+        return OpenAIResponses(key, s.llm_model, s.llm_base_url, s.llm_timeout_s, extra)
+    raise SystemExit(f"ARGUS_LLM_API must be 'responses' or 'chat', not {s.llm_api!r}")
+
+
 def build(settings: Settings | None = None, llm=None, metrics=None, executors: ExecutorRegistry | None = None,
           store=None, require_credentials: bool = True, load_credentials: bool = True) -> App:
     """`load_credentials=False`: read no executor token (the api, which never investigates; T-0021 step 4)."""
@@ -189,23 +206,13 @@ def build(settings: Settings | None = None, llm=None, metrics=None, executors: E
         catalogue = DirectProvider(specs, Dispatcher(inventory, executors, creds, redactor))
     invoke = InvokeCapability(catalogue, policy, inventory, store, store, redactor)
 
-    llm_configured = llm is not None
     if llm is None:
-        key = s.secret("openai_api_key") or os.getenv("OPENAI_API_KEY")
-        if key:
-            extra = {"temperature": float(s.llm_temperature)} if s.llm_temperature else {}
-            if s.llm_api == "chat":
-                llm = OpenAIChat(key, s.llm_model, s.llm_base_url, s.llm_timeout_s, extra)
-            elif s.llm_api == "responses":
-                if s.llm_reasoning_effort:
-                    extra["reasoning"] = {"effort": s.llm_reasoning_effort}
-                llm = OpenAIResponses(key, s.llm_model, s.llm_base_url, s.llm_timeout_s, extra)
-            else:
-                raise SystemExit(f"ARGUS_LLM_API must be 'responses' or 'chat', not {s.llm_api!r}")
-            llm_configured = True
+        llm = make_llm(s)
+    llm_configured = llm is not None
     harness = ModelHarness(llm) if llm is not None else None
     strategies = {"evidence_pack": EvidencePackStrategy(), "model_loop": ModelLoopStrategy(harness),
-                  "plan_then_reason": PlanThenReasonStrategy(harness)}
+                  "plan_then_reason": PlanThenReasonStrategy(harness),
+                  "baseline": BaselineStrategy()}          # §21.2: the deterministic baseline (T-0025)
     for c in CLASSES:
         if c.strategy not in strategies:
             raise SystemExit(f"class {c.name} names unknown strategy {c.strategy}")
