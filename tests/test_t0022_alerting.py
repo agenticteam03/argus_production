@@ -35,7 +35,7 @@ def _alert(fp="f1", host="vm-166", container="argus-lab-api", status="firing", n
 def test_a_firing_alert_opens_one_incident_with_the_webhook_identity(make_app):
     from argus.application.alerts import HandleAlertNotification
     app = make_app()
-    handle = HandleAlertNotification(app.store, app.inventory)
+    handle = HandleAlertNotification(app.store, app.inventory, app.metrics)
     first = handle(_alert(), source="alertmanager@vm-166")
     again = handle(_alert(), source="alertmanager@vm-166")
     assert first.disposition == "started" and again.disposition == "duplicate"
@@ -50,7 +50,7 @@ def test_a_firing_alert_opens_one_incident_with_the_webhook_identity(make_app):
 def test_a_new_firing_of_the_same_alert_is_a_new_incident(make_app):
     from argus.application.alerts import HandleAlertNotification
     app = make_app()
-    handle = HandleAlertNotification(app.store, app.inventory)
+    handle = HandleAlertNotification(app.store, app.inventory, app.metrics)
     a = handle(_alert(starts=T0), source="alertmanager@vm-166")
     b = handle(_alert(starts=T0.replace(hour=13)), source="alertmanager@vm-166")
     assert a.incident_id != b.incident_id
@@ -59,7 +59,7 @@ def test_a_new_firing_of_the_same_alert_is_a_new_incident(make_app):
 def test_a_host_level_alert_targets_the_host(make_app):
     from argus.application.alerts import HandleAlertNotification
     app = make_app()
-    r = HandleAlertNotification(app.store, app.inventory)(_alert(container=None, name="HostDiskPressure"),
+    r = HandleAlertNotification(app.store, app.inventory, app.metrics)(_alert(container=None, name="HostDiskPressure"),
                                                            source="alertmanager@vm-166")
     assert str(app.store.get_incident(r.incident_id).target) == "vm-166/host:vm-166"
 
@@ -69,7 +69,7 @@ def test_resolved_alerts_and_unknown_targets_open_nothing(make_app):
     app = make_app()
     audited, real = [], app.store.append
     app.store.append = lambda rec: audited.append(rec) or real(rec)
-    handle = HandleAlertNotification(app.store, app.inventory)
+    handle = HandleAlertNotification(app.store, app.inventory, app.metrics)
     assert handle(_alert(status="resolved"), source="alertmanager@vm-166").disposition == "ignored"
     refused = handle(_alert(container="not-in-inventory"), source="alertmanager@vm-166")
     assert refused.disposition == "refused" and refused.incident_id is None
@@ -88,7 +88,7 @@ def test_the_webhook_goes_through_the_same_use_case(make_app):
                                    "container": "argus-lab-api"}, "annotations": {}}]}
     ok = hook.post("/api/v1/alerts", json=body, headers={"Authorization": "Bearer am-token-123"}).json()
     from argus.application.alerts import HandleAlertNotification
-    pulled = HandleAlertNotification(app.store, app.inventory)(_alert(), source="alertmanager@vm-166")
+    pulled = HandleAlertNotification(app.store, app.inventory, app.metrics)(_alert(), source="alertmanager@vm-166")
     assert ok["accepted"][0]["incident_id"] == pulled.incident_id and pulled.disposition == "duplicate"
 
 
@@ -142,13 +142,16 @@ class FakeSource:
             raise AlertsUnavailable(str(v))
         return v or []
 
+    def active_alerts(self, host):                     # T-0026: nothing silenced, so the active ones are the firing ones
+        return self.firing_alerts(host)
+
 
 def test_reconcile_submits_every_host_and_survives_one_that_is_down(make_app):
     from argus.application.alerts import HandleAlertNotification, ReconcileFiringAlerts
     app = make_app()
     src = FakeSource({"vm-166": [_alert("f1"), _alert("f2", container="argus-lab-cache")],
                       "vm-095": RuntimeError("tunnel down")})
-    rec = ReconcileFiringAlerts(src, HandleAlertNotification(app.store, app.inventory), ["vm-095", "vm-166"])
+    rec = ReconcileFiringAlerts(src, HandleAlertNotification(app.store, app.inventory, app.metrics), ["vm-095", "vm-166"])
     first = rec.run_once()
     assert first == {"vm-095": "unavailable", "vm-166": {"started": 2}}
     assert rec.run_once()["vm-166"] == {"duplicate": 2}                  # the next pass opens nothing new

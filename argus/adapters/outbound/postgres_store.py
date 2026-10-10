@@ -111,11 +111,70 @@ class PostgresStore:
                       "ORDER BY opened_at LIMIT 1", (str(target),))
         return Incident.model_validate(row[0][0]) if row else None
 
+    def latest_concluded_incident(self, target: TargetRef) -> Incident | None:
+        """The target's most recent closed or escalated incident (ACR-0004: the episode an alert may still join)."""
+        row = self._q("SELECT body FROM incident WHERE target = %s AND status IN ('closed', 'escalated') "
+                      "ORDER BY opened_at DESC LIMIT 1", (str(target),))
+        return Incident.model_validate(row[0][0]) if row else None
+
     def similar_incidents(self, target: TargetRef, incident_class: str, k: int) -> list[Incident]:
         rows = self._q("SELECT body FROM incident WHERE target = %s AND body->>'incident_class' = %s "
                        "AND body->>'closed_at' IS NOT NULL ORDER BY opened_at DESC LIMIT %s",
                        (str(target), incident_class, k))
         return [Incident.model_validate(r[0]) for r in rows]
+
+    # --- alert occurrences (OP-011, §6.4; migration 004) -----------------------------------------------
+    def incident_for_trigger(self, identity: str) -> str | None:
+        """The incident an alert identity already belongs to: as an occurrence, or as the key that opened it."""
+        row = self._q("SELECT incident_id FROM alert_occurrence WHERE identity = %s UNION ALL "
+                      "SELECT id FROM incident WHERE idempotency_key = %s LIMIT 1", (identity, identity))
+        return row[0][0] if row else None
+
+    def add_alert_occurrence(self, identity: str, incident_id: str, fingerprint: str, starts_at: datetime,
+                             labels: dict[str, str], disposition: str, received_at: datetime | None = None) -> bool:
+        """Insert-only; False when the identity is already recorded (a concurrent copy of the same alert)."""
+        row = self._q("INSERT INTO alert_occurrence (identity, incident_id, fingerprint, starts_at, alertname, labels, "
+                      "disposition, received_at) VALUES (%s, %s, %s, %s, %s, %s, %s, %s) "
+                      "ON CONFLICT (identity) DO NOTHING RETURNING identity",
+                      (identity, incident_id, fingerprint, starts_at, labels.get("alertname", ""), Jsonb(labels),
+                       disposition, received_at or utcnow()))
+        return bool(row)
+
+    def alert_occurrences(self, incident_id: str) -> list[dict[str, Any]]:
+        rows = self._q("SELECT identity, fingerprint, starts_at, alertname, labels, disposition, status, received_at, "
+                       "resolved_at FROM alert_occurrence WHERE incident_id = %s ORDER BY received_at, identity",
+                       (incident_id,))
+        keys = ("identity", "fingerprint", "starts_at", "alertname", "labels", "disposition", "status", "received_at",
+                "resolved_at")
+        return [dict(zip(keys, r)) for r in rows]
+
+    def firing_occurrences(self, host: str, received_before: datetime) -> list[dict[str, Any]]:
+        """The host's occurrences still firing that were recorded before `received_before` (T-0026, pull)."""
+        rows = self._q("SELECT identity, incident_id FROM alert_occurrence WHERE status = 'firing' "
+                       "AND labels->>'argus_host' = %s AND received_at <= %s ORDER BY received_at, identity",
+                       (host, received_before))
+        return [{"identity": r[0], "incident_id": r[1]} for r in rows]
+
+    def resolve_alert_occurrence(self, identity: str, resolved_at: datetime) -> dict[str, Any] | None:
+        """firing → resolved (migration 005: forward only). None when unknown or already resolved."""
+        row = self._q("UPDATE alert_occurrence SET status = 'resolved', resolved_at = %s "
+                      "WHERE identity = %s AND status = 'firing' RETURNING incident_id, fingerprint, alertname",
+                      (resolved_at, identity))
+        return {"incident_id": row[0][0], "fingerprint": row[0][1], "alertname": row[0][2]} if row else None
+
+    def close_queued_incident(self, incident_id: str, outcome: str, diagnosis: str, closed_at: datetime) -> bool:
+        """Close an incident no worker has claimed (T-0026). False when it is no longer queued (claimed meanwhile)."""
+        patch = {"status": "closed", "outcome": outcome, "diagnosis": diagnosis,
+                 "closed_at": closed_at.isoformat()}
+        row = self._q("UPDATE incident SET status = 'closed', body = body || %s WHERE id = %s AND status = 'queued' "
+                      "RETURNING id", (Jsonb(patch), incident_id))
+        return bool(row)
+
+    def evidence_state(self, incident_id: str) -> tuple[int, datetime | None]:
+        """(evidence_version, last_evidence_at): 1 + the attached occurrences, and the newest occurrence's time."""
+        row = self._q("SELECT count(*) FILTER (WHERE disposition = 'attached'), max(received_at) "
+                      "FROM alert_occurrence WHERE incident_id = %s", (incident_id,))
+        return 1 + int(row[0][0]), row[0][1]
 
     # --- evidence ----------------------------------------------------------------------------------
     def append_evidence(self, record: EvidenceRecord) -> None:
@@ -245,6 +304,16 @@ CHECKS_SQL: list[tuple[str, str, bool]] = [
     ("insert checkpoint (T-0013)", "INSERT INTO checkpoints (thread_id, checkpoint_id, checkpoint) VALUES "
                                    "('dbcheck', 'c1', '{}')", True),
     ("DELETE checkpoint refused", "DELETE FROM checkpoints WHERE thread_id = 'dbcheck'", False),
+    ("insert alert occurrence (OP-011)", "INSERT INTO alert_occurrence (identity, incident_id, fingerprint, starts_at, "
+                                         "labels, disposition, received_at) VALUES "
+                                         "('alert:dbcheck', 'inc_dbcheck', 'fp', now(), '{}', 'started', now())", True),
+    ("resolve alert occurrence (T-0026)", "UPDATE alert_occurrence SET status = 'resolved', resolved_at = now() "
+                                          "WHERE identity = 'alert:dbcheck'", True),
+    ("resolved occurrence cannot fire again", "UPDATE alert_occurrence SET status = 'firing' "
+                                              "WHERE identity = 'alert:dbcheck'", False),
+    ("occurrence's incident cannot change", "UPDATE alert_occurrence SET incident_id = 'inc_x' "
+                                            "WHERE identity = 'alert:dbcheck'", False),
+    ("DELETE alert occurrence refused", "DELETE FROM alert_occurrence WHERE identity = 'alert:dbcheck'", False),
     ("runtime role is not superuser", "DO $$ BEGIN IF (SELECT rolsuper FROM pg_roles WHERE rolname = current_user) "
                                       "THEN RAISE EXCEPTION 'superuser'; END IF; END $$", True),
 ]
