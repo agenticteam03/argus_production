@@ -36,6 +36,7 @@ class YamlInventory:
                                             depends_on=[TargetRef.parse(d) for d in t.get("depends_on", [])],
                                             http_endpoints=t.get("http_endpoints", []),
                                             tcp_ports=t.get("tcp_ports", []), mounts=t.get("mounts", []),
+                                            networks=t.get("networks", []),
                                             database=(t.get("database") or {}).get("dbname"))
         for info in self._targets.values():
             for d in info.depends_on:
