@@ -162,11 +162,24 @@ def host_disk(args: DiskArgs, target: TargetRef, info: TargetInfo | None, client
     mounts = [args.mount] if args.mount is not None else allowed
     if not mounts:
         raise ExecutorError("invalid_args", f"no declared mount for {target}")
-    rows = [client.get("/disk", {"mount": m}) for m in mounts]
-    text = "; ".join(f"{target.host}:{m} used={_fmt(d.get('used_percent'))}% free={_fmt(d.get('free_mib'))} MiB "
+    if args.mount is not None:
+        rows = [client.get("/disk", {"mount": args.mount})]
+    else:                            # one unreadable mount (409: not mounted) is a stated fact, not a failed read (G-007)
+        rows, errors = [], []
+        for m in mounts:
+            try:
+                rows.append(client.get("/disk", {"mount": m}))
+            except ExecutorError as e:
+                errors.append(e)
+                rows.append({"mount": m, "unavailable": e.detail})
+        if len(errors) == len(mounts):
+            raise errors[0]
+    text = "; ".join(f"{target.host}:{m} unavailable ({d['unavailable']})" if "unavailable" in d else
+                     f"{target.host}:{m} used={_fmt(d.get('used_percent'))}% free={_fmt(d.get('free_mib'))} MiB "
                      f"inodes_used={_fmt(d.get('inodes_used_percent'))}%" for m, d in zip(mounts, rows))
     values = rows[0] if args.mount is not None else {"mounts": rows}
-    return CapabilityResult(values=values, model_text=text, source_time=_ts(rows[0].get("collected_at")),
+    times = [t for t in (_ts(d.get("collected_at")) for d in rows) if t]
+    return CapabilityResult(values=values, model_text=text, source_time=min(times) if times else None,
                             units={"free_mib": "MiB"})
 
 
