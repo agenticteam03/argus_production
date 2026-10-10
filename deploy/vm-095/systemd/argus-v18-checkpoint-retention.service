@@ -1,0 +1,8 @@
+[Unit]
+Description=Prune final Argus v1.8 investigation checkpoints after their retention window
+Requires=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/bash /opt/argus-v18/app/ops/checkpoint-retention.sh --apply --scheduled

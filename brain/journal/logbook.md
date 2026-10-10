@@ -671,6 +671,20 @@ SC-07's reset succeeds when its network is already gone. 6 new tests, red seen; 
 Consequences: run the batches as an operator user. Every catalogued reset must be idempotent.
 References: `tasks/current/T-0023-e2e-runner.md`, PR #40.
 
+## 2026-10-09 — OP-004 offline checkpoint retention implementation
+
+Type: implementation
+Who: conantkd (+ agent)
+Context: LangGraph checkpoint rows grow indefinitely, including failed runs whose incidents are final. The accepted
+OP-004 proposal keeps runtime DELETE forbidden and requires a dry run before any live cleanup.
+Decision / result: `argus db prune-checkpoints` defaults to a read-only preview; `--apply` uses the owner role and one
+transaction to remove the three checkpoint tables' eligible rows and append `maintenance.checkpoints_pruned` to audit.
+The one-off wrapper mounts only the owner credential; the daily systemd timer is shipped but not installed. Six tests
+pass with throwaway PostgreSQL 16; no live database rows have been deleted.
+Consequences: VM dry run and review of its counts and backup evidence are next; apply and timer enablement remain
+pending.
+References: `tasks/current/OP-004-checkpoint-retention.md`, `tests/test_checkpoint_retention.py`, OPEN_PROBLEMS OP-004.
+
 ## 2026-10-09 — OP-001 runbook detector metadata alignment
 
 Type: implementation
@@ -918,3 +932,15 @@ positive, resolved after the burner was removed. NO INTERFERENCE.
 Consequences: SC-06 done (phase 11). Both VMs run `task/T-0028-vm-proof` `ed689b0` (T-0027 + T-0028) until the stack
 merges. The busy-host CPU trigger stays open (needs the host-scope ACR).
 References: `tasks/current/T-0028-sc06-cpu.md`, `execution/history/T-0028/step-02/evidence.md`.
+
+## 2026-10-10 — OP-004: checkpoint retention dry run on vm-095; the owner secret is not root's (OP-004)
+
+Type: verification + fix
+Who: conantkd (+ agent)
+Context: step 02 of OP-004, the dry run before any deletion; vm-095 lease only, the deployed checkout unchanged.
+Decision / result: the first run stopped with `missing credential`: the owner secret on vm-095 is `0400`, owned by
+uid 70 (the Postgres image's user), and the wrapper's root container has no capabilities to bypass that. The wrapper
+now runs the container as the secret's owner. Then the 30-day dry run found nothing eligible; a 1-day preview counted
+88 threads (783 checkpoints, 1825 blobs, 3900 writes). No row deleted, NO INTERFERENCE.
+Consequences: the first `--apply` waits for a teammate's review of the counts; the timer stays uninstalled.
+References: `tasks/current/OP-004-checkpoint-retention.md`, `execution/history/OP-004/step-02/evidence.md`.

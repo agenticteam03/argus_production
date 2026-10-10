@@ -1,0 +1,11 @@
+[Unit]
+Description=Daily Argus v1.8 checkpoint retention
+
+[Timer]
+OnCalendar=daily
+RandomizedDelaySec=15m
+Persistent=true
+Unit=argus-v18-checkpoint-retention.service
+
+[Install]
+WantedBy=timers.target
