@@ -2,6 +2,10 @@
 
 **Last updated:** 2026-10-09 · **Commit:** `task/OP-009-lease-loss` after merging `main` (up to #44)
 
+**T-0029 (SC-08), 2026-10-10 (`task/T-0029-sc08-nginx`):** 12 tests in `tests/test_t0029_sc08_nginx.py` (red seen
+12/12: no probe, signal, class, alert, lab or inventory entries); 6 evaluation cases `tests/eval/cases/nginx-*.yaml`
+(baseline 6/6, hard 0 0 0). Full suite on the laptop: green.
+
 **OP-009 follow-up, 2026-10-09 (`task/OP-009-renew-gap`, review note of PR #53):**
 `test_a_failing_renewer_cancels_at_the_lease_expiry_not_at_its_next_attempt` (red seen: cancelled at 1.44 s with a
 1 s lease and 0.7 s attempts; now at the expiry; 5/5 stable runs). Full suite on the laptop: green.

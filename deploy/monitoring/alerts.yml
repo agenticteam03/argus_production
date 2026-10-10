@@ -21,3 +21,8 @@ groups:
         expr: max by (argus_host) (1 - node_filesystem_avail_bytes{job="argus-v18-node-exporter",fstype=~"ext4|xfs|btrfs"} / node_filesystem_size_bytes{job="argus-v18-node-exporter",fstype=~"ext4|xfs|btrfs"}) >= 0.9
         for: 5m
         annotations: {summary: "a filesystem of the host is above 90 % used for 5 minutes"}
+      - alert: HttpGatewayErrors           # T-0029 / RB-015: half or more of the exporter's probes through a declared
+        # endpoint got 502/504 (the proxy's answer when its upstream fails) over 5 minutes. `owner` names the target.
+        expr: max by (argus_host, owner) (avg_over_time(argus_http_probe_gateway_error[5m])) >= 0.5
+        for: 2m
+        annotations: {summary: "the proxy {{ $labels.owner }} answers 502/504: its upstream fails or is too slow"}
