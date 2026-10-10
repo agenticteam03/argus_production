@@ -85,6 +85,19 @@ def disk_pressure(snap: MetricSnapshot) -> DetectorResult:
     return DetectorResult(matched=True, findings=f)
 
 
+def nginx_upstream_failure(snap: MetricSnapshot) -> DetectorResult:
+    """RB-015 (T-0029): half or more of the synthetic probes through the proxy's endpoint got 502/504 over 5 minutes:
+    the proxy could not get an answer from its upstream. An app's own 5xx (for example 503) is not counted."""
+    share = snap.values.get("http_gateway_error_ratio_5m")
+    if share is None:
+        return DetectorResult(matched=False, findings=["signal missing (unknown, not healthy): http_gateway_error_ratio_5m"])
+    if share < 0.5:
+        return DetectorResult(matched=False)
+    return DetectorResult(matched=True, findings=[
+        f"{round(share * 100)}% of the probes through its endpoint got a gateway error (502/504) in the last 5 minutes",
+        "the proxy cannot get an answer from its upstream in time (RB-015): look at the upstream it depends on"])
+
+
 def monitoring_blind_spot(snap: MetricSnapshot) -> DetectorResult:
     """RB-014 (T-0027): a scrape target of the host's Prometheus is down, so the signals it feeds are empty. That is
     a loss of visibility, never a healthy host (G-007). The gate exporter's own outage ends earlier, as
@@ -138,6 +151,13 @@ CLASSES: list[IncidentClassSpec] = [
                       branch_runbook_ids=["RB-013"], strategy="model_loop",
                       tool_tags={"database", "logs", "container", "dependency", "knowledge"},
                       detector=postgresql_connection_exhaustion),
+    IncidentClassSpec(name="nginx_upstream_failure", family="availability", target_kinds={"container"},
+                      required_signals={"http_gateway_error_ratio_5m"}, runbook_ids=["RB-015"],
+                      branch_runbook_ids=["RB-002", "RB-003"], strategy="plan_then_reason",
+                      tool_tags={"availability", "network", "dependency", "logs", "container", "knowledge"},
+                      detector=nginx_upstream_failure),
+
+
     # T-0027: a host that lost part of its telemetry is a blind spot before it is anything else (unknown first).
     IncidentClassSpec(name="monitoring_blind_spot", family="platform", target_kinds={"host"},
                       required_signals={"scrape_targets_down"}, runbook_ids=["RB-014"], strategy="evidence_pack",

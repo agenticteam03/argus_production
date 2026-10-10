@@ -2,6 +2,10 @@
 
 **Last updated:** 2026-10-09 · **Commit:** `task/T-0026-alert-resolution` (on top of `task/OP-011-correlation`)
 
+**T-0029 (SC-08), 2026-10-10 (`task/T-0029-sc08-nginx`):** 12 tests in `tests/test_t0029_sc08_nginx.py` (red seen
+12/12: no probe, signal, class, alert, lab or inventory entries); 6 evaluation cases `tests/eval/cases/nginx-*.yaml`
+(baseline 6/6, hard 0 0 0). Full suite on the laptop: green.
+
 **T-0027, 2026-10-09 (`task/T-0027-blind-spot`, the stack and `main` up to #53 merged in):** 10 tests in
 `tests/test_t0027_blind_spot.py` (red seen: no class; a check of a host with node-exporter down ended `no_incident`),
 5 evaluation cases `tests/eval/cases/blind-*.yaml` (baseline: 5/5, 0 model calls, hard 0 0 0), and

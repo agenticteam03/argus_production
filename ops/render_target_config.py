@@ -17,6 +17,9 @@ def render_host(inv: dict, host: str) -> dict:
     mounts = sorted({m for t in mine if "/host:" in t["ref"] for m in t.get("mounts", [])})
     tcp = [[t["ref"].split(":", 1)[1], p] for t in mine for p in t.get("tcp_ports", [])]
     http = [u for t in mine for u in t.get("http_endpoints", [])]
+    # T-0029: the exporter probes every declared endpoint of a container target (its owner) through the app network
+    http_probes = [{"owner": t["ref"].split(":", 1)[1], "url": u} for t in mine if "/container:" in t["ref"]
+                   for u in t.get("http_endpoints", [])]
     probes = []
     for t in mine:
         owner = t["ref"].split(":", 1)[1]
@@ -29,7 +32,7 @@ def render_host(inv: dict, host: str) -> dict:
     databases = [{"name": t["ref"].split(":", 1)[1], "host": t["ref"].split(":", 1)[1], "port": t["database"]["port"],
                   "dbname": t["database"]["dbname"]} for t in mine if "/container:" in t["ref"] and t.get("database")]
     return {"host": host, "containers": containers, "dns_names": containers, "tcp": tcp,
-            "http_endpoints": http, "probes": probes, "mounts": mounts, "databases": databases}
+            "http_endpoints": http, "http_probes": http_probes, "probes": probes, "mounts": mounts, "databases": databases}
 
 
 def main() -> None:
