@@ -53,3 +53,60 @@ export const LivePill = ({ live }) => (
     {live ? "Live" : "Reconnecting…"}
   </span>
 );
+
+export const Lock = icon(<><rect x="4" y="11" width="16" height="10" rx="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" /></>);
+
+const TONES = {
+  neutral: "border-line bg-white/[0.03] text-muted",
+  blue: "border-accent/30 bg-accent/10 text-accent-hover",
+  green: "border-emerald-400/20 bg-emerald-400/10 text-emerald-300",
+  amber: "border-amber-400/20 bg-amber-400/10 text-amber-300",
+  red: "border-red-400/20 bg-red-400/10 text-red-300",
+};
+export const Pill = ({ tone = "neutral", pulse = false, children }) => (
+  <span className={`inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium ${TONES[tone]}`}>
+    <span className={`size-1.5 rounded-full bg-current ${pulse ? "animate-pulse motion-reduce:animate-none" : ""}`} />
+    {children}
+  </span>
+);
+
+// Labels and tones derived from the documented status / outcome values.
+export const STATUS_META = { queued: ["Queued", "neutral"], running: ["Running", "blue"], closed: ["Closed", "green"], escalated: ["Escalated", "amber"] };
+export const OUTCOME_META = {
+  diagnosed: ["Diagnosed", "green"],
+  no_incident: ["No incident", "green"],
+  undiagnosable: ["Undiagnosable", "amber"],
+  unsupported_escalated: ["Unsupported (escalated)", "amber"],
+  no_action_escalated: ["No action (escalated)", "amber"],
+  refused: ["Refused", "red"],
+};
+export const StatusBadge = ({ status }) => {
+  const [label, tone] = STATUS_META[status] ?? [status ?? "Unknown", "neutral"];
+  return <Pill tone={tone} pulse={status === "running"}>{label}</Pill>;
+};
+export const OutcomeBadge = ({ outcome }) => {
+  const [label, tone] = outcome == null ? ["No outcome yet", "neutral"] : OUTCOME_META[outcome] ?? [outcome, "neutral"];
+  return <Pill tone={tone}>{label}</Pill>;
+};
+
+export const Skeleton = ({ className = "" }) => <div className={`animate-pulse rounded-xl bg-white/5 motion-reduce:animate-none ${className}`} />;
+
+export const ErrorCard = ({ title, text, onRetry, as: Heading = "h2", headingRef }) => (
+  <div role="alert" className="rounded-2xl border border-red-400/20 bg-red-400/5 p-5">
+    <Heading ref={headingRef} tabIndex={-1} className="text-base font-semibold outline-none">{title}</Heading>
+    <p className="mt-1 text-sm text-muted">{text}</p>
+    {onRetry && (
+      <button onClick={onRetry} className="mt-3 cursor-pointer rounded-lg border border-line px-3.5 py-2 text-sm transition hover:bg-white/5">Retry</button>
+    )}
+  </div>
+);
+
+export const fieldClass =
+  "h-11 rounded-[10px] border border-field-line bg-field px-3.5 text-sm outline-none transition placeholder:text-[#4b5363] focus:border-accent focus:ring-[3px] focus:ring-accent/20";
+
+export const Select = ({ children, ...props }) => (
+  <div className="relative">
+    <select {...props} className={`${fieldClass} cursor-pointer appearance-none pr-10`}>{children}</select>
+    <Chevron width="14" height="14" className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-muted" />
+  </div>
+);

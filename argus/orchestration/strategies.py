@@ -119,6 +119,9 @@ class BaselineStrategy:
         if cls == "nginx_upstream_failure":
             others = [x for x in view.scope if x.kind == "container" and x != t]
             return [ReadCall(name="container.status", arguments={"target": str(x)}) for x in [t, *others]]
+        if cls == "cpu_saturation":
+            return [ReadCall(name="container.status", arguments={"target": ts}),
+                    ReadCall(name="container.resources", arguments={"target": ts})]
         return evidence_pack_plan(t)
 
     def next_step(self, view: InvestigationView):
@@ -127,7 +130,8 @@ class BaselineStrategy:
         ok = [e for e in view.evidence if e.status == "ok"]
         rules = {"container_restart_loop": self._restart, "health_check_failed": self._health,
                  "dependency_unavailable": self._dependency, "postgresql_connection_exhaustion": self._database,
-                 "nginx_upstream_failure": self._gateway}
+                 "nginx_upstream_failure": self._gateway,
+                 "cpu_saturation": self._cpu}
         rule = rules.get(view.incident_class.name if view.incident_class else "")
         found = rule(view, ok) if rule else None
         if found is None:
@@ -202,6 +206,24 @@ class BaselineStrategy:
                     f"restarting the proxy would not help (RB-015 H1)", up)
         return (f"the proxy {t} answers 502/504 while its upstream {up} is running: {up} does not answer within the "
                 f"proxy's timeout (slow or saturated upstream, RB-015 H3); the root cause is {up}, not the proxy", up)
+
+    def _cpu(self, view, ok):
+        """RB-006 (T-0028): the container uses (nearly) all of its CPU quota: it is CPU-bound at its own limit."""
+        t = str(view.incident.target)
+        st = self._texts(ok, "container.status").get(t)
+        res = next((e for e in ok if e.capability == "container.resources" and _about(e.model_text) == t), None)
+        m = re.search(r"cpu=([0-9.]+)% of one CPU", res.model_text) if res else None
+        try:
+            limit = float(st.get("cpu_limit_cores", "")) if st else None
+        except ValueError:
+            limit = None
+        if not m or not limit:
+            return None                        # no quota or no usage read: unknown, escalate
+        used = float(m.group(1))
+        if used < 0.8 * limit * 100:
+            return None                        # well under its quota: the throttling is not explained by the evidence
+        return (f"CPU-bound at its own quota: it uses {used:g}% of one CPU against a limit of {limit:g} cores, so the "
+                f"kernel throttles it; a busy or heavier workload than its limit allows (RB-006 H2/H5)", t)
 
     def _database(self, view, ok):
         t = view.incident.target

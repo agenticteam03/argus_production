@@ -111,6 +111,20 @@ services:
     cpus: 0.2
     pids_limit: 32
     restart: "no"
+  argus-lab-burner:                     # SC-06 (vm-166, T-0028): a busy loop under a 0.3-core quota (throttled, RB-006)
+    image: python:3.12-alpine
+    container_name: argus-lab-burner
+    profiles: [sc06]
+    command: ["python", "-u", "/w/burn.py"]
+    environment: {MAX_S: "1200"}         # stops by itself after 20 minutes
+    volumes:
+      - ./workloads:/w:ro
+    network_mode: none
+    mem_limit: 32m
+    memswap_limit: 32m
+    cpus: 0.3
+    pids_limit: 8
+    restart: "no"
   argus-lab-api-twin:                   # vm-095 baseline: SAME container name, no dependency, healthy
     <<: *lim
     image: python:3.12-alpine
