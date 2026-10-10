@@ -31,6 +31,7 @@ def repos(tmp_path, monkeypatch):
                  "GIT_COMMITTER_EMAIL": "t@example.invalid", "BRAIN_NO_GH": "1"}.items():
         monkeypatch.setenv(k, v)
     monkeypatch.delenv("ARGUS_DEVELOPER", raising=False)
+    monkeypatch.delenv("GITHUB_HEAD_REF", raising=False)    # set by CI on pull_request runs: the PR's branch, not ours
     origin = tmp_path / "origin.git"
     run(tmp_path, "init", "--bare", str(origin))
     seed = tmp_path / "seed"
@@ -496,6 +497,21 @@ def test_lint_lets_a_rollup_branch_and_main_edit_the_summaries(repos, monkeypatc
     run(repo, "checkout", "-b", "task/rollup-2026-10-10")
     brain.main(["lint"])
     assert "shared summaries" not in capsys.readouterr().out
+
+
+def test_lint_reads_the_pr_branch_from_ci_when_head_is_detached(repos, monkeypatch, capsys):
+    """On a pull_request run CI checks out a detached merge commit; GITHUB_HEAD_REF names the PR's branch."""
+    repo = repos["alice"]
+    as_(monkeypatch, repo)
+    _rule_on_main(repo)
+    run(repo, "checkout", "--detach")
+    (repo / "brain" / "NEXT_STEP.md").write_bytes(b"# Next step\n\nedited by a task PR\n")
+    capsys.readouterr()
+    brain.main(["lint"])
+    assert "shared summaries" not in capsys.readouterr().out             # detached, no PR: nothing to check
+    monkeypatch.setenv("GITHUB_HEAD_REF", "task/T-0043-x")
+    assert brain.main(["lint"]) == 1
+    assert "brain/NEXT_STEP.md: a task branch does not edit the shared summaries" in capsys.readouterr().out
 
 
 def test_lint_keeps_branches_made_before_the_rule(repos, monkeypatch, capsys):

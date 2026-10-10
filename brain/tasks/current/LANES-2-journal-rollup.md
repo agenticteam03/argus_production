@@ -39,6 +39,12 @@ start, as expected): the roll-up folds two entries into the three files in order
 links, removes the files; nothing to do changes nothing; a bad entry stops it with nothing changed; lint refuses a task
 branch editing `NEXT_STEP.md`, lets `main` and a roll-up branch edit it, and keeps a branch made before the rule.
 
+Review fix (`conantkd`, 2026-10-10): CI's `pull_request` run failed `test_lint_lets_a_rollup_branch_and_main_edit_the_summaries`,
+because the rule reads the branch from `GITHUB_HEAD_REF` (right for CI's detached merge commit) and CI sets it to this
+PR's branch inside the test's own repository. The `repos` fixture now clears it, and a 7th test pins the CI case: a
+detached HEAD with `GITHUB_HEAD_REF=task/…` editing `NEXT_STEP.md` is refused. Red seen: the failure reproduced
+locally with the variable set; with the fix all brain tests pass with and without it.
+
 Checked by hand: on a clean copy of `main` the roll-up folded the two existing entries (E2E-1, LANES-1) into the
 logbook with working links, and `brain.py lint` stayed clean.
 
