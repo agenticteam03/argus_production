@@ -33,11 +33,12 @@ else
   [ -z "$WHO" ] || stop "--scheduled cannot be combined with --as"
 fi
 
-# --user 0:0: the owner credential on the host is root-only (0400). With --cap-drop ALL, root in the container
-# cannot bypass file permissions; it only reads that one read-only mount.
+# The owner credential is 0400 and owned by the Postgres image's user (uid 70 on vm-095). With --cap-drop ALL even
+# root cannot bypass file permissions, so the container runs as the file's owner and reads only that one mount.
+OWNER=$(stat -c %u:%g "$SECRET")
 ARGS=(db prune-checkpoints --days "$DAYS")
 [ "$MODE" = --apply ] && ARGS+=(--apply)
-"$DOCKER" run --rm --network argus-v18-core --user 0:0 --read-only --cap-drop ALL \
+"$DOCKER" run --rm --network argus-v18-core --user "$OWNER" --read-only --cap-drop ALL \
   --security-opt no-new-privileges --pids-limit 64 --memory 128m \
   --mount "type=bind,source=$SECRET,target=/run/argus-secrets/db_password,readonly" \
   -e ARGUS_DB_BACKEND=postgres -e ARGUS_PG_USER=argus_owner \

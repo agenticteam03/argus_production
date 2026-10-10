@@ -156,6 +156,11 @@ def test_wrapper_requires_the_lease_for_manual_runs_and_never_passes_the_secret(
     assert "prune-checkpoints" in preview.stdout and "--apply" not in preview.stdout
     assert "test-secret-never-print" not in preview.stdout
     assert "--network\nargus-v18-core" in preview.stdout
+    # The secret is 0400 and owned by the Postgres image's user (uid 70 on vm-095); with --cap-drop ALL only that
+    # owner can read it, so the container runs as the file's owner, never as a fixed user.
+    owner = subprocess.run([bash, "-c", 'stat -c %u:%g "$1"', "_", secret.as_posix()],
+                           capture_output=True, text=True).stdout.strip()
+    assert f"--user\n{owner}\n" in preview.stdout
     refused = subprocess.run([bash, script, "--apply", "--as", "other"], env=env,
                              capture_output=True, text=True)
     assert refused.returncode != 0 and "NOT YOUR SESSION" in refused.stdout
