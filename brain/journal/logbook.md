@@ -797,3 +797,16 @@ Consequences: proposal for the team: `dependency_unavailable` → `baseline` (th
 `model_loop`, with the bias caveat (the baseline's rules and the cases were written together). Open: the abstention
 gap and a rubric for evidence support.
 References: `tasks/current/T-0025-evaluation.md`, `tests/eval/`.
+
+## 2026-10-10 — T-0030: a Postgres restart is a pause, never a crash (T-0030)
+
+Type: fix + verification
+Who: conantkd (+ agent)
+Context: phase 13 asks that failures become escalations, never crashes. Reading the loops before the VM test: the
+scheduler guarded its database calls, the worker's `run_forever` did not (a database error ended it).
+Decision / result: the worker logs, waits and retries (tests first, red seen). On vm-095: Postgres restarted during an
+SC-03 run (the run DIAGNOSED) and stopped 30 s (the worker logged one retry, the scheduler resumed, the api answered);
+no Argus container restarted; NO INTERFERENCE.
+Consequences: phase 13's Postgres restart is done. Next: Prometheus down on one host; token rotation. vm-095 runs
+`task/T-0030-vm-proof` `a56f014`, vm-166 `task/T-0029-vm-proof` `eebfa72`.
+References: `tasks/current/T-0030-pg-restart.md`, `execution/history/T-0030/step-02/evidence.md`.
