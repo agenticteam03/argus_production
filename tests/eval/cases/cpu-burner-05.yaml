@@ -9,6 +9,7 @@ metrics:
     container_cpu_throttled_ratio_5m: 0.91
     restarts_10m: 0
     health_unhealthy: 0
+    container_cpu_quota_used_ratio_5m: 0.99
 fixtures:
   docker_read:
     /containers/argus-lab-burner/status:

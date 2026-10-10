@@ -65,25 +65,44 @@ def test_the_signal_is_the_5_minute_minimum_of_the_throttled_share():
     assert sig.count("[3m]") == 2 and "[1m]" not in sig     # cAdvisor's samples are 35-53 s apart: 1m is mostly empty
 
 
-def test_the_detector_matches_at_half_the_periods_throttled():
+def test_the_detector_matches_a_container_throttled_while_using_its_quota():
     from argus.detectors.classes import cpu_saturation
-    r = cpu_saturation(_snap(container_cpu_throttled_ratio_5m=0.97))
+    r = cpu_saturation(_snap(container_cpu_throttled_ratio_5m=0.97, container_cpu_quota_used_ratio_5m=0.99))
     assert r.matched and any("97% of its CPU periods" in f for f in r.findings)
-    assert cpu_saturation(_snap(container_cpu_throttled_ratio_5m=0.5)).matched
-    assert not cpu_saturation(_snap(container_cpu_throttled_ratio_5m=0.2)).matched
+    assert any("99% of its CPU quota" in f for f in r.findings)
+    assert cpu_saturation(_snap(container_cpu_throttled_ratio_5m=0.5, container_cpu_quota_used_ratio_5m=0.8)).matched
+    assert not cpu_saturation(_snap(container_cpu_throttled_ratio_5m=0.2, container_cpu_quota_used_ratio_5m=0.99)).matched
 
 
-def test_the_detector_treats_a_missing_ratio_as_unknown():
+def test_a_bursty_container_far_below_its_quota_is_not_saturated():
+    """Step 2 on vm-166: argus-lab-api (0.2 cores, health checks in bursts) had 61 % of its active periods throttled
+    while using 4 % of its quota. The throttled share counts only the periods it ran in: alone it is not saturation."""
     from argus.detectors.classes import cpu_saturation
-    r = cpu_saturation(_snap(container_cpu_throttled_ratio_5m=None))
-    assert not r.matched and any("unknown" in f for f in r.findings)
+    r = cpu_saturation(_snap(container_cpu_throttled_ratio_5m=0.61, container_cpu_quota_used_ratio_5m=0.04))
+    assert not r.matched
+
+
+def test_the_detector_treats_a_missing_signal_as_unknown():
+    from argus.detectors.classes import cpu_saturation
+    for vals in ({"container_cpu_throttled_ratio_5m": None, "container_cpu_quota_used_ratio_5m": 0.99},
+                 {"container_cpu_throttled_ratio_5m": 0.97, "container_cpu_quota_used_ratio_5m": None}):
+        r = cpu_saturation(_snap(**vals))
+        assert not r.matched and any("unknown" in f for f in r.findings), vals
+
+
+def test_the_quota_used_signal_normalizes_usage_to_the_quota():
+    sig = _yaml("config", "signals.yaml")["container_cpu_quota_used_ratio_5m"]
+    assert sig.startswith("min_over_time(") and "[5m:30s]" in sig and "[3m]" in sig
+    assert 'container_cpu_usage_seconds_total{argus_host="$host",name="$name"}' in sig
+    assert 'container_spec_cpu_quota{argus_host="$host",name="$name"}' in sig
+    assert 'container_spec_cpu_period{argus_host="$host",name="$name"}' in sig
 
 
 def test_the_class_is_registered_for_containers_with_rb006():
     from argus.detectors.classes import classes_for
     spec = next(c for c in classes_for("container") if c.name == "cpu_saturation")
     assert spec.runbook_ids == ["RB-006"] and spec.strategy == "model_loop" and spec.family == "saturation"
-    assert spec.required_signals == {"container_cpu_throttled_ratio_5m"}
+    assert spec.required_signals == {"container_cpu_throttled_ratio_5m", "container_cpu_quota_used_ratio_5m"}
     assert "cpu_saturation" not in [c.name for c in classes_for("host")]      # the busy-host trigger is not this task
 
 
@@ -92,7 +111,8 @@ def test_the_throttling_alert_names_the_container_and_only_argus_objects():
     rules = _yaml("deploy", "monitoring", "alerts.yml")["groups"][0]["rules"]
     a = next(r for r in rules if r.get("alert") == "ContainerCpuThrottled")
     assert a["for"] == "5m" and ">= 0.5" in a["expr"]
-    assert a["expr"].count("[3m]") == 2 and "[1m]" not in a["expr"]   # step 2 on vm-166: a 1m rate never fired
+    assert "[1m]" not in a["expr"]                                     # step 2 on vm-166: a 1m rate never fired
+    assert "container_spec_cpu_quota" in a["expr"] and ">= 0.8" in a["expr"]   # and it uses its quota (not bursts)
     assert 'label_replace(' in a["expr"] and '"container", "$1", "name", "(.*)"' in a["expr"]   # the intake's label
     assert 'name=~"argus-.*"' in a["expr"]                                    # never another deployment's container
 
@@ -137,7 +157,8 @@ def test_a_scripted_diagnosis_reads_the_limit_and_names_the_burner(make_app, mon
         return {"calls": [("conclude", {"diagnosis": "argus-lab-burner is CPU-bound at its 0.3-core quota (RB-006 H2)",
                                         "evidence_ids": ids[-2:], "confidence": "medium",
                                         "root_cause_target": BURNER})]}
-    metrics = FakeMetrics({BURNER: {"container_cpu_throttled_ratio_5m": 0.95, "restarts_10m": 0}})
+    metrics = FakeMetrics({BURNER: {"container_cpu_throttled_ratio_5m": 0.95, "container_cpu_quota_used_ratio_5m": 0.99,
+                                    "restarts_10m": 0}})
     app = make_app(llm=ScriptedLLM(script), metrics=metrics)
     inc = app.runner.run(incident(app, BURNER, reason="ContainerCpuThrottled").id)
     assert inc.incident_class == "cpu_saturation" and inc.outcome == IncidentOutcome.diagnosed
