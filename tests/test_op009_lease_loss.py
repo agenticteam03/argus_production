@@ -127,3 +127,21 @@ def test_renewals_failing_until_the_lease_expires_cancel_the_run(make_app):
     elapsed = time.monotonic() - started
     assert app.runner.cancelled is True
     assert 0.9 <= elapsed < 3                                  # cancelled once the lease (1 s) was really gone
+
+
+def test_a_failing_renewer_cancels_at_the_lease_expiry_not_at_its_next_attempt(make_app):
+    """Review of PR #53: with renewals failing, the run is cancelled when the lease expires, not up to one renewal
+    interval later (lease 1 s, attempts every 0.7 s: before the fix the cancel came at 1.4 s)."""
+    app = make_app()
+    incident(app, T)
+    app.runner = CancelAwareRunner(seconds=5)
+
+    def down(*a, **k):
+        raise RuntimeError("database down")
+
+    app.store.renew_claim = down
+    started = time.monotonic()
+    Worker(app, worker_id="w1", lease_s=1, renew_every_s=0.7).run_once()
+    elapsed = time.monotonic() - started
+    assert app.runner.cancelled is True
+    assert 0.9 <= elapsed < 1.25, elapsed
