@@ -1,0 +1,40 @@
+# E2E-2 — Close the two evidence gaps the runner found (SC-05 disk mount, SC-07 assigned network)
+
+| Field | Value |
+|---|---|
+| Status | `in progress` — step 1 (code and tests, offline) done 2026-10-10; step 2 (rebuild vm-095's agent, re-run) after the merge |
+| Phase | 12 (end-to-end tests) — [`../../IMPLEMENTATION_PLAN.md`](../../IMPLEMENTATION_PLAN.md) |
+| Found by | [E2E-1 step 3](E2E-1-catalogue-sc04-06.md): SC-05 6/10, SC-07 6/10 over two batches |
+| Architecture | no change (no ACR): a capability's default and one inventory field; read-only, no new access |
+| Branch | `task/E2E-2-evidence-gaps` (from `main`) |
+| Owner | `juanbetancurm` (+ agent), quality lane |
+| Needs the VM lease | step 2: **both** (an agent rebuild on vm-095), then vm-166 for the re-run |
+
+## Goal (plain language)
+
+Both misses were the model reasoning correctly on missing evidence. Give it the fact it was missing.
+
+- **SC-05:** the detector fires on the worst *declared* mount (the lab filesystem, 92.6 %), but `host.disk_usage`
+  read `/` by default (28 %), so the model saw a contradiction and escalated.
+- **SC-07:** the backend's assigned network existed only as a comment, so the model guessed which container was
+  misplaced.
+
+## Step 1 (done, offline)
+
+- `host.disk_usage`: `mount` is optional; **without it the capability reads every declared mount** of the host and
+  shows each (`vm-166:/ used=28.0%; vm-166:/srv/argus-lab-fill used=92.6% …`). An explicit mount works as before and
+  an undeclared one is still refused; a host with no declared mount refuses a read without one. The tool's
+  description says so, so the model knows.
+- **Declared networks:** the inventory field `networks` (`TargetInfo.networks`); `container.status` adds
+  `declared_networks=…` and, when the container is not on one of them, `NOT on its declared network(s): …`. An extra
+  network is not flagged. Declared for SC-07's client and backend: `argus-lab-app` (the backend's assigned network;
+  the scenario puts it on `argus-lab-iso`).
+- Tests: `tests/test_e2e2_evidence_gaps.py` (8; red seen 6/8: no `networks` on `TargetInfo`, the default mount `/`;
+  the other two check unchanged behaviour). The SC-05, SC-07, core and evaluation tests pass; the baseline evaluation
+  is unchanged (45/47, the two known baseline misses; hard 0 0 0).
+
+## Step 2 (after the merge)
+
+1. vm-095 with **both leases**: backup, `deploy.sh main`, rebuild agent, worker and scheduler, `argus db check`,
+   `/healthz`, NO INTERFERENCE. No migration, no change on vm-166.
+2. vm-166: `ops/e2e/run.py --runs 5 SC-05 SC-07`. Done when both reach 5/5 (or the misses are read and explained).
