@@ -1,0 +1,60 @@
+# T-0028 step 2 on vm-166: argus-lab-api (0.2 cores) 61 % of its active periods throttled at 4 % of
+# its quota (bursty health checks): not CPU saturation, no class may match
+id: cpu-api-bursty
+category: unsupported
+target: vm-166/container:argus-lab-api
+request: report
+reason: ContainerCpuThrottled on the api
+metrics:
+  vm-166/container:argus-lab-api:
+    container_cpu_throttled_ratio_5m: 0.61
+    container_cpu_quota_used_ratio_5m: 0.04
+    restarts_10m: 0
+    health_unhealthy: 0
+    dependency_probe_min: 1
+fixtures:
+  docker_read:
+    /containers/argus-lab-api/status:
+      id: e0e0e0
+      state: running
+      health: none
+      restart_count: 0
+      oom_killed: false
+      exit_code: 0
+      memory_limit_bytes: 33554432
+      cpu_limit_cores: 0.2
+      networks: []
+    /containers/argus-lab-api/stats:
+      memory_usage_bytes: 9000000
+      memory_limit_bytes: 33554432
+      memory_percent: 26.8
+      cpu_percent: 0.8
+      pids: 1
+    /containers/argus-lab-api/logs:
+      lines:
+      - GET /health 200 3ms
+      - GET /items 200 41ms
+    /containers/argus-lab-api/health:
+      status: none
+      failing_streak: 0
+      log: []
+    /containers/argus-lab-api/events:
+      events: []
+  host_probe:
+    '*':
+      total_mib: 5800
+      available_mib: 3900
+      cpu_busy_percent: 18
+      load1: 0.4
+      cpus: 2
+  network_probe:
+    '*':
+      ok: true
+      addresses: []
+      duration_ms: 2
+      status: 200
+label:
+  outcome: unsupported_escalated
+  class: null
+  abstain: true
+  model_calls: 0

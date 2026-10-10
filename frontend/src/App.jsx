@@ -2,9 +2,11 @@ import { BrowserRouter, Navigate, Outlet, Route, Routes } from "react-router-dom
 import Header from "./components/Header.jsx";
 import { AuthProvider, useAuth } from "./context/AuthContext.jsx";
 import Dashboard from "./pages/Dashboard.jsx";
+import IncidentDetail from "./pages/IncidentDetail.jsx";
+import Incidents from "./pages/Incidents.jsx";
 import Login from "./pages/Login.jsx";
 import Runbooks from "./pages/Runbooks.jsx";
-import { canSee, flat } from "./routes.js";
+import { canSee, flat, subRoutes } from "./routes.js";
 
 const Placeholder = ({ title }) => (
   <div className="grid place-items-center rounded-2xl border border-dashed border-line py-24 text-center">
@@ -12,6 +14,8 @@ const Placeholder = ({ title }) => (
     <p className="mt-1 text-sm text-muted">Coming soon.</p>
   </div>
 );
+
+const pages = { "/incidents": Incidents, "/incidents/:id": IncidentDetail, "/tools/runbooks": Runbooks };
 
 const Shell = () => (
   <>
@@ -27,9 +31,10 @@ function AppRoutes() {
     <Routes>
       <Route element={<Shell />}>
         <Route index element={<Dashboard />} />
-        {flat.filter((r) => r.path !== "/" && canSee(r, user.role)).map((r) => (
-          <Route key={r.path} path={r.path} element={r.path === "/tools/runbooks" ? <Runbooks /> : <Placeholder title={r.label} />} />
-        ))}
+        {[...flat, ...subRoutes].filter((r) => r.path !== "/" && canSee(r, user.role)).map((r) => {
+          const Page = pages[r.path];
+          return <Route key={r.path} path={r.path} element={Page ? <Page /> : <Placeholder title={r.label} />} />;
+        })}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>
