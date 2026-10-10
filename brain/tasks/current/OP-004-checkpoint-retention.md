@@ -16,6 +16,12 @@ rows for incidents that became final more than 30 days ago. Keep incidents, evid
   audit record (`category=decision`, `actor=system`). Failure rolls the transaction back.
 - `ops/checkpoint-retention.sh` mounts only the owner's database credential into a one-off Argus image. Manual runs
   require the VM session marker; the daily `argus-v18-*` systemd timer is shipped but not installed yet.
+- **`--scheduled` skips the lease check** (a timer holds no lease), so once enabled it may delete rows while someone
+  else holds vm-095. Enabling the timer is therefore an explicit team decision: either make the scheduled run skip
+  with a log line when `/opt/argus-v18/SESSION` names a holder, or record in PARALLEL_LANES that this one maintenance
+  job runs without a lease (review of PR #42).
+- The apply lock is `pg_advisory_xact_lock(404, 1)`: the two-key form (OP-004, job 1), a separate lock space from the
+  one-key `hashtext(incident_id)` locks in `postgres_store.py`.
 
 ## Steps
 

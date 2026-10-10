@@ -33,6 +33,8 @@ else
   [ -z "$WHO" ] || stop "--scheduled cannot be combined with --as"
 fi
 
+# --user 0:0: the owner credential on the host is root-only (0400). With --cap-drop ALL, root in the container
+# cannot bypass file permissions; it only reads that one read-only mount.
 ARGS=(db prune-checkpoints --days "$DAYS")
 [ "$MODE" = --apply ] && ARGS+=(--apply)
 "$DOCKER" run --rm --network argus-v18-core --user 0:0 --read-only --cap-drop ALL \

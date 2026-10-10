@@ -36,6 +36,7 @@ def prune_checkpoints(conninfo: str, *, days: int = 30, dry_run: bool = True,
         if role != "argus_owner":
             raise PermissionError("checkpoint retention requires argus_owner")
         if not dry_run:
+            # Two-key form (OP-004, job 1): a lock space apart from the one-key per-incident locks in postgres_store.
             conn.execute("SELECT pg_advisory_xact_lock(404, 1)")
 
         counts: dict[str, int | bool] = {"dry_run": dry_run}
