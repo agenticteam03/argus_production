@@ -797,3 +797,18 @@ Consequences: proposal for the team: `dependency_unavailable` → `baseline` (th
 `model_loop`, with the bias caveat (the baseline's rules and the cases were written together). Open: the abstention
 gap and a rubric for evidence support.
 References: `tasks/current/T-0025-evaluation.md`, `tests/eval/`.
+
+## 2026-10-10 — T-0029: SC-08 DIAGNOSED on vm-166; phase 11's planned scenarios done (T-0029)
+
+Type: implementation + verification
+Who: conantkd (+ agent)
+Context: SC-08, nginx in front of a slow upstream (`nginx_upstream_failure`, RB-015). Argus had no HTTP signal.
+Decision / result: a synthetic HTTP probe in the exporter (every declared `http_endpoints` of an active container;
+502/504 count as gateway errors, an app's 503 does not), the class (plan_then_reason) and `HttpGatewayErrors`. The
+access-log option (real traffic, per route) was left out: it needs a new Host T component and an ACR. On vm-166:
+nginx answered 504, the api's probe 200; `inc_46cdffa78fdb` DIAGNOSED with high confidence, root cause
+`argus-lab-slow` (the model cited the upstream's 5 s answers and nginx's timeout), nginx the victim; no side alert;
+resolved after the scenario went down. NO INTERFERENCE.
+Consequences: SC-08 done; with SC-06 (T-0028) the planned scenarios of phase 11 are done. Both VMs run
+`task/T-0029-vm-proof` `eebfa72`. Open: `http_errors_latency` (RB-011), the access-log metrics (ACR).
+References: `tasks/current/T-0029-sc08-nginx.md`, `execution/history/T-0029/step-02/evidence.md`.

@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | `in progress` — step 1 (code, tests, evaluation cases) done; step 2 (VMs) next |
+| Status | `done` 2026-10-10 (step 2: SC-08 DIAGNOSED on vm-166, root cause the slow upstream, no side alert) |
 | Phase | 11 — synthetic incidents ([`../../IMPLEMENTATION_PLAN.md`](../../IMPLEMENTATION_PLAN.md) §7: SC-08 "nginx → slow upstream with 502s") |
 | Architecture | no change (no ACR): §3 class table (`nginx_upstream_failure` · RB-015 · branches RB-002, RB-003 · `plan_then_reason`); the probe is a function of `argus-exporter`, which already runs the dependency probes |
 | Branch | `task/T-0029-sc08-nginx`, from `main`; the VM proof runs on a branch that merges it with what the VMs run |
@@ -40,7 +40,10 @@ name the upstream as the cause, not the proxy.
 2. **VMs:** a proof branch (what the VMs run + this branch); vm-166: target services (the exporter's probe),
    Prometheus rules, `--profile sc08 up`; vm-095: agent image, Prometheus rules. Expected: `HttpGatewayErrors` after
    ~4 minutes, a `nginx_upstream_failure` incident on `vm-166/container:argus-lab-nginx`, DIAGNOSED naming
-   `argus-lab-slow`; no alert on the SC-03 api; down: the alert resolves. NO INTERFERENCE.
+   `argus-lab-slow`; no alert on the SC-03 api; down: the alert resolves. NO INTERFERENCE. **Done 2026-10-10**
+   ([evidence](../../execution/history/T-0029/step-02/evidence.md)): `inc_46cdffa78fdb` DIAGNOSED (high), root
+   cause `argus-lab-slow`; the api's probe gave 200, no other alert; resolved 02:25:01. Both VMs stay on
+   `task/T-0029-vm-proof` `eebfa72` until the stack, T-0028 and this task merge.
 
 ## Done when
 
