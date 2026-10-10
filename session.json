@@ -11,12 +11,12 @@
   "vms": {
     "vm-095": {
       "holder": "conantkd",
-      "session_id": "4ef1e84354ce",
-      "task": "DEPLOY-MAIN",
-      "branch": "task/T-0030-pg-restart",
-      "base_commit": "5677a1f3a8f97067a7b6c1d326b16bbf27d3c395",
-      "started_at": "2026-10-10T12:47:33+00:00",
-      "expires_at": "2026-10-10T15:13:48+00:00",
+      "session_id": "ecee514c2421",
+      "task": "T-0032",
+      "branch": "task/T-0032-prometheus-down",
+      "base_commit": "e4d19c8fc581fe82fed362ebd3163c68682e3578",
+      "started_at": "2026-10-10T16:23:38+00:00",
+      "expires_at": "2026-10-10T17:23:38+00:00",
       "released": false,
       "handoff": null
     },
