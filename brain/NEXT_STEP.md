@@ -1,5 +1,10 @@
 # Next step
 
+**OP-004 (2026-10-10, `conantkd`):** `argus db prune-checkpoints` (owner-only, read-only preview by default,
+transactional `--apply`, audit row) is implemented and dry-run on vm-095: with the 30-day window nothing is eligible
+yet (1-day preview: 88 threads). Next: a teammate reviews the counts before any `--apply`; enabling the daily timer
+is a separate team decision. See [the task file](tasks/current/OP-004-checkpoint-retention.md).
+
 **Now (2026-10-09, night, `conantkd`). Phase 7 is complete.** Six branches stacked on `main`, each with the previous
 one merged in and `main` up to #53: `task/T-0022-alerting` (#45, ACR-0003) → `task/OP-010-reserved-slot` (#46) →
 `task/T-0024-sc05-disk` (#47) → `task/OP-011-correlation` (#48, ACR-0004) → `task/T-0026-alert-resolution` (ACR-0005,

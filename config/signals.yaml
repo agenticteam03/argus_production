@@ -16,6 +16,9 @@ host_disk_used_ratio:  '1 - node_filesystem_avail_bytes{argus_host="$host",mount
 host_cpu_busy_ratio:   '1 - avg(rate(node_cpu_seconds_total{argus_host="$host",mode="idle"}[5m]))'
 host_memory_available_ratio: 'node_memory_MemAvailable_bytes{argus_host="$host"} / node_memory_MemTotal_bytes{argus_host="$host"}'
 container_cpu_throttled_ratio: 'rate(container_cpu_cfs_throttled_periods_total{argus_host="$host",name="$name"}[5m]) / (rate(container_cpu_cfs_periods_total{argus_host="$host",name="$name"}[5m]) > 0)'
+# T-0029 (SC-08, RB-015): the share of the exporter's probes through a declared endpoint that got a gateway error
+# (502/504: the proxy's own answer when its upstream fails or is too slow) over 5 minutes; the worst endpoint.
+http_gateway_error_ratio_5m: 'max(avg_over_time(argus_http_probe_gateway_error{argus_host="$host",owner="$name"}[5m]))'
 # T-0028 (SC-06, RB-006): the share of the container's CPU periods throttled at its quota (cAdvisor CFS counters), its
 # minimum over 5 minutes; no value for a container without a quota (no periods). The rate window is 3m: cAdvisor
 # stamps its samples at each housekeeping (35-53 s apart on vm-166), so a 1m window rarely holds two samples.

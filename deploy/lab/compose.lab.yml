@@ -84,6 +84,33 @@ services:
     cpus: 0.2
     pids_limit: 16
     restart: "no"
+  argus-lab-nginx:                      # SC-08 (vm-166, T-0029): a reverse proxy whose upstream is too slow -> 504
+    image: nginx:1.27-alpine
+    container_name: argus-lab-nginx
+    profiles: [sc08]
+    volumes:
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+    tmpfs: [/var/cache/nginx, /var/run]
+    networks: [argus-lab-app]
+    mem_limit: 32m
+    memswap_limit: 32m
+    cpus: 0.2
+    pids_limit: 16
+    restart: "no"
+  argus-lab-slow:                       # SC-08: answers after DELAY_S, longer than nginx's 2 s proxy_read_timeout
+    image: python:3.12-alpine
+    container_name: argus-lab-slow
+    profiles: [sc08]
+    command: ["python", "-u", "/w/slow.py"]
+    environment: {DELAY_S: "5"}
+    volumes:
+      - ./workloads:/w:ro
+    networks: [argus-lab-app]
+    mem_limit: 32m
+    memswap_limit: 32m
+    cpus: 0.2
+    pids_limit: 32
+    restart: "no"
   argus-lab-burner:                     # SC-06 (vm-166, T-0028): a busy loop under a 0.3-core quota (throttled, RB-006)
     image: python:3.12-alpine
     container_name: argus-lab-burner
