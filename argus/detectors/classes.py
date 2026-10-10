@@ -101,18 +101,20 @@ def monitoring_blind_spot(snap: MetricSnapshot) -> DetectorResult:
 
 
 def cpu_saturation(snap: MetricSnapshot) -> DetectorResult:
-    """RB-006, the container trigger (T-0028): half or more of the container's CPU periods throttled at its quota for
-    5 minutes (the signal is the 5-minute minimum; an initial threshold, calibrated in the lab). The busy-host trigger
-    is separate and not registered yet."""
-    ratio = snap.values.get("container_cpu_throttled_ratio_5m")
-    if ratio is None:
-        return DetectorResult(matched=False,
-                              findings=["signal missing (unknown, not healthy): container_cpu_throttled_ratio_5m"])
-    if ratio < 0.5:
+    """RB-006, the container trigger (T-0028): for 5 minutes, half or more of the container's CPU periods throttled at
+    its quota AND 80 % or more of the quota used (both signals are 5-minute minimums). The throttled share alone counts
+    only the periods the container ran in: a bursty container far below its quota is not saturated (calibrated on
+    vm-166). The busy-host trigger is separate and not registered yet."""
+    miss = _missing(snap, "container_cpu_throttled_ratio_5m", "container_cpu_quota_used_ratio_5m")
+    if miss:
+        return DetectorResult(matched=False, findings=[f"signal missing (unknown, not healthy): {m}" for m in miss])
+    ratio, used = snap.values["container_cpu_throttled_ratio_5m"], snap.values["container_cpu_quota_used_ratio_5m"]
+    if ratio < 0.5 or used < 0.8:
         return DetectorResult(matched=False)
     return DetectorResult(matched=True, findings=[
         f"{round(ratio * 100)}% of its CPU periods throttled at its CPU quota for at least 5 minutes",
-        "CPU saturation of the container (RB-006): its work needs more CPU than its limit gives"])
+        f"it uses {round(used * 100)}% of its CPU quota: CPU saturation of the container (RB-006), its work needs "
+        "more CPU than its limit gives"])
 
 
 # Priority order: the first matching class becomes the incident class; others become findings.
@@ -141,7 +143,8 @@ CLASSES: list[IncidentClassSpec] = [
                       required_signals={"scrape_targets_down"}, runbook_ids=["RB-014"], strategy="evidence_pack",
                       tool_tags={"host", "container", "logs"}, detector=monitoring_blind_spot),
     IncidentClassSpec(name="cpu_saturation", family="saturation", target_kinds={"container"},
-                      required_signals={"container_cpu_throttled_ratio_5m"}, runbook_ids=["RB-006"],
+                      required_signals={"container_cpu_throttled_ratio_5m", "container_cpu_quota_used_ratio_5m"},
+                      runbook_ids=["RB-006"],
                       strategy="model_loop", tool_tags={"cpu", "container", "logs", "host", "knowledge"},
                       detector=cpu_saturation),
     IncidentClassSpec(name="disk_pressure", family="saturation", target_kinds={"host"},
