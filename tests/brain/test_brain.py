@@ -376,3 +376,135 @@ def test_vm095_alone_reminds_that_an_agent_change_needs_both(repos, monkeypatch,
     out = capsys.readouterr().out
     assert "needs BOTH leases" in out
     assert "[VM vm-095 · bash]" in out and "[VM vm-166 · bash]" not in out
+
+
+# --- journal entries as files and the roll-up (PARALLEL_LANES change 2, LANES-2) ----------------------------------
+
+ENTRY_A = """## 2026-10-10 — T-0040: first thing (T-0040)
+
+Type: implementation
+Who: alice (+ agent)
+Decision / result: done; see [the task](../../tasks/current/T-0040.md).
+References: [`../../tasks/current/T-0040.md`](../../tasks/current/T-0040.md), [web](https://example.com/a).
+
+### Test state
+
+**T-0040, 2026-10-10:** 3 tests, red seen ([task](../../tasks/current/T-0040.md)).
+
+### Next step
+
+**T-0040 (2026-10-10, `alice`):** merged; next T-0041 ([task](../../tasks/current/T-0040.md)).
+"""
+
+ENTRY_B = """## 2026-10-11 — T-0041: second thing (T-0041)
+
+Type: verification
+Who: bob (+ agent)
+Decision / result: verified on vm-166.
+"""
+
+
+def brain_tree(repo: Path) -> Path:
+    b = repo / "brain"
+    for d in ("journal/entries", "tdd", "tasks/current"):
+        (b / d).mkdir(parents=True, exist_ok=True)
+    (b / "journal" / "logbook.md").write_bytes(b"# Logbook\n\n## 2026-10-09 \xe2\x80\x94 old entry\n\nType: x\n")
+    (b / "tdd" / "CURRENT_TEST_STATE.md").write_bytes(
+        b"# Current test state\n\n**Last updated:** 2026-10-09\n\n**OLD, 2026-10-09:** old line.\n")
+    (b / "NEXT_STEP.md").write_bytes(b"# Next step\n\n**OLD (2026-10-09):** old next step.\n")
+    (b / "tasks" / "current" / "T-0040.md").write_bytes(b"# T-0040\n")
+    return b
+
+
+def test_rollup_folds_entries_into_the_summaries_and_removes_them(repos, monkeypatch, capsys):
+    repo = repos["alice"]
+    as_(monkeypatch, repo)
+    b = brain_tree(repo)
+    (b / "journal" / "entries" / "2026-10-11-T-0041.md").write_bytes(ENTRY_B.encode())
+    (b / "journal" / "entries" / "2026-10-10-T-0040.md").write_bytes(ENTRY_A.encode())
+    assert brain.main(["rollup"]) == 0
+    log = (b / "journal" / "logbook.md").read_text(encoding="utf-8")
+    assert log.index("old entry") < log.index("T-0040: first thing") < log.index("T-0041: second thing")
+    assert "### Test state" not in log and "### Next step" not in log      # only the journal part goes to the log
+    assert "](../tasks/current/T-0040.md)" in log                         # links rebased from entries/ to journal/
+    assert "[`../tasks/current/T-0040.md`](../tasks/current/T-0040.md)" in log   # a shown path moves with its link
+    assert "[web](https://example.com/a)" in log                           # absolute links untouched
+    tests = (b / "tdd" / "CURRENT_TEST_STATE.md").read_text(encoding="utf-8")
+    assert tests.index("**Last updated:**") < tests.index("**T-0040, 2026-10-10:**") < tests.index("**OLD")
+    assert "](../tasks/current/T-0040.md)" in tests
+    nxt = (b / "NEXT_STEP.md").read_text(encoding="utf-8")
+    assert nxt.index("# Next step") < nxt.index("**T-0040 (2026-10-10") < nxt.index("**OLD")
+    assert "](tasks/current/T-0040.md)" in nxt
+    assert list((b / "journal" / "entries").glob("*.md")) == []
+    assert "2 journal entries rolled up" in capsys.readouterr().out
+    assert brain.main(["lint"]) in (0, 1)                                  # the tree is readable by lint
+    assert "broken link" not in capsys.readouterr().out
+
+
+def test_rollup_with_nothing_to_do_changes_nothing(repos, monkeypatch, capsys):
+    repo = repos["alice"]
+    as_(monkeypatch, repo)
+    b = brain_tree(repo)
+    before = (b / "journal" / "logbook.md").read_bytes()
+    assert brain.main(["rollup"]) == 0
+    assert "nothing to roll up" in capsys.readouterr().out
+    assert (b / "journal" / "logbook.md").read_bytes() == before
+
+
+def test_rollup_refuses_an_entry_without_its_heading(repos, monkeypatch, capsys):
+    repo = repos["alice"]
+    as_(monkeypatch, repo)
+    b = brain_tree(repo)
+    (b / "journal" / "entries" / "2026-10-10-T-0040.md").write_bytes(b"Type: no heading\n")
+    assert brain.main(["rollup"]) == 2
+    assert "must start with '## <date>" in capsys.readouterr().err
+    assert (b / "journal" / "entries" / "2026-10-10-T-0040.md").exists()  # nothing half-done
+
+
+def _rule_on_main(repo: Path) -> None:
+    """main gets brain.py with the roll-up (the rule applies to branches created from it)."""
+    (repo / "brain" / "tools").mkdir(parents=True, exist_ok=True)
+    (repo / "brain" / "tools" / "brain.py").write_bytes(b"def cmd_rollup(args):\n    pass\n")
+    brain_tree(repo)
+    run(repo, "add", "-A")
+    run(repo, "commit", "-m", "main with the roll-up")
+    run(repo, "push", "origin", "HEAD:main")
+    run(repo, "fetch", "origin")
+
+
+def test_lint_refuses_a_task_branch_that_edits_a_shared_summary(repos, monkeypatch, capsys):
+    repo = repos["alice"]
+    as_(monkeypatch, repo)
+    _rule_on_main(repo)
+    run(repo, "checkout", "-b", "task/T-0042-x")
+    (repo / "brain" / "NEXT_STEP.md").write_bytes(b"# Next step\n\nedited on a task branch\n")
+    capsys.readouterr()
+    assert brain.main(["lint"]) == 1
+    out = capsys.readouterr().out
+    assert "brain/NEXT_STEP.md: a task branch does not edit the shared summaries" in out
+    assert "journal/entries/" in out
+
+
+def test_lint_lets_a_rollup_branch_and_main_edit_the_summaries(repos, monkeypatch, capsys):
+    repo = repos["alice"]
+    as_(monkeypatch, repo)
+    _rule_on_main(repo)
+    (repo / "brain" / "NEXT_STEP.md").write_bytes(b"# Next step\n\nedited on main\n")
+    capsys.readouterr()
+    brain.main(["lint"])
+    assert "shared summaries" not in capsys.readouterr().out
+    run(repo, "checkout", "-b", "task/rollup-2026-10-10")
+    brain.main(["lint"])
+    assert "shared summaries" not in capsys.readouterr().out
+
+
+def test_lint_keeps_branches_made_before_the_rule(repos, monkeypatch, capsys):
+    """PARALLEL_LANES transition: a branch whose base has no roll-up keeps its summary edits."""
+    repo = repos["alice"]
+    as_(monkeypatch, repo)
+    run(repo, "checkout", "-b", "task/T-0039-old")
+    brain_tree(repo)
+    (repo / "brain" / "NEXT_STEP.md").write_bytes(b"# Next step\n\nedited before the rule\n")
+    capsys.readouterr()
+    brain.main(["lint"])
+    assert "shared summaries" not in capsys.readouterr().out

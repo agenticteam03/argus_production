@@ -76,5 +76,6 @@ If two files disagree, the higher authority wins and the lower one gets fixed in
 
 - **Stable** (change rarely, by pull request): `architecture/` (only via ACR), `agents/`, `policies/`, `guides/`,
   `infrastructure/`, `IMPLEMENTATION_PLAN.md`.
-- **Mutable** (change every session): `CURRENT_STATE.md`, `NEXT_STEP.md`, `tdd/`, `tasks/current/`,
-  `execution/current/`, and appends to `journal/logbook.md`.
+- **Mutable** (change every session): `CURRENT_STATE.md`, `tasks/current/`, `execution/current/`, and one
+  journal entry file per task in `journal/entries/`. `NEXT_STEP.md`, `tdd/CURRENT_TEST_STATE.md` and
+  `journal/logbook.md` change only through `brain.py rollup` (PARALLEL_LANES change 2).
