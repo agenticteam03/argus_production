@@ -2,6 +2,14 @@
 
 **Last updated:** 2026-10-09 · **Commit:** `task/T-0026-alert-resolution` (on top of `task/OP-011-correlation`)
 
+**T-0027, 2026-10-09 (`task/T-0027-blind-spot`, the stack and `main` up to #53 merged in):** 10 tests in
+`tests/test_t0027_blind_spot.py` (red seen: no class; a check of a host with node-exporter down ended `no_incident`),
+5 evaluation cases `tests/eval/cases/blind-*.yaml` (baseline: 5/5, 0 model calls, hard 0 0 0), and
+`test_every_registered_class_has_its_cases_or_is_listed_as_awaiting_them` (red seen without the cases;
+`disk_pressure` listed as awaiting). Full suite on the laptop: green (Postgres tests skipped; the stack branches below
+it passed with a throwaway Postgres). Stage 7: `inc_263f471e33e3` on vm-166, escalated as `monitoring_blind_spot`,
+resolved after the exporter came back; NO INTERFERENCE.
+
 **T-0026, 2026-10-09 (`task/T-0026-alert-resolution`):** 16 new tests in `tests/test_t0026_alert_resolution.py`
 (red seen 14/16: a `resolved` notification was `ignored`; `active_alerts`, `resolve_absent` and `resolved_at` were
 missing; the silenced-alert and the received-before guards were green from the start) and

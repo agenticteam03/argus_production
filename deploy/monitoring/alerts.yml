@@ -21,6 +21,11 @@ groups:
         expr: max by (argus_host) (1 - node_filesystem_avail_bytes{job="argus-v18-node-exporter",fstype=~"ext4|xfs|btrfs"} / node_filesystem_size_bytes{job="argus-v18-node-exporter",fstype=~"ext4|xfs|btrfs"}) >= 0.9
         for: 5m
         annotations: {summary: "a filesystem of the host is above 90 % used for 5 minutes"}
+      - alert: ArgusScrapeTargetDown       # T-0027 / RB-014: an Argus scrape target down for two scrape intervals+ (the
+        # monitoring blind spot class). The gate exporter's own outage also fires it; that incident ends undiagnosable.
+        expr: up{job=~"argus-v18-.*"} == 0
+        for: 2m
+        annotations: {summary: "scrape target {{ $labels.job }} is down: its signals are unknown"}
       - alert: ContainerCpuThrottled       # T-0028 / RB-006: an Argus container throttled at its CPU quota in half or more
         # of its CPU periods AND using 80 %+ of its quota, for 5 minutes (the detector's test). cAdvisor names the
         # container `name`; the intake reads `container`. 3m rates: cAdvisor's samples are 35-53 s apart. The quota
