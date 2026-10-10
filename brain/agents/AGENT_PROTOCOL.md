@@ -29,6 +29,8 @@ Brain file.
    - fetches, fast-forwards `main`;
    - shows the lease holder, pull requests waiting for review, in-flight branches and the handoff note;
    - claims the session lease (refused if someone else holds a valid one → **stop**, tell the developer who holds it).
+     `--vm vm-095` or `--vm vm-166` claims only that VM; the other VM may be someone else's. Never run a block on a
+     VM whose lease is not yours, and a change to the agent on vm-095 needs both leases.
 2. **Pull requests waiting for review come first.** Follow [`REVIEW_PROTOCOL.md`](REVIEW_PROTOCOL.md) before any new work.
 3. Read the Brain in the order of [`../README.md`](../README.md). Do not read everything; read what the task needs.
 4. **Reality check (state probe):** the first `code.bash` block of every session that touches the VMs is read-only:
