@@ -1,5 +1,10 @@
 # Next step
 
+**OP-008 (2026-10-10, `conantkd`):** snapshot-consistent backup, verified markers and preview-first retention are
+implemented and dry-run on vm-095 (`VERIFY OK`, 0 sets to remove with `KEEP=7`). Next: a teammate reviews the
+preview before any `prune --apply`; scheduling stays a separate team decision. See
+[the task file](tasks/current/OP-008-backup-retention.md).
+
 **OP-004 (2026-10-10, `conantkd`):** `argus db prune-checkpoints` (owner-only, read-only preview by default,
 transactional `--apply`, audit row) is implemented and dry-run on vm-095: with the 30-day window nothing is eligible
 yet (1-day preview: 88 threads). Next: a teammate reviews the counts before any `--apply`; enabling the daily timer
