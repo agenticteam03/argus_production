@@ -28,7 +28,8 @@ existing Git clone; the OD-3 timing benchmark measured 155 ms p95 overhead again
 (237); the only failure is the same timing-flaky benchmark (passes alone; green in CI). The VM checks follow.
 
 **OP-004, 2026-10-09 (`task/OP-004-checkpoint-cleanup`):** six new tests pass against a throwaway PostgreSQL 16 and
-the manual/timer wrapper. Three PostgreSQL cases were red before the command existed. VM dry run and CI are pending.
+the manual/timer wrapper. Three PostgreSQL cases were red before the command existed. VM dry run and CI are pending. 2026-10-10: the wrapper test now requires the container to run as the secret's
+owner (red with `--user 0:0`, green after); VM dry run done (OP-004 step 02).
 
 | Stage | Result | Where / when |
 |---|---|---|

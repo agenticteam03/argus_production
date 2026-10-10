@@ -917,3 +917,15 @@ positive, resolved after the burner was removed. NO INTERFERENCE.
 Consequences: SC-06 done (phase 11). Both VMs run `task/T-0028-vm-proof` `ed689b0` (T-0027 + T-0028) until the stack
 merges. The busy-host CPU trigger stays open (needs the host-scope ACR).
 References: `tasks/current/T-0028-sc06-cpu.md`, `execution/history/T-0028/step-02/evidence.md`.
+
+## 2026-10-10 — OP-004: checkpoint retention dry run on vm-095; the owner secret is not root's (OP-004)
+
+Type: verification + fix
+Who: conantkd (+ agent)
+Context: step 02 of OP-004, the dry run before any deletion; vm-095 lease only, the deployed checkout unchanged.
+Decision / result: the first run stopped with `missing credential`: the owner secret on vm-095 is `0400`, owned by
+uid 70 (the Postgres image's user), and the wrapper's root container has no capabilities to bypass that. The wrapper
+now runs the container as the secret's owner. Then the 30-day dry run found nothing eligible; a 1-day preview counted
+88 threads (783 checkpoints, 1825 blobs, 3900 writes). No row deleted, NO INTERFERENCE.
+Consequences: the first `--apply` waits for a teammate's review of the counts; the timer stays uninstalled.
+References: `tasks/current/OP-004-checkpoint-retention.md`, `execution/history/OP-004/step-02/evidence.md`.

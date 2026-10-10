@@ -29,9 +29,9 @@ rows for incidents that became final more than 30 days ago. Keep incidents, evid
    dry run, old final incidents, recent and active incidents, missing `closed_at`, all three checkpoint tables,
    preserved incident/run-event/audit rows, a second run, rollback on audit failure, runtime-role refusal, and the
    wrapper's lease check.
-2. **VM dry run, pending:** take the VM lease; run the state probe and `nonint-check.sh before` on vm-095; confirm a
-   restorable backup; deploy or build the maintenance image from this branch; run the default dry run; record row counts
-   and `NO INTERFERENCE`. Do not delete live database rows in this step.
+2. **VM dry run, done 2026-10-10** ([evidence](../../execution/history/OP-004/step-02/evidence.md)): the first run
+   showed the owner secret is uid 70, so the wrapper now runs as the secret's owner instead of root. Then 30 days:
+   `threads=0`; 1-day preview: `threads=88 checkpoints=783 blobs=1825 writes=3900`. No row deleted, NO INTERFERENCE.
 3. **Apply and timer, pending teammate decision:** review the dry-run counts and backup evidence with a teammate before
    any deletion. Then run one bounded `--apply`, verify rows and audit, and install/enable the daily timer if accepted.
 

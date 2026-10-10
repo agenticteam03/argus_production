@@ -1,10 +1,9 @@
 # Next step
 
-**OP-004 (2026-10-09, `conantkd`):** the owner-only `argus db prune-checkpoints` command, read-only default,
-transactional `--apply`, audit row, wrapper, and daily timer are implemented on `task/OP-004-checkpoint-cleanup`.
-Offline PostgreSQL tests pass. Next: with the VM lease, probe vm-095 and run the command in dry-run mode from the new
-maintenance image, after checking the backup evidence. Live deletion and timer enablement require the team's review
-of the dry-run counts; see [the task file](tasks/current/OP-004-checkpoint-retention.md).
+**OP-004 (2026-10-10, `conantkd`):** `argus db prune-checkpoints` (owner-only, read-only preview by default,
+transactional `--apply`, audit row) is implemented and dry-run on vm-095: with the 30-day window nothing is eligible
+yet (1-day preview: 88 threads). Next: a teammate reviews the counts before any `--apply`; enabling the daily timer
+is a separate team decision. See [the task file](tasks/current/OP-004-checkpoint-retention.md).
 
 **Now (2026-10-09, night, `conantkd`). Phase 7 is complete.** Six branches stacked on `main`, each with the previous
 one merged in and `main` up to #53: `task/T-0022-alerting` (#45, ACR-0003) → `task/OP-010-reserved-slot` (#46) →
