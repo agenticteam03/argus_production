@@ -2,6 +2,9 @@
 
 **Last updated:** 2026-10-09 · **Commit:** `task/T-0026-alert-resolution` (on top of `task/OP-011-correlation`)
 
+**T-0030 (phase 13), 2026-10-10 (`task/T-0030-pg-restart`):** 3 tests in `tests/test_t0030_pg_restart.py` (red seen: a
+database error from `recover()` or the claim ended the worker's loop). Full suite on the laptop: green.
+
 **T-0029 (SC-08), 2026-10-10 (`task/T-0029-sc08-nginx`):** 12 tests in `tests/test_t0029_sc08_nginx.py` (red seen
 12/12: no probe, signal, class, alert, lab or inventory entries); 6 evaluation cases `tests/eval/cases/nginx-*.yaml`
 (baseline 6/6, hard 0 0 0). Full suite on the laptop: green.
