@@ -46,11 +46,30 @@ if [ "$CMD" = prune ]; then
   for name in "${candidates[@]}"; do
     [[ "$name" =~ ^argus-[0-9]{8}T[0-9]{6}Z\.dump$ ]] && dumps+=("$name")
   done
+  # A .verified marker protects a set only while its dump still matches the checksum it was verified with.
   newest_verified=""
   for name in "${dumps[@]}"; do
     base="$DIR/${name%.dump}"
-    if [ -f "$base.verified" ]; then newest_verified=$name; break; fi
+    [ -f "$base.verified" ] || continue
+    if [ -f "$base.dump.sha256" ] && (cd "$DIR" && sha256sum -c --status "$name.sha256" 2>/dev/null); then
+      newest_verified=$name; break
+    fi
+    echo "  verified but checksum mismatch: $name"
   done
+  echo "  newest verified (kept): ${newest_verified:-none}"
+  # Leftovers (a killed run's .part, set files whose dump is gone) are listed for a human, never removed here.
+  leftovers=0
+  while IFS= read -r name; do
+    case "$name" in
+      *.dump.part) ;;
+      *.dump.sha256) [ ! -e "$DIR/${name%.sha256}" ] || continue ;;
+      *.fingerprint|*.verified) [ ! -e "$DIR/${name%.*}.dump" ] || continue ;;
+      *) continue ;;
+    esac
+    echo "  leftover (not removed): $name"
+    leftovers=$((leftovers + 1))
+  done < <(find "$DIR" -maxdepth 1 -type f -name 'argus-*' -printf '%f\n' | LC_ALL=C sort)
+  [ "$leftovers" -eq 0 ] || echo "  $leftovers leftover files listed above; remove them by hand after review"
   removed=0
   for i in "${!dumps[@]}"; do
     name=${dumps[$i]}

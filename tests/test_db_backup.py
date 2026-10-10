@@ -6,6 +6,7 @@ a fake `docker` (ARGUS_DOCKER), and the last two tests use real Docker only with
 """
 from __future__ import annotations
 
+import hashlib
 import os
 import shutil
 import subprocess
@@ -217,6 +218,7 @@ def test_prune_previews_then_removes_complete_old_backup_sets(env, monkeypatch):
     for name in names:
         for suffix in (".dump", ".dump.sha256", ".fingerprint"):
             (folder / f"{name}{suffix}").write_bytes(b"test\n")
+        write_checksum(folder, name)
     (folder / f"{names[0]}.verified").write_bytes(b"verified\n")
     (folder / f"{names[1]}.verified").write_bytes(b"verified\n")
 
@@ -235,6 +237,11 @@ def test_prune_previews_then_removes_complete_old_backup_sets(env, monkeypatch):
         assert not (folder / f"{names[0]}{suffix}").exists()
 
 
+def write_checksum(folder: Path, name: str) -> None:
+    digest = hashlib.sha256((folder / f"{name}.dump").read_bytes()).hexdigest()
+    (folder / f"{name}.dump.sha256").write_bytes(f"{digest}  {name}.dump\n".encode())
+
+
 def test_prune_preserves_the_only_verified_backup_even_beyond_keep(env, monkeypatch):
     monkeypatch.setenv("ARGUS_BACKUP_KEEP", "2")
     folder = env["home"] / "backups"
@@ -242,11 +249,65 @@ def test_prune_preserves_the_only_verified_backup_even_beyond_keep(env, monkeypa
     names = [f"argus-2026100{day}T000000Z" for day in range(1, 5)]
     for name in names:
         (folder / f"{name}.dump").write_bytes(b"test\n")
+    write_checksum(folder, names[0])
     (folder / f"{names[0]}.verified").write_bytes(b"verified\n")
     applied = run(env, "prune", "--apply")
     assert applied.returncode == 0, applied.stdout + applied.stderr
+    assert f"newest verified (kept): {names[0]}.dump" in applied.stdout
     assert (folder / f"{names[0]}.dump").exists()
     assert not (folder / f"{names[1]}.dump").exists()
+
+
+def test_prune_protects_a_verified_backup_only_while_its_checksum_still_matches(env, monkeypatch):
+    monkeypatch.setenv("ARGUS_BACKUP_KEEP", "1")
+    folder = env["home"] / "backups"
+    folder.mkdir()
+    names = [f"argus-2026100{day}T000000Z" for day in range(1, 5)]
+    for name in names:
+        (folder / f"{name}.dump").write_bytes(b"test\n")
+        write_checksum(folder, name)
+        (folder / f"{name}.verified").write_bytes(b"verified\n")
+    (folder / f"{names[3]}.verified").unlink()                             # the newest set is kept by KEEP alone
+    (folder / f"{names[2]}.dump").write_bytes(b"changed after verify\n")   # newest verified beyond KEEP, now corrupt
+    (folder / f"{names[1]}.dump.sha256").unlink()                          # verified, but its checksum is gone
+
+    preview = run(env, "prune")
+    assert preview.returncode == 0, preview.stdout + preview.stderr
+    assert f"verified but checksum mismatch: {names[2]}.dump" in preview.stdout
+    assert f"verified but checksum mismatch: {names[1]}.dump" in preview.stdout
+    assert f"newest verified (kept): {names[0]}.dump" in preview.stdout
+
+    applied = run(env, "prune", "--apply")
+    assert applied.returncode == 0, applied.stdout + applied.stderr
+    assert (folder / f"{names[3]}.dump").exists() and (folder / f"{names[0]}.dump").exists()
+    assert not (folder / f"{names[2]}.dump").exists() and not (folder / f"{names[1]}.dump").exists()
+
+
+def test_prune_reports_no_verified_backup_when_none_matches(env):
+    folder = env["home"] / "backups"
+    folder.mkdir()
+    (folder / "argus-20261001T000000Z.dump").write_bytes(b"test\n")
+    preview = run(env, "prune")
+    assert preview.returncode == 0, preview.stdout + preview.stderr
+    assert "newest verified (kept): none" in preview.stdout
+
+
+def test_prune_lists_leftovers_without_removing_them(env):
+    folder = env["home"] / "backups"
+    folder.mkdir()
+    (folder / "argus-20261001T000000Z.dump").write_bytes(b"test\n")
+    leftovers = ["argus-20261002T000000Z.dump.part", "argus-20260901T000000Z.dump.sha256",
+                 "argus-20260901T000000Z.fingerprint", "argus-20260902T000000Z.verified"]
+    for name in leftovers:
+        (folder / name).write_bytes(b"left\n")
+
+    for args in (("prune",), ("prune", "--apply")):
+        result = run(env, *args)
+        assert result.returncode == 0, result.stdout + result.stderr
+        for name in leftovers:
+            assert f"leftover (not removed): {name}" in result.stdout
+        assert "4 leftover files" in result.stdout
+    assert all((folder / name).exists() for name in leftovers)
 
 
 def test_prune_apply_refuses_a_different_lease_holder(env):

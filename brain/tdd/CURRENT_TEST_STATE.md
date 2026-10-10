@@ -7,7 +7,8 @@ snapshot-consistency test failed before implementation, then passed. `tests/test
 including two real Docker/PostgreSQL cases; one writes to the live throwaway database between snapshot export and
 `pg_dump`, then restores successfully. The Windows full suite with Docker had one unrelated OD-3 timing-benchmark
 failure (448.6 ms p95 overhead against 100 ms); every other executed test passed, with seven Linux/Postgres skips.
-Linux CI and the VM dry run are pending.
+Linux CI and the VM dry run are pending. Review notes of PR #51 (2026-10-10): three new prune tests red seen (no
+checksum gate, no `newest verified` line, leftovers not listed), then green: 16 passed, 2 real-Docker skipped.
 
 **T-0027, 2026-10-09 (`task/T-0027-blind-spot`, the stack and `main` up to #53 merged in):** 10 tests in
 `tests/test_t0027_blind_spot.py` (red seen: no class; a check of a host with node-exporter down ended `no_incident`),
