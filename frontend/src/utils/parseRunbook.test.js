@@ -4,7 +4,8 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { parseRunbook } from "./parseRunbook.js";
 
-const demoDir = join(dirname(fileURLToPath(import.meta.url)), "../services/demoRunbooks");
+// The real library the app reads (frontend/src/services/fileRunbooksAdapter.js points here).
+const runbookDir = join(dirname(fileURLToPath(import.meta.url)), "../../../argus/runbooks");
 
 const FIXTURE = `# RB-999 — Fixture runbook
 
@@ -112,12 +113,12 @@ describe("parseRunbook", () => {
     expect(rb.tools).toEqual([]);
   });
 
-  it("parses the shipped demo runbook RB-001 end to end", () => {
-    const markdown = readFileSync(join(demoDir, "RB-001-container-oom-restart-loop.md"), "utf8");
+  it("parses the shipped RB-001 from the real runbook library end to end", () => {
+    const markdown = readFileSync(join(runbookDir, "RB-001-container-oom-restart-loop.md"), "utf8");
     const rb = parseRunbook({ file: "RB-001-container-oom-restart-loop.md", markdown });
     expect(rb.id).toBe("RB-001");
-    expect(rb.version).toBe("1.0.0");
-    expect(rb.detector).toBe("oom_restart_loop");
+    expect(rb.version).toBe("1.0.1");
+    expect(rb.detector).toBe("container_restart_loop");
     expect(rb.risk).toBe("high");
     expect(rb.missing).toBe(4);
     expect(rb.tools).toHaveLength(12);
