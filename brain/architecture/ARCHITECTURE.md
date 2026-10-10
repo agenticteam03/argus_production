@@ -1,7 +1,7 @@
 # Argus — Production Architecture Specification
 
 **Document type:** consolidated target architecture and implementation blueprint ·
-**Version:** 1.8.3 (2026-10-08, ACR-0003; 1.8.2 2026-10-09, ACR-0002; 1.8.1 2026-10-06, ACR-0001; base 1.8.0 of 30 September 2026, sanitized for the shared repository 2026-10-02) · **Audience:** engineers and AI coding agents implementing
+**Version:** 1.8.5 (2026-10-09, ACR-0005; 1.8.4 2026-10-09, ACR-0004; 1.8.3 2026-10-08, ACR-0003; 1.8.2 2026-10-09, ACR-0002; 1.8.1 2026-10-06, ACR-0001; base 1.8.0 of 30 September 2026, sanitized for the shared repository 2026-10-02) · **Audience:** engineers and AI coding agents implementing
 Argus from an empty repository.
 
 
@@ -1129,7 +1129,12 @@ matched in this order:
 2. otherwise, an open incident with the same target and incident class **whose `last_evidence_at` is
    within `CORRELATION_WINDOW`** *(default 30 min)* **and which passes the compatibility test** →
    attach;
-3. otherwise, create a new incident.
+3. otherwise, the target's latest concluded incident (closed or escalated) of the same class, **if the alert
+   started (`startsAt`) at or before that incident's `closed_at`, the incident closed within `CORRELATION_WINDOW`,
+   and the compatibility test passes** → attach (same episode; ACR-0004). No investigation starts and the concluded
+   incident is not reopened: the alert is recorded as an `attached` occurrence. An alert that started after the
+   incident closed is a recurrence and goes to step 4;
+4. otherwise, create a new incident.
 
 **Compatibility test:** re-run the class's detector on a fresh snapshot for the new alert's target.
 The alert is compatible only if the detector returns the same class for the same target, *and* its
@@ -1142,13 +1147,20 @@ They are **linked, never merged automatically**; the context of each includes a 
 the other. Merging is Open Decision OD-13.
 
 **Evidence version:** every attach increments `Incident.evidence_version` and updates
-`last_evidence_at`.
+`last_evidence_at`. The version of a concluded incident can grow by such late occurrences (step 3); a
+consumer that needs the version a diagnosis used reads it from that run's state (§10), not from the incident.
 
 **Resolution:** each `AlertOccurrence` has its own status, and a `resolved` notification marks only
 that fingerprint resolved. An incident may close from alert resolution **only when all attached
 fingerprints are resolved and no write or verification is in flight**. It then closes with
 `resolved_externally`, unless a confirmed Argus action followed by successful fresh verification
-already set `recovered_verified`.
+already set `recovered_verified`. In a pull profile (§7.3) an occurrence is resolved when its alert is **absent from a
+successful read of its host's active alerts** (`AlertSourcePort.active_alerts(host)`: silenced and inhibited alerts
+are still active); only occurrences recorded before that read are judged by it, and a host that cannot be read
+resolves nothing. When the last occurrence of an incident resolves: a **queued** incident closes with
+`resolved_externally` and no run; a **running** one finishes its diagnosis (in a read-only release no write or
+verification is ever in flight); a **concluded** one is not changed. Each resolution is audited
+(`incident.alert_resolved`, `incident.alerts_all_resolved`) (ACR-0005).
 
 ### 6.5 Scheduling policy (`application/scheduling_policy.py`)
 
@@ -1269,7 +1281,9 @@ detection with no LLM call.
 `HandleAlertNotification` with the webhook's identity (`fingerprint + startsAt`, §6.6), so a push and a
 pull of the same alert are one incident. An alert whose `argus_host` is not the host asked is dropped,
 never reassigned. In a **pull** profile (§3.2) it is the primary trigger and is enabled; in a push
-profile it is the backup for alerts missed during an Argus outage (ACR-0003).
+profile it is the backup for alerts missed during an Argus outage (ACR-0003). After a host's firing alerts it reads
+that host's active alerts (`AlertSourcePort.active_alerts(host)`, silenced and inhibited included) and resolves the
+host's occurrences that are absent (§6.4 "Resolution", ACR-0005).
 
 ### 7.4 Peer-agent adapter (`adapters/inbound/agent`, reserved)
 
@@ -1285,7 +1299,7 @@ the use cases above. It never exposes graph nodes, the database, executors or po
 | Port | Contract | Production adapter | Test adapter |
 |---|---|---|---|
 | `MetricsPort` | `snapshot(target, signals: set[str]) -> MetricSnapshot`; `range(target, signal, window, step) -> Series`; raises `StaleMetrics` / `MetricsUnavailable` | `metrics_prometheus.py` (HTTP PromQL over the signal catalogue, §4.1) | `metrics_fake.py` |
-| `AlertSourcePort` | `firing_alerts(host) -> list[AlertNotification]` (only alerts labelled with that host); raises `AlertsUnavailable` (ACR-0003) | `alerts_alertmanager.py` (Alertmanager API v2) | `alerts_fake.py` |
+| `AlertSourcePort` | `firing_alerts(host) -> list[AlertNotification]` (only alerts labelled with that host); `active_alerts(host)` (every active alert of the host, silenced and inhibited included, ACR-0005); raises `AlertsUnavailable` (ACR-0003) | `alerts_alertmanager.py` (Alertmanager API v2) | `alerts_fake.py` |
 | `LLMPort` | `decide(context: ModelContext, tools: list[ModelToolDefinition]) -> ModelReply` | `llm_openai.py` (OpenAI-dialect chat/tool-calling API) | `llm_mock.py` |
 | `KnowledgePort` | `search(query: str, k: int) -> list[Passage]` | `knowledge_tfidf.py` over `argus/runbooks/*.md` | `knowledge_fake.py` |
 | `IncidentMemoryPort` | incident, trigger, alert-occurrence, proposal, approval, hold, resume-intent, outbox, action and outcome persistence; evidence: `append_evidence(EvidenceRecord)`, `get_evidence(ids)`, `list_evidence(incident_id, filters)`; `similar_incidents(target, incident_class, k)` | `memory_postgres.py` | `memory_sqlite.py`, `memory_fake.py` |
@@ -2855,3 +2869,5 @@ erDiagram
 | 1.8.1 | 2026-10-06 | user interfaces as read-only-capable clients of the HTTP API (§25 OD-10, §17.3); `GET /api/v1/me`; the existing read routes `/incidents/{id}/events`, `/evidence/{id}`, `/escalations` documented (§7.1); `frontend/` (§2.4) | [ACR-0001](changes/ACR-0001-ui-read-access.md) |
 | 1.8.2 | 2026-10-09 | the tools server's UID switch is a fixed sudo launcher (`cd /`, `python -I`) (§12.6); OD-3 decided: keep MCP (§12.5, §25) | [ACR-0002](changes/ACR-0002-tools-uid-sudo-launcher.md) |
 | 1.8.3 | 2026-10-08 | transport profiles (`direct-private`, `wireguard-overlay`, `restricted-ssh`) for the cross-host path (§3.2, §3.3, §3.6, §17.1, OD-16); alert delivery by profile: push webhook or pull reconciliation from the Argus-owned Alertmanager (§4.2, §7.3, `AlertSourcePort` §8.1); Argus-owned node-exporter and cAdvisor (§3.5, §4.3) | [ACR-0003](changes/ACR-0003-transport-profiles.md) |
+| 1.8.5 | 2026-10-09 | alert resolution: in a pull profile an occurrence resolves when its alert is absent from a successful read of the host's active alerts; when all resolve, a queued incident closes `resolved_externally`, a running one finishes, a concluded one is unchanged (§6.4, §7.3, §8.1) | [ACR-0005](changes/ACR-0005-pull-alert-resolution.md) |
+| 1.8.4 | 2026-10-09 | correlation: an alert that started before the latest concluded incident of its target and class closed is attached to it (same episode), without a new run (§6.4) | [ACR-0004](changes/ACR-0004-correlation-same-episode.md) |
