@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | `in progress` — step 1 (the catalogue entries) and step 2 (batch 1 on vm-166: 17/20) done 2026-10-10; step 3 (read the three misses, batch 2 of SC-07 and SC-05) next |
+| Status | `in progress` — steps 1-3 done 2026-10-10 (catalogue; batch 1 17/20; misses read and batch 2: SC-07 6/10, SC-05 6/10, two evidence gaps); the fixes are E2E-2, then a re-run |
 | Phase | 12 (end-to-end tests) — [`../../IMPLEMENTATION_PLAN.md`](../../IMPLEMENTATION_PLAN.md) |
 | Architecture | no change (no ACR) |
 | Branch | `task/E2E-1-catalogue-sc04-06` (from `main`) |
@@ -50,9 +50,19 @@ UTC; [evidence](../../execution/history/E2E-1/step-02/evidence.md)):
 0 errors; every reset clean, NO INTERFERENCE after every run. Detection, class and first runbook right in all 20
 runs: the misses are in the model's conclusion.
 
-## Step 3 (next)
+## Step 3 (done 2026-10-10)
 
-1. Read the evidence of the three missed incidents on vm-095 (`inc_e7e415955549`, `inc_3e6af419ab13`,
-   `inc_c18ea3c6bcf3`): what the model read and why it concluded or abstained. No change before that.
-2. Batch 2: `--runs 5 SC-07 SC-05` (vm-166's lease), to tell variance from a systematic gap.
-3. SC-02 × 5 when vm-095's lease is free (its failure runs on vm-095's lab).
+The three misses were read from the store on vm-095 (read-only), and batch 2 ran (`--runs 5 SC-07 SC-05`;
+[evidence](../../execution/history/E2E-1/step-03/evidence.md)). Over both batches: **SC-07 6/10, SC-05 6/10**, 0 errors.
+
+- **SC-05:** every `host.disk_usage` read hit `/` (28 %, its default mount) while the detector fired on the lab mount
+  (92.6 %); the model saw a contradiction and escalated (or concluded with medium confidence).
+- **SC-07:** the backend's assigned network exists only in comments; the model guessed which container was misplaced
+  (the client 4 times, the host once). The label (the backend) is right.
+
+## Step 4 (next)
+
+1. E2E-2 (code, tests first): `host.disk_usage` without a mount reports every declared mount; the inventory declares
+   each container's networks and `container.status` shows a container that is not on them.
+2. After its merge: rebuild vm-095's agent (both leases), then `--runs 5 SC-05 SC-07` on vm-166.
+3. SC-02 × 5 when vm-095's lease is free.

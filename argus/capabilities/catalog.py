@@ -32,7 +32,8 @@ class EventsArgs(_Args):
 
 
 class DiskArgs(_Args):
-    mount: str = Field("/", description="an allowlisted mount point of the host")
+    mount: str | None = Field(None, description="an allowlisted mount point of the host; omit it to read every "
+                                                "declared mount")
 
 
 class PortArgs(_Args):
@@ -82,6 +83,12 @@ def container_status(args: NoArgs, target: TargetRef, info, client) -> Capabilit
             f"memory_limit_bytes={_fmt(d.get('memory_limit_bytes'))} "
             f"cpu_limit_cores={_fmt(d.get('cpu_limit_cores'))} "
             f"networks={','.join(d['networks']) if d.get('networks') is not None else 'unknown'}")
+    declared = info.networks if info else []
+    if declared:                     # E2E-2: the assigned networks (inventory), so a misplaced container is a fact
+        text += f" declared_networks={','.join(declared)}"
+        missing = [n for n in declared if n not in (d.get("networks") or [])]
+        if d.get("networks") is not None and missing:
+            text += f" — NOT on its declared network(s): {','.join(missing)}"
     ident = {"container_id": d["id"]} if d.get("id") else {}
     return CapabilityResult(values=d, model_text=text, source_time=_ts(d.get("collected_at")),
                             identities=ident, units={"memory_limit_bytes": "bytes"})
@@ -148,12 +155,32 @@ def host_uptime(args: NoArgs, target: TargetRef, info, client) -> CapabilityResu
 
 def host_disk(args: DiskArgs, target: TargetRef, info: TargetInfo | None, client) -> CapabilityResult:
     allowed = info.mounts if info else []
-    if args.mount not in allowed:
+    if args.mount is not None and args.mount not in allowed:
         raise ExecutorError("invalid_args", f"mount {args.mount!r} not allowlisted for {target} (allowed: {allowed})")
-    d = client.get("/disk", {"mount": args.mount})
-    return CapabilityResult(values=d, model_text=f"{target.host}:{args.mount} used={_fmt(d.get('used_percent'))}% "
-                            f"free={_fmt(d.get('free_mib'))} MiB inodes_used={_fmt(d.get('inodes_used_percent'))}%",
-                            source_time=_ts(d.get("collected_at")), units={"free_mib": "MiB"})
+    # E2E-2: no mount = every declared mount. The detector fires on the worst declared mount; reading only `/` hid the
+    # lab filesystem from the model (SC-05 escalated on "93 % in the metric, 28 % in every read").
+    mounts = [args.mount] if args.mount is not None else allowed
+    if not mounts:
+        raise ExecutorError("invalid_args", f"no declared mount for {target}")
+    if args.mount is not None:
+        rows = [client.get("/disk", {"mount": args.mount})]
+    else:                            # one unreadable mount (409: not mounted) is a stated fact, not a failed read (G-007)
+        rows, errors = [], []
+        for m in mounts:
+            try:
+                rows.append(client.get("/disk", {"mount": m}))
+            except ExecutorError as e:
+                errors.append(e)
+                rows.append({"mount": m, "unavailable": e.detail})
+        if len(errors) == len(mounts):
+            raise errors[0]
+    text = "; ".join(f"{target.host}:{m} unavailable ({d['unavailable']})" if "unavailable" in d else
+                     f"{target.host}:{m} used={_fmt(d.get('used_percent'))}% free={_fmt(d.get('free_mib'))} MiB "
+                     f"inodes_used={_fmt(d.get('inodes_used_percent'))}%" for m, d in zip(mounts, rows))
+    values = rows[0] if args.mount is not None else {"mounts": rows}
+    times = [t for t in (_ts(d.get("collected_at")) for d in rows) if t]
+    return CapabilityResult(values=values, model_text=text, source_time=min(times) if times else None,
+                            units={"free_mib": "MiB"})
 
 
 # --- network_probe -------------------------------------------------------------------------------
@@ -265,7 +292,8 @@ def build_catalog() -> list[CapabilitySpec]:
                        NoArgs, H, 1, "READ_ONLY_SAFE", frozenset({"host", "memory"}), "host_probe", host_memory),
         CapabilitySpec("host.uptime", "get_system_uptime", "Host uptime.", "an unexpected reboot is suspected",
                        NoArgs, H, 1, "READ_ONLY_SAFE", frozenset({"host"}), "host_probe", host_uptime),
-        CapabilitySpec("host.disk_usage", "get_disk_usage", "Used/free space and inodes of an allowlisted mount.",
+        CapabilitySpec("host.disk_usage", "get_disk_usage",
+                       "Used/free space and inodes of an allowlisted mount, or of every declared mount when none is given.",
                        "disk filling is suspected", DiskArgs, H, 1, "READ_ONLY_SAFE", frozenset({"host", "disk"}),
                        "host_probe", host_disk),
         CapabilitySpec("network.resolve_dns", "check_dns", "Resolve the target's name from its host's app network.",
