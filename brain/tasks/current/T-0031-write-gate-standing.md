@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | `done` 2026-10-10 (standing test in every build; deployment check `WRITE GATE CLOSED` on vm-095) |
+| Status | `in progress` (standing test in every build; `WRITE GATE CLOSED` on vm-095; vm-166 pending, step 3) |
 | Phase | 8 — policies ([`../../IMPLEMENTATION_PLAN.md`](../../IMPLEMENTATION_PLAN.md): "standing write-gate test on the VMs") |
 | Architecture | no change (§22.2 standing test, §13.3 write gate, §13.4 required behaviours) |
 | Branch | `task/T-0031-write-gate-standing`, from `main` |
@@ -38,6 +38,9 @@ stricter. When a write capability is built, this test is the one that must keep 
    before the module and the script existed.
 2. **vm-095** (done, [evidence](../../execution/history/T-0031/step-02/evidence.md)): `WRITE GATE CLOSED` on `main`
    `ebbe9c9`; NO INTERFERENCE.
+3. **vm-166, pending (needs vm-166's lease):** §2 places the action gateway on each Host T, so the host where it
+   must be absent is above all vm-166, which step 2 did not check. Make `ops/write-gate-check.sh` run its host-only
+   part where no Argus agent runs (no action container, nothing listening for one) and record it on vm-166.
 
 ## Not covered
 
