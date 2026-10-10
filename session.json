@@ -1,12 +1,12 @@
 {
-  "holder": "juanbetancurm",
-  "session_id": "cf7b8b638801",
-  "task": "E2E-1",
-  "branch": "main",
-  "base_commit": "a7c3ae45495b98def8d2ff2d1e38f4deb720b9f4",
-  "started_at": "2026-10-10T13:02:10+00:00",
-  "expires_at": "2026-10-10T19:58:52+00:00",
-  "released": false,
+  "holder": "conantkd",
+  "session_id": "ecee514c2421",
+  "task": "T-0032",
+  "branch": "task/T-0032-prometheus-down",
+  "base_commit": "e4d19c8fc581fe82fed362ebd3163c68682e3578",
+  "started_at": "2026-10-10T16:23:38+00:00",
+  "expires_at": "2026-10-10T17:23:38+00:00",
+  "released": true,
   "handoff": null,
   "vms": {
     "vm-095": {
@@ -28,8 +28,12 @@
       "base_commit": "a7c3ae45495b98def8d2ff2d1e38f4deb720b9f4",
       "started_at": "2026-10-10T13:02:10+00:00",
       "expires_at": "2026-10-10T19:58:52+00:00",
-      "released": false,
-      "handoff": null
+      "released": true,
+      "handoff": {
+        "note": "For conantkd. vm-166 idle and clean (runner reset every run), on main ebbe9c9 as you deployed it. Today: runner batches SC-04 5/5, SC-06 5/5, SC-07 6/10, SC-05 6/10; the misses are two evidence gaps, fixed in #70 (E2E-2). For your review: #68 (LANES-2 journal entry files + brain.py rollup), #69 (batch 2 record), #70 (E2E-2). After #70 merges: rebuild vm-095 agent with both leases (backup, deploy.sh main, rebuild agent/worker/scheduler, db check), then run.py --runs 5 SC-05 SC-07 on vm-166.",
+        "branch": "main",
+        "at": "2026-10-10T19:55:21+00:00"
+      }
     }
   }
 }
