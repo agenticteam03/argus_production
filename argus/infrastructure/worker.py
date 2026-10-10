@@ -28,7 +28,7 @@ log = logging.getLogger("argus.worker")
 class Worker:
     def __init__(self, app, worker_id: str | None = None, lease_s: int = 300, renew_every_s: float | None = None,
                  idle_s: float = 1.0, max_queued_age_s: int = 900, now: Callable[[], datetime] = utcnow,
-                 recover_every_s: float = 30.0):
+                 recover_every_s: float = 30.0, db_retry_s: float = 5.0):
         self.app = app
         self.max_queued_age_s = max_queued_age_s
         self.now = now
@@ -38,6 +38,7 @@ class Worker:
         self.idle_s = idle_s
         # A crashed worker is restarted within seconds while its lease is still live: re-check while running.
         self.recover_every_s = recover_every_s
+        self.db_retry_s = db_retry_s                  # T-0030: pause after a database error, then retry
 
     def recover(self) -> int:
         n = self.app.store.requeue_expired()
@@ -67,14 +68,20 @@ class Worker:
         return inc.id
 
     def run_forever(self, stop: threading.Event) -> None:
-        self.recover()
-        next_recover = time.monotonic() + self.recover_every_s
+        """T-0030: a database error (Postgres restarting) is a pause, never the end of the loop: it is logged, the
+        worker waits `db_retry_s` and tries again, like the scheduler. A run in progress is not affected here: its
+        own errors end in `run_once`, and its claim expires and is requeued if it could not be recorded."""
+        next_recover = time.monotonic()                     # recover at start, then every recover_every_s
         while not stop.is_set():
-            if time.monotonic() >= next_recover:
-                self.recover()
-                next_recover = time.monotonic() + self.recover_every_s
-            if self.run_once() is None:
-                stop.wait(self.idle_s)
+            try:
+                if time.monotonic() >= next_recover:
+                    self.recover()
+                    next_recover = time.monotonic() + self.recover_every_s
+                if self.run_once() is None:
+                    stop.wait(self.idle_s)
+            except Exception:                  # noqa: BLE001 - the database is down or restarting
+                log.warning("database call failed; retry in %.0f s", self.db_retry_s, exc_info=True)
+                stop.wait(self.db_retry_s)
 
     def _skip_stale(self, inc: Incident) -> None:
         waited = int((self.now() - inc.opened_at).total_seconds())

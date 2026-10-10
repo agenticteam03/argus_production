@@ -2,6 +2,9 @@
 
 **Last updated:** 2026-10-09 · **Commit:** `task/OP-009-lease-loss` after merging `main` (up to #44)
 
+**T-0030 (phase 13), 2026-10-10 (`task/T-0030-pg-restart`):** 3 tests in `tests/test_t0030_pg_restart.py` (red seen: a
+database error from `recover()` or the claim ended the worker's loop). Full suite on the laptop: green.
+
 **OP-009 follow-up, 2026-10-09 (`task/OP-009-renew-gap`, review note of PR #53):**
 `test_a_failing_renewer_cancels_at_the_lease_expiry_not_at_its_next_attempt` (red seen: cancelled at 1.44 s with a
 1 s lease and 0.7 s attempts; now at the expiry; 5/5 stable runs). Full suite on the laptop: green.
