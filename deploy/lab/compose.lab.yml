@@ -97,6 +97,7 @@ services:
     memswap_limit: 32m
     cpus: 0.3
     pids_limit: 8
+    restart: "no"
   argus-lab-nginx:                      # SC-08 (vm-166, T-0029): a reverse proxy whose upstream is too slow -> 504
     image: nginx:1.27-alpine
     container_name: argus-lab-nginx
