@@ -1,10 +1,9 @@
 # Next step
 
-**OP-008 (2026-10-09, `conantkd`):** snapshot-consistent backup, verified markers, and preview-first backup retention
-are implemented on `task/OP-008-backup-retention`. Fifteen tests pass locally, including two with throwaway PostgreSQL
-containers and a write during `pg_dump`. Next, when the VM lease is available, check restorable backup evidence and run
-`prune` in dry-run mode only. Review the listed sets with a teammate before any live `--apply`; scheduling remains a
-separate team decision. See [the task file](tasks/current/OP-008-backup-retention.md).
+**OP-008 (2026-10-10, `conantkd`):** snapshot-consistent backup, verified markers and preview-first retention are
+implemented and dry-run on vm-095 (`VERIFY OK`, 0 sets to remove with `KEEP=7`). Next: a teammate reviews the
+preview before any `prune --apply`; scheduling stays a separate team decision. See
+[the task file](tasks/current/OP-008-backup-retention.md).
 
 **Now (2026-10-09, night, `conantkd`). Phase 7 is complete.** Six branches stacked on `main`, each with the previous
 one merged in and `main` up to #53: `task/T-0022-alerting` (#45, ACR-0003) → `task/OP-010-reserved-slot` (#46) →

@@ -917,3 +917,14 @@ positive, resolved after the burner was removed. NO INTERFERENCE.
 Consequences: SC-06 done (phase 11). Both VMs run `task/T-0028-vm-proof` `ed689b0` (T-0027 + T-0028) until the stack
 merges. The busy-host CPU trigger stays open (needs the host-scope ACR).
 References: `tasks/current/T-0028-sc06-cpu.md`, `execution/history/T-0028/step-02/evidence.md`.
+
+## 2026-10-10 — OP-008: backup verify and prune dry run on vm-095 (OP-008)
+
+Type: verification
+Who: conantkd (+ agent)
+Context: step 02 of OP-008 after the review notes of PR #51 (checksum-gated protection, leftovers listed).
+Decision / result: `verify latest` restored `argus-20261010T023316Z.dump` in the throwaway container (`VERIFY OK`,
+12 tables, 12225 rows) and wrote its marker. `prune` with the default `KEEP=7`: nothing to remove (four sets); a
+`KEEP=2` preview lists the two oldest and keeps the verified one. No file deleted, NO INTERFERENCE.
+Consequences: the first `prune --apply` waits for a teammate's review; scheduling stays a team decision.
+References: `tasks/current/OP-008-backup-retention.md`, `execution/history/OP-008/step-02/evidence.md`.
