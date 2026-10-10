@@ -1,13 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
+import SafeMarkdown from "./SafeMarkdown.jsx";
 import { Book, Close, Warning } from "./ui.jsx";
-
-// Relative links point to files on the server, so only external links stay clickable.
-const components = {
-  a: ({ href, children }) =>
-    /^https?:/.test(href ?? "") ? <a href={href} target="_blank" rel="noopener noreferrer">{children}</a> : <span>{children}</span>,
-};
 
 export default function RunbookDrawer({ runbook: rb, onClose }) {
   const [shown, setShown] = useState(false);
@@ -63,7 +56,7 @@ export default function RunbookDrawer({ runbook: rb, onClose }) {
               <span className="truncate font-mono">{rb.file}</span>
             </div>
             <article className="markdown-body p-5 sm:p-8">
-              <ReactMarkdown remarkPlugins={[remarkGfm]} components={components}>{rb.markdown.replace(/^# .*\n/, "")}</ReactMarkdown>
+              <SafeMarkdown>{rb.markdown.replace(/^# .*\n/, "")}</SafeMarkdown>
             </article>
           </div>
         </div>

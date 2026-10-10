@@ -20,14 +20,14 @@ const EyeIcon = ({ off }) => (
 );
 
 export default function LoginPage({ onLogin }) {
-  const [email, setEmail] = useState("");
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const errorId = useId();
 
-  const canSubmit = email.trim() !== "" && password !== "" && !loading;
+  const canSubmit = username.trim() !== "" && password !== "" && !loading;
 
   async function handleSubmit(event) {
     event.preventDefault();
@@ -35,7 +35,7 @@ export default function LoginPage({ onLogin }) {
     setLoading(true);
     setError("");
     try {
-      await onLogin({ email: email.trim(), password });
+      await onLogin({ username: username.trim(), password });
     } catch (err) {
       setError(err?.message || "Something went wrong. Please try again.");
       setLoading(false);
@@ -58,15 +58,15 @@ export default function LoginPage({ onLogin }) {
             <p className="-mt-3.5 mb-2 text-sm text-muted">Log in to Argus to continue.</p>
 
             <div className="flex flex-col gap-2">
-              <label htmlFor="email" className="text-[13px] font-medium">Email</label>
+              <label htmlFor="username" className="text-[13px] font-medium">Username</label>
               <input
-                id="email"
-                type="email"
-                autoComplete="email"
-                placeholder="you@company.com"
+                id="username"
+                type="text"
+                autoComplete="username"
+                placeholder="your handle"
                 className={inputClass}
-                value={email}
-                onChange={(e) => { setEmail(e.target.value); clearError(); }}
+                value={username}
+                onChange={(e) => { setUsername(e.target.value); clearError(); }}
               />
             </div>
 
