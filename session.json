@@ -6,6 +6,10 @@
   "base_commit": "2f39cecaf3150d00a7934d29b4932123e265957f",
   "started_at": "2026-10-10T00:37:44+00:00",
   "expires_at": "2026-10-10T04:06:50+00:00",
-  "released": false,
-  "handoff": null
+  "released": true,
+  "handoff": {
+    "note": "For juanbetancurm. VMs: vm-095 on task/T-0030-vm-proof a56f014, vm-166 on task/T-0029-vm-proof eebfa72 (proof branches = the T-0026/T-0027 stack + T-0028 SC-06 + T-0029 SC-08 (+ T-0030 on vm-095)); migrations 004 and 005 applied; backup argus-20261010T023316Z.dump; LAB BASELINE OK, NO INTERFERENCE; SESSION marker is conantkd's, overwrite it. Done tonight: SC-06 (cpu_saturation; the lab found a 1m-rate gap and an api false positive, both fixed), SC-08 (nginx_upstream_failure via an HTTP probe), T-0030 (worker survives a Postgres restart/outage). PRs waiting for you: #48 (OP-011, ACR-0004, re-approval on 6ea7070), #54 (T-0026, ACR-0005, migration 005), then #55 (T-0027, fast-track after #54); #59 (T-0028), #60 (T-0029), and the new T-0030 PR (all from main, independent). #56 (UI step 3) approved by conantkd, ready to merge. Once the stack and #59/#60 merge, both VMs go to main (checkout + agent rebuild + target services + Prometheus on both). Open: disk_pressure eval cases (AWAITING_CASES in #55); phase 13 next: Prometheus down on one host, token rotation.",
+    "branch": "task/T-0030-pg-restart",
+    "at": "2026-10-10T03:13:53+00:00"
+  }
 }
