@@ -85,6 +85,23 @@ def disk_pressure(snap: MetricSnapshot) -> DetectorResult:
     return DetectorResult(matched=True, findings=f)
 
 
+def cpu_saturation(snap: MetricSnapshot) -> DetectorResult:
+    """RB-006, the container trigger (T-0028): for 5 minutes, half or more of the container's CPU periods throttled at
+    its quota AND 80 % or more of the quota used (both signals are 5-minute minimums). The throttled share alone counts
+    only the periods the container ran in: a bursty container far below its quota is not saturated (calibrated on
+    vm-166). The busy-host trigger is separate and not registered yet."""
+    miss = _missing(snap, "container_cpu_throttled_ratio_5m", "container_cpu_quota_used_ratio_5m")
+    if miss:
+        return DetectorResult(matched=False, findings=[f"signal missing (unknown, not healthy): {m}" for m in miss])
+    ratio, used = snap.values["container_cpu_throttled_ratio_5m"], snap.values["container_cpu_quota_used_ratio_5m"]
+    if ratio < 0.5 or used < 0.8:
+        return DetectorResult(matched=False)
+    return DetectorResult(matched=True, findings=[
+        f"{round(ratio * 100)}% of its CPU periods throttled at its CPU quota for at least 5 minutes",
+        f"it uses {round(used * 100)}% of its CPU quota: CPU saturation of the container (RB-006), its work needs "
+        "more CPU than its limit gives"])
+
+
 # Priority order: the first matching class becomes the incident class; others become findings.
 CLASSES: list[IncidentClassSpec] = [
     IncidentClassSpec(name="container_restart_loop", family="stability", target_kinds={"container"},
@@ -106,6 +123,11 @@ CLASSES: list[IncidentClassSpec] = [
                       branch_runbook_ids=["RB-013"], strategy="model_loop",
                       tool_tags={"database", "logs", "container", "dependency", "knowledge"},
                       detector=postgresql_connection_exhaustion),
+    IncidentClassSpec(name="cpu_saturation", family="saturation", target_kinds={"container"},
+                      required_signals={"container_cpu_throttled_ratio_5m", "container_cpu_quota_used_ratio_5m"},
+                      runbook_ids=["RB-006"],
+                      strategy="model_loop", tool_tags={"cpu", "container", "logs", "host", "knowledge"},
+                      detector=cpu_saturation),
     IncidentClassSpec(name="disk_pressure", family="saturation", target_kinds={"host"},
                       required_signals={"host_disk_used_ratio_5m", "host_disk_hours_to_full"}, runbook_ids=["RB-005"],
                       branch_runbook_ids=["RB-019"], strategy="model_loop",
