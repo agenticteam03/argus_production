@@ -52,7 +52,9 @@ explain the goal (STEP_TEMPLATE)
 → if VM work: write the block into brain/execution/current/code.bash → the developer runs it
    → they paste the result into brain/execution/current/output.bash (gitignored) → you validate it
 → archive the step: brain/execution/history/<task>/step-NN/{code.bash, evidence.md (sanitized)}
-→ update the Brain on the branch (CURRENT_TEST_STATE, task file, journal if significant)
+→ update the Brain on the branch: the task file, and the journal entry file
+   brain/journal/entries/<YYYY-MM-DD>-<task>.md (its optional sections "### Test state" and "### Next step"
+   carry what used to go into CURRENT_TEST_STATE and NEXT_STEP; brain.py rollup folds them in after the merge)
 → commit (checkpoint) → push the branch (CI runs) → brain.py renew
 ```
 
@@ -82,8 +84,10 @@ go in the same pull request.
 ## 5. Task complete, and session end
 
 - **Task complete:** open a pull request. You write the description: goal (linked task), changes file by file, tests
-  (including "red seen"), VM evidence (NO INTERFERENCE), risks, any ACR. Update `CURRENT_STATE.md` and `NEXT_STEP.md`
-  **on the branch** to describe the state *after* the merge. The pull request waits for the next developer's review.
+  (including "red seen"), VM evidence (NO INTERFERENCE), risks, any ACR. The state *after* the merge goes into the
+  journal entry file's `### Next step` section (and `CURRENT_STATE.md` when the deployment changed); a task branch
+  never edits `NEXT_STEP.md`, `tdd/CURRENT_TEST_STATE.md` or `journal/logbook.md` (`brain.py lint` refuses it).
+  Whoever merges last that day runs `brain.py rollup` on a `task/rollup-<date>` branch and opens a small PR. The pull request waits for the next developer's review.
 - **Session end, task finished:** `brain.py release`.
 - **Session end, task unfinished:** commit and push the branch, then
   `brain.py handoff "done: …; next: step NN …; environment: …"`. Unfinished work is never merged half-done.

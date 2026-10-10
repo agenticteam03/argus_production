@@ -11,7 +11,8 @@ B's session, with B's AI agent. Reviewing comes before new work, because new wor
 3. **Check locally** — do not just trust CI:
    - [ ] the full test suite passes on the PR branch (`pytest -q`; Postgres tests if persistence changed);
    - [ ] new behaviour has a "red seen" record (`tdd/CURRENT_TEST_STATE.md` or the task file);
-   - [ ] the Brain matches the code: `CURRENT_STATE.md`, `NEXT_STEP.md`, `tdd/`, the task file, the journal;
+   - [ ] the Brain matches the code: the task file and its journal entry file (`journal/entries/`, with its
+     `### Test state` / `### Next step` sections), `CURRENT_STATE.md` if the deployment changed;
    - [ ] no secrets, IP addresses, personal names or local paths (Windows user-profile paths) in the diff;
    - [ ] the scope matches the task (no unrelated changes);
    - [ ] if the architecture changed: an ACR exists, `ARCHITECTURE.md` version and changelog are updated, and a
