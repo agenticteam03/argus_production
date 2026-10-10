@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | `in progress` (standing test in every build; `WRITE GATE CLOSED` on vm-095; vm-166 pending, step 3) |
+| Status | `done` 2026-10-10 (standing test in every build; `WRITE GATE CLOSED` on vm-095 and, host-only, on vm-166) |
 | Phase | 8 — policies ([`../../IMPLEMENTATION_PLAN.md`](../../IMPLEMENTATION_PLAN.md): "standing write-gate test on the VMs") |
 | Architecture | no change (§22.2 standing test, §13.3 write gate, §13.4 required behaviours) |
 | Branch | `task/T-0031-write-gate-standing`, from `main` |
@@ -38,12 +38,14 @@ stricter. When a write capability is built, this test is the one that must keep 
    before the module and the script existed.
 2. **vm-095** (done, [evidence](../../execution/history/T-0031/step-02/evidence.md)): `WRITE GATE CLOSED` on `main`
    `ebbe9c9`; NO INTERFERENCE.
-3. **vm-166** (code done; the run waits for vm-166's lease): §2 places the action gateway on each Host T, so the
+3. **vm-166** (done, [evidence](../../execution/history/T-0031/step-03/evidence.md)): §2 places the action gateway on each Host T, so the
    host where it must be absent is above all vm-166, which step 2 did not check. `write-gate-check.sh --host-only`
    skips the service reports (a Host T runs no Argus service). Both modes now inspect every `argus-v18-*`
    container for action mounts and variables, not only the three services, and stop on a file under `secrets/`
-   named like an action credential. 6 new check cases, red seen before the change. To record: `--host-only` on
-   vm-166, and the full check again on vm-095 (the script changed).
+   named like an action credential. 6 new check cases, red seen before the change. With both leases: vm-166
+   `--host-only` → `WRITE GATE CLOSED` (9 Argus containers, read tokens only in `secrets/`); vm-095 full check again
+   → `WRITE GATE CLOSED` (agent, worker, scheduler `gate_open=0 write_capabilities=0 action_gateway_resolves=0`, 13
+   containers inspected); NO INTERFERENCE on both.
 
 ## Not covered
 
