@@ -33,6 +33,16 @@ Both misses were the model reasoning correctly on missing evidence. Give it the 
   the other two check unchanged behaviour). The SC-05, SC-07, core and evaluation tests pass; the baseline evaluation
   is unchanged (45/47, the two known baseline misses; hard 0 0 0).
 
+## Step 1b (review follow-up, `conantkd`, 2026-10-10; branch `task/E2E-2-disk-partial`)
+
+Found in #70's review: without a mount, one failing mount failed the whole read. The host-probe answers 409 when the
+lab filesystem is not mounted (`ops/lab-fill-mount.sh --remove`), so the model would also lose `/`, which the old
+default always returned. Now a mount that cannot be read is shown as `vm-166:/srv/argus-lab-fill unavailable (…not
+mounted…)` and the others are still read (G-007, RB-005: an unmounted filesystem is an explicit state). The read
+fails only when every mount fails; an explicit mount fails as before. `source_time` is the oldest read.
+Tests: 4 more in `tests/test_e2e2_evidence_gaps.py` (red seen 2/4: the whole read failed, the first read's time; the
+other two pin unchanged behaviour).
+
 ## Step 2 (after the merge)
 
 1. vm-095 with **both leases**: backup, `deploy.sh main`, rebuild agent, worker and scheduler, `argus db check`,

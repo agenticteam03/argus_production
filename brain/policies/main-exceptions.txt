@@ -28,3 +28,4 @@ pr 46  2026-10-09  conantkd  fast-track: OP-010 the db-probe keeps a reserved co
 pr 47  2026-10-09  conantkd  fast-track: T-0024 SC-05 disk almost full (disk_pressure, RB-005; approved by juanbetancurm on 22a924d; re-merged after #46; verified on vm-166)
 pr 57  2026-10-09  conantkd  fast-track: alert identity startsAt truncated to milliseconds (review note of #45; code only, no VM change)
 pr 58  2026-10-09  conantkd  fast-track: OP-009 follow-up: a failing renewer cancels the run at the lease expiry (review note of #53; code only, no VM change)
+pr 71  2026-10-10  conantkd  fast-track: E2E-2 follow-up: an unmounted disk is reported, the other mounts are still read (review note of #70; code only, no VM change)
