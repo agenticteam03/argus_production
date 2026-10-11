@@ -169,7 +169,7 @@ CLASSES: list[IncidentClassSpec] = [
                       detector=cpu_saturation),
     IncidentClassSpec(name="disk_pressure", family="saturation", target_kinds={"host"},
                       required_signals={"host_disk_used_ratio_5m", "host_disk_hours_to_full"}, runbook_ids=["RB-005"],
-                      branch_runbook_ids=["RB-019"], strategy="model_loop",
+                      branch_runbook_ids=["RB-019"], strategy="confirm_then_reason",
                       tool_tags={"host", "disk", "logs", "container", "knowledge"}, detector=disk_pressure),
 ]
 

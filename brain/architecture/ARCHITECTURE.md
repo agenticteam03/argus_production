@@ -1,7 +1,7 @@
 # Argus — Production Architecture Specification
 
 **Document type:** consolidated target architecture and implementation blueprint ·
-**Version:** 1.8.5 (2026-10-09, ACR-0005; 1.8.4 2026-10-09, ACR-0004; 1.8.3 2026-10-08, ACR-0003; 1.8.2 2026-10-09, ACR-0002; 1.8.1 2026-10-06, ACR-0001; base 1.8.0 of 30 September 2026, sanitized for the shared repository 2026-10-02) · **Audience:** engineers and AI coding agents implementing
+**Version:** 1.8.6 (2026-10-11, ACR-0007; 1.8.5 2026-10-09, ACR-0005; 1.8.4 2026-10-09, ACR-0004; 1.8.3 2026-10-08, ACR-0003; 1.8.2 2026-10-09, ACR-0002; 1.8.1 2026-10-06, ACR-0001; base 1.8.0 of 30 September 2026, sanitized for the shared repository 2026-10-02) · **Audience:** engineers and AI coding agents implementing
 Argus from an empty repository.
 
 
@@ -96,7 +96,7 @@ class points to that cause.
 | dependency | `dns_network_failure` | RB-009 | — | `plan_then_reason` |
 | saturation | `cpu_saturation` | RB-006 | — | `model_loop` |
 | saturation | `host_memory_pressure` | RB-007 | RB-001 | `model_loop` |
-| saturation | `disk_pressure` | RB-005 | RB-019 | `model_loop` |
+| saturation | `disk_pressure` | RB-005 | RB-019 | `confirm_then_reason` |
 | saturation | `disk_io_saturation` | RB-010 | — | `model_loop` |
 | saturation | `fd_socket_exhaustion` | RB-012 | — | `model_loop` |
 | database | `postgresql_connection_exhaustion` | RB-004 | RB-013 | `model_loop` |
@@ -1487,6 +1487,7 @@ class DiagnosticStrategy(Protocol):
 | `evidence_pack` | returns the fixed Level 1 read list of §10.7, then `Escalate` | unsupported and undiagnosable incidents; the §21.2 baseline |
 | `model_loop` | asks the model for each decision (§10.4) until it concludes, escalates or proposes | default for registered classes |
 | `plan_then_reason` | returns the class's fixed first round of reads, then continues as `model_loop` | classes whose first evidence is always the same |
+| `confirm_then_reason` | `model_loop`, but when the evidence names a suspect (a running in-scope container with the class's flagged resource mounted read-write: for `disk_pressure`, a declared filesystem at or above the detector's threshold), the next round is planned by rule: the suspect's logs and resources, once per suspect (ACR-0007) | `disk_pressure` |
 
 Future strategies (for example `hypothesis_checklist`, which confirms or rejects runbook hypotheses one
 by one, or `consult_peer`, which asks the security agent through an external tool provider) are
@@ -2871,3 +2872,4 @@ erDiagram
 | 1.8.3 | 2026-10-08 | transport profiles (`direct-private`, `wireguard-overlay`, `restricted-ssh`) for the cross-host path (§3.2, §3.3, §3.6, §17.1, OD-16); alert delivery by profile: push webhook or pull reconciliation from the Argus-owned Alertmanager (§4.2, §7.3, `AlertSourcePort` §8.1); Argus-owned node-exporter and cAdvisor (§3.5, §4.3) | [ACR-0003](changes/ACR-0003-transport-profiles.md) |
 | 1.8.5 | 2026-10-09 | alert resolution: in a pull profile an occurrence resolves when its alert is absent from a successful read of the host's active alerts; when all resolve, a queued incident closes `resolved_externally`, a running one finishes, a concluded one is unchanged (§6.4, §7.3, §8.1) | [ACR-0005](changes/ACR-0005-pull-alert-resolution.md) |
 | 1.8.4 | 2026-10-09 | correlation: an alert that started before the latest concluded incident of its target and class closed is attached to it (same episode), without a new run (§6.4) | [ACR-0004](changes/ACR-0004-correlation-same-episode.md) |
+| 1.8.6 | 2026-10-11 | `confirm_then_reason`: a rule-planned confirmation round (a suspect's logs and resources) before the model concludes; `disk_pressure` uses it (§3, §10.3) | [ACR-0007](changes/ACR-0007-confirm-then-reason.md) |
