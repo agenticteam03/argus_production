@@ -89,6 +89,10 @@ def container_status(args: NoArgs, target: TargetRef, info, client) -> Capabilit
         missing = [n for n in declared if n not in (d.get("networks") or [])]
         if d.get("networks") is not None and missing:
             text += f" — NOT on its declared network(s): {','.join(missing)}"
+    if d.get("host_mounts"):         # E2E-3: the declared host filesystems it has mounted (from the gateway's inspect)
+        text += " host_mounts=" + ",".join(f"{m['mount']}({'rw' if m.get('rw') else 'ro'})" for m in d["host_mounts"])
+    if d.get("other_binds"):
+        text += f" other_binds={d['other_binds']}"
     ident = {"container_id": d["id"]} if d.get("id") else {}
     return CapabilityResult(values=d, model_text=text, source_time=_ts(d.get("collected_at")),
                             identities=ident, units={"memory_limit_bytes": "bytes"})
@@ -269,9 +273,11 @@ def build_catalog() -> list[CapabilitySpec]:
                        frozenset({"container", "discovery"}), "docker_read", container_list),
         CapabilitySpec("container.status", "get_container_status",
                        "Container state, health, restart count, OOMKilled flag, exit code, start time, memory limit, "
-                       "and the names of the Docker networks it is attached to.",
+                       "the names of the Docker networks it is attached to, and the host's declared filesystems it "
+                       "has mounted (rw/ro).",
                        "any container incident; first check; compare the networks of a victim and its dependency "
-                       "when a name does not resolve", NoArgs, C, 1, "READ_ONLY_SAFE",
+                       "when a name does not resolve; in a disk incident, which container writes the full "
+                       "filesystem", NoArgs, C, 1, "READ_ONLY_SAFE",
                        frozenset({"container", "stability", "memory"}), "docker_read", container_status),
         CapabilitySpec("container.resources", "get_container_resources",
                        "Current memory usage vs limit, CPU percent and process count of a container.",
