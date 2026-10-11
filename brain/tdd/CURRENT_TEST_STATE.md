@@ -1,6 +1,17 @@
 # Current test state
 
-**Last updated:** 2026-10-10 (roll-up) · **Commit:** `main` after #71 and #65
+**Last updated:** 2026-10-11 (roll-up) · **Commit:** `main` after #77
+
+**LANES-2 follow-up, 2026-10-11:** `test_rollup_orders_same_day_entries_by_when_they_reached_the_branch` (red seen:
+file-name order); the roll-up tests pass; replayed on `main` before #73: the hand-set order of #73.
+
+**E2E-3, 2026-10-11 (`task/E2E-3-container-mounts`):** 5 tests in `tests/test_e2e3_container_mounts.py` (red seen
+4/5: no `host_mounts` from the gateway or in `container.status`); gateway, SC-05/06/07/08 and evaluation tests green;
+baseline evaluation 45/47, hard 0 0 0. Review (`conantkd`): + 1 test, the tool's description and "when" name the
+host mounts (red seen); full suite green on the laptop.
+
+**E2E-2 step 2 (2026-10-10, `conantkd`):** both VMs on `main` `0f076f2`, vm-095's agent rebuilt. Runner batch: SC-07
+5/5, SC-05 4/5 (the miss read and explained), 0 errors, NO INTERFERENCE after every run.
 
 **T-0031 (phase 8), 2026-10-10 (`task/T-0031-write-gate-standing`):** 25 write-gate tests in CI
 (`tests/test_write_gate_standing.py`, `tests/test_write_gate_check.py`); the standing cases pin existing behaviour,

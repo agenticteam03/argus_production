@@ -1,6 +1,34 @@
 # Next step
 
-**Now (2026-10-10, evening; first roll-up, `conantkd`).** Both VMs run `main` `ebbe9c9` (DEPLOY-MAIN-2); `main` has
+**Now (2026-10-11, roll-up, `conantkd`).** Both VMs run `main` `e3286df` (#75-#77), deployed in E2E-3 step 2.
+`main-guard` is green again (#72) and `verify-main` is clean.
+
+1. **PR #78 (E2E-3 step 2, Brain only) waits for `juanbetancurm`'s review:** SC-08 5/5, SC-05 3/5. Both SC-05 misses
+   saw the filler's rw mount but concluded without reading its logs. It proposes **E2E-5** (a rule-planned
+   confirmation read of the suspected writer) as the next quality-lane step and asks whether option 1 or option 2
+   (`tasks/current/E2E-5-confirm-writer.md` arrives with #78).
+2. **Phase 12:** SC-01, SC-03, SC-04, SC-06, SC-07, SC-08 at 5/5; SC-05 3/5 (E2E-5); SC-02 × 5 still to run
+   (vm-095).
+3. **Merged 2026-10-11:** #72 (the exception for #68), #73 (first roll-up), #74 (E2E-2 step 2), #75 (E2E-3 step 1),
+   #76 (the roll-up keeps the merge order: this roll-up needed no hand reordering), #77 (SC-08 in the runner
+   catalogue).
+4. **Open follow-ups:** an alert when a host's own Prometheus is down (T-0032); OP-002 triage and the OP-003 proposal
+   (ACR-0006); OP-004 and OP-008 `--apply` wait for a teammate's review of their previews; `disk_pressure` evaluation
+   cases; the phase table of `IMPLEMENTATION_PLAN.md` is from 2026-10-05.
+
+The sections below are older and kept for the record; the paragraph above supersedes them. The E2E-3 section just
+below was written before its step 2 ran (done, PR #78).
+
+**E2E-3 (2026-10-11):** step 1 is done offline (#75). After the merge, both leases: vm-166 `deploy.sh main` and
+rebuild the read-gateway; vm-095 backup, `deploy.sh main`, rebuild agent, worker and scheduler, `argus db check`,
+WRITE GATE CLOSED, NO INTERFERENCE; then `ops/e2e/run.py --runs 5 SC-05` on vm-166 (about 55 minutes). See
+[the task file](tasks/current/E2E-3-container-mounts.md).
+
+E2E-2 is done. Pending: [E2E-3](tasks/current/E2E-3-container-mounts.md), `container.status` reports the
+host filesystems a container writes (the SC-05 writer link), then SC-05 ×5 again. Owner open; needs both leases for
+its step 2.
+
+**Then (2026-10-10, evening; first roll-up, `conantkd`).** Both VMs run `main` `ebbe9c9` (DEPLOY-MAIN-2); `main` has
 moved on to #65–#71. No lease is held.
 
 1. **`main-guard` is red since #68** (merged without an approval of its last push). The fix is PR #72, a retroactive
