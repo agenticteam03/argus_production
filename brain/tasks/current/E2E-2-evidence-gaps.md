@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | `in progress` — step 1 (code and tests, offline) done 2026-10-10; step 2 (rebuild vm-095's agent, re-run) after the merge |
+| Status | `done` 2026-10-10 — step 1 (code and tests, offline); step 2 (vm-095's agent rebuilt, re-run: SC-07 5/5, SC-05 4/5 with the miss read) |
 | Phase | 12 (end-to-end tests) — [`../../IMPLEMENTATION_PLAN.md`](../../IMPLEMENTATION_PLAN.md) |
 | Found by | [E2E-1 step 3](E2E-1-catalogue-sc04-06.md): SC-05 6/10, SC-07 6/10 over two batches |
 | Architecture | no change (no ACR): a capability's default and one inventory field; read-only, no new access |
@@ -43,8 +43,17 @@ fails only when every mount fails; an explicit mount fails as before. `source_ti
 Tests: 4 more in `tests/test_e2e2_evidence_gaps.py` (red seen 2/4: the whole read failed, the first read's time; the
 other two pin unchanged behaviour).
 
-## Step 2 (after the merge)
+## Step 2 (done 2026-10-10, `conantkd`, both leases)
 
 1. vm-095 with **both leases**: backup, `deploy.sh main`, rebuild agent, worker and scheduler, `argus db check`,
    `/healthz`, NO INTERFERENCE. No migration, no change on vm-166.
 2. vm-166: `ops/e2e/run.py --runs 5 SC-05 SC-07`. Done when both reach 5/5 (or the misses are read and explained).
+
+**Result** ([evidence](../../execution/history/E2E-2/step-02/evidence.md)): both VMs on `main` `0f076f2`; vm-095's
+agent, worker and scheduler rebuilt (backup `argus-20261010T220044Z.dump`, 20/20 db checks, WRITE GATE CLOSED, NO
+INTERFERENCE). Batch 22:27-23:30 UTC: **SC-07 5/5** (before 6/10), **SC-05 4/5** (before 6/10), 0 errors, NO
+INTERFERENCE after every run. Both gaps are closed: every SC-05 run read the full filesystem (no escalation on a
+contradiction), every SC-07 run named the backend. The SC-05 miss (`inc_de65a12688bc`) is another gap: the model did
+not read the filler's logs, nothing else links the filler to `/srv/argus-lab-fill`, so it named the host and said the
+writer was unproven. The general fix (`container.status` reports the container's host mounts) is the pending task
+[E2E-3](E2E-3-container-mounts.md).
