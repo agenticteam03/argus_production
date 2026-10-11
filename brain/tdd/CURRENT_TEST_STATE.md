@@ -1,6 +1,28 @@
 # Current test state
 
-**Last updated:** 2026-10-09 · **Commit:** `task/T-0026-alert-resolution` (on top of `task/OP-011-correlation`)
+**Last updated:** 2026-10-10 (roll-up) · **Commit:** `main` after #71 and #65
+
+**T-0031 (phase 8), 2026-10-10 (`task/T-0031-write-gate-standing`):** 25 write-gate tests in CI
+(`tests/test_write_gate_standing.py`, `tests/test_write_gate_check.py`); the standing cases pin existing behaviour,
+red seen by three mutations; the check's cases red before the module and script existed (and the host-only
+fail-open on a failed `docker ps`). `WRITE GATE CLOSED` on vm-095 and, host-only, on vm-166.
+
+**E2E-2 follow-up (2026-10-10, `task/E2E-2-disk-partial`):** 4 more tests in `tests/test_e2e2_evidence_gaps.py` (12
+in all), red seen 2/4; the offline suite passes.
+
+**E2E-2, 2026-10-10 (`task/E2E-2-evidence-gaps`):** 8 tests in `tests/test_e2e2_evidence_gaps.py` (red seen 6/8:
+no `networks` on `TargetInfo`, `host.disk_usage` read `/` by default); SC-05, SC-07, core and evaluation tests green;
+baseline evaluation 45/47 (the two known baseline misses), hard 0 0 0.
+
+**E2E-1 (phase 12), 2026-10-10:** runner batches on vm-166, both VMs on `main`: SC-04 5/5, SC-06 5/5, SC-07 6/10,
+SC-05 6/10 (two evidence gaps, E2E-2); 0 errors, NO INTERFERENCE after every run.
+
+**LANES-2, 2026-10-10 (`task/LANES-2-journal-rollup`):** 7 new tests in `tests/brain/test_brain.py` (red seen: no
+`rollup`, no lint rule; the CI case reproduced with `GITHUB_HEAD_REF` set), all brain tests pass.
+
+**T-0032 (phase 13), 2026-10-10 (`task/T-0032-prometheus-down`):** 3 tests in
+`tests/test_t0032_prometheus_down.py` (both runners and the real adapter; red seen by removing the
+`MetricsUnavailable` handling in each runner). On vm-095: UNDIAGNOSABLE for vm-095, HEALTHY for vm-166.
 
 **T-0030 (phase 13), 2026-10-10 (`task/T-0030-pg-restart`):** 3 tests in `tests/test_t0030_pg_restart.py` (red seen: a
 database error from `recover()` or the claim ended the worker's loop). Full suite on the laptop: green.
