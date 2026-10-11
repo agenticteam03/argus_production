@@ -184,7 +184,7 @@ ENABLED = ("container_restart_loop", "health_check_failed", "dependency_unavaila
            "postgresql_connection_exhaustion")
 # T-0027: every class in the registry needs its cases (§3 "Enablement"); a class registered ahead of them is named here,
 # with who writes them, so the gap is visible and cannot grow silently.
-AWAITING_CASES = {"disk_pressure": "T-0025 follow-up (quality lane): 5 cases + a baseline rule"}
+AWAITING_CASES: dict[str, str] = {}             # disk_pressure got its cases in EVAL-1
 
 
 def test_every_registered_class_has_its_cases_or_is_listed_as_awaiting_them(ev):

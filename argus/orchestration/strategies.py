@@ -169,6 +169,10 @@ class BaselineStrategy:
         if cls == "cpu_saturation":
             return [ReadCall(name="container.status", arguments={"target": ts}),
                     ReadCall(name="container.resources", arguments={"target": ts})]
+        if cls == "disk_pressure":       # EVAL-1: every declared mount, and the containers in the host's scope
+            others = [x for x in view.scope if x.kind == "container"]
+            return [ReadCall(name="host.disk_usage", arguments={"target": ts}),
+                    *[ReadCall(name="container.status", arguments={"target": str(x)}) for x in others]]
         return evidence_pack_plan(t)
 
     def next_step(self, view: InvestigationView):
@@ -178,7 +182,7 @@ class BaselineStrategy:
         rules = {"container_restart_loop": self._restart, "health_check_failed": self._health,
                  "dependency_unavailable": self._dependency, "postgresql_connection_exhaustion": self._database,
                  "nginx_upstream_failure": self._gateway,
-                 "cpu_saturation": self._cpu}
+                 "cpu_saturation": self._cpu, "disk_pressure": self._disk}
         rule = rules.get(view.incident_class.name if view.incident_class else "")
         found = rule(view, ok) if rule else None
         if found is None:
@@ -253,6 +257,17 @@ class BaselineStrategy:
                     f"restarting the proxy would not help (RB-015 H1)", up)
         return (f"the proxy {t} answers 502/504 while its upstream {up} is running: {up} does not answer within the "
                 f"proxy's timeout (slow or saturated upstream, RB-015 H3); the root cause is {up}, not the proxy", up)
+
+    def _disk(self, view, ok):
+        """RB-005 (EVAL-1): exactly one running container writes (rw) a declared filesystem at or above the detector's
+        threshold: it is the writer. None, or more than one: the evidence does not say who, so escalate."""
+        found = disk_suspects(view)
+        if len(found) != 1:
+            return None
+        who = found[0]
+        mounts = self._texts(ok, "container.status")[who].get("host_mounts", "")
+        return (f"{who} writes a full declared filesystem of {view.incident.target.host} ({mounts}): the host's disk "
+                f"pressure comes from that writer (RB-005); freeing space without stopping it would not last", who)
 
     def _cpu(self, view, ok):
         """RB-006 (T-0028): the container uses (nearly) all of its CPU quota: it is CPU-bound at its own limit."""
