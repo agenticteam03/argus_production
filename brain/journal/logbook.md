@@ -1112,3 +1112,57 @@ all). The shared summaries are left to the roll-up.
 References: [`../tasks/current/T-0031-write-gate-standing.md`](../tasks/current/T-0031-write-gate-standing.md),
 [`../execution/history/T-0031/step-02/evidence.md`](../execution/history/T-0031/step-02/evidence.md),
 [`../execution/history/T-0031/step-03/evidence.md`](../execution/history/T-0031/step-03/evidence.md).
+
+## 2026-10-10 — E2E-2 step 2: SC-07 5/5, SC-05 4/5 after the agent rebuild (E2E-2)
+
+Type: verification
+Who: conantkd (+ agent)
+Context: E2E-2 (#70, #71) gave the model the facts E2E-1 found missing: every declared mount in `host.disk_usage`, the
+declared networks in `container.status`. They live in the agent image on vm-095.
+Decision / result: with both leases, vm-166 to `main` (checkout only) and vm-095 backed up, on `main` `0f076f2` with
+agent, worker and scheduler rebuilt (20/20 db checks, WRITE GATE CLOSED, NO INTERFERENCE). `run.py --runs 5 SC-05
+SC-07`: SC-07 5/5, SC-05 4/5, 0 errors, NO INTERFERENCE after every run (before: 6/10 each). The one miss
+(`inc_de65a12688bc`) read the right mount but not the filler's logs, so it named the host as root cause and said the
+writer was unproven.
+Consequences: both evidence gaps are closed. A new, smaller one is open: nothing but the logs links a container to
+the filesystem it fills. The general fix, `container.status` reporting the container's host mounts, is
+recorded as the pending task E2E-3 (not started).
+References: [`../tasks/current/E2E-2-evidence-gaps.md`](../tasks/current/E2E-2-evidence-gaps.md),
+[`../tasks/current/E2E-3-container-mounts.md`](../tasks/current/E2E-3-container-mounts.md),
+[`../execution/history/E2E-2/step-02/evidence.md`](../execution/history/E2E-2/step-02/evidence.md).
+
+## 2026-10-11 — E2E-3 step 1: container.status names the declared filesystems a container mounts (E2E-3)
+
+Type: implementation
+Who: juanbetancurm (+ agent)
+Context: after E2E-2, SC-05 was 4/5: the one miss read the right mount but nothing linked the filler to it except its
+logs (`conantkd`'s E2E-3 plan, PR #74).
+Decision / result: the read-gateway's `inspect()` matches each bind to the host's declared mounts and returns only the
+declared mount with `rw`/`ro` and a count of the other binds; `container.status` shows
+`host_mounts=/srv/argus-lab-fill(rw)`. Matching in the gateway (not the catalogue) keeps every undeclared host path on
+the VM. 5 new tests (red seen 4/5); the baseline evaluation is unchanged.
+Consequences: after the merge, both leases: rebuild vm-166's read-gateway and vm-095's agent, then SC-05 × 5.
+References: [`../tasks/current/E2E-3-container-mounts.md`](../tasks/current/E2E-3-container-mounts.md).
+
+## 2026-10-11 — LANES-2 follow-up: the roll-up keeps the merge order within a day (LANES-2)
+
+Type: fix
+Who: juanbetancurm (+ agent)
+Context: the first roll-up (PR #73) put the nine 2026-10-10 entries in file-name order (E2E-1 step 3 before steps 2
+and 1); `conantkd` reordered them by hand and listed the follow-up.
+Decision / result: `brain.py rollup` sorts by the date in the file name, then by when each entry reached the branch
+(its first first-parent commit: on `main`, its PR's merge), then by name; an entry not committed yet comes last.
+Replayed on `main` before #73, it gives exactly the order set by hand in #73. 1 new test (red seen).
+Consequences: no hand reordering in the next roll-ups.
+References: [`../tasks/current/LANES-2-journal-rollup.md`](../tasks/current/LANES-2-journal-rollup.md).
+
+## 2026-10-11 — E2E-4: SC-08 in the runner catalogue (E2E-4)
+
+Type: implementation
+Who: juanbetancurm (+ agent)
+Context: SC-08 (T-0029) was the one planned scenario the runner could not repeat.
+Decision / result: its catalogue entry uses T-0029's start command and gates on the detector's own signal
+(`http_gateway_error_ratio_5m` ≥ 0.5); the reset removes only `argus-lab-nginx` and `argus-lab-slow` (never
+`compose down`). 2 new test cases (red seen); 37 runner tests pass.
+Consequences: `run.py --runs 5 SC-08` on vm-166 (its lease) completes phase 12's catalogue except SC-10/SC-12.
+References: [`../tasks/current/E2E-4-catalogue-sc08.md`](../tasks/current/E2E-4-catalogue-sc08.md).
