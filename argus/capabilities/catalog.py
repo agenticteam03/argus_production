@@ -89,6 +89,10 @@ def container_status(args: NoArgs, target: TargetRef, info, client) -> Capabilit
         missing = [n for n in declared if n not in (d.get("networks") or [])]
         if d.get("networks") is not None and missing:
             text += f" — NOT on its declared network(s): {','.join(missing)}"
+    if d.get("host_mounts"):         # E2E-3: the declared host filesystems it has mounted (from the gateway's inspect)
+        text += " host_mounts=" + ",".join(f"{m['mount']}({'rw' if m.get('rw') else 'ro'})" for m in d["host_mounts"])
+    if d.get("other_binds"):
+        text += f" other_binds={d['other_binds']}"
     ident = {"container_id": d["id"]} if d.get("id") else {}
     return CapabilityResult(values=d, model_text=text, source_time=_ts(d.get("collected_at")),
                             identities=ident, units={"memory_limit_bytes": "bytes"})
