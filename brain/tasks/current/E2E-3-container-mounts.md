@@ -2,12 +2,12 @@
 
 | Field | Value |
 |---|---|
-| Status | `pending` — proposed 2026-10-10 by `conantkd`, not started |
+| Status | `in progress` — proposed 2026-10-10 by `conantkd`; step 1 (offline) done 2026-10-11 by `juanbetancurm`; step 2 after the merge |
 | Phase | 12 (end-to-end tests) — [`../../IMPLEMENTATION_PLAN.md`](../../IMPLEMENTATION_PLAN.md) |
 | Found by | [E2E-2 step 2](E2E-2-evidence-gaps.md): SC-05 4/5, the miss `inc_de65a12688bc` ([evidence](../../execution/history/E2E-2/step-02/evidence.md)) |
 | Architecture | no change expected (no ACR): one more field from the container inspect the read-gateway already does; read-only, no new access |
-| Branch | `task/E2E-3-container-mounts` (from `main`), not created yet |
-| Owner | open (quality lane) |
+| Branch | `task/E2E-3-container-mounts` (from `main`) |
+| Owner | `juanbetancurm` (+ agent), quality lane |
 | Needs the VM lease | step 2: **both** (the read-gateway on vm-166, the agent on vm-095), then vm-166 for the re-run |
 
 ## Goal (plain language)
@@ -32,6 +32,19 @@ holds for any container and scenario, not only SC-05.
   is printed, and the stored `values` hold no more than the model text names.
 - Tests: the gateway with `rw` and `ro` binds and no bind; the match to declared mounts; an undeclared path is not
   named; a container without mounts gives the same text as today.
+
+**As built (2026-10-11):** the matching is done **in the read-gateway**, not in the catalogue: `inspect()` matches
+each bind source to the host's declared mounts (its own config, rendered from the inventory; the longest prefix, `/`
+names nothing) and returns only `host_mounts` (the declared mount and `rw`) and `other_binds` (a count). A source
+outside the declared mounts never leaves the gateway, so nothing under the deploy home or its `secrets/` can reach the
+agent, the store or the model (stricter than "not printed": not even in `values`). Docker volumes are not binds and
+are skipped. `container.status` adds `host_mounts=/srv/argus-lab-fill(rw)` and `other_binds=N` when present; a
+container without them, or an older gateway, gives exactly today's text. Tests: `tests/test_e2e3_container_mounts.py`
+(5; red seen 4/5, the fifth pins the unchanged text); every test that loads the gateway passes; the baseline
+evaluation is unchanged (45/47, hard 0 0 0). **Review of #75 (`conantkd`):** the tool's description and "when" now
+say it returns the host mounts ("in a disk incident, which container writes the full filesystem"): the SC-05 miss
+never read the filler, so the model must know the link is there before it reads (the same lesson as SC-07, whose
+description gained "networks"). + 1 test (red seen).
 
 ### Step 2 (after the merge, both leases)
 
