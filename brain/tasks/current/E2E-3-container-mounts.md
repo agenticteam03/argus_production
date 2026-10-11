@@ -41,7 +41,10 @@ agent, the store or the model (stricter than "not printed": not even in `values`
 are skipped. `container.status` adds `host_mounts=/srv/argus-lab-fill(rw)` and `other_binds=N` when present; a
 container without them, or an older gateway, gives exactly today's text. Tests: `tests/test_e2e3_container_mounts.py`
 (5; red seen 4/5, the fifth pins the unchanged text); every test that loads the gateway passes; the baseline
-evaluation is unchanged (45/47, hard 0 0 0).
+evaluation is unchanged (45/47, hard 0 0 0). **Review of #75 (`conantkd`):** the tool's description and "when" now
+say it returns the host mounts ("in a disk incident, which container writes the full filesystem"): the SC-05 miss
+never read the filler, so the model must know the link is there before it reads (the same lesson as SC-07, whose
+description gained "networks"). + 1 test (red seen).
 
 ### Step 2 (after the merge, both leases)
 

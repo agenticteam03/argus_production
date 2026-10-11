@@ -86,3 +86,11 @@ def test_status_of_a_container_without_mounts_is_unchanged():
     after = container_status(NoArgs(), FILLER, TargetInfo(ref=FILLER),
                              Client({"host_mounts": [], "other_binds": 0})).model_text
     assert before == after and "host_mounts" not in after and "other_binds" not in after
+
+
+def test_container_status_tool_tells_the_model_it_returns_host_mounts():
+    """Review of #75: the SC-05 miss never read the filler; the tool's description and "when" now say it has the link."""
+    from argus.capabilities.catalog import build_catalog
+    spec = next(s for s in build_catalog() if s.name == "container.status")
+    assert "filesystems" in spec.description.lower()
+    assert "disk" in spec.use_when.lower()

@@ -273,9 +273,11 @@ def build_catalog() -> list[CapabilitySpec]:
                        frozenset({"container", "discovery"}), "docker_read", container_list),
         CapabilitySpec("container.status", "get_container_status",
                        "Container state, health, restart count, OOMKilled flag, exit code, start time, memory limit, "
-                       "and the names of the Docker networks it is attached to.",
+                       "the names of the Docker networks it is attached to, and the host's declared filesystems it "
+                       "has mounted (rw/ro).",
                        "any container incident; first check; compare the networks of a victim and its dependency "
-                       "when a name does not resolve", NoArgs, C, 1, "READ_ONLY_SAFE",
+                       "when a name does not resolve; in a disk incident, which container writes the full "
+                       "filesystem", NoArgs, C, 1, "READ_ONLY_SAFE",
                        frozenset({"container", "stability", "memory"}), "docker_read", container_status),
         CapabilitySpec("container.resources", "get_container_resources",
                        "Current memory usage vs limit, CPU percent and process count of a container.",
