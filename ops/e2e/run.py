@@ -44,6 +44,8 @@ SSH_OPTS = ["-o", "BatchMode=yes", "-o", "ConnectTimeout=15", "-o", "ServerAlive
             "-o", "ServerAliveCountMax=4"]
 NONINT = "sudo bash /opt/argus-v18/app/ops/nonint-check.sh {label} | tail -1"
 PROM = "http://127.0.0.1:18090/api/v1/query"                    # each host's own Prometheus (loopback)
+# E2E-6: vm-095's Prometheus publishes no host port (compose.core-join.yml): query it inside its container
+PROM_IN_CONTAINER = {"vm-095": "argus-v18-prometheus"}
 PROM_VALUE = ("python3 -c 'import json,sys; r=json.load(sys.stdin)[\"data\"][\"result\"]; "
               "print(r[0][\"value\"][1] if r else \"none\")'")
 SCENARIO_KEYS = {"id", "title", "host", "hosts", "start", "pre_gate", "gate", "request", "expect", "reset"}
@@ -67,6 +69,15 @@ Shell = Callable[[str, str, float], "tuple[int, str]"]
 
 
 # --- the catalogue ---------------------------------------------------------------------------------------------------
+def promql_cmd(host: str, promql: str) -> str:
+    """The command that asks `host`'s own Prometheus for `promql` (a JSON answer on stdout)."""
+    container = PROM_IN_CONTAINER.get(host)
+    if container is None:
+        return f"curl -s --data-urlencode {shlex.quote('query=' + promql)} {PROM}"
+    url = "http://127.0.0.1:9090/api/v1/query?query=" + urllib.parse.quote(promql, safe="")
+    return f"sudo docker exec {container} wget -qO- {shlex.quote(url)}"
+
+
 @dataclass
 class Gate:
     cmd: str
@@ -75,7 +86,7 @@ class Gate:
     every_s: float = 10
 
     @classmethod
-    def from_dict(cls, sid: str, raw: dict | None) -> "Gate | None":
+    def from_dict(cls, sid: str, raw: dict | None, host: str = "vm-166") -> "Gate | None":
         if raw is None:
             return None
         unknown = set(raw) - GATE_KEYS
@@ -83,8 +94,7 @@ class Gate:
             raise ValueError(f"{sid}: unknown gate keys {sorted(unknown)}")
         if ("cmd" in raw) == ("promql" in raw):
             raise ValueError(f"{sid}: a gate has exactly one of cmd / promql")
-        cmd = raw.get("cmd") or (f"curl -s --data-urlencode {shlex.quote('query=' + raw['promql'])} {PROM} "
-                                 f"| {PROM_VALUE}")
+        cmd = raw.get("cmd") or f"{promql_cmd(host, raw['promql'])} | {PROM_VALUE}"
         return cls(cmd, str(raw["expect"]), float(raw.get("timeout_s", 180)), float(raw.get("every_s", 10)))
 
     def opens(self, out: str) -> bool:
@@ -137,7 +147,8 @@ class Scenario:
         if bool(start) != bool(reset):
             raise ValueError(f"{sid}: whatever is started must be reset")
         return cls(sid, raw["title"], raw["host"], req, exp, hosts, start, reset,
-                   Gate.from_dict(sid, raw.get("pre_gate")), Gate.from_dict(sid, raw.get("gate")))
+                   Gate.from_dict(sid, raw.get("pre_gate"), raw["host"]),
+                   Gate.from_dict(sid, raw.get("gate"), raw["host"]))
 
 
 def load_catalogue(path: Path = CATALOGUE) -> dict[str, Scenario]:

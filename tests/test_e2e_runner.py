@@ -254,6 +254,27 @@ def test_a_prometheus_gate_queries_the_hosts_own_prometheus():
     assert "127.0.0.1:18090/api/v1/query" in gate and "argus_probe_success" in gate
 
 
+def test_a_prometheus_gate_on_vm095_goes_through_its_container():
+    """E2E-6: vm-095's Prometheus publishes no host port (compose.core-join.yml), so 127.0.0.1:18090 answers nothing
+    there; the query runs inside argus-v18-prometheus, URL-encoded by the runner (busybox wget has no urlencode)."""
+    q = 'max_over_time(argus_container_restart_count{argus_host="vm-095",container="argus-lab-worker"}[10m])'
+    sc = scenario(host="vm-095", gate={"promql": q, "expect": ">=3", "timeout_s": 60},
+                  request={"target": "vm-095/container:argus-lab-worker", "reason": "crashes", "kind": "report"},
+                  expect={"outcome": "diagnosed", "reads_on": "vm-095"})
+    shell = FakeShell({"argus-v18-prometheus": "4"})
+    run(sc, shell, FakeApi(incident()))
+    gate = next(c for h, c in shell.calls if "argus-v18-prometheus" in c)
+    assert gate.startswith("sudo docker exec argus-v18-prometheus wget -qO- ")
+    assert "http://127.0.0.1:9090/api/v1/query?query=" + e2e.urllib.parse.quote(q, safe="") in gate
+    assert "18090" not in gate and all(h == "vm-095" for h, c in shell.calls if "argus-v18-prometheus" in c)
+
+
+def test_the_catalogue_sc02_gates_query_vm095s_prometheus_inside_its_container():
+    sc = e2e.load_catalogue()["SC-02"]
+    for gate in (sc.pre_gate, sc.gate):
+        assert "docker exec argus-v18-prometheus wget" in gate.cmd and "18090" not in gate.cmd
+
+
 # --- the command line ----------------------------------------------------------------------------------------------------
 def test_the_dry_run_executes_nothing_and_shows_every_step(capsys, monkeypatch):
     def no_ssh(*a, **k):
