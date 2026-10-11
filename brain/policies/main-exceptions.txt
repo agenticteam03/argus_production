@@ -33,3 +33,5 @@ pr 65  2026-10-10  conantkd  fast-track: T-0031 the standing write-gate test and
 pr 68  2026-10-10  conantkd  retroactive: merged without a recorded approval of its last push; its two last commits (conantkd: test fix b5b53a8, main merge 3507155) are reviewed by juanbetancurm in the PR that adds this line
 pr 80  2026-10-11  juanbetancurm  retroactive: merged without an approval of its last push (bfe93c0: E2E-5, ACR-0007); reviewed by conantkd in the PR that adds this line, whose approval also accepts ACR-0007
 pr 81  2026-10-11  juanbetancurm  retroactive: merged without an approval of its last push (250c5df: E2E-6, the scenario runner only); reviewed by conantkd in the PR that adds this line
+pr 82  2026-10-11  juanbetancurm  retroactive: merged without an approval of its last push (33c315d: the retroactive lines for #80 and #81); reviewed by conantkd in the PR that adds this line, whose approval also covers bfe93c0 and 250c5df and accepts ACR-0007
+pr 83  2026-10-11  juanbetancurm  retroactive: merged without an approval of its last push (68eb25f, c6ed798: EVAL-1); reviewed by conantkd in the PR that adds this line
