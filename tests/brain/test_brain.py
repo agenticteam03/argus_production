@@ -524,3 +524,22 @@ def test_lint_keeps_branches_made_before_the_rule(repos, monkeypatch, capsys):
     capsys.readouterr()
     brain.main(["lint"])
     assert "shared summaries" not in capsys.readouterr().out
+
+
+def test_rollup_orders_same_day_entries_by_when_they_reached_the_branch(repos, monkeypatch):
+    """Same date, merged Z first then A: the logbook follows the merge order, not the file names (LANES-2 follow-up,
+    found in the first roll-up, PR #73)."""
+    repo = repos["alice"]
+    as_(monkeypatch, repo)
+    b = brain_tree(repo)
+    run(repo, "add", "-A")
+    run(repo, "commit", "-m", "brain")
+    entries = b / "journal" / "entries"
+    for name, title in (("2026-10-10-Z.md", "Z merged first"), ("2026-10-10-A.md", "A merged second")):
+        (entries / name).write_bytes(f"## 2026-10-10 — {title}\n\nType: x\n".encode())
+        run(repo, "add", "-A")
+        run(repo, "commit", "-m", f"merge {name}")
+    (entries / "2026-10-09-M.md").write_bytes(b"## 2026-10-09 \xe2\x80\x94 M, an older day, not committed yet\n\nType: x\n")
+    assert brain.main(["rollup"]) == 0
+    log = (b / "journal" / "logbook.md").read_text(encoding="utf-8")
+    assert log.index("M, an older day") < log.index("Z merged first") < log.index("A merged second")
