@@ -7,6 +7,11 @@ shared-Brain setup B1–B8 under way (three developers).
 > The VMs are authoritative for what runs there: run `sudo bash /opt/argus-v18/app/ops/deploy.sh status` (or read
 > `/opt/argus-v18/DEPLOYED`) and the state probe before trusting this file.
 
+> **Update 2026-10-11 (`conantkd`, E2E-3 step 2, OBSERVED):** **both VMs run `main` `e3286df`** (#75-#77): vm-166's
+> read-gateway, host-probe, network-probe and exporter rebuilt (`container.status` shows `host_mounts`); vm-095's
+> agent, worker and scheduler rebuilt (backup `argus-20261011T131837Z.dump`, `argus db check` 20/20, WRITE GATE
+> CLOSED). LAB BASELINE OK, NO INTERFERENCE. SC-08 5/5, SC-05 3/5. Evidence: `execution/history/E2E-3/step-02/`.
+
 > **Update 2026-10-10 (`conantkd`, DEPLOY-MAIN-2, OBSERVED):** **both VMs run `main` `ebbe9c9`** (#48, #54, #55, #59,
 > #60, #62, #42, #51 merged): agent, worker and scheduler rebuilt on vm-095 (`argus db check` 20/20, restarts 0),
 > target services and Prometheus rebuilt on both (rules `HttpGatewayErrors`, `ArgusScrapeTargetDown`,
