@@ -12,9 +12,9 @@
 #             every read must stay on it), findings_any
 #   reset     runs once a start was attempted, also after an error; a failed reset stops the batch. Idempotent:
 #             it must succeed when what it removes is already gone
-# Not here yet: SC-10 and SC-12 (they stop Argus's own services), SC-08 (after PR #60).
+# Not here yet: SC-10 and SC-12 (they stop Argus's own services).
 # SC-04, SC-05, SC-06 (E2E-1): the commands and gates of their VM proofs (T-0020, T-0024, T-0028); the gates use
-# the detector's own signal and threshold.
+# the detector's own signal and threshold. SC-08 (E2E-4): the same, from T-0029's VM proof.
 
 scenarios:
   - id: H-1
@@ -153,6 +153,27 @@ scenarios:
              first_runbook: RB-006, reads_on: vm-166}
     reset:
       - sudo docker rm -f argus-lab-burner
+
+  - id: SC-08
+    title: nginx in front of a slow upstream answers 504; the upstream is the root cause, not the proxy (vm-166)
+    host: vm-166
+    pre_gate:                     # no probe samples of nginx in the last 5 minutes: run N never sees run N-1's 504s
+      promql: 'max(avg_over_time(argus_http_probe_gateway_error{argus_host="vm-166",owner="argus-lab-nginx"}[5m]))'
+      expect: "^none$"
+      timeout_s: 900
+      every_s: 30
+    start:
+      - cd /opt/argus-v18/app/deploy/lab && sudo docker compose -f compose.lab.yml --profile sc08 up -d argus-lab-slow argus-lab-nginx
+    gate:                         # the detector's signal and threshold: half or more of the 5-minute probes are 502/504
+      promql: 'max(avg_over_time(argus_http_probe_gateway_error{argus_host="vm-166",owner="argus-lab-nginx"}[5m]))'
+      expect: ">=0.5"
+      timeout_s: 900
+      every_s: 30
+    request: {target: "vm-166/container:argus-lab-nginx", reason: "users get gateway timeouts", kind: report}
+    expect: {outcome: diagnosed, class: nginx_upstream_failure, root_cause: "vm-166/container:argus-lab-slow",
+             first_runbook: RB-015, reads_on: vm-166}
+    reset:                        # only SC-08's two containers (never `compose down`: it would take the lab with it)
+      - sudo docker rm -f argus-lab-nginx argus-lab-slow
 
   - id: SC-07
     title: a healthy backend on the wrong network (vm-166)
