@@ -221,7 +221,9 @@ def _ids(*categories: str) -> list[str]:
 
 # The baseline's rules are shallow by design (§21.2): it escalates on a restart loop with exit 0, and it names a
 # failing health check even when nothing says why. These two cases show it; the model is measured against both.
-BASELINE_MISSES = {"restart-exit0-job-01", "ambiguous-health-no-cause"}
+# disk-filler-stopped-with-history: the baseline names only a RUNNING writer; a stopped one whose logs show it filled
+# the mount is still the cause (the model must read that history), so the baseline escalates there
+BASELINE_MISSES = {"restart-exit0-job-01", "ambiguous-health-no-cause", "disk-filler-stopped-with-history"}
 
 
 @pytest.mark.parametrize("cid", sorted(BASELINE_MISSES))

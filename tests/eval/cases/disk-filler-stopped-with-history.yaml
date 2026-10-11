@@ -1,0 +1,75 @@
+# EVAL-1 (research review): the writer has stopped, its logs show it filled the mount and the data stays: still the cause
+id: disk-filler-stopped-with-history
+category: class
+target: vm-166/host:vm-166
+request: report
+reason: 'HostDiskPressure: a filesystem of the host is above 90 % used for 5 minutes'
+metrics:
+  vm-166/host:vm-166:
+    host_disk_used_ratio_5m: 0.926
+    host_disk_hours_to_full: null
+    scrape_targets_down: 0
+fixtures:
+  host_probe:
+    /disk?mount=/:
+      mount: /
+      used_percent: 28.0
+      free_mib: 35611
+      inodes_used_percent: 2.8
+    /disk?mount=/srv/argus-lab-fill:
+      mount: /srv/argus-lab-fill
+      used_percent: 92.6
+      free_mib: 17
+      inodes_used_percent: 0.1
+    '*':
+      total_mib: 5800
+      available_mib: 3900
+      cpu_busy_percent: 12
+      load1: 0.3
+      cpus: 2
+  docker_read:
+    /containers/argus-lab-filler/status:
+      id: f1f1f1
+      state: exited
+      health: none
+      restart_count: 0
+      oom_killed: false
+      exit_code: 0
+      memory_limit_bytes: 50331648
+      cpu_limit_cores: 0.2
+      networks: []
+      host_mounts:
+      - mount: /srv/argus-lab-fill
+        rw: true
+      other_binds: 1
+    /containers/argus-lab-filler/logs:
+      lines:
+      - 'filler: wrote 200 MiB, 91.8% used'
+      - 'filler: reached 92.6% after 202 MiB; holding'
+    /containers/argus-lab-filler/stats:
+      memory_usage_bytes: 6500000
+      memory_limit_bytes: 50331648
+      memory_percent: 13.0
+      cpu_percent: 0.4
+      pids: 1
+    /containers/argus-lab-filler/health:
+      status: none
+      failing_streak: 0
+      log: []
+    /containers/argus-lab-filler/events:
+      events: []
+  network_probe:
+    '*':
+      ok: true
+      addresses: []
+      duration_ms: 2
+      status: 200
+label:
+  outcome: diagnosed
+  class: disk_pressure
+  root_cause: vm-166/container:argus-lab-filler
+  diagnosis_any:
+  - argus-lab-filler
+  - /srv/argus-lab-fill
+  runbooks:
+  - RB-005
