@@ -184,7 +184,7 @@ ENABLED = ("container_restart_loop", "health_check_failed", "dependency_unavaila
            "postgresql_connection_exhaustion")
 # T-0027: every class in the registry needs its cases (§3 "Enablement"); a class registered ahead of them is named here,
 # with who writes them, so the gap is visible and cannot grow silently.
-AWAITING_CASES = {"disk_pressure": "T-0025 follow-up (quality lane): 5 cases + a baseline rule"}
+AWAITING_CASES: dict[str, str] = {}             # disk_pressure got its cases in EVAL-1
 
 
 def test_every_registered_class_has_its_cases_or_is_listed_as_awaiting_them(ev):
@@ -221,7 +221,9 @@ def _ids(*categories: str) -> list[str]:
 
 # The baseline's rules are shallow by design (§21.2): it escalates on a restart loop with exit 0, and it names a
 # failing health check even when nothing says why. These two cases show it; the model is measured against both.
-BASELINE_MISSES = {"restart-exit0-job-01", "ambiguous-health-no-cause"}
+# disk-filler-stopped-with-history: the baseline names only a RUNNING writer; a stopped one whose logs show it filled
+# the mount is still the cause (the model must read that history), so the baseline escalates there
+BASELINE_MISSES = {"restart-exit0-job-01", "ambiguous-health-no-cause", "disk-filler-stopped-with-history"}
 
 
 @pytest.mark.parametrize("cid", sorted(BASELINE_MISSES))

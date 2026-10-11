@@ -169,16 +169,23 @@ class BaselineStrategy:
         if cls == "cpu_saturation":
             return [ReadCall(name="container.status", arguments={"target": ts}),
                     ReadCall(name="container.resources", arguments={"target": ts})]
+        if cls == "disk_pressure":       # EVAL-1: every declared mount, and the containers in the host's scope
+            others = [x for x in view.scope if x.kind == "container"]
+            return [ReadCall(name="host.disk_usage", arguments={"target": ts}),
+                    *[ReadCall(name="container.status", arguments={"target": str(x)}) for x in others]]
         return evidence_pack_plan(t)
 
     def next_step(self, view: InvestigationView):
         if not any(isinstance(d, UseReadTools) for d in view.decisions_so_far):
             return UseReadTools(calls=self.plan(view))
+        confirm = self._confirm(view)
+        if confirm:
+            return UseReadTools(calls=confirm)
         ok = [e for e in view.evidence if e.status == "ok"]
         rules = {"container_restart_loop": self._restart, "health_check_failed": self._health,
                  "dependency_unavailable": self._dependency, "postgresql_connection_exhaustion": self._database,
                  "nginx_upstream_failure": self._gateway,
-                 "cpu_saturation": self._cpu}
+                 "cpu_saturation": self._cpu, "disk_pressure": self._disk}
         rule = rules.get(view.incident_class.name if view.incident_class else "")
         found = rule(view, ok) if rule else None
         if found is None:
@@ -253,6 +260,40 @@ class BaselineStrategy:
                     f"restarting the proxy would not help (RB-015 H1)", up)
         return (f"the proxy {t} answers 502/504 while its upstream {up} is running: {up} does not answer within the "
                 f"proxy's timeout (slow or saturated upstream, RB-015 H3); the root cause is {up}, not the proxy", up)
+
+    @staticmethod
+    def _confirm(view) -> list[ReadCall]:
+        """disk_pressure's second round: the logs of the one candidate writer, once. A rw mount shows access, not who
+        wrote the data, so the rule below needs that read too."""
+        if not view.incident_class or view.incident_class.name != "disk_pressure":
+            return []
+        found = disk_suspects(view)
+        planned = {c.arguments.get("target") for d in view.decisions_so_far if isinstance(d, UseReadTools)
+                   for c in d.calls if c.name == "container.logs"}
+        return [ReadCall(name="container.logs", arguments={"target": found[0]})] if (
+            len(found) == 1 and found[0] not in planned) else []
+
+    def _disk(self, view, ok):
+        """RB-005 (EVAL-1): exactly one running container writes (rw) a declared filesystem at or above the detector's
+        threshold, and a read of its logs returned lines: it is the writer. A rw mount alone is access, not authorship;
+        no logs, none or several candidates: the evidence does not say who, so escalate. The rule checks Argus's own
+        line count, never the log text (the model reads that)."""
+        found = disk_suspects(view)
+        if len(found) != 1:
+            return None
+        who = found[0]
+        text = (self._texts_raw(ok, "container.logs").get(who) or "").split(": ", 1)[-1]
+        logs = re.match(r"last (\d+) log lines", text)
+        if not logs or int(logs.group(1)) == 0:
+            return None
+        mounts = self._texts(ok, "container.status")[who].get("host_mounts", "")
+        return (f"{who} writes a full declared filesystem of {view.incident.target.host} ({mounts}) and its logs were "
+                f"read: the host's disk pressure comes from that writer (RB-005); freeing space without stopping it "
+                f"would not last", who)
+
+    @staticmethod
+    def _texts_raw(ok, capability: str) -> dict[str, str]:
+        return {_about(e.model_text): e.model_text for e in ok if e.capability == capability and _about(e.model_text)}
 
     def _cpu(self, view, ok):
         """RB-006 (T-0028): the container uses (nearly) all of its CPU quota: it is CPU-bound at its own limit."""
