@@ -102,8 +102,27 @@ def cpu_limit_cores(hc: dict) -> float | None:
     return round(quota / period, 3) if quota > 0 else None
 
 
+def host_mounts(mounts: list[dict], declared: list[str]) -> tuple[list[dict], int]:
+    """E2E-3: the container's bind mounts, matched to the host's declared mounts (the longest prefix; `/` names
+    nothing). Only a declared mount and rw/ro leave the gateway; any other bind is counted, never named."""
+    named: dict[str, bool] = {}
+    other = 0
+    for m in mounts or []:
+        if m.get("Type") != "bind":
+            continue
+        src = m.get("Source") or ""
+        hits = [d for d in declared if d != "/" and (src == d or src.startswith(d.rstrip("/") + "/"))]
+        if hits:
+            best = max(hits, key=len)
+            named[best] = named.get(best, False) or bool(m.get("RW"))
+        else:
+            other += 1
+    return [{"mount": k, "rw": v} for k, v in sorted(named.items())], other
+
+
 def inspect(name: str) -> dict:
     d = djson(f"/containers/{urllib.parse.quote(name)}/json")
+    mounted, other_binds = host_mounts(d.get("Mounts") or [], CONFIG.get("mounts", []))
     st, hc = d.get("State", {}), d.get("HostConfig", {})
     return {"id": d.get("Id", "")[:12], "name": name, "state": st.get("Status"), "running": st.get("Running"),
             "restarting": st.get("Restarting"),
@@ -116,6 +135,8 @@ def inspect(name: str) -> dict:
             "tty": d.get("Config", {}).get("Tty"),
             # network names only (SC-07: which network is each side on?); addresses never leave the gateway
             "networks": sorted(((d.get("NetworkSettings") or {}).get("Networks") or {}).keys()),
+            # E2E-3: which declared host filesystems it has mounted (SC-05: the filler writes the lab filesystem)
+            "host_mounts": mounted, "other_binds": other_binds,
             "collected_at": now()}
 
 
