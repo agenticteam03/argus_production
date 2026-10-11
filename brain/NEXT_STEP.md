@@ -1,5 +1,30 @@
 # Next step
 
+**Now (2026-10-10, evening; first roll-up, `conantkd`).** Both VMs run `main` `ebbe9c9` (DEPLOY-MAIN-2); `main` has
+moved on to #65–#71. No lease is held.
+
+1. **`main-guard` is red since #68** (merged without an approval of its last push). The fix is PR #72, a retroactive
+   line in `policies/main-exceptions.txt`; `juanbetancurm` reviews #68's two last commits there. Merge it first.
+2. **E2E-2 step 2 (quality lane, `juanbetancurm`; both leases):** `main` changed `host.disk_usage` and
+   `container.status` (#70, #71), so vm-095's agent needs a rebuild: backup, `deploy.sh main`, rebuild agent, worker
+   and scheduler, `argus db check`, NO INTERFERENCE; then `ops/e2e/run.py --runs 5 SC-05 SC-07` on vm-166
+   ([task](tasks/current/E2E-2-evidence-gaps.md)). Phase 12 so far: SC-01, SC-03, SC-04, SC-06 at 5/5; SC-05 and
+   SC-07 6/10 before E2E-2. SC-02 × 5 when vm-095 is free.
+3. **Done today, no deploy needed:** T-0031 (phase 8, the standing write-gate test; `ops/write-gate-check.sh`,
+   `--host-only` on a Host T: CLOSED on both VMs); T-0032 (phase 13, Prometheus down on one host escalates that host
+   only); T-0030 (phase 13, a Postgres restart is a pause); LANES-1 and LANES-2 (a lease per VM; journal entry files
+   and `brain.py rollup`: task branches write `journal/entries/`, whoever merges last runs the roll-up).
+4. **Open follow-ups:** an alert when a host's own Prometheus is down (T-0032: `ArgusScrapeTargetDown` runs in that
+   Prometheus); `brain.py rollup` orders same-day entries by file name, not merge time (fixed by hand in this
+   roll-up); OP-002 triage and the OP-003 proposal (as ACR-0006: ACR-0005 is taken); OP-004 and OP-008 `--apply`
+   wait for a teammate's review of their previews.
+
+The sections below are older (2026-10-09 and earlier) and kept for the record; the paragraph above supersedes them.
+
+**LANES-2 (2026-10-10, `juanbetancurm`):** task PRs write `journal/entries/` files instead of editing the logbook,
+CURRENT_TEST_STATE and NEXT_STEP; the first roll-up follows this merge. See
+[the task file](tasks/current/LANES-2-journal-rollup.md).
+
 **OP-008 (2026-10-10, `conantkd`):** snapshot-consistent backup, verified markers and preview-first retention are
 implemented and dry-run on vm-095 (`VERIFY OK`, 0 sets to remove with `KEEP=7`). Next: a teammate reviews the
 preview before any `prune --apply`; scheduling stays a separate team decision. See
