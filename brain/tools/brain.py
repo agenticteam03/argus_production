@@ -562,11 +562,21 @@ def insert_after(text: str, marker: str, block: str) -> str:
     return "\n".join(lines[:at] + ["", block] + lines[at:])
 
 
+def arrival(path: Path) -> int:
+    """When the entry reached this branch: the position, along the first-parent history, of the first commit that has
+    it (on main, the merge of its PR). Commit order, not time: two merges in the same second keep their order. An
+    entry not committed yet comes last."""
+    first = git("log", "--first-parent", "--reverse", "--format=%H", "--", path.as_posix(), check=False).split()
+    return int(git("rev-list", "--first-parent", "--count", first[0])) if first else 2 ** 62
+
+
 def cmd_rollup(args) -> int:
-    """Fold brain/journal/entries/*.md (oldest first) into the logbook, CURRENT_TEST_STATE and NEXT_STEP, and remove
+    """Fold brain/journal/entries/*.md into the logbook, CURRENT_TEST_STATE and NEXT_STEP, oldest first (by the date
+    in the file name, then by when each reached the branch: same-day entries follow the merge order), and remove
     them. Run it on a task/rollup-<date> branch after merges; review the diff; open a small PR."""
     root = repo_root()
-    files = sorted((root / ENTRIES).glob("*.md")) if (root / ENTRIES).is_dir() else []
+    found = list((root / ENTRIES).glob("*.md")) if (root / ENTRIES).is_dir() else []
+    files = sorted(found, key=lambda f: (f.name[:10], arrival(f.relative_to(root)), f.name))
     if not files:
         print("nothing to roll up (no file in brain/journal/entries/)")
         return 0

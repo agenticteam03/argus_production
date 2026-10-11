@@ -39,7 +39,7 @@ Three developers, but most work runs in a single line. Seen in the week of 2026-
 - **Roll-up:** after merges, `brain.py rollup` (a small PR, fast to review) appends the new entries to the logbook and
   regenerates the status lines of the summaries from the merged task files. Whoever merges last that day runs it.
 - **As built (LANES-2):** an entry file starts with `## <date> — <title>` and may end with the sections
-  `### Test state` and `### Next step`. `brain.py rollup` appends the journal part to the logbook (oldest first),
+  `### Test state` and `### Next step`. `brain.py rollup` appends the journal part to the logbook (oldest first; the same day in merge order),
   puts each section at the top of `tdd/CURRENT_TEST_STATE.md` / `NEXT_STEP.md`, rewrites the relative links for
   their new folder and removes the entry files. The lint rule covers the three files that conflicted:
   `journal/logbook.md`, `tdd/CURRENT_TEST_STATE.md`, `NEXT_STEP.md`; `CURRENT_STATE.md` and
