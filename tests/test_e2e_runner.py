@@ -109,7 +109,7 @@ def run(sc, shell, api, runs=1, clock=None):
 # --- the catalogue ---------------------------------------------------------------------------------------------------
 def test_the_catalogue_loads_with_the_verified_scenarios():
     cat = e2e.load_catalogue(CATALOGUE)
-    assert {"H-1", "H-2", "SC-01", "SC-02", "SC-03", "SC-04", "SC-05", "SC-06", "SC-07", "SC-09", "SC-11"} <= set(cat)
+    assert {"H-1", "H-2", "SC-01", "SC-02", "SC-03", "SC-04", "SC-05", "SC-06", "SC-07", "SC-08", "SC-09", "SC-11"} <= set(cat)
     for sc in cat.values():
         assert sc.host in ("vm-095", "vm-166") and sc.request["kind"] in ("check", "report")
         assert sc.expect.get("outcome"), sc.id
@@ -119,7 +119,8 @@ def test_the_catalogue_loads_with_the_verified_scenarios():
 @pytest.mark.parametrize("sid,cls,signal", [
     ("SC-04", "postgresql_connection_exhaustion", "db_connection_usage"),
     ("SC-05", "disk_pressure", "host_disk_used_ratio_5m"),
-    ("SC-06", "cpu_saturation", "container_cpu_throttled_ratio_5m")])
+    ("SC-06", "cpu_saturation", "container_cpu_throttled_ratio_5m"),
+    ("SC-08", "nginx_upstream_failure", "http_gateway_error_ratio_5m")])
 def test_e2e1_scenarios_gate_on_the_detector_signal_and_reset_only_what_they_start(sid, cls, signal):
     """E2E-1: the gate is the signal the detector reads (so the request finds the failure), the expected class is
     registered, and the reset removes only the lab container the scenario started (idempotent: rm -f)."""
