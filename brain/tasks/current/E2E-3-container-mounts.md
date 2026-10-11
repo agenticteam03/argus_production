@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | `in progress` — proposed 2026-10-10 by `conantkd`; step 1 (offline) done 2026-10-11 by `juanbetancurm`; step 2 after the merge |
+| Status | `done` 2026-10-11 — step 1 (offline, #75); step 2 (both VMs on `main` `e3286df`; SC-05 3/5 with the misses read, SC-08 5/5); follow-up [E2E-5](E2E-5-confirm-writer.md) |
 | Phase | 12 (end-to-end tests) — [`../../IMPLEMENTATION_PLAN.md`](../../IMPLEMENTATION_PLAN.md) |
 | Found by | [E2E-2 step 2](E2E-2-evidence-gaps.md): SC-05 4/5, the miss `inc_de65a12688bc` ([evidence](../../execution/history/E2E-2/step-02/evidence.md)) |
 | Architecture | no change expected (no ACR): one more field from the container inspect the read-gateway already does; read-only, no new access |
@@ -51,6 +51,18 @@ description gained "networks"). + 1 test (red seen).
 1. vm-166: `deploy.sh main`, rebuild the read-gateway; vm-095: backup, `deploy.sh main`, rebuild agent, worker and
    scheduler, `argus db check`, `/healthz`, WRITE GATE CLOSED, NO INTERFERENCE.
 2. `ops/e2e/run.py --runs 5 SC-05` (about 55 minutes). Done when SC-05 is 5/5, or the misses are read and explained.
+
+**Result (done 2026-10-11, `conantkd`, both leases; [evidence](../../execution/history/E2E-3/step-02/evidence.md)):**
+both VMs on `main` `e3286df` (#75-#77). vm-166's 4 target services were rebuilt (`host_mounts` in the gateway image);
+vm-095's agent, worker and scheduler were rebuilt (backup `argus-20261011T131837Z.dump`, 20/20 db checks, WRITE GATE
+CLOSED). LAB BASELINE OK and NO INTERFERENCE on both. Batch `--runs 5 SC-05 SC-08` (SC-08 joined after #77):
+**SC-08 5/5** (its first repeated runs), **SC-05 3/5**, 0 errors.
+- The link works: every run saw `host_mounts=/srv/argus-lab-fill(rw)` on the filler, and both misses
+  (`inc_047b8eece8a3`, `inc_81698a6c8fa9`) name it as *the likely writer*.
+- They still named the host, because *"the evidence does not prove its write rate"*, and they concluded after two
+  reads without reading the filler's logs. The pass read here (run 3) did read them. This is the "Limits" case
+  below: a rw mount is not proof. The remaining gap is a confirmation read, not a missing fact. Follow-up:
+  [E2E-5](E2E-5-confirm-writer.md).
 
 ## Limits
 
