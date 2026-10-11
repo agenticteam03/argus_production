@@ -5,7 +5,8 @@
 #   hosts     the VMs whose session marker and nonint-check are verified (default: [host])
 #   pre_gate  wait until the signal is clean before starting (so run N never sees run N-1's failure)
 #   gate      wait until the signal the detector reads shows the failure (never a fixed sleep)
-#             - promql: queried on the host's own Prometheus (127.0.0.1:18090), last value or "none"
+#             - promql: queried on the host's own Prometheus, last value or "none" (vm-166: 127.0.0.1:18090;
+#               vm-095: inside argus-v18-prometheus, which publishes no host port)
 #             - expect: a comparison (">=3", "==0") or a regular expression on the last line
 #   request   what is sent to POST /api/v1/investigations (target, reason, kind)
 #   expect    outcome (or a list), class (null = none), root_cause, first_runbook, model: none, reads_on (a host:
