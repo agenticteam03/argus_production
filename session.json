@@ -5,7 +5,7 @@
   "branch": "task/E2E-2-step2",
   "base_commit": "930363258d334c41650f68d0bc9f2336366eb283",
   "started_at": "2026-10-11T11:23:54+00:00",
-  "expires_at": "2026-10-11T13:26:39+00:00",
+  "expires_at": "2026-10-11T14:56:34+00:00",
   "released": false,
   "handoff": null,
   "vms": {
@@ -16,7 +16,7 @@
       "branch": "task/E2E-2-step2",
       "base_commit": "930363258d334c41650f68d0bc9f2336366eb283",
       "started_at": "2026-10-11T11:23:54+00:00",
-      "expires_at": "2026-10-11T13:26:39+00:00",
+      "expires_at": "2026-10-11T14:56:34+00:00",
       "released": false,
       "handoff": null
     },
@@ -27,7 +27,7 @@
       "branch": "task/E2E-2-step2",
       "base_commit": "930363258d334c41650f68d0bc9f2336366eb283",
       "started_at": "2026-10-11T11:23:54+00:00",
-      "expires_at": "2026-10-11T13:26:39+00:00",
+      "expires_at": "2026-10-11T14:56:34+00:00",
       "released": false,
       "handoff": null
     }
