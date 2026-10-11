@@ -94,6 +94,53 @@ def _about(text: str) -> str | None:
     return head if "/" in head and ":" in head else None
 
 
+# --- E2E-5 (ACR-0007): a rule-planned confirmation round, then the model loop ---------------------------------------
+DISK_FULL_PCT = 90.0                     # disk_pressure's detector threshold (classes.py: used >= 0.9)
+_DISK = re.compile(r"\S+?:(/[^\s;]*) used=([0-9.]+)%")
+_MOUNT = re.compile(r"([^\s,]+)\((rw|ro)\)")
+
+
+def disk_suspects(view: InvestigationView) -> list[str]:
+    """The running containers that have a full declared filesystem mounted read-write, from evidence already read:
+    `host.disk_usage` (the mounts at or above the detector's threshold) and `container.status` (`host_mounts`,
+    E2E-3). In evidence order, each once."""
+    ok = [e for e in view.evidence if e.status == "ok"]
+    full = {m for e in ok if e.capability == "host.disk_usage"
+            for m, pct in _DISK.findall(e.model_text or "") if float(pct) >= DISK_FULL_PCT}
+    out: list[str] = []
+    for e in ok:
+        if e.capability != "container.status":
+            continue
+        f, who = _fields(e.model_text), _about(e.model_text)
+        if who and f.get("state") == "running" and who not in out and any(
+                mode == "rw" and m in full for m, mode in _MOUNT.findall(f.get("host_mounts", ""))):
+            out.append(who)
+    return out
+
+
+class ConfirmThenReasonStrategy:
+    """The model loop, with one rule-planned round when a suspect appears: the logs and resources of each running
+    container that writes the full filesystem (E2E-5). The model then decides with that proof in front of it; the
+    round is planned once per suspect. Deterministic given the evidence (§10.3)."""
+    name = "confirm_then_reason"
+
+    def __init__(self, harness: Any | None):
+        self.loop = ModelLoopStrategy(harness)
+        self.last_source = "rule"
+
+    def next_step(self, view: InvestigationView):
+        planned = {c.arguments.get("target") for d in view.decisions_so_far if isinstance(d, UseReadTools)
+                   for c in d.calls if c.name == "container.logs"}
+        pending = [s for s in disk_suspects(view) if s not in planned]
+        if pending and self.loop.harness is not None:
+            self.last_source = "rule"
+            return UseReadTools(calls=[ReadCall(name=n, arguments={"target": s})
+                                       for s in pending for n in ("container.logs", "container.resources")])
+        d = self.loop.next_step(view)
+        self.last_source = self.loop.last_source
+        return d
+
+
 class BaselineStrategy:
     """Detector → top runbook → a fixed set of reads per class → a rule-based conclusion, or an escalation when no
     rule decides (never a guess). Deterministic: the same evidence gives the same decision. A failed read is never

@@ -2,12 +2,12 @@
 
 | Field | Value |
 |---|---|
-| Status | `pending` — proposed 2026-10-11 by `conantkd` as the next step, not started |
+| Status | `in progress` — proposed 2026-10-11 by `conantkd`; step 1 (offline) done 2026-10-11 by `juanbetancurm`; step 2 after the merge |
 | Phase | 12 (end-to-end tests) — [`../../IMPLEMENTATION_PLAN.md`](../../IMPLEMENTATION_PLAN.md) |
 | Found by | [E2E-3 step 2](E2E-3-container-mounts.md): SC-05 3/5, misses `inc_047b8eece8a3`, `inc_81698a6c8fa9` ([evidence](../../execution/history/E2E-3/step-02/evidence.md)) |
-| Architecture | to check in step 1: a rule-planned read round inside the model loop is what `plan_then_reason` already does (§10.3); no new access, read-only. If it needs a new strategy hook, it is an ACR |
-| Branch | `task/E2E-5-confirm-writer` (from `main`), not created yet |
-| Owner | open (quality lane) |
+| Architecture | [ACR-0007](../../architecture/changes/ACR-0007-confirm-then-reason.md) (1.8.6): a new registered strategy, no new hook, no skeleton change; read-only, no new access |
+| Branch | `task/E2E-5-confirm-writer` (from `main`) |
+| Owner | `juanbetancurm` (+ agent), quality lane |
 | Needs the VM lease | step 2: vm-095 (agent rebuild), then vm-166 for the re-run |
 
 ## Goal (plain language)
@@ -46,6 +46,16 @@ the model: it does not guarantee the read (the same reason E2E-3 did not choose 
   planned once.
 - The `disk_pressure` strategy uses it. The baseline evaluation (+ a case: the suspect's logs are read before the
   conclusion) stays hard 0 0 0.
+
+**As built (2026-10-11):** the §10.3 check found no new hook is needed (a strategy only returns decisions; new ones
+are "registered the same way"), but `plan_then_reason` plans a *fixed* first round and cannot depend on what was found,
+so it is a new registered strategy, `confirm_then_reason`, and the §3/§10.3 tables change: ACR-0007. A suspect is a
+running container whose `container.status` shows `host_mounts` rw on a declared filesystem that `host.disk_usage`
+reports at or above the detector's 90 %. The round (its `container.logs` and `container.resources`) is planned once
+per suspect, then the model loop decides. Tests: `tests/test_e2e5_confirm_writer.py` (7; red seen: no strategy). The
+end-to-end test runs a scripted investigation through the real skeleton: with `confirm_then_reason` the filler's logs
+are read after its status and before the conclusion; with `model_loop` they are never read. The `disk_pressure`
+evaluation cases (still `AWAITING_CASES`) follow in their own PR.
 
 ### Step 2 (after the merge)
 

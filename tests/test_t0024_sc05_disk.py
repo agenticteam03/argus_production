@@ -104,7 +104,7 @@ def test_the_class_is_registered_for_hosts_with_rb005():
     from argus.detectors.classes import CLASSES, classes_for
     c = next(c for c in CLASSES if c.name == "disk_pressure")
     assert (c.family, c.runbook_ids, c.branch_runbook_ids, c.strategy) == ("saturation", ["RB-005"], ["RB-019"],
-                                                                          "model_loop")
+                                                                          "confirm_then_reason")   # E2E-5
     assert c.target_kinds == {"host"} and c.required_signals == {"host_disk_used_ratio_5m", "host_disk_hours_to_full"}
     assert {"host", "disk", "logs", "container", "knowledge"} <= c.tool_tags
     assert c in classes_for("host") and c not in classes_for("container")
