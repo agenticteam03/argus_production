@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | `in progress` — proposed 2026-10-11 by `conantkd`; step 1 (offline) done 2026-10-11 by `juanbetancurm`; step 2 after the merge |
+| Status | `done` — proposed 2026-10-11 by `conantkd`; step 1 (offline) done 2026-10-11 and step 2 (SC-05 × 5) 5/5 PASS 2026-10-12, by `juanbetancurm` |
 | Phase | 12 (end-to-end tests) — [`../../IMPLEMENTATION_PLAN.md`](../../IMPLEMENTATION_PLAN.md) |
 | Found by | [E2E-3 step 2](E2E-3-container-mounts.md): SC-05 3/5, misses `inc_047b8eece8a3`, `inc_81698a6c8fa9` ([evidence](../../execution/history/E2E-3/step-02/evidence.md)) |
 | Architecture | [ACR-0007](../../architecture/changes/ACR-0007-confirm-then-reason.md) (1.8.6): a new registered strategy, no new hook, no skeleton change; read-only, no new access |
@@ -57,10 +57,18 @@ end-to-end test runs a scripted investigation through the real skeleton: with `c
 are read after its status and before the conclusion; with `model_loop` they are never read. The `disk_pressure`
 evaluation cases (still `AWAITING_CASES`) follow in their own PR.
 
-### Step 2 (after the merge)
+### Step 2 (done, both leases, session dbc9d75324dd)
 
-vm-095: backup, `deploy.sh main`, rebuild agent, worker and scheduler; then `ops/e2e/run.py --runs 5 SC-05` on vm-166
-(about 55 minutes). Done when SC-05 is 5/5, or the misses are read and explained.
+vm-095 from `e3286df` to `main` `2a5f06b` on 2026-10-11 (backup OK; agent, worker and scheduler rebuilt, restarts 0;
+20/20 database checks; `disk_pressure strategy: confirm_then_reason`; WRITE GATE CLOSED; LAB BASELINE OK; NO
+INTERFERENCE). Then `ops/e2e/run.py --runs 5 SC-05`, 2026-10-11 23:25 to 2026-10-12 00:21 UTC: **5/5 PASS** (was 3/5),
+0 fail, 0 error. Every run: `diagnosed`, `disk_pressure`, root cause `vm-166/container:argus-lab-filler`, first runbook
+RB-005; 610–710 s per run. Incidents `inc_f516947934ac`, `inc_a6b14dc6994d`, `inc_43c6f451068a`, `inc_34a0e7bcbb12`,
+`inc_3dc347d2cdc8`. Whether the rule-planned round fired in each run was not read per run; the strategy was live.
+
+Process note: the deploy ran while `main-guard` was red (#84 and #85 merged with no GitHub approval) and before
+ACR-0007's acceptance was on record, by `juanbetancurm`'s decision. Both were closed afterwards: #86 (approved by
+`conantkd`) and #88 (ACR-0007 accepted).
 
 ## Limits
 
