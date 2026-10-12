@@ -214,8 +214,7 @@ class BaselineStrategy:
             return (f"OOM-killed by its own container memory limit (oom_killed=True, exit {code}); it grows to the "
                     f"limit on every start, so a restart only helps until memory fills again", t)
         if code == "137":
-            return ("killed by SIGKILL (exit 137) but not OOM (oom_killed=False): stopped from outside the "
-                    "container, not by its memory limit", t)
+            return None                  # SIGKILL without an OOM kill: nothing says who sent it (RB-008, EVAL-3)
         if code not in ("0", "unknown", "None"):
             return (f"non-OOM application crash: the process exits with code {code} on every start; restarting does "
                     f"not fix it (see its logs)", t)

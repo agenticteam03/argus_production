@@ -1,4 +1,6 @@
-# exit 137 WITHOUT OOMKilled: killed from outside the container, not by its memory limit
+# exit 137 WITHOUT OOMKilled: killed by a signal from outside, and nothing says who sent it: escalate (RB-008)
+# EVAL-3: was labelled `diagnosed` with the worker as root cause (the victim of the kill). RB-008 keeps unexplained
+#   kills unresolved; relabelled after EVAL-2's model escalated it 5/5. The fixtures are unchanged.
 id: restart-sigkill-01
 category: class
 target: vm-166/container:argus-lab-worker
@@ -223,11 +225,8 @@ fixtures:
       duration_ms: 2
       status: 200
 label:
-  outcome: diagnosed
+  outcome: no_action_escalated
   class: container_restart_loop
-  root_cause: vm-166/container:argus-lab-worker
-  diagnosis_any:
-  - not OOM
-  - SIGKILL
+  abstain: true
   runbooks:
   - RB-008
