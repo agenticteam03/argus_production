@@ -136,10 +136,25 @@ def run_case(case: Case, workdir: Path, llm: Any | None = None, settings: Settin
     for a in audit:
         if a.event == "recall.passages":
             passages = [(p["runbook_id"], p["section"]) for p in (a.detail or {}).get("passages", [])]
-    return CaseRun(
+    result = CaseRun(
         case_id=case.id, outcome=done.outcome.value if done.outcome else None, incident_class=done.incident_class,
         root_cause_target=done.root_cause_target, diagnosis=done.diagnosis, findings=list(done.findings),
         model_calls=rec.calls if rec else 0,
         reads=[(e.capability, e.target, e.status) for e in evidence if e.capability and e.target],
         passages=passages, audit_events=[a.event for a in audit],
         model_requests=rec.requests if rec else [], duration_ms=ms)
+    _drop_store(app, db)
+    return result
+
+
+def _drop_store(app: Any, db: Path) -> None:
+    """The run's store is throwaway: remove it once its result is read (EVAL-2: 275 runs filled eval-run.sh's 64 MiB
+    /tmp and the CLI died at run 274). Best effort: a file still open elsewhere stays for the folder's own cleanup."""
+    conn = getattr(app.store, "_db", None)
+    if conn is not None:
+        conn.close()
+    for f in db.parent.glob(db.name + "*"):                     # the database and its -wal / -shm files
+        try:
+            f.unlink()
+        except OSError:
+            pass

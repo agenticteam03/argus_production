@@ -78,3 +78,13 @@ def test_the_stopped_case_logs_no_write_history():
     logs = _filler_logs(case)
     assert "wrote" not in logs and "done" not in logs and "nothing" in logs
     assert FILL                                                        # same mount as the other disk cases
+
+
+def test_a_replay_leaves_no_store_behind(tmp_path):
+    """E.4: 275 runs filled eval-run.sh's 64 MiB /tmp (one throwaway SQLite store per run) and the CLI died at run 274.
+    Each run now removes its own store once the result is read."""
+    from argus.evaluation.cases import load_cases
+    from argus.evaluation.replay import run_case
+    case = next(c for c in load_cases(CASES) if c.id == "restart-oom-01")
+    run = run_case(case, tmp_path, strategy="baseline")             # deterministic reads: the store is written
+    assert run.reads and not list(tmp_path.glob("*.db*"))
