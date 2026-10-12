@@ -1,32 +1,24 @@
 {
   "holder": "conantkd",
-  "session_id": "2a4990e92fc4",
+  "session_id": "af6224b988ab",
   "task": "E2E-5-step2",
-  "branch": "main",
-  "base_commit": "48a895bc9ec40d4ffdb1ae250422cdf072bd52e1",
-  "started_at": "2026-10-12T05:20:24+00:00",
-  "expires_at": "2026-10-12T06:20:24+00:00",
-  "released": true,
-  "handoff": {
-    "note": "done: EVAL-2 blocks prepared in execution/current/code.bash (task/EVAL-2-model-trials), nothing run on vm-095 (no SSH config on conantkd's laptop user); next: E.0 state probe, E.1 1 trial, E.2 5 trials x 55 cases; environment: vm-095 untouched",
-    "branch": "task/EVAL-2-model-trials",
-    "at": "2026-10-12T05:24:14+00:00"
-  },
+  "branch": "task/EVAL-2-model-trials",
+  "base_commit": "01c2c7dd9ec4654c04c46314e3402a222d60d6e3",
+  "started_at": "2026-10-12T05:32:02+00:00",
+  "expires_at": "2026-10-12T06:32:02+00:00",
+  "released": false,
+  "handoff": null,
   "vms": {
     "vm-095": {
       "holder": "conantkd",
-      "session_id": "2a4990e92fc4",
+      "session_id": "af6224b988ab",
       "task": "E2E-5-step2",
-      "branch": "main",
-      "base_commit": "48a895bc9ec40d4ffdb1ae250422cdf072bd52e1",
-      "started_at": "2026-10-12T05:20:24+00:00",
-      "expires_at": "2026-10-12T06:20:24+00:00",
-      "released": true,
-      "handoff": {
-        "note": "done: EVAL-2 blocks prepared in execution/current/code.bash (task/EVAL-2-model-trials), nothing run on vm-095 (no SSH config on conantkd's laptop user); next: E.0 state probe, E.1 1 trial, E.2 5 trials x 55 cases; environment: vm-095 untouched",
-        "branch": "task/EVAL-2-model-trials",
-        "at": "2026-10-12T05:24:14+00:00"
-      }
+      "branch": "task/EVAL-2-model-trials",
+      "base_commit": "01c2c7dd9ec4654c04c46314e3402a222d60d6e3",
+      "started_at": "2026-10-12T05:32:02+00:00",
+      "expires_at": "2026-10-12T06:32:02+00:00",
+      "released": false,
+      "handoff": null
     },
     "vm-166": {
       "holder": "juanbetancurm",
