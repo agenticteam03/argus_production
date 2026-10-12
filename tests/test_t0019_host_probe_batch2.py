@@ -544,3 +544,14 @@ def test_every_case_of_an_offered_class_answers_its_new_tools():
             assert "unknown" not in r.model_text, (path.name, name, r.model_text)
             seen += 1
     assert seen >= 40
+
+
+def test_the_system_prompt_says_where_the_space_went_is_not_who_wrote_it():
+    """Step 03 (E.7): with `get_directory_sizes` answering "data-0007.bin 202 MiB", the model concluded in the abstain
+    disk cases: it named the host ("the file is the cause") when the only container mounts read-only or wrote nothing,
+    and the filler only because it could write there. A large file says where the space went, not who wrote it."""
+    from argus.tooling.model_harness import SYSTEM_PROMPT
+    text = " ".join(SYSTEM_PROMPT.split())
+    assert "where the space went" in text and "not who wrote it" in text
+    assert "only when the evidence ties it to the data" in text
+    assert "can be the root cause of its own failure" in text            # EVAL-2's rule is still there
