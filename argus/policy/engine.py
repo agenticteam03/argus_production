@@ -8,6 +8,7 @@ import hashlib
 from dataclasses import dataclass
 
 from argus.domain.model import TargetRef
+from argus.policy.inspection import InspectionPolicy
 
 
 @dataclass(frozen=True)
@@ -29,13 +30,16 @@ class PolicyEngine:
         self.write_gate_open: list = data.get("write_gate", {}).get("open", []) or []
         if self.write_gate_open:
             raise ValueError("v1.8-lab is read-only: write_gate.open must be empty")
+        # T-0019 batch 3a: the inspection policy (§4.7); arbitrary_exec: true or a malformed section refuses startup
+        self.inspection = InspectionPolicy.from_data(data.get("inspection"))
         self.version = hashlib.sha256(raw_text.encode()).hexdigest()
 
     def capability_known(self, name: str) -> bool:
         return name in self.capabilities
 
     def check(self, *, capability: str, level: int, safety_class: str, target: TargetRef,
-              incident_scope: set[TargetRef], used_in_incident: int) -> PolicyDecision:
+              incident_scope: set[TargetRef], used_in_incident: int,
+              arguments: dict | None = None) -> PolicyDecision:
         """Fail closed. Called after a concrete capability and arguments were chosen, before execution."""
         entry = self.capabilities.get(capability)
         if entry is None:
@@ -49,4 +53,7 @@ class PolicyEngine:
         limit = int(entry.get("max_per_incident", 10))
         if used_in_incident >= limit:
             return PolicyDecision(False, "max_per_incident", f"{capability} used {used_in_incident}/{limit}")
+        inspected = self.inspection.allows(target, capability, arguments)   # files, logs, processes (§4.7)
+        if not inspected.allowed:
+            return PolicyDecision(False, "inspection", inspected.reason)
         return PolicyDecision(True, f"allow:{capability}", "allowed")

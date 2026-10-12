@@ -30,5 +30,27 @@ capabilities:
   database.health:         {max_per_incident: 3}   # T-0019, Level 3: db-probe; allowlisted databases only (inventory
                                                    # `database`), monitoring role, no rows, no SQL text
 
+# T-0019 batch 3a: the inspection policy (ARCHITECTURE §4.7). What a file, log or process read may touch, per target.
+# Checked by the engine before execution (rule `inspection`) and re-checked by the host probe from its rendered copy
+# (ops/render_target_config.py). Deny patterns win; argus/policy/inspection.py adds a built-in deny floor the data
+# cannot remove. `files` starts empty (decided 2026-10-12, conantkd): a path is added, exactly, when a case needs it,
+# and reviewed on its own. `journal` reads rsyslog's text copy (/var/log/syslog) filtered by unit (batch 3b).
+inspection:
+  targets:
+    vm-166/container:argus-lab-nginx:
+      service_config: [/opt/argus-v18/app/deploy/lab/nginx/default.conf]   # the host file bind-mounted :ro (SC-08)
+    vm-166/host:vm-166:
+      files: []
+      journal: {units: [docker.service, containerd.service], max_lines: 200}
+      processes: true
+    vm-095/host:vm-095:
+      files: []
+      journal: {units: [docker.service, containerd.service], max_lines: 200}
+      processes: true
+  deny: [environment_variables, /run/secrets/, /opt/argus-v18/secrets/, /root/, /etc/shadow,
+         "*.key", "*.pem", .env, "*token*", "*password*"]
+  limits: {max_lines: 500, max_bytes: 65536}
+  arbitrary_exec: false     # true refuses startup
+
 write_gate:
   open: []          # write gate closed (v1.8 §13.3); a non-empty list refuses startup in this phase

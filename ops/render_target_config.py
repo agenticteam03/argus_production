@@ -1,5 +1,5 @@
 """Render each host's target-side allowlist FROM THE INVENTORY (single source: policy and gateway ACLs
-cannot drift apart). Writes deploy/target/config/<host>.json. Run after editing config/inventory.yaml."""
+cannot drift apart). T-0019 batch 3a: plus that host's part of the inspection policy (config/policy.yaml, §4.7). Writes deploy/target/config/<host>.json. Run after editing config/inventory.yaml."""
 from __future__ import annotations
 
 import json
@@ -8,6 +8,15 @@ from pathlib import Path
 import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+def _inspection(host: str) -> dict:
+    """T-0019 batch 3a: this host's part of the inspection policy (§4.7, config/policy.yaml); the probe re-checks it."""
+    import sys
+    sys.path.insert(0, str(ROOT))
+    from argus.policy.inspection import InspectionPolicy
+    pol = yaml.safe_load((ROOT / "config" / "policy.yaml").read_text(encoding="utf-8"))
+    return InspectionPolicy.from_data(pol.get("inspection")).for_host(host)
 
 
 def render_host(inv: dict, host: str) -> dict:
@@ -32,7 +41,8 @@ def render_host(inv: dict, host: str) -> dict:
     databases = [{"name": t["ref"].split(":", 1)[1], "host": t["ref"].split(":", 1)[1], "port": t["database"]["port"],
                   "dbname": t["database"]["dbname"]} for t in mine if "/container:" in t["ref"] and t.get("database")]
     return {"host": host, "containers": containers, "dns_names": containers, "tcp": tcp,
-            "http_endpoints": http, "http_probes": http_probes, "probes": probes, "mounts": mounts, "databases": databases}
+            "http_endpoints": http, "http_probes": http_probes, "probes": probes, "mounts": mounts, "databases": databases,
+            "inspection": _inspection(host)}
 
 
 def main() -> None:
