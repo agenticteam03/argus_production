@@ -52,3 +52,8 @@ dangling=true` for the intermediate layers of the three builds. **Note:** that p
 dangling image, not only Argus's); `nonint-check.sh after` reported `NO INTERFERENCE: non-Argus objects unchanged`.
 Next time remove only the Argus image by name. After: checkout `2a5f06b`, `LAB BASELINE OK`, `NO INTERFERENCE`. Lease
 released.
+
+**Commit ids.** On 2026-10-12, after the runs, this branch's commit messages were rewritten to drop attribution
+trailers (the trees are unchanged, so the code that ran is the same). The ids recorded above map to the branch's
+current commits: `01c2c7d` = `07cc3b2`, `fc09eb6` = `a01b22a`, `7065d42` = `372ac95`, `e0efc8a` = `8d42c19`,
+`5ad9d8c` = `b6b8a0c`.
