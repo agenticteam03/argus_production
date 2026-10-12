@@ -16,7 +16,7 @@ calls); the phases below replace each simplification.
 | 0 | Discovery | facts about both VMs | never assume; protect the existing deployment | ✅ done | — |
 | 1 | Project init | v1.8 code layout, tests | a clean, testable core | ✅ 90 % | tidy as later phases touch it |
 | 2 | Inventory & identity | `vm-095` / `vm-166` as real hosts | the same name on two hosts must never be confused | ✅ done | — |
-| 3 | Target services | read gateway, probes, exporter per VM | Argus reads hosts only through narrow, audited services | ✅ 95 % | DB probe done (T-0019 batch 1); the other §4.6 verbs in T-0019 batches 2–3 |
+| 3 | Target services | read gateway, probes, exporter per VM | Argus reads hosts only through narrow, audited services | ✅ 97 % | DB probe (T-0019 batch 1) and the host-probe diagnosis verbs (batch 2, 2026-10-12) done; batch 3 (journal, files, processes, connectivity) needs the §4.7 inspection policy |
 | 4 | Tools & guarded execution | every tool call through `InvokeCapability` | policy, audit and host isolation on every read | 🟡 85 % | T-0021 verified on vm-095 (worker in `mcp` mode, tokens readable only by `argus-tools`, TOOLS ISOLATION OK, OD-3 p95 overhead ~45 ms); PR #36 to review |
 | 5 | Postgres | system of record (incidents, evidence, audit) | durable insert-only evidence; LangGraph checkpoints need it | ✅ 100 % | — (backup/restore drill done 2026-10-06, T-0017) |
 | 6 | Runbooks | the library drives recall | diagnoses traceable to a runbook version | ✅ 85 % | recall-quality checks per class: T-0025 measures recall@3 in the §21.2 evaluation (step 1: harness + safety cases; step 2: the baseline and 5 cases per class) |

@@ -93,6 +93,8 @@ def container_status(args: NoArgs, target: TargetRef, info, client) -> Capabilit
         text += " host_mounts=" + ",".join(f"{m['mount']}({'rw' if m.get('rw') else 'ro'})" for m in d["host_mounts"])
     if d.get("other_binds"):
         text += f" other_binds={d['other_binds']}"
+    if d.get("id"):                  # T-0019 batch 2: the host probe names a process's container by this id
+        text += f" id={d['id']}"
     ident = {"container_id": d["id"]} if d.get("id") else {}
     return CapabilityResult(values=d, model_text=text, source_time=_ts(d.get("collected_at")),
                             identities=ident, units={"memory_limit_bytes": "bytes"})
@@ -185,6 +187,134 @@ def host_disk(args: DiskArgs, target: TargetRef, info: TargetInfo | None, client
     times = [t for t in (_ts(d.get("collected_at")) for d in rows) if t]
     return CapabilityResult(values=values, model_text=text, source_time=min(times) if times else None,
                             units={"free_mib": "MiB"})
+
+
+# T-0019 batch 2 (§4.6, §12.2 Level 2). A key missing from the probe's answer reads as unknown, never zero.
+def _pressure(p: dict | None, kind: str) -> str:
+    if not p:
+        return f"{kind} unknown"
+    parts = [f"{k} {_fmt(v.get('avg10'))}%/{_fmt(v.get('avg60'))}%" for k, v in p.items() if isinstance(v, dict)]
+    return f"{kind} " + (" ".join(parts) or "unknown")
+
+
+def host_load(args: NoArgs, target: TargetRef, info, client) -> CapabilityResult:
+    d = client.get("/load")
+    pr = d.get("pressure")
+    pressure = ("; ".join(_pressure(pr.get(k), k) for k in ("cpu", "memory", "io")) if isinstance(pr, dict)
+                else "unknown")
+    return CapabilityResult(values=d, source_time=_ts(d.get("collected_at")),
+                            model_text=f"{target.host}: load1={_fmt(d.get('load1'))} load5={_fmt(d.get('load5'))} "
+                            f"load15={_fmt(d.get('load15'))} runnable={_fmt(d.get('runnable'))} "
+                            f"threads={_fmt(d.get('threads'))} cpus={_fmt(d.get('cpus'))}; pressure stall "
+                            f"(share of time waiting, avg10/avg60): {pressure}")
+
+
+def host_io(args: NoArgs, target: TargetRef, info, client) -> CapabilityResult:
+    d = client.get("/io")
+    rows = d.get("devices")
+    if not rows:
+        return CapabilityResult(values=d, source_time=_ts(d.get("collected_at")),
+                                model_text=f"{target.host}: disk I/O unknown (no block device answered)")
+    text = "; ".join(f"{r.get('device')} read={_fmt(r.get('read_kib_s'))} KiB/s ({_fmt(r.get('reads_s'))}/s) "
+                     f"write={_fmt(r.get('write_kib_s'))} KiB/s ({_fmt(r.get('writes_s'))}/s) "
+                     f"busy={_fmt(r.get('busy_percent'))}%" for r in rows)
+    return CapabilityResult(values=d, source_time=_ts(d.get("collected_at")), units={"read_kib_s": "KiB/s"},
+                            model_text=f"{target.host} disk I/O over {_fmt(d.get('interval_s'))} s: {text}; "
+                            f"pressure stall: {_pressure(d.get('pressure'), 'io')}")
+
+
+class TopArgs(_Args):
+    n: int = Field(5, ge=1, le=10, description="how many processes to list")
+
+
+def _top(by: str):
+    label = {"cpu": "top CPU processes (percent of one core over a short sample)",
+             "memory": "top memory processes (resident memory)"}[by]
+
+    def impl(args: TopArgs, target: TargetRef, info, client) -> CapabilityResult:
+        d = client.get("/processes", {"by": by, "n": args.n})
+        rows = d.get("processes")
+        if rows is None:
+            return CapabilityResult(values=d, model_text=f"{target.host}: {label} unknown",
+                                    source_time=_ts(d.get("collected_at")))
+
+        def one(p: dict) -> str:
+            where = ("kernel thread" if p.get("kernel_thread") else
+                     f"container {p['container_id']}" if p.get("container_id") else "host")
+            cpu = f" {_fmt(p.get('cpu_percent'))}%" if by == "cpu" else ""
+            return f"pid {p.get('pid')} {p.get('command')} ({where}){cpu} rss={_fmt(p.get('rss_mib'))} MiB"
+        text = "; ".join(one(p) for p in rows) or "no process read"
+        extra = f"; sample {d['sample_s']} s, cpus={_fmt(d.get('cpus'))}" if by == "cpu" and d.get("sample_s") else ""
+        return CapabilityResult(values=d, source_time=_ts(d.get("collected_at")), partial=bool(d.get("truncated")),
+                                model_text=f"{target.host} {label}: {text}{extra} (containers by id: compare "
+                                           f"get_container_status id=)")
+    return impl
+
+
+def host_sockets(args: NoArgs, target: TargetRef, info, client) -> CapabilityResult:
+    d = client.get("/sockets")
+    states = d.get("tcp_by_state")
+    if states is None:
+        return CapabilityResult(values=d, source_time=_ts(d.get("collected_at")),
+                                model_text=f"{target.host}: host socket summary unknown")
+    tcp = (d.get("sockstat") or {}).get("TCP") or {}
+    return CapabilityResult(values=d, source_time=_ts(d.get("collected_at")), partial=bool(d.get("truncated")),
+                            model_text=f"{target.host} host network namespace: TCP "
+                            + (" ".join(f"{k}={v}" for k, v in states.items()) or "none")
+                            + f"; listening ports {','.join(str(p) for p in d.get('listening_ports') or []) or 'none'}"
+                            + f"; sockstat TCP inuse={_fmt(tcp.get('inuse'))} orphan={_fmt(tcp.get('orphan'))} "
+                              f"tw={_fmt(tcp.get('tw'))}")
+
+
+class MountArgs(_Args):
+    mount: str = Field(..., description="a declared mount point of the host (as in get_disk_usage)")
+
+
+def host_directory_sizes(args: MountArgs, target: TargetRef, info: TargetInfo | None, client) -> CapabilityResult:
+    allowed = info.mounts if info else []
+    if args.mount not in allowed:
+        raise ExecutorError("invalid_args", f"mount {args.mount!r} not allowlisted for {target} (allowed: {allowed})")
+    d = client.get("/directory_sizes", {"path": args.mount})
+    rows = d.get("children")
+    if rows is None:
+        return CapabilityResult(values=d, source_time=_ts(d.get("collected_at")),
+                                model_text=f"{target.host}:{args.mount} directory sizes unknown")
+    text = ", ".join(f"{c.get('name')} {_fmt(c.get('mib'))} MiB" + ("" if c.get("complete", True) else " (partial)")
+                     for c in rows) or "empty"
+    done = d.get("complete") is True
+    tail = ("complete" if done else f"partial: stopped after {_fmt(d.get('entries_read'))} entries (limit "
+            f"{_fmt(d.get('limit_entries'))} entries / {_fmt(d.get('limit_seconds'))} s), sizes are at least these")
+    return CapabilityResult(values=d, source_time=_ts(d.get("collected_at")), partial=not done,
+                            model_text=f"{target.host}:{args.mount} largest entries: {text}; {tail}")
+
+
+class OomArgs(_Args):
+    minutes: int = Field(60, ge=1, le=1440, description="lookback window in minutes")
+
+
+def host_kernel_oom(args: OomArgs, target: TargetRef, info, client) -> CapabilityResult:
+    d = client.get("/oom", {"minutes": args.minutes})
+    since_boot = f"; oom_kill since boot={_fmt(d.get('oom_kill_since_boot'))}"
+    if d.get("source") == "unavailable":
+        return CapabilityResult(values=d, source_time=_ts(d.get("collected_at")),
+                                model_text=f"{target.host}: kernel OOM records unknown (no kernel log on this host)"
+                                           + since_boot)
+    total, window = d.get("records_total"), d.get("window_minutes", args.minutes)
+    partial = d.get("complete") is not True
+    note = " (partial read: older records may exist)" if partial else ""
+    if total is None:
+        text = "kernel OOM records unknown"
+    elif total == 0:
+        text = f"no kernel OOM kill in the last {window} min{note}"
+    else:
+        by = ", ".join(f"{c.get('container_id') or 'host-wide'}×{c.get('count')}" for c in d.get("by_container") or [])
+        last = (d.get("records") or [{}])[-1]
+        where = f"container {last['container_id']}" if last.get("container_id") else "host-wide"
+        text = (f"{total} kernel OOM kill(s) in the last {window} min{note}; by container: {by}; latest: "
+                f"{last.get('time')} {last.get('scope')} {where} {last.get('command')} pid {last.get('pid')} "
+                f"anon_rss={_fmt(last.get('anon_rss_mib'))} MiB")
+    return CapabilityResult(values=d, source_time=_ts(d.get("collected_at")), partial=partial,
+                            model_text=f"{target.host}: {text}{since_boot}")
 
 
 # --- network_probe -------------------------------------------------------------------------------
@@ -302,6 +432,38 @@ def build_catalog() -> list[CapabilitySpec]:
                        "Used/free space and inodes of an allowlisted mount, or of every declared mount when none is given.",
                        "disk filling is suspected", DiskArgs, H, 1, "READ_ONLY_SAFE", frozenset({"host", "disk"}),
                        "host_probe", host_disk),
+        # T-0019 batch 2 (Level 2). Tags decide which classes are offered them: no `host` tag, so a class gets only
+        # the ones its own resource tag asks for; `sockets` is used by no class yet (the lab's traffic is inside
+        # Docker networks, not the host's namespace).
+        CapabilitySpec("host.load", "get_host_load",
+                       "Host load averages (1/5/15 min), runnable tasks and pressure stall (cpu, memory, io).",
+                       "the host may be overloaded or tasks are waiting for CPU, memory or I/O", NoArgs, H, 2,
+                       "READ_ONLY_SAFE", frozenset({"cpu"}), "host_probe", host_load),
+        CapabilitySpec("host.top_cpu", "get_top_cpu_processes",
+                       "The host's processes using the most CPU over a short sample: command name, container id, "
+                       "percent of one core.", "which process or container burns the host's CPU", TopArgs, H, 2,
+                       "READ_ONLY_SENSITIVE", frozenset({"cpu"}), "host_probe", _top("cpu")),
+        CapabilitySpec("host.top_memory", "get_top_memory_processes",
+                       "The host's processes using the most resident memory: command name, container id, RSS.",
+                       "which process or container holds the host's memory", TopArgs, H, 2,
+                       "READ_ONLY_SENSITIVE", frozenset({"memory"}), "host_probe", _top("memory")),
+        CapabilitySpec("host.kernel_oom_records", "get_kernel_oom_records",
+                       "Kernel OOM-killer records in a time window: count by container id, the latest kill "
+                       "(container or host-wide, command, memory).",
+                       "a process may have been killed for memory by the kernel (exit 137, OOM)", OomArgs, H, 2,
+                       "READ_ONLY_SENSITIVE", frozenset({"memory", "stability"}), "host_probe", host_kernel_oom),
+        CapabilitySpec("host.io", "get_io_metrics",
+                       "Disk I/O of the host's block devices over a 1 s sample: KiB/s, operations/s, busy percent, "
+                       "I/O pressure stall.", "disk writes or I/O saturation are suspected", NoArgs, H, 2,
+                       "READ_ONLY_SAFE", frozenset({"disk"}), "host_probe", host_io),
+        CapabilitySpec("host.directory_sizes", "get_directory_sizes",
+                       "The largest entries directly under a declared mount (one filesystem, bounded walk).",
+                       "which directory fills a filesystem", MountArgs, H, 2, "READ_ONLY_SAFE",
+                       frozenset({"disk"}), "host_probe", host_directory_sizes),
+        CapabilitySpec("host.socket_summary", "get_socket_summary",
+                       "TCP sockets of the host's own network namespace by state, and its listening ports.",
+                       "a host-level service may be leaking or refusing connections", NoArgs, H, 2,
+                       "READ_ONLY_SAFE", frozenset({"sockets"}), "host_probe", host_sockets),
         CapabilitySpec("network.resolve_dns", "check_dns", "Resolve the target's name from its host's app network.",
                        "a dependency may not be resolvable", NoArgs, N, 1, "READ_ONLY_SAFE",
                        frozenset({"network", "dependency"}), "network_probe", net_dns),

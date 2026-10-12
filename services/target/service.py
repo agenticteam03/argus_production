@@ -15,13 +15,15 @@ import hmac
 import http.client
 import json
 import os
+import re
 import socket
+import stat
 import threading
 import time
 import urllib.error
 import urllib.parse
 import urllib.request
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 ROLE = os.environ["ROLE"]
@@ -269,7 +271,373 @@ def host_probe(parts: list[str], q: dict) -> dict:
                 "free_mib": free // 2**20, "total_mib": total // 2**20,
                 "inodes_used_percent": round((1 - st.f_ffree / st.f_files) * 100, 1) if st.f_files else None,
                 "collected_at": now()}
+    # T-0019 batch 2: diagnosis verbs (§4.6). Only what this container already mounts read-only; never a process's
+    # command line or environment, never a network address; a missing source is unknown, not zero.
+    if parts == ["load"]:
+        la = open(f"{PROC}/loadavg").read().split()
+        runnable, threads = la[3].split("/")
+        return {"load1": float(la[0]), "load5": float(la[1]), "load15": float(la[2]), "runnable": int(runnable),
+                "threads": int(threads), "cpus": _cpus(), "pressure": {k: psi(k) for k in ("cpu", "memory", "io")},
+                "collected_at": now()}
+    if parts == ["io"]:
+        return io_rates()
+    if parts == ["processes"]:
+        by = q.get("by", ["cpu"])[0]
+        if by not in ("cpu", "memory"):
+            raise Err(400, "by must be cpu or memory")
+        return top_processes(by, _int_arg(q, "n", 5, 1, PROCESS_MAX_N))
+    if parts == ["sockets"]:
+        return socket_summary()
+    if parts == ["directory_sizes"]:
+        return directory_sizes(q.get("path", [""])[0])
+    if parts == ["oom"]:
+        return kernel_oom_records(_int_arg(q, "minutes", 60, 1, OOM_MAX_MINUTES))
     raise Err(404, "no such route")
+
+
+def _int_arg(q: dict, name: str, default: int, lo: int, hi: int) -> int:
+    try:
+        return max(lo, min(hi, int(q.get(name, [str(default)])[0])))
+    except ValueError:
+        raise Err(400, f"{name} must be an integer")
+
+
+def _cpus() -> int:
+    return sum(1 for ln in open(f"{PROC}/stat") if ln.startswith("cpu") and ln[3].isdigit())
+
+
+def psi(kind: str) -> dict | None:
+    """Pressure stall information (/proc/pressure/<kind>): the share of time tasks waited, `some` and `full`."""
+    try:
+        lines = open(f"{PROC}/pressure/{kind}").read().splitlines()
+    except OSError:
+        return None                                  # no PSI on this kernel: unknown
+    out = {}
+    for ln in lines:
+        head, *kv = ln.split()
+        vals = dict(x.split("=", 1) for x in kv)
+        out[head] = {k: float(vals[k]) for k in ("avg10", "avg60", "avg300") if k in vals}
+    return out
+
+
+IO_SAMPLE_S, IO_MAX_DEVICES = 1.0, 8
+
+
+def _diskstats(devices: list[str]) -> dict[str, list[int]]:
+    out = {}
+    for ln in open(f"{PROC}/diskstats"):
+        f = ln.split()
+        if len(f) >= 14 and f[2] in devices:
+            out[f[2]] = [int(x) for x in f[3:14]]
+    return out
+
+
+def io_rates() -> dict:
+    """Whole block devices (/sys/block, no loop or RAM disks), /proc/diskstats sampled IO_SAMPLE_S apart."""
+    try:
+        devices = [d for d in sorted(os.listdir(f"{ROOTFS}/sys/block")) if not d.startswith(("loop", "ram", "zram"))]
+    except OSError:
+        devices = []
+    devices = devices[:IO_MAX_DEVICES]
+    a = _diskstats(devices)
+    time.sleep(IO_SAMPLE_S)
+    b = _diskstats(devices)
+    rows = []
+    for d in devices:
+        if d not in a or d not in b:
+            continue
+        x = [j - i for i, j in zip(a[d], b[d])]
+        rows.append({"device": d, "reads_s": round(x[0] / IO_SAMPLE_S, 1), "writes_s": round(x[4] / IO_SAMPLE_S, 1),
+                     "read_kib_s": round(x[2] * 512 / 1024 / IO_SAMPLE_S, 1),
+                     "write_kib_s": round(x[6] * 512 / 1024 / IO_SAMPLE_S, 1),
+                     "busy_percent": round(min(100.0, x[9] / (IO_SAMPLE_S * 1000) * 100), 1)})
+    return {"devices": rows, "interval_s": IO_SAMPLE_S, "pressure": psi("io"), "collected_at": now()}
+
+
+PROCESS_MAX_N, PROCESS_MAX_PIDS, PROCESS_SAMPLE_S = 10, 4096, 0.5
+CLK_TCK = os.sysconf("SC_CLK_TCK") if hasattr(os, "sysconf") else 100
+PAGE_BYTES = os.sysconf("SC_PAGE_SIZE") if hasattr(os, "sysconf") else 4096
+_CONTAINER_ID = re.compile(r"docker[-/]([0-9a-f]{64})")
+
+
+def _processes() -> tuple[dict[int, dict], int]:
+    """/proc/<pid>/stat only: the command name (comm), state, parent, CPU ticks and RSS. Never cmdline or environ."""
+    pids = sorted(int(p) for p in os.listdir(PROC) if p.isdigit())
+    snap = {}
+    for pid in pids[:PROCESS_MAX_PIDS]:
+        try:
+            raw = open(f"{PROC}/{pid}/stat").read()
+        except OSError:
+            continue                                 # the process ended
+        head, _, rest = raw.rpartition(")")
+        f = rest.split()
+        if "(" not in head or len(f) < 22:
+            continue
+        snap[pid] = {"command": head.split("(", 1)[1][:15], "state": f[0], "ppid": int(f[1]),
+                     "ticks": int(f[11]) + int(f[12]), "rss_pages": int(f[21])}
+    return snap, len(pids)
+
+
+def _container_of(pid: int) -> str | None:
+    try:
+        m = _CONTAINER_ID.search(open(f"{PROC}/{pid}/cgroup").read())
+    except OSError:
+        return None
+    return m.group(1)[:12] if m else None
+
+
+def top_processes(by: str, n: int) -> dict:
+    a, total = _processes()
+    if by == "cpu":
+        time.sleep(PROCESS_SAMPLE_S)
+        b, total = _processes()
+        rank = {p: (b[p]["ticks"] - a[p]["ticks"]) / CLK_TCK / PROCESS_SAMPLE_S * 100 for p in b if p in a}
+    else:
+        b = a
+        rank = {p: b[p]["rss_pages"] for p in b}
+    rows = []
+    for pid in sorted(rank, key=lambda p: (-rank[p], p))[:n]:
+        p = b[pid]
+        row = {"pid": pid, "command": p["command"], "state": p["state"],
+               "rss_mib": round(p["rss_pages"] * PAGE_BYTES / 2**20, 1), "container_id": _container_of(pid),
+               "kernel_thread": pid == 2 or p["ppid"] == 2}
+        if by == "cpu":
+            row["cpu_percent"] = round(rank[pid], 1)
+        rows.append(row)
+    return {"by": by, "processes": rows, "pids_read": min(total, PROCESS_MAX_PIDS),
+            "truncated": total > PROCESS_MAX_PIDS, "cpus": _cpus(),
+            "sample_s": PROCESS_SAMPLE_S if by == "cpu" else None, "collected_at": now()}
+
+
+TCP_STATES = {"01": "established", "02": "syn_sent", "03": "syn_recv", "04": "fin_wait1", "05": "fin_wait2",
+              "06": "time_wait", "07": "close", "08": "close_wait", "09": "last_ack", "0A": "listen", "0B": "closing",
+              "0C": "new_syn_recv"}
+SOCKET_MAX_LINES, SOCKET_MAX_PORTS = 65536, 20
+
+
+def socket_summary() -> dict:
+    """The host's network namespace (pid 1's), not this container's: counts by state and listening ports only."""
+    base = f"{PROC}/1/net"
+    try:
+        sockstat = open(f"{base}/sockstat").read().splitlines()
+    except OSError:
+        raise Err(503, "the host network namespace (pid 1) is not readable")
+    by_state: dict[str, int] = {}
+    listening: set[int] = set()
+    read = 0
+    for fam in ("tcp", "tcp6"):
+        try:
+            lines = open(f"{base}/{fam}").read().splitlines()[1:]
+        except OSError:
+            continue
+        for ln in lines[:max(0, SOCKET_MAX_LINES - read)]:
+            f = ln.split()
+            if len(f) < 4:
+                continue
+            read += 1
+            state = TCP_STATES.get(f[3], f[3])
+            by_state[state] = by_state.get(state, 0) + 1
+            if state == "listen":
+                listening.add(int(f[1].rsplit(":", 1)[1], 16))
+    totals = {}
+    for ln in sockstat:
+        proto, _, rest = ln.partition(":")
+        v = rest.split()
+        totals[proto] = {k: int(x) for k, x in zip(v[::2], v[1::2]) if x.isdigit()}
+    return {"namespace": "host (pid 1)", "tcp_by_state": by_state,
+            "listening_ports": sorted(listening)[:SOCKET_MAX_PORTS], "listening_ports_total": len(listening),
+            "sockets_read": read, "truncated": read >= SOCKET_MAX_LINES, "sockstat": totals, "collected_at": now()}
+
+
+# Step 03 on vm-166: walking `/` to 50 000 entries charged 31 MiB of directory cache to the probe's 64 MiB cgroup.
+DIR_MAX_ENTRIES, DIR_MAX_SECONDS, DIR_MAX_CHILDREN = 20_000, 4.0, 10
+
+
+def _usage(st: os.stat_result) -> int:
+    blocks = getattr(st, "st_blocks", None)
+    return blocks * 512 if blocks is not None else st.st_size
+
+
+def directory_sizes(path: str) -> dict:
+    """The largest direct children of a declared mount: one filesystem, symlinks not followed, bounded in entries
+    and time (`complete: false` says the walk was cut). Each child gets a share of what is left (step 03 on vm-095:
+    in name order `usr/` used the whole budget and `var/` was never read), so every child is measured, at least
+    partly."""
+    if path not in CONFIG.get("mounts", []):
+        raise Err(400, "path is not a declared mount")
+    base = ROOTFS + path
+    if path != "/" and not os.path.ismount(base):
+        raise Err(409, f"{path} is not mounted (unknown, not the root disk)")
+    dev = os.lstat(base).st_dev
+    deadline = time.monotonic() + DIR_MAX_SECONDS
+    read, other_fs, complete, children = 0, 0, True, []
+
+    top = sorted(os.scandir(base), key=lambda e: e.name)
+    for i, entry in enumerate(top):
+        if read >= DIR_MAX_ENTRIES or time.monotonic() >= deadline:
+            complete = False
+            break
+        share = max(1, (DIR_MAX_ENTRIES - read) // (len(top) - i))
+        until = time.monotonic() + max(0.0, deadline - time.monotonic()) / (len(top) - i)
+        limit = read + share
+
+        def budget_left() -> bool:
+            return read < limit and time.monotonic() < until
+
+        try:
+            st = os.lstat(entry.path)
+        except OSError:
+            continue
+        read += 1
+        if st.st_dev != dev:
+            other_fs += 1                            # another filesystem mounted here: not this mount's usage
+            continue
+        size, entries, done = _usage(st), 1, True
+        is_dir = stat.S_ISDIR(st.st_mode)
+        stack = [entry.path] if is_dir else []
+        while stack and done:
+            try:
+                inner = list(os.scandir(stack.pop()))
+            except OSError:
+                continue
+            for e in inner:
+                if not budget_left():
+                    done = False
+                    break
+                try:
+                    s = os.lstat(e.path)
+                except OSError:
+                    continue
+                read += 1
+                if s.st_dev != dev:
+                    continue
+                size, entries = size + _usage(s), entries + 1
+                if stat.S_ISDIR(s.st_mode):
+                    stack.append(e.path)
+        complete = complete and done
+        row = {"name": entry.name + ("/" if is_dir else ""), "bytes": size, "entries": entries, "complete": done}
+        if stat.S_ISLNK(st.st_mode):
+            row["symlink"] = True                    # its own size only; never followed
+        children.append(row)
+    children.sort(key=lambda c: (-c["bytes"], c["name"]))
+    for c in children:
+        c["mib"] = round(c.pop("bytes") / 2**20, 1)
+    return {"path": path, "children": children[:DIR_MAX_CHILDREN], "children_read": len(children),
+            "other_filesystems": other_fs, "complete": complete, "entries_read": read,
+            "limit_entries": DIR_MAX_ENTRIES, "limit_seconds": DIR_MAX_SECONDS, "collected_at": now()}
+
+
+OOM_MAX_BYTES, OOM_MAX_RECORDS, OOM_MAX_MINUTES = 4 * 2**20, 10, 1440
+_MONTHS = {m: i + 1 for i, m in enumerate("Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec".split())}
+_KERNEL_LINE = re.compile(r"^(?:(\w{3}) +(\d{1,2}) (\d\d):(\d\d):(\d\d)|(\d{4}-\d\d-\d\dT[\d:.]+(?:Z|[+-]\d\d:?\d\d)?))"
+                          r" \S+ kernel: (?:\[ *[\d.]+\] )?(.*)$")
+_KILLED = re.compile(r"Killed process (\d+) \(.*?\).*?anon-rss:(\d+)kB")
+
+
+def _kernel_time(m: re.Match, ref: datetime) -> datetime | None:
+    if m.group(6):
+        t = datetime.fromisoformat(m.group(6).replace("Z", "+00:00"))
+        return t if t.tzinfo else t.replace(tzinfo=timezone.utc)
+    month = _MONTHS.get(m.group(1))
+    if not month:
+        return None
+    t = datetime(ref.year, month, int(m.group(2)), int(m.group(3)), int(m.group(4)), int(m.group(5)),
+                 tzinfo=timezone.utc)
+    return t.replace(year=ref.year - 1) if t > ref + timedelta(days=1) else t     # the traditional format has no year
+
+
+def _kernel_line(raw: bytes, ref: datetime) -> tuple[datetime, str] | None:
+    m = _KERNEL_LINE.match(raw.decode("utf-8", "replace").rstrip("\r\n"))
+    t = _kernel_time(m, ref) if m else None
+    return (t, m.group(7)) if t else None
+
+
+def _kernel_tail(path: str, ref: datetime) -> tuple[datetime | None, list[tuple[datetime, str]], bool]:
+    """The last OOM_MAX_BYTES of a log file, read line by line (step 03: holding them OOM-killed the 64 MiB probe):
+    the time of its first kernel line, its OOM lines, and whether the file is longer than what was read."""
+    size = os.path.getsize(path)
+    start = max(0, size - OOM_MAX_BYTES)
+    first, keep, read = None, [], 0
+    with open(path, "rb") as f:
+        f.seek(start)
+        if start:
+            read += len(f.readline())                # the first line was cut
+        for raw in f:
+            read += len(raw)
+            if read > OOM_MAX_BYTES:
+                break
+            if b" kernel: " not in raw:
+                continue
+            oom = b"oom-kill:" in raw or b"Killed process" in raw
+            if first is None or oom:
+                line = _kernel_line(raw, ref)
+                if line:
+                    first = first or line[0]
+                    if oom:
+                        keep.append(line)
+    return first, keep, start > 0
+
+
+def _vmstat_oom_kill() -> int | None:
+    try:
+        for ln in open(f"{PROC}/vmstat"):
+            if ln.startswith("oom_kill "):
+                return int(ln.split()[1])
+    except OSError:
+        pass
+    return None
+
+
+def kernel_oom_records(minutes: int) -> dict:
+    """Kernel OOM-killer records from rsyslog's text copy of the kernel log (kern.log, then kern.log.1), read from
+    the end and bounded: the probe has no journalctl, and /dev/kmsg needs CAP_SYSLOG."""
+    ref = datetime.now(timezone.utc)
+    since = ref - timedelta(minutes=minutes)
+    files = [f"{ROOTFS}/var/log/{n}" for n in ("kern.log", "kern.log.1")]
+    base = {"window_minutes": minutes, "oom_kill_since_boot": _vmstat_oom_kill(), "collected_at": now()}
+    if not any(os.path.exists(p) for p in files):
+        return {**base, "source": "unavailable", "complete": False, "records_total": None, "by_container": [],
+                "records": []}
+    chunks: list[list[tuple[datetime, str]]] = []
+    complete = None
+    for p in files:                                  # newest first; stop once the window is covered
+        if not os.path.exists(p):
+            continue
+        first, lines, cut = _kernel_tail(p, ref)
+        chunks.insert(0, lines)
+        if first is not None and first <= since:
+            complete = True
+            break
+        if cut:
+            complete = False                         # the window starts before what was read
+            break
+    if complete is None:                             # both files read whole; older ones are compressed, not read
+        complete = not os.path.exists(f"{ROOTFS}/var/log/kern.log.2.gz")
+    records: list[dict] = []
+    for t, msg in (x for chunk in chunks for x in chunk):
+        if t < since:
+            continue
+        if msg.startswith("oom-kill:"):
+            kv = dict(i.split("=", 1) for i in msg[len("oom-kill:"):].split(",") if "=" in i)
+            cid = _CONTAINER_ID.search(kv.get("task_memcg", "") + " " + kv.get("cpuset", ""))
+            pid = kv.get("pid", "")
+            records.append({"time": t.isoformat(), "scope": "memcg" if kv.get("constraint") == "CONSTRAINT_MEMCG"
+                            else "host", "container_id": cid.group(1)[:12] if cid else None,
+                            "command": kv.get("task", "")[:15], "pid": int(pid) if pid.isdigit() else None,
+                            "anon_rss_mib": None})
+            continue
+        k = _KILLED.search(msg)
+        if k:
+            for r in reversed(records):
+                if r["pid"] == int(k.group(1)) and r["anon_rss_mib"] is None:
+                    r["anon_rss_mib"] = round(int(k.group(2)) / 1024, 1)
+                    break
+    counts: dict[str | None, int] = {}
+    for r in records:
+        counts[r["container_id"]] = counts.get(r["container_id"], 0) + 1
+    by_container = [{"container_id": c, "count": n} for c, n in sorted(counts.items(), key=lambda x: -x[1])][:5]
+    return {**base, "source": "kern.log", "complete": complete, "records_total": len(records),
+            "by_container": by_container, "records": records[-OOM_MAX_RECORDS:]}
 
 
 def tcp(host: str, port: int, timeout: float = 3) -> dict:

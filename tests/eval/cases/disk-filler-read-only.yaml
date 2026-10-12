@@ -12,6 +12,74 @@ metrics:
     scrape_targets_down: 0
 fixtures:
   host_probe:
+    # T-0019 batch 2: the new host-probe routes, from this case's own story (labels unchanged)
+    /directory_sizes?path=/srv/argus-lab-fill:
+      path: /srv/argus-lab-fill
+      children:
+      - name: data-0007.bin
+        entries: 1
+        complete: true
+        mib: 202.0
+      - name: lost+found/
+        entries: 1
+        complete: true
+        mib: 0.0
+      children_read: 2
+      other_filesystems: 0
+      complete: true
+      entries_read: 2
+      limit_entries: 20000
+      limit_seconds: 4.0
+      collected_at: '2026-10-12T06:00:00+00:00'
+    /directory_sizes?path=/:
+      path: /
+      children:
+      - name: var/
+        entries: 1430
+        complete: false
+        mib: 2400.0
+      - name: usr/
+        entries: 1430
+        complete: false
+        mib: 1800.0
+      - name: opt/
+        entries: 1430
+        complete: false
+        mib: 900.0
+      - name: home/
+        entries: 210
+        complete: true
+        mib: 6.5
+      - name: etc/
+        entries: 1430
+        complete: false
+        mib: 3.8
+      children_read: 14
+      other_filesystems: 4
+      complete: false
+      entries_read: 20000
+      limit_entries: 20000
+      limit_seconds: 4.0
+      collected_at: '2026-10-12T06:00:00+00:00'
+    /io:
+      devices:
+      - device: sda
+        reads_s: 0.0
+        writes_s: 10.6
+        read_kib_s: 0.0
+        write_kib_s: 680.0
+        busy_percent: 2.1
+      interval_s: 1.0
+      pressure:
+        some:
+          avg10: 0.4
+          avg60: 0.3
+          avg300: 0.2
+        full:
+          avg10: 0.1
+          avg60: 0.1
+          avg300: 0.0
+      collected_at: '2026-10-12T06:00:00+00:00'
     /disk?mount=/:
       mount: /
       used_percent: 28.0

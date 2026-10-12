@@ -32,6 +32,8 @@ class CaseRun:
     passages: list[tuple[str, str]]            # (runbook_id, section) recalled
     audit_events: list[str]
     model_requests: list[str] = field(default_factory=list)   # the whole text of every model request
+    # T-0019 batch 2: why each invalid decision was refused (`decision.invalid` alone hid a 7-in-a-row loop)
+    invalid_decisions: list[str] = field(default_factory=list)
     duration_ms: int = 0
     trial: int = 1
 
@@ -142,7 +144,9 @@ def run_case(case: Case, workdir: Path, llm: Any | None = None, settings: Settin
         model_calls=rec.calls if rec else 0,
         reads=[(e.capability, e.target, e.status) for e in evidence if e.capability and e.target],
         passages=passages, audit_events=[a.event for a in audit],
-        model_requests=rec.requests if rec else [], duration_ms=ms)
+        model_requests=rec.requests if rec else [], duration_ms=ms,
+        invalid_decisions=[f"{(a.detail or {}).get('reason')}: {str((a.detail or {}).get('detail'))[:300]}"
+                           for a in audit if a.event == "decision.invalid"])
     _drop_store(app, db)
     return result
 

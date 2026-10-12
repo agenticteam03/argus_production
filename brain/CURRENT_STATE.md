@@ -7,6 +7,14 @@ shared-Brain setup B1–B8 under way (three developers).
 > The VMs are authoritative for what runs there: run `sudo bash /opt/argus-v18/app/ops/deploy.sh status` (or read
 > `/opt/argus-v18/DEPLOYED`) and the state probe before trusting this file.
 
+> **Update 2026-10-12 (`conantkd`, T-0019 batch 2 step 03, OBSERVED):** **both VMs run
+> `task/T-0019-batch2-host-probe` `040b827`** (batch 2 rebased on `task/EVAL-2-model-trials`, so it also carries
+> EVAL-2: ACR-0008, its prompt rule, and batch 2's prompt rule): the target services on both hosts have the six new
+> host-probe routes (`/load`, `/io`, `/processes`, `/sockets`, `/directory_sizes`, `/oom`); vm-095's agent, worker and
+> scheduler rebuilt together (one image), seven new Level 2 capabilities. `phase3_check` 55/55, `LAB BASELINE OK`,
+> NO INTERFERENCE. Back to `main` after #89 and the batch 2 PR merge (AFTER-MERGE, checkout + the same rebuilds).
+> Evidence: [`execution/history/T-0019/step-06/evidence.md`](execution/history/T-0019/step-06/evidence.md).
+
 > **Update 2026-10-11 (`conantkd`, E2E-3 step 2, OBSERVED):** **both VMs run `main` `e3286df`** (#75-#77): vm-166's
 > read-gateway, host-probe, network-probe and exporter rebuilt (`container.status` shows `host_mounts`); vm-095's
 > agent, worker and scheduler rebuilt (backup `argus-20261011T131837Z.dump`, `argus db check` 20/20, WRITE GATE

@@ -26,6 +26,9 @@ Rules:
   host as the root cause only because no container or process was found to cause it: if the evidence points to no
   component, call `escalate`, with what you found and what a human should check. A container whose own fault the
   evidence shows (its OOM kill, crash, exit code, logs) can be the root cause of its own failure.
+- A large file or directory shows where the space went, not who wrote it. Name a writer only when the evidence ties it
+  to the data (its logs, its own file names, its write activity), not only because it can write there; a file that
+  names no component is part of the symptom: escalate, with it as what a human should check.
 """
 
 DECISION_TOOLS = {"conclude", "escalate"}
