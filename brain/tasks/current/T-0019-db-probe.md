@@ -228,3 +228,24 @@ Branch `task/T-0019-batch3b-host-verbs`, stacked on 3a (`task/T-0019-batch3a-ins
   model cannot guess a path); the probe returns those files only.
 - **Evaluation cases:** the 6 `nginx-*` cases answer `/service_config` with the lab's `default.conf`, the file SC-08 runs
   with (labels unchanged).
+
+## Batch 3c (2026-10-12, `conantkd` + agent): network verbs
+
+Branch `task/T-0019-batch3c-network-verbs`, from `main`; independent of 3a (no §4.7 read). Decided 2026-10-12
+(`conantkd`), option **A2**:
+
+- **`network.connectivity`** (`check_connectivity`, Level 2, SAFE, executor `docker_read`): a new read-gateway route
+  `GET /connectivity?from=&to=` for two allowlisted containers of the host: each side's networks (names only) and
+  running state, and the networks they share. "No shared network" states SC-07's cause in one read. It is offered
+  only to `dependency_unavailable` (its own tag `connectivity`), whose 6 evaluation cases answer it.
+- **Rejected for now (A1):** a combined capability (§12.7: sub-reads through `InvokeCapability`, `max_subcalls`) that
+  would also run DNS and TCP. The mechanism does not exist yet; building it for one use was not worth it. DNS and TCP
+  stay their own verbs. `container.status` already shows each side's networks (T-0018, E2E-2).
+- **`network.tcp_connect`** (`check_tcp_connection`) takes `attempts` 1–5, 0.5 s apart; the probe returns each
+  attempt's result and latency, `succeeded`, and `ok` only when every attempt connected. One attempt sends the old
+  request and gets the old answer (plus `attempts`). §12.2 names a separate `network.tcp_connection`; its model name
+  is already this capability's, so the existing one is extended instead.
+- **`network.listening_ports`: not in 3c.** What really listens inside a container needs its network namespace (a pid
+  from Docker, `/proc/<pid>/net/tcp` from the host probe): two executors. Proposed later, with the host verbs.
+- **Evaluation cases:** the 6 `dependency_unavailable` cases answer `/connectivity?from=<target>&to=<each declared
+  dependency>` from their own status fixtures (networks, `state`), labels unchanged (rule written before any model run).

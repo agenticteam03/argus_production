@@ -38,6 +38,13 @@ class DiskArgs(_Args):
 
 class PortArgs(_Args):
     port: int = Field(..., ge=1, le=65535, description="an allowlisted TCP port of the target")
+    attempts: int = Field(1, ge=1, le=5, description="connect attempts 0.5 s apart: more than 1 tells an "
+                                                     "intermittent failure from a permanent one")
+
+
+class ConnectivityArgs(_Args):
+    to: str = Field(..., pattern=r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$",
+                    description="the destination container's name, on the same host (e.g. a declared dependency)")
 
 
 class UrlArgs(_Args):
@@ -350,10 +357,41 @@ def net_tcp(args: PortArgs, target: TargetRef, info: TargetInfo | None, client) 
     allowed = info.tcp_ports if info else []
     if args.port not in allowed:
         raise ExecutorError("invalid_args", f"port {args.port} not allowlisted for {target} (allowed: {allowed})")
-    d = client.get("/tcp", {"host": target.name, "port": args.port})
-    return CapabilityResult(values=d, model_text=f"tcp {target.name}:{args.port} from {target.host} app network: "
-                            f"{'ok in ' + str(d.get('duration_ms')) + ' ms' if d.get('ok') else 'FAILED ' + str(d.get('error'))}",
-                            source_time=_ts(d.get("collected_at")), units={"duration_ms": "ms"})
+    params = {"host": target.name, "port": args.port}
+    if args.attempts > 1:                                  # T-0019 batch 3c; one attempt = the old request
+        params["attempts"] = args.attempts
+    d = client.get("/tcp", params)
+    text = (f"tcp {target.name}:{args.port} from {target.host} app network: "
+            f"{'ok in ' + str(d.get('duration_ms')) + ' ms' if d.get('ok') else 'FAILED ' + str(d.get('error'))}")
+    tries = d.get("attempts")
+    if isinstance(tries, list) and len(tries) > 1:
+        each = ", ".join(f"{'ok' if t.get('ok') else 'FAIL'} {t.get('duration_ms')} ms" for t in tries)
+        text = (f"tcp {target.name}:{args.port} from {target.host} app network: {_fmt(d.get('succeeded'))}/{len(tries)} "
+                f"connected ({each})")
+    return CapabilityResult(values=d, model_text=text, source_time=_ts(d.get("collected_at")), units={"duration_ms": "ms"})
+
+
+def _side(s: dict, name: str) -> str:
+    nets, running = s.get("networks"), s.get("running")
+    state = "running" if running else "not running" if running is False else "state unknown"
+    where = ",".join(nets) if nets else ("no network" if nets == [] else "unknown networks")
+    return f"{name} ({state}) on {where}"
+
+
+def net_connectivity(args: ConnectivityArgs, target: TargetRef, info, client) -> CapabilityResult:
+    """T-0019 batch 3c (§12.2 `check_connectivity`): both sides' networks and the shared ones, from the read gateway."""
+    if args.to == target.name:
+        raise ExecutorError("invalid_args", f"{target} and the destination are the same container")
+    d = client.get("/connectivity", {"from": target.name, "to": args.to})
+    src, dst, shared = d.get("from") or {}, d.get("to") or {}, d.get("shared")
+    if shared is None or src.get("networks") is None or dst.get("networks") is None:
+        verdict = "shared networks unknown"
+    elif shared:
+        verdict = f"shared networks: {','.join(shared)}"
+    else:
+        verdict = "NO shared network: they cannot reach each other on a common network"
+    return CapabilityResult(values=d, model_text=f"connectivity {target.host}: {_side(src, target.name)} -> "
+                            f"{_side(dst, args.to)}; {verdict}", source_time=_ts(d.get("collected_at")))
 
 
 def net_http(args: UrlArgs, target: TargetRef, info: TargetInfo | None, client) -> CapabilityResult:
@@ -573,6 +611,11 @@ def build_catalog() -> list[CapabilitySpec]:
         CapabilitySpec("network.tcp_connect", "check_tcp_connection", "TCP connect to an allowlisted port of the target from its host's app network.",
                        "a dependency may be unreachable", PortArgs, N, 1, "READ_ONLY_SAFE",
                        frozenset({"network", "dependency"}), "network_probe", net_tcp),
+        CapabilitySpec("network.connectivity", "check_connectivity",
+                       "The networks of this container and of a destination container on the same host, and the ones "
+                       "they share (names only).", "a dependency is unreachable although it is running: are both "
+                       "sides on a common network?", ConnectivityArgs, C, 2, "READ_ONLY_SAFE",
+                       frozenset({"connectivity"}), "docker_read", net_connectivity),
         CapabilitySpec("network.http_probe", "check_http_endpoint", "HTTP GET of an allowlisted endpoint: status and latency.",
                        "a web/API endpoint may be failing", UrlArgs, P, 1, "READ_ONLY_SAFE",
                        frozenset({"network", "availability"}), "network_probe", net_http),

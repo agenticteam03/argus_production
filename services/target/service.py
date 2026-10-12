@@ -145,6 +145,22 @@ def inspect(name: str) -> dict:
             "collected_at": now()}
 
 
+def connectivity(src: str, dst: str) -> dict:
+    """T-0019 batch 3c: the networks of two allowlisted containers of this host and the ones they share (names only;
+    addresses never leave the gateway). No shared network = they cannot reach each other by name (SC-07)."""
+    if not src or not dst:
+        raise Err(400, "needs from and to")
+    if src == dst:
+        raise Err(400, "from and to are the same container")
+    sides = {}
+    for role, name in (("from", allowed(src)), ("to", allowed(dst))):
+        d = djson(f"/containers/{urllib.parse.quote(name)}/json")
+        sides[role] = {"name": name, "running": (d.get("State") or {}).get("Running"),
+                       "networks": sorted(((d.get("NetworkSettings") or {}).get("Networks") or {}).keys())}
+    shared = sorted(set(sides["from"]["networks"]) & set(sides["to"]["networks"]))
+    return {**sides, "shared": shared, "collected_at": now()}
+
+
 def demux(raw: bytes, tty: bool) -> list[str]:
     if tty:
         return raw.decode("utf-8", "replace").splitlines()
@@ -215,6 +231,8 @@ def read_gateway(parts: list[str], q: dict) -> dict:
         out = [{"name": n.lstrip("/"), "state": r.get("State"), "status": r.get("Status"), "image": r.get("Image")}
                for r in rows for n in r.get("Names", [])[:1] if n.lstrip("/") in CONTAINERS]
         return {"containers": out, "collected_at": now()}
+    if parts == ["connectivity"]:
+        return connectivity(q.get("from", [""])[0], q.get("to", [""])[0])
     if len(parts) == 3 and parts[0] == "containers":
         name, what = allowed(parts[1]), parts[2]
         if what == "status":
@@ -699,7 +717,19 @@ def network_probe(parts: list[str], q: dict) -> dict:
         host, port = q.get("host", [""])[0], int(q.get("port", ["0"])[0])
         if [host, port] not in CONFIG.get("tcp", []):
             raise Err(400, "host:port not allowlisted")
-        return {**tcp(host, port), "collected_at": now()}
+        try:                                                     # T-0019 batch 3c: 1-5 attempts, 0.5 s apart
+            n = int(q.get("attempts", ["1"])[0])
+        except ValueError:
+            raise Err(400, "attempts must be 1-5") from None
+        if not 1 <= n <= 5:
+            raise Err(400, "attempts must be 1-5")
+        tries = []
+        for i in range(n):
+            if i:
+                time.sleep(0.5)
+            tries.append(tcp(host, port))
+        ok = sum(1 for t in tries if t["ok"])
+        return {**tries[-1], "ok": ok == n, "succeeded": ok, "attempts": tries, "collected_at": now()}
     if parts == ["http"]:
         url = q.get("url", [""])[0]
         if url not in CONFIG.get("http_endpoints", []):
