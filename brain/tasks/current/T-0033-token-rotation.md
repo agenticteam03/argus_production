@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | `in progress` — step 1 (offline) done 2026-10-12; step 2 (one rotation on the VMs) after the merge |
+| Status | `done` — step 1 (offline) 2026-10-12; step 2 (one rotation on the VMs, no worker restart) 2026-10-12 |
 | Phase | 13 — failure and recovery ([`../../IMPLEMENTATION_PLAN.md`](../../IMPLEMENTATION_PLAN.md): "token rotation") |
 | Architecture | no change (no ACR): secrets are still read only through `Settings` (§17.2); a rejected token is re-read from the same file |
 | Branch | `task/T-0033-token-rotation`, from `main` |
@@ -32,15 +32,14 @@ escalation at worst, never a crash or a wrong attribution, and that Argus recove
   the read succeeds, then kept; a token still rejected is retried once at most; no reload = the old behaviour; the
   tools process re-reads its own files.
 
-## Step 2 (after the merge, both leases)
+## Step 2 (done 2026-10-12, both leases, session 351b0fdf7301)
 
-On main, vm-095's agent rebuilt (the AFTER-MERGE checks). Then, for vm-166's `host_probe`:
-1. a `report` on `vm-166/host:vm-166` (the evidence pack reads `host.*` through the probe, no model call): reads ok;
-2. `rotate-token.sh host_probe` on vm-166: the same report now shows the probe's reads `forbidden` and ends escalated
-   (no crash, the worker's restart count unchanged);
-3. the agent's copy replaced (laptop ssh pipe, as T-0019 step 3; owner and mode kept);
-4. the same report: reads ok again, **without restarting the worker**;
-5. LAB BASELINE OK, NO INTERFERENCE; rollback = `rotate-token.sh host_probe --rollback` + the old copy.
+Deploy of `main` `244453b` on vm-095 (agent, worker, scheduler; vm-166 checkout only), then vm-166's `host_probe`
+token rotated. The same `report` on `vm-166/host:vm-166` (evidence pack, no model call): before, reads ok
+(`inc_0c261186a482`); after the rotation with the agent's old copy, both reads `forbidden` (HTTP 401) and the incident
+escalated, no crash (`inc_80d405b583de`); after the agent's copy was replaced (same owner and mode, hashes equal), reads
+ok again (`inc_fda8fb3307eb`) with the **worker not restarted** (restarts 0, same start time). LAB BASELINE OK, NO
+INTERFERENCE. [Evidence](../../execution/history/T-0033/step-02/evidence.md).
 
 ## Limits
 
