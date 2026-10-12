@@ -26,6 +26,7 @@ capabilities:
   network.http_probe:      {max_per_incident: 4}
   metrics.memory_history:  {max_per_incident: 4}
   metrics.restart_history: {max_per_incident: 4}
+  analysis.diagnostic_snapshot: {max_per_incident: 1}   # T-0034, Level 3, §12.7: combined; offered to no class yet
   knowledge.runbook:       {max_per_incident: 3}   # in-worker: reads the runbook library (branch runbooks)
   database.health:         {max_per_incident: 3}   # T-0019, Level 3: db-probe; allowlisted databases only (inventory
                                                    # `database`), monitoring role, no rows, no SQL text

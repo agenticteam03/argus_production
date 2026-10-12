@@ -51,3 +51,6 @@ class CapabilitySpec:
     timeout_s: float = 10.0
     max_output_bytes: int = 8192
     permission: Literal["read"] = "read"
+    # §12.7 (T-0034): > 0 = a combined capability: its impl gets an invoker bound to InvokeCapability (not an executor
+    # client) and may make at most this many sub-reads, each validated, budgeted, policy-checked, audited and stored
+    max_subcalls: int = 0
