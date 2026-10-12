@@ -45,3 +45,11 @@ INTERFERENCE. [Evidence](../../execution/history/T-0033/step-02/evidence.md).
 
 Between the service restart and the copy on vm-095, reads of that executor are refused (seconds). The service accepts
 one token only; a two-token grace window would need a change to the target services.
+
+## Follow-up (2026-10-12, `conantkd`, from the review of #94)
+
+`ops/rotate-token.sh`: `--rollback` restores `.prev`'s content with the **live file's owner and mode** (it used to take
+`.prev`'s 0400, unreadable for a service that reads through its group); a failed `docker compose` recreate exits 1 and
+says the service still holds the previous token and how to roll back (it used to be hidden by `| grep … || true`, and
+"recreated" was printed). `ARGUS_DEPLOY_HOME`, `ARGUS_DOCKER` and `ARGUS_HOSTNAME` let the script run against a fake
+`/opt/argus-v18` (like `ops/deploy.sh`). Tests: `tests/test_t0033_rotate_token_script.py` (4; red seen 3/4).

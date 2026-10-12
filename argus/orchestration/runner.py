@@ -13,7 +13,7 @@ import uuid
 from contextvars import ContextVar
 from typing import Any
 
-from argus.application.invoke_capability import InvocationContext, InvokeCapability
+from argus.application.invoke_capability import InvocationContext, InvokeCapability, refs_of
 from argus.detectors.classes import classes_for
 from argus.domain.model import (AuditRecord, Conclude, EvidenceRecord, EvidenceRef, Escalate, Incident,
                                 IncidentOutcome, IncidentStatus, InvalidDecision, RequestKind, TargetRef,
@@ -28,6 +28,15 @@ log = logging.getLogger("argus.runner")
 # OP-009: set by the worker when its claim on the running incident is lost. Per run (a context variable), so one
 # runner object can serve several runs; LangGraph copies the context into the threads that run its nodes.
 _CANCEL: ContextVar[threading.Event | None] = ContextVar("argus_run_cancel", default=None)
+
+
+def allowed_values(inventory, scope) -> dict[str, dict[str, list]]:
+    """The URLs and TCP ports the inventory allows for each target in scope (the probes' `url` and `port`)."""
+    out = {}
+    for t in scope:
+        info = inventory.target(t)
+        out[str(t)] = {"url": list(info.http_endpoints) if info else [], "port": list(info.tcp_ports) if info else []}
+    return out
 
 
 class ClaimLost(Exception):
@@ -207,7 +216,7 @@ class SkeletonRunner:
                                      evidence=evidence, decisions_so_far=decisions, offered_specs=offered,
                                      scope=sorted(ctx.scope, key=str), steps_left=max_steps - step,
                                      max_reads_per_step=self.max_reads_per_step, notes=notes,
-                                     down_executors=down)
+                                     down_executors=down, allowed_values=allowed_values(self.inventory, ctx.scope))
             view.context_text = self.context(view)
             if not pack:
                 self._ev(inc, "investigate", "enter", step=step + 1, strategy=strategy.name,
@@ -235,8 +244,7 @@ class SkeletonRunner:
                 for call in d.calls:
                     self._guard()
                     obs, ref = self.invoke(ctx, call.name, call.arguments)
-                    if ref:
-                        evidence.append(ref)
+                    evidence.extend(refs_of(obs, ref))          # §12.7: a combined call's sub-reads too
                     if obs.error_category in ("unreachable", "timeout"):
                         down[f"{obs.executor}@{obs.host}"] = obs.error_category
                     self._ev(inc, node, "step", capability=obs.capability,

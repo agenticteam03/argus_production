@@ -444,6 +444,25 @@ def knowledge_runbook(args: RunbookArgs, target: TargetRef, info, client) -> Cap
                             model_text=f"{args.runbook_id}: {len(rows)} section(s) for {args.query!r}\n{text}")
 
 
+# --- §12.7 combined (T-0034): sub-reads through InvokeCapability, never an executor ---------------------------------
+SNAPSHOT_READS = (("container.status", "self", {}), ("container.resources", "self", {}),
+                  ("container.logs", "self", {"tail": 30}), ("host.memory", "host", {}), ("host.cpu", "host", {}))
+
+
+def diagnostic_snapshot(args: NoArgs, target: TargetRef, info, invoker) -> CapabilityResult:
+    """One container's status, resources and recent logs, and its host's memory and CPU, in one result."""
+    host = TargetRef.parse(f"{target.host}/host:{target.host}")
+    rows, statuses = [], {}
+    for name, who, extra in SNAPSHOT_READS:
+        obs, ref = invoker.read(name, target if who == "self" else host, extra)
+        statuses[name] = obs.status
+        rows.append(f"[{ref.evidence_id if ref else 'no evidence'}] {obs.model_text[:400]}")
+    failed = [n for n, s in statuses.items() if s != "ok"]
+    head = f"diagnostic snapshot of {target} ({len(rows) - len(failed)}/{len(rows)} reads ok"
+    head += f"; not ok: {', '.join(failed)})" if failed else ")"
+    return CapabilityResult(values={"statuses": statuses}, model_text=head + "\n" + "\n".join(rows),
+                            partial=bool(failed))
+
 # --- prometheus ----------------------------------------------------------------------------------
 def _history(signal: str, label: str):
     def impl(args: HistoryArgs, target: TargetRef, info, client) -> CapabilityResult:
@@ -563,6 +582,11 @@ def build_catalog() -> list[CapabilitySpec]:
         CapabilitySpec("metrics.restart_history", "get_restart_history", "Container restart count over a time window.",
                        "is it a restart loop and since when", HistoryArgs, C, 2, "READ_ONLY_SAFE",
                        frozenset({"stability"}), "prometheus", _history("container_restart_count", "restart count")),
+        CapabilitySpec("analysis.diagnostic_snapshot", "capture_diagnostic_snapshot",
+                       "A container's status, resources and recent logs, and its host's memory and CPU, in one call "
+                       "(each part stored as its own evidence).", "a first broad look at a container and its host",
+                       NoArgs, C, 3, "READ_ONLY_SAFE", frozenset({"snapshot"}), "argus_internal", diagnostic_snapshot,
+                       runs_in="worker", max_output_bytes=16384, max_subcalls=6),
         CapabilitySpec("knowledge.runbook", "query_runbook",
                        "Read sections of a runbook of the library (id, version, status, section).",
                        "the evidence points to a cause another runbook covers (e.g. a branch runbook of the class)",
