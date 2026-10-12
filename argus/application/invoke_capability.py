@@ -94,7 +94,7 @@ class InvokeCapability:
                     arguments={"target": str(target), **red_args})
         decision = self.policy.check(capability=spec.name, level=spec.level, safety_class=spec.safety_class,
                                      target=target, incident_scope=ctx.scope,
-                                     used_in_incident=ctx.counters.get(spec.name, 0))
+                                     used_in_incident=ctx.counters.get(spec.name, 0), arguments=args.model_dump())
         if not decision.allowed:
             self._audit(ctx, "tool", "tool.refused", capability=spec.name, policy_rule=decision.rule,
                         detail={"reason": decision.reason, "target": str(target)})

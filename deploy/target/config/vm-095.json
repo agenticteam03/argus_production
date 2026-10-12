@@ -15,5 +15,38 @@
   "mounts": [
     "/"
   ],
-  "databases": []
+  "databases": [],
+  "inspection": {
+    "targets": {
+      "vm-095/host:vm-095": {
+        "files": [],
+        "service_config": [],
+        "processes": true,
+        "journal": {
+          "units": [
+            "docker.service",
+            "containerd.service"
+          ],
+          "max_lines": 200
+        }
+      }
+    },
+    "deny": [
+      "environment_variables",
+      "/run/secrets/",
+      "/opt/argus-v18/secrets/",
+      "/root/",
+      "/etc/shadow",
+      "*.key",
+      "*.pem",
+      ".env",
+      "*password*",
+      "*token*"
+    ],
+    "limits": {
+      "max_lines": 500,
+      "max_bytes": 65536
+    },
+    "arbitrary_exec": false
+  }
 }
