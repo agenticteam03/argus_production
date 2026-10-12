@@ -63,14 +63,15 @@ of §4.6/§12.2 instead of the tool-description fix of T-0018). Every new Level 
   verb, its privilege and its output are §4.6's).
 - **Evaluation (§21.2):** the new tools are offered to `container_cpu_saturation`, `disk_pressure` and
   `container_restart_loop`. The replay cases have no answer for the new routes (their `host_probe` `"*"` answer has
-  none of the new keys), so the capabilities must show **unknown** when a key is missing, and step 03 re-runs one
-  model trial of those three classes to show they did not get worse.
+  none of the new keys), so the capabilities must show **unknown** when a key is missing. `container.status`'s new
+  `id=` also reaches 46 of the 55 cases (their status fixtures carry an id), so step 03 re-runs one model trial of
+  **all 55** cases and compares it with EVAL-2's.
 
 ## Steps (batch 2)
 
 1. Read-only checks on vm-166 (what the kernel and the probe container can read). **Done.**
 2. Tests first (red), then code: the probe verbs, the capabilities, the policy lines, `container.status` `id=`,
-   `phase3_check`.
+   `phase3_check`. **Done.**
 3. Deploy (target services on both VMs, the agent on vm-095; both leases), verify every verb through the agent's
    code path, NO INTERFERENCE; one model trial of the three classes that are offered the new tools.
 4. Brain (plan, task, journal), PR.
@@ -136,4 +137,17 @@ of §4.6/§12.2 instead of the tool-description fix of T-0018). Every new Level 
   records are in rsyslog's `kern.log` (weekly rotation; `kern.log.1` = 301 MB; 37 134 OOM lines in 7 days from a lab
   container); walk of `/` from the host 181 531 entries in 11 s, of `/srv/argus-lab-fill` 2 entries; NO
   INTERFERENCE ([evidence](../../execution/history/T-0019/step-04/evidence.md)).
+- **Batch 2 step 02 (2026-10-12, code, tests first):** `tests/test_t0019_host_probe_batch2.py`, 30 tests over a fake
+  `/proc` and `/`:
+  - **red:** 29 of 29 runnable failed for the right reasons (`no such route` for the six verbs, no
+    `DIR_MAX_ENTRIES`/`OOM_MAX_BYTES`, the seven capabilities unknown to the catalog and refused by the policy,
+    `container.status` without `id=`, `phase3_check` without the routes); the symlink test is skipped on Windows and
+    runs in CI (Linux);
+  - **green:** 29 passed, 1 skipped; full suite 541 passed, 20 skipped, 1 failed: `test_mcp_child`'s timing benchmark
+    (MCP overhead under 100 ms), which fails on `main` too on this laptop under load and passes alone;
+  - what the tests pin: a missing PSI file, kernel log or answer key is **unknown**, never zero; no `cmdline` or
+    `environ` is ever opened (a spy on `open`); no network address leaves `/sockets`; `directory_sizes` takes only a
+    declared mount, stays on one filesystem, does not follow symlinks and says when its budget cut the walk;
+    kernel OOM records come from the end of `kern.log`, then `kern.log.1`, bounded, with `complete: false` when the
+    window starts before what was read; each class is offered only its own new tools (`socket_summary`: none).
 (filled in as the steps run)

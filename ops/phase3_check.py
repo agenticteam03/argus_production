@@ -68,6 +68,38 @@ for host, ep in HOSTS.items():
     c, _ = call(f"{h}/disk?mount=/etc", tok["host_probe"])
     check(host, "host probe: mount outside allowlist (400)", c == 400, str(c))
 
+    # T-0019 batch 2: the diagnosis verbs. Counts and keys are printed, never process names.
+    hp = tok["host_probe"]
+    c, d = call(f"{h}/load", hp)
+    check(host, "host probe: load and pressure stall", c == 200 and d.get("host") == host and "load15" in d,
+          f"{c} load={d.get('load1')}/{d.get('load5')}/{d.get('load15')} psi_cpu={(d.get('pressure') or {}).get('cpu')}")
+    c, d = call(f"{h}/io", hp)
+    check(host, "host probe: io of whole block devices", c == 200 and bool(d.get("devices")),
+          f"{c} {[(x.get('device'), x.get('busy_percent')) for x in d.get('devices') or []]}")
+    proc_keys = {"pid", "command", "state", "rss_mib", "container_id", "kernel_thread", "cpu_percent"}
+    for by in ("cpu", "memory"):
+        c, d = call(f"{h}/processes?by={by}&n=3", hp)
+        rows = d.get("processes") or []
+        check(host, f"host probe: top {by} processes", c == 200 and len(rows) == 3,
+              f"{c} pids_read={d.get('pids_read')} in_containers={sum(1 for p in rows if p.get('container_id'))}")
+        check(host, f"host probe: top {by} has no command line or environment",
+              all(set(p) <= proc_keys for p in rows) and "environ" not in json.dumps(d))
+    c, _ = call(f"{h}/processes?by=disk", hp)
+    check(host, "host probe: processes ordered by anything else (400)", c == 400, str(c))
+    c, d = call(f"{h}/sockets", hp)
+    check(host, "host probe: socket summary of the host namespace", c == 200 and d.get("namespace") == "host (pid 1)",
+          f"{c} tcp={d.get('tcp_by_state')} listening={d.get('listening_ports_total')}")
+    mount = "/srv/argus-lab-fill" if host == "vm-166" else "/"
+    c, d = call(f"{h}/directory_sizes?path={mount}", hp)
+    check(host, f"host probe: directory sizes of {mount}", c == 200 and "children" in d,
+          f"{c} children={d.get('children_read')} entries={d.get('entries_read')} complete={d.get('complete')}")
+    c, _ = call(f"{h}/directory_sizes?path=/etc", hp)
+    check(host, "host probe: directory outside the declared mounts (400)", c == 400, str(c))
+    c, d = call(f"{h}/oom?minutes=60", hp)
+    check(host, "host probe: kernel OOM records", c == 200 and d.get("source") in ("kern.log", "unavailable"),
+          f"{c} source={d.get('source')} in_60_min={d.get('records_total')} complete={d.get('complete')} "
+          f"since_boot={d.get('oom_kill_since_boot')}")
+
     c, d = call(f"{n}/dns?name=argus-lab-api", tok["network_probe"])
     check(host, "network probe: dns argus-lab-api on argus-lab-app", c == 200 and d.get("ok") is True, f"{c} {d.get('addresses')}")
     c, _ = call(f"{n}/tcp?host=example.com&port=443", tok["network_probe"])

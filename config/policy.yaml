@@ -14,6 +14,13 @@ capabilities:
   host.memory:             {max_per_incident: 4}
   host.uptime:             {max_per_incident: 2}
   host.disk_usage:         {max_per_incident: 4}
+  host.load:               {max_per_incident: 3}   # T-0019 batch 2, Level 2: host-probe verbs (§4.6), read-only,
+  host.top_cpu:            {max_per_incident: 3}   # bounded; process names only (never command lines), containers by id
+  host.top_memory:         {max_per_incident: 3}
+  host.kernel_oom_records: {max_per_incident: 2}
+  host.io:                 {max_per_incident: 3}
+  host.directory_sizes:    {max_per_incident: 3}   # declared mounts only (inventory `mounts`), one filesystem
+  host.socket_summary:     {max_per_incident: 2}   # offered to no class yet (tag `sockets`)
   network.resolve_dns:     {max_per_incident: 4}
   network.tcp_connect:     {max_per_incident: 4}
   network.http_probe:      {max_per_incident: 4}
