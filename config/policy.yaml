@@ -24,6 +24,7 @@ capabilities:
   network.resolve_dns:     {max_per_incident: 4}
   network.tcp_connect:     {max_per_incident: 4}
   network.http_probe:      {max_per_incident: 4}
+  network.connectivity:    {max_per_incident: 3}   # T-0019 batch 3c, Level 2: read gateway; two allowlisted containers, network names only
   metrics.memory_history:  {max_per_incident: 4}
   metrics.restart_history: {max_per_incident: 4}
   knowledge.runbook:       {max_per_incident: 3}   # in-worker: reads the runbook library (branch runbooks)
