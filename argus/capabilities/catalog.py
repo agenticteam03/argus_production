@@ -368,6 +368,9 @@ def net_tcp(args: PortArgs, target: TargetRef, info: TargetInfo | None, client) 
         each = ", ".join(f"{'ok' if t.get('ok') else 'FAIL'} {t.get('duration_ms')} ms" for t in tries)
         text = (f"tcp {target.name}:{args.port} from {target.host} app network: {_fmt(d.get('succeeded'))}/{len(tries)} "
                 f"connected ({each})")
+    if d.get("budget_exhausted"):
+        text += (f"; stopped after {len(tries or [])} of {d.get('requested')} attempts: the {d.get('budget_s')} s "
+                 f"time budget was spent (connects that do not answer)")
     return CapabilityResult(values=d, model_text=text, source_time=_ts(d.get("collected_at")), units={"duration_ms": "ms"})
 
 

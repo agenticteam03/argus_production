@@ -682,6 +682,9 @@ def kernel_oom_records(minutes: int) -> dict:
             "by_container": by_container, "records": records[-OOM_MAX_RECORDS:]}
 
 
+TCP_BUDGET_S, TCP_TIMEOUT_S, TCP_GAP_S, TCP_MIN_ATTEMPT_S = 8.0, 3.0, 0.5, 0.5   # #101: under the 10 s client
+
+
 def tcp(host: str, port: int, timeout: float = 3) -> dict:
     t0 = time.monotonic()
     try:
@@ -723,13 +726,21 @@ def network_probe(parts: list[str], q: dict) -> dict:
             raise Err(400, "attempts must be 1-5") from None
         if not 1 <= n <= 5:
             raise Err(400, "attempts must be 1-5")
-        tries = []
+        # #101 review: every attempt can wait its whole connect timeout (a paused container answers no SYN), so the
+        # attempts share a budget under the agent's 10 s client timeout: each waits min(3 s, what is left); when the
+        # budget is spent the probe stops and says so (never a read that times out as a whole)
+        tries, start, cut = [], time.monotonic(), False
         for i in range(n):
             if i:
-                time.sleep(0.5)
-            tries.append(tcp(host, port))
+                if TCP_BUDGET_S - (time.monotonic() - start) - TCP_GAP_S < TCP_MIN_ATTEMPT_S:
+                    cut = True                                   # no room for the gap and one more attempt
+                    break
+                time.sleep(TCP_GAP_S)
+            left = TCP_BUDGET_S - (time.monotonic() - start)
+            tries.append(tcp(host, port, timeout=min(TCP_TIMEOUT_S, left)))
         ok = sum(1 for t in tries if t["ok"])
-        return {**tries[-1], "ok": ok == n, "succeeded": ok, "attempts": tries, "collected_at": now()}
+        return {**tries[-1], "ok": ok == n, "succeeded": ok, "attempts": tries, "requested": n,
+                "budget_exhausted": cut, "budget_s": TCP_BUDGET_S, "collected_at": now()}
     if parts == ["http"]:
         url = q.get("url", [""])[0]
         if url not in CONFIG.get("http_endpoints", []):
