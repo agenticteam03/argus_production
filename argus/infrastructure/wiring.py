@@ -184,6 +184,7 @@ def build(settings: Settings | None = None, llm=None, metrics=None, executors: E
     for cap in policy.capabilities:
         if cap not in {sp.name for sp in specs}:
             errors.append(f"policy names unknown capability {cap}")
+    errors += policy.inspection.errors_against_inventory(yaml.safe_load(inv_text))   # T-0019 batch 3a (§4.7)
     for c in CLASSES:
         for sig in c.required_signals:
             if sig not in signals:

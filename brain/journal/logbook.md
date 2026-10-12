@@ -1166,3 +1166,210 @@ Decision / result: its catalogue entry uses T-0029's start command and gates on 
 `compose down`). 2 new test cases (red seen); 37 runner tests pass.
 Consequences: `run.py --runs 5 SC-08` on vm-166 (its lease) completes phase 12's catalogue except SC-10/SC-12.
 References: [`../tasks/current/E2E-4-catalogue-sc08.md`](../tasks/current/E2E-4-catalogue-sc08.md).
+
+## 2026-10-11 — E2E-3 step 2: both VMs on main with host_mounts; SC-08 5/5, SC-05 3/5 (the misses read) (E2E-3)
+
+Type: verification
+Who: conantkd (+ agent)
+Context: #75 (the read-gateway names the declared host filesystems a container has mounted) and #77 (SC-08 in the
+runner catalogue) merged; vm-166's target services and vm-095's agent needed a rebuild.
+Decision / result: both VMs on `main` `e3286df` (backup `argus-20261011T131837Z.dump`, 20/20 db checks, WRITE GATE
+CLOSED, LAB BASELINE OK, NO INTERFERENCE). Batch: SC-08 5/5, SC-05 3/5, 0 errors. Both SC-05 misses saw
+`host_mounts=/srv/argus-lab-fill(rw)` and called the filler the likely writer, but named the host. They concluded
+without reading the filler's logs, so the gap is a confirmation read, not a fact.
+Consequences: proposed E2E-5, a rule-planned confirmation read of the suspected writer, as the next step.
+References: [`../tasks/current/E2E-3-container-mounts.md`](../tasks/current/E2E-3-container-mounts.md),
+[`../execution/history/E2E-3/step-02/evidence.md`](../execution/history/E2E-3/step-02/evidence.md),
+[`../tasks/current/E2E-5-confirm-writer.md`](../tasks/current/E2E-5-confirm-writer.md).
+
+## 2026-10-11 — E2E-5 step 1: confirm_then_reason, a rule-planned confirmation round (E2E-5, ACR-0007)
+
+Type: implementation + architecture change
+Who: juanbetancurm (+ agent)
+Context: after E2E-3, SC-05 was 3/5: in both misses the model saw the filler mounting the full filesystem read-write,
+called it the likely writer, and named the host without reading its logs (`conantkd`'s E2E-5 proposal, option 1).
+Decision / result: a new strategy, `confirm_then_reason` (ACR-0007, architecture 1.8.6): the model loop, but when the
+evidence names a suspect (a running container with the full declared filesystem mounted rw) the next round reads its
+logs and resources by rule, once; `disk_pressure` uses it. No skeleton, domain, policy or capability change. 7 new
+tests (red seen: no strategy; an end-to-end run through the skeleton reads the logs only with the new strategy).
+Consequences: after the merge, rebuild vm-095's agent (both leases) and run SC-05 five times; then the `disk_pressure`
+evaluation cases (a separate PR).
+References: [`../architecture/changes/ACR-0007-confirm-then-reason.md`](../architecture/changes/ACR-0007-confirm-then-reason.md).
+
+## 2026-10-11 — E2E-6 step 1: the runner queries vm-095's Prometheus inside its container (E2E-6)
+
+Type: fix
+Who: juanbetancurm (+ agent)
+Context: the first SC-02 batch through the runner gave 5 × ERROR, `pre-gate never clean: … JSONDecodeError`. The
+runner asked `127.0.0.1:18090` on the scenario's host; only vm-166 publishes its Prometheus there, vm-095's has no
+host port. Nothing was started; NO INTERFERENCE after every run.
+Decision / result: on vm-095 the gate's PromQL runs inside `argus-v18-prometheus` (`docker exec … wget`, the query
+URL-encoded by the runner); vm-166 unchanged. Checked read-only on vm-095 first. No deploy change, no new port.
+Tests: 2 new, red seen; runner tests 39/39.
+Consequences: SC-02 × 5 can run (step 2, vm-095's lease).
+References: [`../tasks/current/E2E-6-prom-gate-vm095.md`](../tasks/current/E2E-6-prom-gate-vm095.md).
+
+## 2026-10-11 — EVAL-1: the disk_pressure cases and baseline rule (§21.2) (EVAL-1)
+
+Type: implementation
+Who: juanbetancurm (+ agent)
+Context: `disk_pressure` was the one registered class still listed in `AWAITING_CASES` (T-0025 follow-up, quality
+lane): §3 "Enablement" needs at least 5 labeled cases and a baseline to measure the model against.
+Decision / result: 8 cases (`tests/eval/cases/disk-*.yaml`). Four where the right answer names the filler: it
+writes the full lab filesystem read-write (report, check, full and no longer growing), and it has stopped but its logs
+show it filled the mount (the data stays, so it is still the cause). Four where nobody can be named and the right
+answer escalates: the writer stopped with no history in its logs, a read-only mount, the full filesystem is `/` while
+the filler writes another, and the only rw writer has empty logs (a rw mount shows access, not who wrote the data).
+The baseline reads the candidate's logs in a second round and names it only when exactly one running container writes
+a full declared mount (E2E-5's `disk_suspects`) AND that read returned lines (Argus's own line count, never the log
+text); else it escalates. The stopped writer with history is a declared baseline miss (`BASELINE_MISSES`): the baseline
+names only running writers; reading that history is the model's job. `AWAITING_CASES` is empty. Baseline: 55 cases,
+52 pass (the three declared misses), `disk_pressure` 7/8, hard 0 0 0.
+Consequences: the model's run on these cases (vm-095, the configured model × 5) goes with the next evaluation batch.
+References: [`../tasks/current/T-0025-evaluation.md`](../tasks/current/T-0025-evaluation.md).
+
+## 2026-10-11 — E2E-6 step 2: SC-02 5/5 on vm-095 (E2E-6)
+
+Type: test result
+Who: juanbetancurm (+ agent)
+Context: the runner's Prometheus gates on vm-095 now query inside `argus-v18-prometheus` (#81). SC-02 had given
+5 × ERROR before.
+Decision / result: `run.py --runs 5 SC-02` on vm-095's current agent (`e3286df`): 5/5 PASS, all
+`container_restart_loop` → `argus-lab-worker`, RB-008. E2E-6 is done.
+Tests: none (a VM batch).
+Consequences: SC-02 passes Phase 12's five-run bar. The remaining Phase 12 scenario is SC-05, after #82 and vm-095's
+agent rebuild on main (E2E-5).
+References: [`../tasks/current/E2E-6-prom-gate-vm095.md`](../tasks/current/E2E-6-prom-gate-vm095.md).
+
+## 2026-10-12 — EVAL-2: the configured model on all 55 evaluation cases, and the fixes it showed (EVAL-2, ACR-0008)
+
+Type: test result + implementation + architecture change
+Who: conantkd (+ agent)
+Context: the model had run on 30 cases (2026-10-09); 25 more exist since (cpu, nginx, blind spot, dependency, disk).
+Decision / result: on vm-095, in one-off containers (the running agent untouched): before 0.83 (core 0.87),
+disk_pressure 0.45. Fixes: `confirm_then_reason` reads an exited writer's logs too (ACR-0008, architecture 1.8.7); a
+system-prompt rule (a host-level symptom is not a root cause; three versions tried, the first two over-escalated); two
+contradictory disk fixtures fixed (labels unchanged); each replay removes its throwaway store (275 runs filled the
+container's 64 MiB /tmp). After, 5 trials: **0.93 (core 0.95), abstention 0.96, disk 0.97**, hard 0 0 0, NO
+INTERFERENCE. The VMs' hostnames are now `argus-vm095` / `argus-vm166` (START_HERE updated).
+Tests: 7 new in `tests/test_eval2_fixes.py` (red seen), E2E-5's "stopped is not a suspect" case moved there; full
+suite green; baseline unchanged (52/55, the three declared misses).
+Consequences: §3 "Enablement" now has a model measurement for every registered class. Per class against the baseline:
+cpu, blind spot, postgres match; disk beats; nginx, dependency, restart loop, health are 0.04-0.20 under (escalations
+and wording); the registry decision is the team's. A host-wide `docker image prune` ran during the clean-up (no
+non-Argus change); next time remove the Argus image by name only.
+References: [`../tasks/current/EVAL-2-model-trials.md`](../tasks/current/EVAL-2-model-trials.md),
+[`../architecture/changes/ACR-0008-stopped-writer-suspect.md`](../architecture/changes/ACR-0008-stopped-writer-suspect.md).
+
+## 2026-10-12 — T-0019 batch 2: the host-probe's diagnosis verbs (load, io, top processes, sockets, directory sizes, kernel OOM records)
+
+Type: implementation + test result
+Who: conantkd (+ agent)
+Context: phase 3's last open item: the §4.6 `host-probe` verbs not built yet (batch 2 of T-0019; batch 3, files and
+logs under the inspection policy, comes after).
+Decision / result: step 01 (read-only, vm-166): the probe container already reads everything batch 2 needs (every
+pid, pid 1's network namespace, PSI, `/sys/block`, `kern.log`) without a new mount or privilege. Design: six probe
+routes, seven Level 2 capabilities; containers named by their 12-hex id (the probe has no Docker socket); kernel OOM
+records from rsyslog's `kern.log` (no `journalctl` in the probe, `/dev/kmsg` needs `CAP_SYSLOG`).
+Step 02 (code, tests first): six probe routes (`/load`, `/io`, `/processes`, `/sockets`, `/directory_sizes`, `/oom`)
+and seven Level 2 capabilities with their policy lines; `container.status` shows the container `id=`;
+`phase3_check` covers every new route. 30 new tests (29 red seen); full suite green except `test_mcp_child`'s timing
+benchmark, which also fails on `main` on a loaded laptop.
+Step 03 (both VMs): deployed and verified; four problems found and fixed, each test first: the 64 MiB probe was
+OOM-killed answering (the log tail is now streamed, the walk capped at 20 000 entries: peak 22 MiB under parallel
+load); the walk of `/` never reached `var/` (each child now gets a share of the budget); the worker and scheduler kept
+the old image (the block now rebuilds agent, worker and scheduler together); in the evaluation the cases could not
+answer the new tools, and once they could, the model concluded from a big file in the abstain disk cases (prompt rule:
+where the space went is not who wrote it). The branch was rebased on `task/EVAL-2-model-trials` for that rule, so its
+PR stacks on #89. Model, 5 trials on the 55 cases: **0.92 (core 0.95), abstention 1.00, disk 1.00, hard 0 0 0**
+(EVAL-2 E.4: 0.93 (0.95), 0.96, 0.97). The new `get_kernel_oom_records` found a real OOM kill (the probe's own, row 1
+of the evidence). Both VMs on `040b827`, `phase3_check` 55/55, NO INTERFERENCE.
+References: [`../tasks/current/T-0019-db-probe.md`](../tasks/current/T-0019-db-probe.md),
+[`../execution/history/T-0019/step-04/evidence.md`](../execution/history/T-0019/step-04/evidence.md).
+
+## 2026-10-12 — AFTER-MERGE of #88, #89, #90: both VMs on main (AFTER-MERGE-T-0019)
+
+Type: deploy
+Who: juanbetancurm (+ agent)
+Context: #88 (ACR-0007 accepted), #89 (EVAL-2, ACR-0008) and #90 (T-0019 batch 2, host-probe verbs) merged into
+`main` `45dda69`, every one approved on its last push; CI all green, `main-guard` too. Both VMs ran
+`task/T-0019-batch2-host-probe` `040b827`; the code difference to `main` was `argus/evaluation/replay.py` and tests.
+Decision / result: both leases (session f3734af7cf36), the block modelled on `conantkd`'s S3.5. vm-166: `DEPLOY OK
+45dda69`, 5 target services up. vm-095: backup OK, `DEPLOY OK 45dda69`, 4 target services up, agent, worker and
+scheduler recreated together on one image (restarts 0), health 200, no startup errors, 20/20 database checks,
+`phase3_check` 55/55, `disk_pressure strategy: confirm_then_reason`, both prompt rules present, WRITE GATE CLOSED. Both:
+`ref=main`, LAB BASELINE OK, NO INTERFERENCE. Leases released.
+Tests: none (a deploy).
+Consequences: both VMs run `main` with EVAL-2 and the host-probe verbs.
+References: [`../execution/history/AFTER-MERGE-T-0019/step-01/code.bash`](../execution/history/AFTER-MERGE-T-0019/step-01/code.bash).
+
+## 2026-10-12 — E2E-5 step 2: SC-05 5/5 on vm-095 (E2E-5)
+
+Type: test result
+Who: juanbetancurm (+ agent)
+Context: E2E-5 (#80, ACR-0007) makes `disk_pressure` read the suspected writer's logs and resources before the model
+decides. SC-05 was 3/5 after E2E-3 (the misses named the host).
+Decision / result: vm-095's agent, worker and scheduler on `main` `2a5f06b` (2026-10-11, all checks passed), then
+`run.py --runs 5 SC-05`: 5/5 PASS, all `disk_pressure` → `vm-166/container:argus-lab-filler`, RB-005. The deploy ran
+while `main-guard` was red and before ACR-0007's acceptance was on record (the user's decision); closed afterwards by
+#86 and #88.
+Tests: none (a VM batch).
+Consequences: Phase 12's five-run bar is met for SC-05 (and SC-02, E2E-6). E2E-5 is done. ACR-0008 (#89) extends the
+same round to an exited writer.
+References: [`../tasks/current/E2E-5-confirm-writer.md`](../tasks/current/E2E-5-confirm-writer.md).
+
+## 2026-10-12 — OP-012 step 1: the per-incident read limit holds under the LangGraph runner (OP-012)
+
+Type: fix
+Who: juanbetancurm (+ agent)
+Context: `GraphRunner` built a fresh `InvocationContext` in every `act` / `evidence_pack` step and runs one read per
+step, so the per-capability counters of `max_per_incident` (config/policy.yaml) restarted at zero for every read. A
+scripted model asking `container.status` twice a step got 16 reads; the policy allows 8. The plain runner was right.
+Decision / result: the graph runner rebuilds the counters from the incident's checkpointed evidence (executed reads
+only), so the limit holds for the whole incident and across a resume. No ACR: the code now matches §12.4 and the
+policy file.
+Tests: 3 new (red seen), both runners and a resume; related suites 143 passed.
+Consequences: the deployed agent gets the fix with its next rebuild on `main` (step 2, both leases).
+References: [`../tasks/current/OP-012-incident-read-budget.md`](../tasks/current/OP-012-incident-read-budget.md).
+
+## 2026-10-12 — EVAL-3 step 1: an exit 137 without an OOM kill escalates (EVAL-3)
+
+Type: decision
+Who: juanbetancurm (+ agent)
+Context: EVAL-2 (#89) left `restart-sigkill-01` as "a RB-008 question": the model escalated it 5/5; the label wanted
+`diagnosed` with the worker as root cause of a SIGKILL that came from outside.
+Decision / result: RB-008 (written before the evaluation) keeps unexplained kills unresolved, so the label is now
+`no_action_escalated` (abstain, no root cause) and the baseline escalates exit 137 without OOM. Fixtures unchanged. The
+label changed after seeing the model's answers; recorded here and in the task, justified by RB-008's text.
+Tests: 3 new (red seen); related suites 138 passed. Baseline unchanged: 52/55, hard 0 0 0.
+Consequences: the model's escalation of an unexplained kill counts as right; `container_restart_loop` should rise in
+the next evaluation batch.
+References: [`../tasks/current/EVAL-3-sigkill-label.md`](../tasks/current/EVAL-3-sigkill-label.md).
+
+## 2026-10-12 — T-0033 step 1: a rotated executor token is picked up without a restart (T-0033)
+
+Type: feature
+Who: juanbetancurm (+ agent)
+Context: Phase 13 "token rotation". The target services and the agent's tools process read their tokens once, at
+start; after a rotation every read of that executor was refused until the worker restarted.
+Decision / result: the dispatcher re-reads a rejected executor token from its file and retries once if it changed;
+the tools process and the direct mode wire it to `Settings.secret`. `ops/rotate-token.sh` rotates one token on a target
+host (never printed, `.prev` kept, the one service recreated, `--rollback`). No ACR.
+Tests: 4 new (red seen); full suite green locally (see the PR).
+Consequences: a rotation becomes a short window of `forbidden` reads (escalations), then recovery without a restart.
+References: [`../tasks/current/T-0033-token-rotation.md`](../tasks/current/T-0033-token-rotation.md).
+
+## 2026-10-12 — T-0033 step 2: a token rotated on vm-166, picked up without a restart; #91–#95 deployed (T-0033)
+
+Type: test result
+Who: juanbetancurm (+ agent)
+Context: T-0033 step 1 (#94) lets the tools process re-read a rejected executor token. Main `244453b` also carries
+OP-012 (#92) and EVAL-3 (#93); the VMs ran `45dda69`.
+Decision / result: vm-095's agent, worker and scheduler on `244453b` (backup, 20/20, 55/55, WRITE GATE CLOSED);
+vm-166 checkout only. vm-166's `host_probe` token rotated with `ops/rotate-token.sh`: the agent's reads were refused
+(`forbidden`, escalated, no crash) until its copy was replaced, then succeeded again with the worker not restarted.
+Leases released. One correction while running (T.4's hash lines), recorded in the evidence.
+Consequences: Phase 13's token rotation is covered for `docker_read`, `host_probe` and `network_probe`; `db_probe`
+also needs its Prometheus scrape token and stays manual.
+References: [`../tasks/current/T-0033-token-rotation.md`](../tasks/current/T-0033-token-rotation.md),
+[evidence](../execution/history/T-0033/step-02/evidence.md).

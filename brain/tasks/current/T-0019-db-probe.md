@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | `in progress` — batch 1 `done` (PR #27 merged); batch 2 `verified` 2026-10-12 (`task/T-0019-batch2-host-probe`, PR stacked on #89); batch 3 `planned` |
+| Status | `in progress` — batch 1 `done` (PR #27 merged); batch 2 `done` 2026-10-12 (PR #90 merged); batch 3 split in 3a / 3b / 3c (2026-10-12): 3a `in review` (`task/T-0019-batch3a-inspection-policy`), 3b and 3c `planned` |
 | Phase | 3 — target services ([`../../IMPLEMENTATION_PLAN.md`](../../IMPLEMENTATION_PLAN.md): "DB probe (with SC-04)") |
 | Architecture | no change (no ACR): §4.6 (target-side probe services), §4.7 (inspection policy), §12.2 (catalogue) |
 | Branch | batch 1: `task/T-0019-db-probe` (PR #27 merged). Batch 2: `task/T-0019-batch2-host-probe`, rebased on `task/EVAL-2-model-trials` in step 03 (it measures and changes EVAL-2's prompt), so its PR waits for #89. Batch 3: its own branch from `main` |
@@ -66,6 +66,42 @@ of §4.6/§12.2 instead of the tool-description fix of T-0018). Every new Level 
   none of the new keys), so the capabilities must show **unknown** when a key is missing. `container.status`'s new
   `id=` also reaches 46 of the 55 cases (their status fixtures carry an id), so step 03 re-runs one model trial of
   **all 55** cases and compares it with EVAL-2's.
+
+## Batch 3 design (2026-10-12, `conantkd` + agent)
+
+**Three pull requests (decided 2026-10-12, `conantkd`)**, so the policy that decides what Argus may read is reviewed on
+its own:
+
+| PR | What | Level |
+|---|---|---|
+| **3a** | the §4.7 inspection policy as data (`config/policy.yaml` `inspection:`), its check in the engine (rule `inspection`, after the other rules, before execution), startup validation against the inventory, and each host's part rendered into the probe config. **No new verb.** | — |
+| **3b** | `host-probe`: `host.read_file`, `host.service_config`, `host.journal`, `host.process_details`, under 3a; the probe re-checks its rendered copy | 3 |
+| **3c** | `network-probe`: `network.connectivity`, `network.tcp_connection`, `network.listening_ports` (no §4.7 needed; the SC-07 gap) | 2 |
+
+**Decisions (2026-10-12, `conantkd`):**
+- **`files` starts empty** on every target. `host.read_file` is the most open verb and no scenario needs a host file
+  yet; a path is added exactly, when a case needs it, and reviewed on its own (like a Level 3 policy line).
+- **`host.journal` reads rsyslog's text copy** (`/var/log/syslog`, present on vm-166), filtered by the program name of
+  the unit, like `kern.log` in batch 2: no new mount, no `journalctl` in the probe image. Lines of two units with the
+  same program name would mix (not the case in the lab). A host without the file answers `unavailable` (unknown).
+  §4.6 says "the journal directory"; recorded in the PR, no ACR (the verb, its privilege and its output are §4.6's).
+- **Opened from the start:** `service_config` of `vm-166/container:argus-lab-nginx` = its `default.conf` only (the host
+  file bind-mounted `:ro`; SC-08's `proxy_read_timeout`); `journal` units `docker.service` and `containerd.service`,
+  200 lines; `processes: true` on both hosts (status, limits, fd count, cgroup; never `cmdline` or `environ`).
+- **Deny wins**, and `argus/policy/inspection.py` adds a **built-in floor** the data cannot remove
+  (`environment_variables`, `/run/secrets/`, `/opt/argus-v18/secrets/`, `/root/`, `/etc/shadow`, `*.key`, `*.pem`,
+  `.env`, `*password*`). A path that is not already absolute and normal (`..`, `.`, `//`, NUL) is **refused, never
+  normalized**. `arbitrary_exec: true`, an unknown key, a bad unit name or a path outside the host's declared mounts
+  refuses startup.
+
+## Steps (batch 3a)
+
+1. Tests first (`tests/test_t0019_batch3a_inspection.py`, red seen: no `argus.policy.inspection`).
+2. `argus/policy/inspection.py`; `PolicyEngine.inspection` and `check(arguments=)`; `InvokeCapability` passes the
+   validated arguments; `build()` refuses an entry that is not an inventory target or a path outside a declared mount;
+   `ops/render_target_config.py` renders each host's part; `deploy/target/config/*.json` regenerated.
+3. No deploy needed for 3a by itself: nothing reads the new data until 3b's verbs exist. The rendered config reaches
+   the probes with 3b's deploy.
 
 ## Steps (batch 2)
 
@@ -167,6 +203,31 @@ of §4.6/§12.2 instead of the tool-description fix of T-0018). Every new Level 
   `phase3_check` 55/55 on both hosts; the new `get_kernel_oom_records` found the real OOM kill of row 1; both VMs on
   `040b827`, `LAB BASELINE OK`, NO INTERFERENCE. Full suite 555 passed, 20 skipped.
 (filled in as the steps run)
+
+## Batch 3b (2026-10-12, `conantkd` + agent): host verbs under the inspection policy
+
+Branch `task/T-0019-batch3b-host-verbs`, stacked on 3a (`task/T-0019-batch3a-inspection-policy`, #98): its PR waits for
+#98. With it, every verb of §4.6's `host-probe` exists: **phase 3 is complete** (with 3c, #101, for the network probe).
+
+| Probe route | Capability (model name) | Reads | Bounds |
+|---|---|---|---|
+| `GET /read_file?target=&path=&lines=` | `host.read_file` (`inspect_approved_file`) | the last lines of a file the policy lists for the target | lines ≤ `limits.max_lines`, bytes ≤ `limits.max_bytes` |
+| `GET /service_config?target=[&path=]` | `host.service_config` (`inspect_service_config`) | the target's listed configuration files (no path = all of them) | bytes ≤ `limits.max_bytes` each |
+| `GET /journal?target=&unit=&lines=` | `host.journal` (`get_journal_logs`) | `/var/log/syslog` (rsyslog), the lines of the unit's program (`docker.service` → `dockerd`, `containerd.service` → `containerd`) | lines ≤ the unit's `max_lines`; the last 4 MiB of the log; 300 chars a line; no file = `unavailable` (unknown) |
+| `GET /process_details?target=&pid=` | `host.process_details` (`inspect_process_details`) | `/proc/<pid>/status`, `limits`, the fd count, the container id; **never `cmdline` or `environ`** | one pid |
+
+- **All Level 3, `READ_ONLY_SENSITIVE`**, each with a `config/policy.yaml` line.
+- **The probe re-checks the policy** from its rendered config (`inspection` in `deploy/target/config/<host>.json`) with
+  its own small copy of the rules (the probe image has only the standard library); a parity test runs both on the same
+  paths. A path is read only if no component under `/rootfs` is a symbolic link and it is a regular file. Bounds are
+  refused (400), never clamped.
+- **Offered:** only `host.service_config`, to `nginx_upstream_failure` (tag `config`): the model can read nginx's
+  `proxy_read_timeout 2s` (SC-08's cause: the upstream answers after 5 s). The other three are offered to no class yet
+  (like `host.socket_summary`): `files` is empty, and no case needs the journal or process details yet.
+- **3a adjustment:** `host.service_config` without a `path` is allowed when the target lists configuration files (the
+  model cannot guess a path); the probe returns those files only.
+- **Evaluation cases:** the 6 `nginx-*` cases answer `/service_config` with the lab's `default.conf`, the file SC-08 runs
+  with (labels unchanged).
 
 ## Batch 3c (2026-10-12, `conantkd` + agent): network verbs
 

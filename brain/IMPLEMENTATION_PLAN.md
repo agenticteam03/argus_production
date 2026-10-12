@@ -9,7 +9,7 @@ skeleton with checkpointing, the stdio MCP tools child, exact-route gateways and
 closed-write-gate HITL machinery. The current code started as a simplified lab core (SQLite, one process, direct tool
 calls); the phases below replace each simplification.
 
-## 1. Phases at a glance (status 2026-10-05)
+## 1. Phases at a glance (status 2026-10-05; rows 3, 12 and 13 updated 2026-10-12)
 
 | # | Phase | What | Why | Status | Next |
 |---|---|---|---|---|---|
@@ -25,8 +25,8 @@ calls); the phases below replace each simplification.
 | 9 | Agent workflow | the v1.8 skeleton in LangGraph | resume after a crash; a real worker and scheduler | 🟡 75 % | T-0013 (LangGraph + Postgres checkpoints) and OP-006 done; T-0014 done (lease, `argus api`/`worker`/`scheduler`, compose; on vm-095 a killed worker's run resumed from its checkpoint, a schedule coalesced while busy), PR #33 to merge; OP-004 checkpoint cleanup after it |
 | 10 | Output modes | formatted CLI and `--raw` | readable for humans, complete for developers | ✅ 90 % | ACT result column wraps instead of being cut (fixed 2026-10-07, seen in the SC-07 demo); new scope: read-only web UI (T-0015 API side, T-0016 frontend) |
 | 11 | Synthetic incidents | controlled failures on both VMs | proof needs reproducible failures | 🟡 80 % | SC-06 CPU, SC-08 nginx (SC-04 done 2026-10-07, T-0020; SC-05 done 2026-10-09, T-0024) |
-| 12 | End-to-end tests | every scenario through the CLI | quality claims need repeated runs | 🟡 45 % | T-0023: the scenario runner `ops/e2e/run.py` + catalogue; on the VMs SC-01 5/5 and SC-03 5/5 PASS, H-1/H-2/SC-09/SC-11 1/1 (2026-10-09); next SC-02, SC-07 × 5, then each new scenario |
-| 13 | Failure & recovery | behaviour under real faults | failures become escalations, never crashes | 🟡 40 % | restart Postgres, rotate tokens (kill the worker mid-run: done on vm-095, T-0014 step 5) |
+| 12 | End-to-end tests | every scenario through the CLI | quality claims need repeated runs | 🟡 80 % | the scenario runner `ops/e2e/run.py` (T-0023): the eight class scenarios SC-01 to SC-08 at 5/5 on the VMs (SC-02 E2E-6, SC-05 E2E-5, 2026-10-12); H-1/H-2, SC-09 to SC-12 and the identity proof one run each on LangGraph; the model evaluation (55 cases, EVAL-2) 0.93 |
+| 13 | Failure & recovery | behaviour under real faults | failures become escalations, never crashes | ✅ 90 % | all four faults done on the VMs: worker killed mid-run (T-0014), Postgres restart (T-0030), Prometheus down on one host (T-0032), token rotation without a restart (T-0033, 2026-10-12). Open: an alarm when a host's own Prometheus is down; `db_probe` rotation is manual |
 | 14 | Optional | swap-ability experiments | prove a new executor needs no core change | ⬜ 0 % | `ssh_verbs` executor, only if time allows |
 
 **Order of the remaining work:** 9 LangGraph + worker + scheduler → 4 MCP tools process → 7 alerting →
@@ -136,10 +136,10 @@ only, T-0019); vm-095: the healthy twin
 | SC-02 | vm-095 | `argus-lab-worker` (same name!) exits 1, config missing | `container_restart_loop` · RB-008 | non-OOM crash on **vm-095**, not confused with SC-01 | ✅ |
 | SC-03 | vm-166 | the cache stops; the api depends on it | `dependency_unavailable` · RB-003/RB-002 | root cause the cache; the api is a victim | ✅ |
 | SC-04 | vm-166 | a worker leaks idle-in-transaction sessions on `argus-lab-db` | `postgresql_connection_exhaustion` · RB-004 | root cause the worker | ✅ (T-0020) |
-| SC-05 | vm-166 | a filler fills a 256 MiB loop-mounted file to 92 % | `disk_pressure` · RB-005 | fill rate, time to full | ⬜ |
-| SC-06 | vm-166 | CPU burner capped at `cpus: 0.3` for 3 min | `cpu_saturation` · RB-006 | throttled at quota; vm-095 unaffected | ⬜ |
+| SC-05 | vm-166 | a filler fills a 256 MiB loop-mounted file to 92 % | `disk_pressure` · RB-005 | fill rate, time to full | ✅ (T-0024) |
+| SC-06 | vm-166 | CPU burner capped at `cpus: 0.3` for 3 min | `cpu_saturation` · RB-006 | throttled at quota; vm-095 unaffected | ✅ (T-0028) |
 | SC-07 | vm-166 | client on `argus-lab-app`, healthy backend only on `argus-lab-iso` (T-0018) | `dependency_unavailable` · RB-003, RB-009 read via `query_runbook` (its own class `dns_network_failure` later) | network misconfiguration, not a failed service | ✅ |
-| SC-08 | vm-166 | nginx → slow upstream with 502s | `http_errors_latency` → `nginx_upstream_failure` · RB-011/RB-015 | upstream exceeds the nginx timeout | ⬜ |
+| SC-08 | vm-166 | nginx → slow upstream with 502s | `http_errors_latency` → `nginx_upstream_failure` · RB-011/RB-015 | upstream exceeds the nginx timeout | ✅ (T-0029) |
 | SC-09 | vm-095 | none: "users see stale data" on a healthy api | none → evidence pack | `unsupported_escalated`, **no model call** | ✅ |
 | SC-10 | vm-095 | vm-095 exporter stopped | `monitoring_blind_spot` · RB-014 | vm-095 undiagnosable; vm-166 unaffected | ✅ |
 | SC-11 | both | requests for another host's target / unknown target | — | refused before any executor call; audited | ✅ |

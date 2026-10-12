@@ -94,18 +94,36 @@ class InvokeCapability:
                     arguments={"target": str(target), **red_args})
         decision = self.policy.check(capability=spec.name, level=spec.level, safety_class=spec.safety_class,
                                      target=target, incident_scope=ctx.scope,
-                                     used_in_incident=ctx.counters.get(spec.name, 0))
+                                     used_in_incident=ctx.counters.get(spec.name, 0), arguments=args.model_dump())
         if not decision.allowed:
             self._audit(ctx, "tool", "tool.refused", capability=spec.name, policy_rule=decision.rule,
                         detail={"reason": decision.reason, "target": str(target)})
             return self._finish(ctx, self._refused(ctx, spec.name, target, "out_of_scope"
                                                    if decision.rule == "incident_scope" else "forbidden", decision.reason))
         ctx.counters[spec.name] = ctx.counters.get(spec.name, 0) + 1
+        if getattr(spec, "max_subcalls", 0):
+            # §12.7: a combined capability runs here, its sub-reads back through this entry point (never an executor)
+            return self._finish(ctx, self._combined(ctx, spec, args, target), completed=True)
         # 6–7. execute through the catalogue (redaction happens in the dispatcher and again here)
         obs = self.catalogue.call(spec, args, target)
         text, n = self.redactor.text(obs.model_text)
         obs = obs.model_copy(update={"model_text": text, "redactions": obs.redactions + n})
         return self._finish(ctx, obs, completed=True)
+
+    def _combined(self, ctx: InvocationContext, spec: Any, args: Any, target: TargetRef) -> Observation:
+        sub = _SubInvoker(self, ctx, spec)
+        base = dict(observation_id=f"obs_{uuid.uuid4().hex[:16]}", capability=spec.name, target=target,
+                    host=target.host, executor=spec.executor, collected_at=utcnow())
+        try:
+            res = spec.impl(args, target, self.inventory.target(target), sub)
+        except Exception as e:                    # a combined capability's own fault: an error, never a crash
+            return Observation(**base, status="error", error_category="internal", values=sub._values(),
+                               model_text=f"{spec.name} on {target}: error ({type(e).__name__})")
+        text, n = self.redactor.text(res.model_text)
+        return Observation(**base, status=res.status, error_category=res.error_category,
+                           values={**(res.values or {}), **sub._values()}, units=res.units,
+                           source_time=res.source_time, partial=res.partial, coverage=res.coverage,
+                           model_text=text, redactions=n)
 
     def _finish(self, ctx: InvocationContext, obs: Observation, completed: bool = False):
         # 8. evidence first, 9. then the audit record that references it
@@ -118,3 +136,48 @@ class InvokeCapability:
             # Audit failure: the observation is discarded (never used without its audit record).
             return self._refused(ctx, obs.capability, obs.target, "internal", "audit unavailable"), None
         return obs, ref
+
+
+class _SubInvoker:
+    """§12.7: what a combined capability's impl gets instead of an executor client: `read` only, bound to this incident,
+    with the caller `capability:<name>`; the incident's counters are shared (max_per_incident still holds)."""
+
+    def __init__(self, invoke: InvokeCapability, ctx: InvocationContext, spec: Any):
+        self._invoke, self._spec, self._n, self._refs = invoke, spec, 0, []
+        self._ctx = InvocationContext(incident=ctx.incident, caller=f"capability:{spec.name}", scope=ctx.scope,
+                                      counters=ctx.counters)
+
+    def _refuse(self, name: str, target: TargetRef, rule: str, text: str):
+        inv = self._invoke
+        inv._audit(self._ctx, "tool", "tool.refused", capability=name, policy_rule=rule,
+                   detail={"reason": text, "target": str(target), "combined": self._spec.name})
+        obs, ref = inv._finish(self._ctx, inv._refused(self._ctx, name, target, "forbidden", text))
+        if ref:
+            self._refs.append(ref)
+        return obs, ref
+
+    def read(self, name: str, target: TargetRef, arguments: dict[str, Any] | None = None):
+        self._n += 1
+        if self._n > self._spec.max_subcalls:
+            return self._refuse(name, target, "max_subcalls",
+                                f"{self._spec.name} may read {self._spec.max_subcalls} times")
+        sub = self._invoke.catalogue.spec(name)
+        if sub is not None and getattr(sub, "max_subcalls", 0):
+            return self._refuse(name, target, "nested_combined", "a combined capability cannot call another one")
+        obs, ref = self._invoke(self._ctx, name, {"target": str(target), **(arguments or {})})
+        if ref:
+            self._refs.append(ref)
+        return obs, ref
+
+    def _values(self) -> dict[str, Any]:
+        return {"subcalls": [r.evidence_id for r in self._refs],
+                "subcall_refs": [r.model_dump(mode="json") for r in self._refs]}
+
+
+def refs_of(obs: Observation, ref: EvidenceRef | None) -> list[EvidenceRef]:
+    """The evidence a runner keeps for one call: a combined capability's sub-reads first (the model can cite them; the
+    graph runner's counters count them, OP-012), then the call's own record."""
+    if ref is None:
+        return []
+    subs = obs.values.get("subcall_refs") if isinstance(obs.values, dict) else None
+    return [EvidenceRef.model_validate(r) for r in subs or []] + [ref]

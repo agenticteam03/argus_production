@@ -11,6 +11,9 @@ no shell; Config.Env is never returned; every JSON answer echoes `host` for attr
 """
 from __future__ import annotations
 
+import collections
+import fnmatch
+import posixpath
 import hmac
 import http.client
 import json
@@ -310,7 +313,28 @@ def host_probe(parts: list[str], q: dict) -> dict:
         return directory_sizes(q.get("path", [""])[0])
     if parts == ["oom"]:
         return kernel_oom_records(_int_arg(q, "minutes", 60, 1, OOM_MAX_MINUTES))
+    # T-0019 batch 3b: reads under the inspection policy (§4.7), re-checked here against this host's rendered copy
+    target = q.get("target", [""])[0]
+    if parts == ["read_file"]:
+        return read_file(target, q.get("path", [""])[0], _strict_int(q, "lines", 100, 1, _ins_limits()["max_lines"]))
+    if parts == ["service_config"]:
+        return service_config(target, q.get("path", [None])[0])
+    if parts == ["journal"]:
+        return journal(target, q.get("unit", [""])[0], q)
+    if parts == ["process_details"]:
+        return process_details(target, _strict_int(q, "pid", 0, 1, 2**22))
     raise Err(404, "no such route")
+
+
+def _strict_int(q: dict, name: str, default: int, lo: int, hi: int) -> int:
+    """An integer argument that must lie in [lo, hi]: refused (400), never clamped (the policy's bounds)."""
+    try:
+        v = int(q.get(name, [str(default)])[0])
+    except ValueError:
+        raise Err(400, f"{name} must be an integer") from None
+    if not lo <= v <= hi:
+        raise Err(400, f"{name} must be {lo}-{hi}")
+    return v
 
 
 def _int_arg(q: dict, name: str, default: int, lo: int, hi: int) -> int:
@@ -712,6 +736,170 @@ def network_probe(parts: list[str], q: dict) -> dict:
             raise Err(400, "url not allowlisted")
         return {**http_check(url), "collected_at": now()}
     raise Err(404, "no such route")
+
+
+# --- T-0019 batch 3b: files, service configuration, journal, process details under the inspection policy (§4.7) ---
+# The same rules as argus/policy/inspection.py (a parity test runs both on the same paths); this image carries only
+# the standard library. Deny wins; a path must already be absolute and normal; its real location under /rootfs must be
+# exactly the requested one (no symlink anywhere); only regular files; bounded in lines and bytes.
+INSPECT_KEYWORDS = {"environment_variables"}
+UNIT_PROGRAMS = {"docker.service": "dockerd", "containerd.service": "containerd"}   # rsyslog's program name of a unit
+JOURNAL_MAX_BYTES, JOURNAL_LINE_CHARS = 4 * 2**20, 300
+
+
+def _ins() -> dict:
+    return CONFIG.get("inspection") or {"targets": {}, "deny": [], "limits": {"max_lines": 500, "max_bytes": 65536}}
+
+
+def _ins_limits() -> dict:
+    return {"max_lines": 500, "max_bytes": 65536, **(_ins().get("limits") or {})}
+
+
+def _normal_path(path) -> str | None:
+    if not isinstance(path, str) or not path.startswith("/") or "\x00" in path or path.startswith("//"):
+        return None
+    return path if posixpath.normpath(path) == path else None
+
+
+def _denied_path(path: str) -> bool:
+    name = posixpath.basename(path).lower()
+    for d in _ins().get("deny", []):
+        if d in INSPECT_KEYWORDS:
+            continue
+        if d.endswith("/"):
+            if (path + "/").startswith(d):
+                return True
+        elif d.startswith("/"):
+            if path == d or fnmatch.fnmatchcase(path, d):
+                return True
+        elif fnmatch.fnmatch(name, d.lower()):
+            return True
+    return False
+
+
+def inspection_allows(target: str, kind: str, path) -> bool:
+    entry = _ins().get("targets", {}).get(target)
+    path = _normal_path(path)
+    if entry is None or path is None or _denied_path(path):
+        return False
+    return any(path == a or (a.endswith("/") and path.startswith(a)) for a in entry.get(kind, []))
+
+
+def _entry(target: str) -> dict:
+    entry = _ins().get("targets", {}).get(target)
+    if entry is None:
+        raise Err(403, "no inspection entry for this target")
+    return entry
+
+
+def _real_file(path: str) -> str:
+    cur = ROOTFS
+    for part in (x for x in path.split("/") if x):           # no symbolic link anywhere on the way
+        cur = f"{cur}/{part}"
+        if os.path.islink(cur):
+            raise Err(403, "the path goes through a symbolic link")
+    full = cur
+    if not os.path.lexists(full):
+        raise Err(404, "no such file")
+    if not stat.S_ISREG(os.lstat(full).st_mode):
+        raise Err(403, "not a regular file")
+    return full
+
+
+def _tail(full: str, max_bytes: int) -> tuple[list[str], bool]:
+    size = os.path.getsize(full)
+    with open(full, "rb") as f:
+        f.seek(max(0, size - max_bytes))
+        data = f.read(max_bytes)
+    lines = data.decode("utf-8", "replace").splitlines()
+    if size > max_bytes and lines:
+        lines = lines[1:]                                     # the first line was cut
+    return [ln[:JOURNAL_LINE_CHARS] for ln in lines], size > max_bytes
+
+
+def read_file(target: str, path: str, lines: int) -> dict:
+    if not inspection_allows(target, "files", path):
+        raise Err(403, "path not allowed by the inspection policy")
+    rows, cut = _tail(_real_file(path), _ins_limits()["max_bytes"])
+    return {"target": target, "path": path, "lines": rows[-lines:], "lines_returned": len(rows[-lines:]),
+            "truncated": cut or len(rows) > lines, "collected_at": now()}
+
+
+def service_config(target: str, path: str | None) -> dict:
+    listed = _entry(target).get("service_config") or []
+    if not listed:
+        raise Err(403, "no service configuration allowed for this target")
+    paths = [path] if path else listed
+    files = []
+    for p in paths:
+        if not inspection_allows(target, "service_config", p):
+            raise Err(403, "path not allowed by the inspection policy")
+        full, limit = _real_file(p), _ins_limits()["max_bytes"]
+        with open(full, "rb") as f:
+            data = f.read(limit + 1)
+        files.append({"path": p, "text": data[:limit].decode("utf-8", "replace"), "truncated": len(data) > limit})
+    return {"target": target, "files": files, "collected_at": now()}
+
+
+def journal(target: str, unit: str, q: dict) -> dict:
+    j = _entry(target).get("journal")
+    if not j or unit not in j.get("units", []):
+        raise Err(403, "unit not allowed by the inspection policy")
+    lines = _strict_int(q, "lines", 50, 1, int(j.get("max_lines", 200)))
+    program = UNIT_PROGRAMS.get(unit, unit.rsplit(".", 1)[0])
+    path = f"{ROOTFS}/var/log/syslog"
+    if not os.path.isfile(path):
+        return {"target": target, "unit": unit, "program": program, "source": "unavailable", "lines": None,
+                "collected_at": now()}
+    mark = re.compile(rf" {re.escape(program)}\[\d+\]: ")
+    keep: collections.deque = collections.deque(maxlen=lines)
+    size = os.path.getsize(path)
+    with open(path, "rb") as f:
+        f.seek(max(0, size - JOURNAL_MAX_BYTES))
+        if size > JOURNAL_MAX_BYTES:
+            f.readline()
+        for raw in f:
+            line = raw.decode("utf-8", "replace").rstrip("\r\n")
+            if mark.search(line):
+                keep.append(line[:JOURNAL_LINE_CHARS])
+    return {"target": target, "unit": unit, "program": program, "source": "syslog", "lines": list(keep),
+            "window_complete": size <= JOURNAL_MAX_BYTES, "collected_at": now()}
+
+
+def _limit(text: str, label: str) -> list | None:
+    for ln in text.splitlines():
+        if ln.startswith(label):
+            soft, hard = ln[len(label):].split()[:2]
+            return [None if soft == "unlimited" else int(soft), None if hard == "unlimited" else int(hard)]
+    return None
+
+
+def process_details(target: str, pid: int) -> dict:
+    if not _entry(target).get("processes"):
+        raise Err(403, "process details not allowed for this target")
+    base = f"{PROC}/{pid}"
+    try:
+        status = dict(ln.split(":", 1) for ln in open(f"{base}/status").read().splitlines() if ":" in ln)
+    except OSError:
+        raise Err(404, "no such process") from None
+    kib = lambda k: round(int(status[k].split()[0]) / 1024, 1) if k in status else None
+    num = lambda k: int(status[k].strip()) if k in status else None
+    try:
+        limits = open(f"{base}/limits").read()
+    except OSError:
+        limits = ""
+    try:
+        fds = len(os.listdir(f"{base}/fd"))
+    except OSError:
+        fds = None                                            # unknown, never zero
+    return {"target": target, "pid": pid, "name": status.get("Name", "").strip()[:15],
+            "state": status.get("State", "").strip()[:1], "ppid": num("PPid"), "threads": num("Threads"),
+            "rss_mib": kib("VmRSS"), "hwm_mib": kib("VmHWM"),
+            "context_switches": {"voluntary": num("voluntary_ctxt_switches"),
+                                 "nonvoluntary": num("nonvoluntary_ctxt_switches")},
+            "open_files": fds, "limits": {"max_open_files": _limit(limits, "Max open files"),
+                                          "max_processes": _limit(limits, "Max processes")},
+            "container_id": _container_of(pid), "collected_at": now()}
 
 
 # --- db_probe: PostgreSQL health through a monitoring role (pg_monitor only) -----------------------

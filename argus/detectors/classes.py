@@ -154,7 +154,7 @@ CLASSES: list[IncidentClassSpec] = [
     IncidentClassSpec(name="nginx_upstream_failure", family="availability", target_kinds={"container"},
                       required_signals={"http_gateway_error_ratio_5m"}, runbook_ids=["RB-015"],
                       branch_runbook_ids=["RB-002", "RB-003"], strategy="plan_then_reason",
-                      tool_tags={"availability", "network", "dependency", "logs", "container", "knowledge"},
+                      tool_tags={"availability", "network", "dependency", "logs", "container", "knowledge", "config"},
                       detector=nginx_upstream_failure),
 
 
