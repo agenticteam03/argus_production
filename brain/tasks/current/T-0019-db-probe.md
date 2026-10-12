@@ -203,3 +203,28 @@ its own:
   `phase3_check` 55/55 on both hosts; the new `get_kernel_oom_records` found the real OOM kill of row 1; both VMs on
   `040b827`, `LAB BASELINE OK`, NO INTERFERENCE. Full suite 555 passed, 20 skipped.
 (filled in as the steps run)
+
+## Batch 3b (2026-10-12, `conantkd` + agent): host verbs under the inspection policy
+
+Branch `task/T-0019-batch3b-host-verbs`, stacked on 3a (`task/T-0019-batch3a-inspection-policy`, #98): its PR waits for
+#98. With it, every verb of §4.6's `host-probe` exists: **phase 3 is complete** (with 3c, #101, for the network probe).
+
+| Probe route | Capability (model name) | Reads | Bounds |
+|---|---|---|---|
+| `GET /read_file?target=&path=&lines=` | `host.read_file` (`inspect_approved_file`) | the last lines of a file the policy lists for the target | lines ≤ `limits.max_lines`, bytes ≤ `limits.max_bytes` |
+| `GET /service_config?target=[&path=]` | `host.service_config` (`inspect_service_config`) | the target's listed configuration files (no path = all of them) | bytes ≤ `limits.max_bytes` each |
+| `GET /journal?target=&unit=&lines=` | `host.journal` (`get_journal_logs`) | `/var/log/syslog` (rsyslog), the lines of the unit's program (`docker.service` → `dockerd`, `containerd.service` → `containerd`) | lines ≤ the unit's `max_lines`; the last 4 MiB of the log; 300 chars a line; no file = `unavailable` (unknown) |
+| `GET /process_details?target=&pid=` | `host.process_details` (`inspect_process_details`) | `/proc/<pid>/status`, `limits`, the fd count, the container id; **never `cmdline` or `environ`** | one pid |
+
+- **All Level 3, `READ_ONLY_SENSITIVE`**, each with a `config/policy.yaml` line.
+- **The probe re-checks the policy** from its rendered config (`inspection` in `deploy/target/config/<host>.json`) with
+  its own small copy of the rules (the probe image has only the standard library); a parity test runs both on the same
+  paths. A path is read only if no component under `/rootfs` is a symbolic link and it is a regular file. Bounds are
+  refused (400), never clamped.
+- **Offered:** only `host.service_config`, to `nginx_upstream_failure` (tag `config`): the model can read nginx's
+  `proxy_read_timeout 2s` (SC-08's cause: the upstream answers after 5 s). The other three are offered to no class yet
+  (like `host.socket_summary`): `files` is empty, and no case needs the journal or process details yet.
+- **3a adjustment:** `host.service_config` without a `path` is allowed when the target lists configuration files (the
+  model cannot guess a path); the probe returns those files only.
+- **Evaluation cases:** the 6 `nginx-*` cases answer `/service_config` with the lab's `default.conf`, the file SC-08 runs
+  with (labels unchanged).

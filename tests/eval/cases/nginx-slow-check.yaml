@@ -73,6 +73,17 @@ fixtures:
       duration_ms: 2001
       status: 504
   host_probe:
+    # T-0019 batch 3b: the lab's nginx configuration, the file SC-08 runs with (labels unchanged)
+    /service_config?target=vm-166/container:argus-lab-nginx:
+      target: vm-166/container:argus-lab-nginx
+      files:
+      - path: /opt/argus-v18/app/deploy/lab/nginx/default.conf
+        text: "# SC-08 (T-0029): argus-lab-nginx proxies to argus-lab-slow, which answers after DELAY_S (5 s). The 2 s read timeout\n\
+          # makes nginx answer 504 Gateway Timeout: the upstream failure RB-015 describes. Lab only.\nserver {\n    listen 8080;\n\
+          \    location / {\n        proxy_pass http://argus-lab-slow:8080;\n        proxy_connect_timeout 2s;\n        proxy_read_timeout\
+          \ 2s;\n    }\n}\n"
+        truncated: false
+      collected_at: null
     '*':
       total_mib: 5800
       available_mib: 3900
