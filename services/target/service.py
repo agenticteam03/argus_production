@@ -449,7 +449,8 @@ def socket_summary() -> dict:
             "sockets_read": read, "truncated": read >= SOCKET_MAX_LINES, "sockstat": totals, "collected_at": now()}
 
 
-DIR_MAX_ENTRIES, DIR_MAX_SECONDS, DIR_MAX_CHILDREN = 50_000, 4.0, 10
+# Step 03 on vm-166: walking `/` to 50 000 entries charged 31 MiB of directory cache to the probe's 64 MiB cgroup.
+DIR_MAX_ENTRIES, DIR_MAX_SECONDS, DIR_MAX_CHILDREN = 20_000, 4.0, 10
 
 
 def _usage(st: os.stat_result) -> int:
@@ -538,22 +539,36 @@ def _kernel_time(m: re.Match, ref: datetime) -> datetime | None:
     return t.replace(year=ref.year - 1) if t > ref + timedelta(days=1) else t     # the traditional format has no year
 
 
-def _kernel_tail(path: str, ref: datetime) -> tuple[list[tuple[datetime, str]], bool]:
-    """The kernel lines of the last OOM_MAX_BYTES of a log file, and whether the file is longer than that."""
+def _kernel_line(raw: bytes, ref: datetime) -> tuple[datetime, str] | None:
+    m = _KERNEL_LINE.match(raw.decode("utf-8", "replace").rstrip("\r\n"))
+    t = _kernel_time(m, ref) if m else None
+    return (t, m.group(7)) if t else None
+
+
+def _kernel_tail(path: str, ref: datetime) -> tuple[datetime | None, list[tuple[datetime, str]], bool]:
+    """The last OOM_MAX_BYTES of a log file, read line by line (step 03: holding them OOM-killed the 64 MiB probe):
+    the time of its first kernel line, its OOM lines, and whether the file is longer than what was read."""
     size = os.path.getsize(path)
     start = max(0, size - OOM_MAX_BYTES)
+    first, keep, read = None, [], 0
     with open(path, "rb") as f:
         f.seek(start)
-        lines = f.read(OOM_MAX_BYTES).decode("utf-8", "replace").splitlines()
-    if start:
-        lines = lines[1:]                            # the first line was cut
-    out = []
-    for ln in lines:
-        m = _KERNEL_LINE.match(ln)
-        t = _kernel_time(m, ref) if m else None
-        if t:
-            out.append((t, m.group(7)))
-    return out, start > 0
+        if start:
+            read += len(f.readline())                # the first line was cut
+        for raw in f:
+            read += len(raw)
+            if read > OOM_MAX_BYTES:
+                break
+            if b" kernel: " not in raw:
+                continue
+            oom = b"oom-kill:" in raw or b"Killed process" in raw
+            if first is None or oom:
+                line = _kernel_line(raw, ref)
+                if line:
+                    first = first or line[0]
+                    if oom:
+                        keep.append(line)
+    return first, keep, start > 0
 
 
 def _vmstat_oom_kill() -> int | None:
@@ -581,9 +596,9 @@ def kernel_oom_records(minutes: int) -> dict:
     for p in files:                                  # newest first; stop once the window is covered
         if not os.path.exists(p):
             continue
-        lines, cut = _kernel_tail(p, ref)
+        first, lines, cut = _kernel_tail(p, ref)
         chunks.insert(0, lines)
-        if lines and lines[0][0] <= since:
+        if first is not None and first <= since:
             complete = True
             break
         if cut:

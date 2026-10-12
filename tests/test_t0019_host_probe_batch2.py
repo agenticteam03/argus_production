@@ -310,6 +310,28 @@ def test_kernel_oom_records_read_a_bounded_tail_and_say_when_it_is_partial(host,
     assert len(d["records"]) <= svc.OOM_MAX_RECORDS == 10
 
 
+def test_kernel_oom_records_stream_the_log_instead_of_holding_it(host, monkeypatch):
+    """Step 03 on vm-166: the 64 MiB probe was OOM-killed while answering; `/oom?minutes=1440` alone added 16 MiB
+    (4 MiB of log held as text and parsed lines). The tail is now read line by line, keeping only OOM lines."""
+    import tracemalloc
+    noise = f"{_syslog_ts(NOW - timedelta(minutes=30))} argus-vm166 kernel: [1.0] " + "x" * 180
+    host.kern_log([noise] * 20000 + _oom(NOW - timedelta(minutes=1), 9, "python"))     # ~4 MiB
+    svc = _probe(host, monkeypatch)
+    tracemalloc.start()
+    try:
+        d = svc.host_probe(["oom"], {"minutes": ["1440"]})
+        peak = tracemalloc.get_traced_memory()[1]
+    finally:
+        tracemalloc.stop()
+    assert d["records_total"] == 1 and d["records"][0]["command"] == "python"
+    assert peak < 1024 * 1024, peak                       # well under the 4 MiB read
+
+
+def test_directory_walk_budget_fits_the_probe_memory_limit(host, monkeypatch):
+    """Step 03: walking `/` to 50 000 entries charged 31 MiB of directory cache to the probe's 64 MiB cgroup."""
+    assert _probe(host, monkeypatch).DIR_MAX_ENTRIES <= 20_000
+
+
 def test_kernel_oom_records_without_a_kernel_log_are_unknown_not_zero(host, monkeypatch):
     d = _probe(host, monkeypatch).host_probe(["oom"], {"minutes": ["60"]})
     assert d["source"] == "unavailable" and d["records_total"] is None and d["records"] == []
