@@ -20,7 +20,7 @@ from argus.application.invoke_capability import InvocationContext
 from argus.detectors.classes import CLASSES, classes_for
 from argus.domain.model import (Conclude, EvidenceRef, Escalate, Incident, IncidentOutcome, IncidentStatus, TargetRef,
                                 InvalidDecision, Passage, RequestKind, UseReadTools)
-from argus.orchestration.runner import ClaimLost, SkeletonRunner
+from argus.orchestration.runner import ClaimLost, SkeletonRunner, allowed_values
 from argus.orchestration.strategies import EvidencePackStrategy, evidence_pack_plan
 from argus.orchestration.view import InvestigationView
 from argus.ports.ports import MetricsUnavailable, StaleMetrics
@@ -156,7 +156,8 @@ class GraphRunner(SkeletonRunner):
             decisions_so_far=[_DECISIONS[d["kind"]].model_validate(d) for d in s.get("decisions", [])],
             offered_specs=offered, scope=sorted(self.scope(inc.target), key=str), steps_left=steps_left,
             max_reads_per_step=self.max_reads_per_step, notes=list(s.get("notes", [])),
-            down_executors=dict(s.get("down", {})))
+            down_executors=dict(s.get("down", {})),
+            allowed_values=allowed_values(self.inventory, self.scope(inc.target)))
         view.context_text = self.context(view)
         return view
 

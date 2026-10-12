@@ -22,6 +22,8 @@ class InvestigationView:
     context_text: str = ""
     notes: list[str] = field(default_factory=list)
     down_executors: dict[str, str] = field(default_factory=dict)   # "executor@host" -> error category
+    # what the inventory allows per target for the probes' arguments: {"host/kind:name": {"url": [...], "port": [...]}}
+    allowed_values: dict[str, dict[str, list]] = field(default_factory=dict)
 
     @property
     def evidence_ids(self) -> set[str]:

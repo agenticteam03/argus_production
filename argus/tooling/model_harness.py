@@ -44,15 +44,27 @@ class ModelHarness:
         scope = [str(t) for t in view.scope]
         for spec in view.offered_specs:
             targets = [str(t) for t in view.scope if t.kind in spec.target_kinds]
+            schema = spec.args_model.model_json_schema()
+            props_in = schema.get("properties", {})
+            # an argument the inventory bounds per target (`url`, `port`): offer only targets with allowed values,
+            # enumerate them, and say which target allows which (EVAL-3/3c: 11 calls on a target with no endpoint)
+            bound = [a for a in ("url", "port") if a in props_in]
+            allowed_note = ""
+            if bound and view.allowed_values:
+                a = bound[0]
+                per = {t: (view.allowed_values.get(t) or {}).get(a) or [] for t in targets}
+                targets = [t for t in targets if per[t]]
+                values = sorted({v for t in targets for v in per[t]}, key=str)
+                props_in = {**props_in, a: {**props_in[a], "enum": values}}
+                allowed_note = " Allowed: " + "; ".join(f"{t}: {', '.join(map(str, per[t]))}" for t in targets) + "."
             if not targets:
                 continue
-            schema = spec.args_model.model_json_schema()
             props = {"target": {"type": "string", "enum": targets,
                                 "description": "exact target as host/kind:name"}}
-            props.update(schema.get("properties", {}))
+            props.update(props_in)
             required = ["target"] + [r for r in schema.get("required", [])]
             tools.append(ModelToolDefinition(
-                name=spec.model_name, description=f"{spec.description} Use when: {spec.use_when}.",
+                name=spec.model_name, description=f"{spec.description} Use when: {spec.use_when}.{allowed_note}",
                 parameters_schema={"type": "object", "properties": props, "required": required,
                                    "additionalProperties": False}))
         ev_ids = sorted(view.evidence_ids)
