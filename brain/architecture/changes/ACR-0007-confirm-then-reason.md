@@ -2,12 +2,12 @@
 
 | Field | Value |
 |---|---|
-| Status | `proposed` → applied in the same pull request once accepted |
+| Status | `accepted` (applied in architecture 1.8.6) |
 | Proposed by | `juanbetancurm` (+ agent) · 2026-10-11 (from `conantkd`'s E2E-5 proposal, option 1) |
-| Accepted by | — (a teammate's approval in the pull request) |
+| Accepted by | `conantkd` · 2026-10-12, by the approval of PR #86 (#80, which carried this ACR, was merged before any approval; its acceptance passed through the retroactive PRs #82 and #85) |
 | Second approval (safety principle only) | not needed (no safety principle is touched) |
 | Architecture version | from `1.8.5` → `1.8.6` |
-| Task / PR | E2E-5 · PR to be opened |
+| Task / PR | E2E-5 · PR #80 (proposed and applied) · PR #86 (accepted) |
 
 ACR-0006 is reserved for the OP-003 proposal (`NEXT_STEP.md`), so this record takes the next number.
 
@@ -60,7 +60,8 @@ per class a registry entry; the two tables (§3, §10.3) are the record to chang
 
 ## 5. Decision
 
-Proposed by `juanbetancurm` on `conantkd`'s E2E-5 option 1; decided by a teammate's approval in the pull request.
+Proposed by `juanbetancurm` on `conantkd`'s E2E-5 option 1. **Accepted** by `conantkd` on 2026-10-12 with the
+approval of PR #86, whose review covered `bfe93c0` (this ACR, PR #80).
 
 ## 6. Applied
 
