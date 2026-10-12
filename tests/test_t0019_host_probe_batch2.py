@@ -555,3 +555,24 @@ def test_the_system_prompt_says_where_the_space_went_is_not_who_wrote_it():
     assert "where the space went" in text and "not who wrote it" in text
     assert "only when the evidence ties it to the data" in text
     assert "can be the root cause of its own failure" in text            # EVAL-2's rule is still there
+
+
+def test_an_evaluation_run_keeps_the_reason_of_each_invalid_decision(tmp_path):
+    """Step 03 (E.9): one run of cpu-burner-05 made 7 invalid decisions in a row and ran out of steps; the results row
+    said only `decision.invalid` x7, and 6 replays did not reproduce it. Each run now keeps the reasons."""
+    from argus.adapters.outbound.llm import ScriptedLLM
+    from argus.evaluation.cases import load_cases
+    from argus.evaluation.replay import run_case
+    c = next(x for x in load_cases(ROOT / "tests" / "eval" / "cases") if x.id == "restart-oom-01")
+    calls = []
+
+    def script(ctx: str):
+        calls.append(1)
+        if len(calls) == 1:
+            return {"calls": [("get_magic_answer", {"target": c.target})]}          # not an offered tool
+        ids = [line.split('"')[1] for line in ctx.splitlines() if line.startswith("<evidence id=")]
+        return {"calls": [("conclude", {"diagnosis": "OOM-killed by its own 64 MiB memory limit",
+                                        "evidence_ids": ids[-1:], "confidence": "high", "root_cause_target": c.target})]}
+    run = run_case(c, tmp_path, llm=ScriptedLLM(script))
+    assert run.invalid_decisions and run.invalid_decisions[0].startswith("fabricated_tool: ")
+    assert "get_magic_answer" in run.invalid_decisions[0]
