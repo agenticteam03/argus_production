@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | `in progress` — step 1 (label + baseline, offline) done 2026-10-12; step 2 (the model on the case) with the next evaluation batch |
+| Status | `done` — step 1 (label + baseline, offline) 2026-10-12; step 2 (the model, 55 cases × 5) 2026-10-12: `restart-sigkill-01` 5/5 |
 | Phase | evaluation (§21.2) — [`../../IMPLEMENTATION_PLAN.md`](../../IMPLEMENTATION_PLAN.md) |
 | Found by | EVAL-2 (#89, `conantkd`): `restart-sigkill-01` escalated 5/5 by the model; listed as "a RB-008 question" |
 | Architecture | no change (no ACR): an evaluation label and the §21.2 baseline's rule, aligned with RB-008 |
@@ -34,9 +34,10 @@ So the model's 5/5 escalation in EVAL-2 followed the runbook. The label and the 
   E2E-5 and T-0019 batch 2 suites pass (138, 1 skipped); `brain.py lint` clean.
 - Baseline: 55 cases, 52 pass (the three declared misses), `container_restart_loop` 0.83, hard 0 0 0: unchanged.
 
-## Step 2 (the next evaluation batch)
+## Step 2 (done 2026-10-12, `conantkd`, vm-095)
 
-The configured model on the 55 cases: `restart-sigkill-01` is expected to pass where it escalates, as in EVAL-2.
+The configured model on the 55 cases, 5 trials, on `main` `244453b`: `restart-sigkill-01` **5/5 PASS** (`no_action_escalated`); overall 0.96 (core 0.99), abstention 0.98, restart loop
+1.00 (EVAL-2: 0.80), hard 0 0 0. `health_check_failed` 0.72 is the weakest class (the open wording question). [Evidence](../../execution/history/EVAL-3/step-02/evidence.md).
 
 ## Rejected alternative
 
