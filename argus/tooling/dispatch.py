@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 import time
 import uuid
+from typing import Callable
 
 from pydantic import BaseModel
 
@@ -16,11 +17,27 @@ from argus.tooling.executors import ExecutorRegistry
 
 class Dispatcher:
     def __init__(self, inventory: InventoryPort, executors: ExecutorRegistry,
-                 credentials: dict[tuple[str, str], str], redactor: Redactor):
+                 credentials: dict[tuple[str, str], str], redactor: Redactor,
+                 reload: Callable[[str, str], str | None] | None = None):
         self.inventory = inventory
         self.executors = executors
         self.credentials = credentials
         self.redactor = redactor
+        # T-0033: re-reads one executor token from its file (the deployment's copy) when the executor rejects it
+        self.reload = reload
+
+    def _execute(self, spec: CapabilitySpec, args: BaseModel, target: TargetRef, url: str):
+        key = (target.host, spec.executor)
+        try:
+            return spec.impl(args, target, self.inventory.target(target),
+                             self.executors.client(spec.executor, url, self.credentials.get(key)))
+        except ExecutorError as e:
+            fresh = self.reload(*key) if self.reload and e.category == "forbidden" else None
+            if not fresh or fresh == self.credentials.get(key):
+                raise
+        # T-0033: the token was rotated (the file changed since it was read): keep the new one, retry ONCE
+        self.credentials[key] = fresh
+        return spec.impl(args, target, self.inventory.target(target), self.executors.client(spec.executor, url, fresh))
 
     def call(self, spec: CapabilitySpec, args: BaseModel, target: TargetRef) -> Observation:
         started = time.monotonic()
@@ -33,8 +50,7 @@ class Dispatcher:
             return Observation(**base, status="refused", error_category="not_found",
                                model_text=f"{spec.name}: executor {spec.executor!r} is not available on {target.host}")
         try:
-            client = self.executors.client(spec.executor, url, self.credentials.get((target.host, spec.executor)))
-            res = spec.impl(args, target, self.inventory.target(target), client)
+            res = self._execute(spec, args, target, url)
         except ExecutorError as e:
             status = "timeout" if e.category == "timeout" else "error"
             return Observation(**base, status=status, error_category=e.category,

@@ -137,7 +137,8 @@ def tools_dispatcher(s: Settings):
     creds = _credentials(s, inventory, True, errors)
     if errors:
         raise SystemExit("tools process: startup validation failed:\n  " + "\n  ".join(errors))
-    return build_catalog(), Dispatcher(inventory, _target_executors(signals), creds, Redactor()), inventory
+    return build_catalog(), Dispatcher(inventory, _target_executors(signals), creds, Redactor(),
+                                       reload=lambda host, ex: s.secret(f"{host}/{ex}_token")), inventory
 
 
 def make_metrics(s: Settings, inventory: YamlInventory) -> PrometheusMetrics:
@@ -210,7 +211,8 @@ def build(settings: Settings | None = None, llm=None, metrics=None, executors: E
         catalogue = McpCatalogue(specs, Dispatcher(inventory, executors, {}, redactor),
                                  child_client(env, s.tools_command or None))
     else:
-        catalogue = DirectProvider(specs, Dispatcher(inventory, executors, creds, redactor))
+        catalogue = DirectProvider(specs, Dispatcher(inventory, executors, creds, redactor,
+                                                     reload=lambda host, ex: s.secret(f"{host}/{ex}_token")))
     invoke = InvokeCapability(catalogue, policy, inventory, store, store, redactor)
 
     if llm is None:
