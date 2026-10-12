@@ -513,3 +513,34 @@ def test_phase3_check_exercises_every_new_route():
                   "/directory_sizes?path=", "/directory_sizes?path=/etc", "/oom?minutes="):
         assert route in text, route
     assert 'for by in ("cpu", "memory")' in text
+
+
+# --- the evaluation cases answer the new routes ---------------------------------------------------------------------
+NEW_BY_CLASS = {"cpu_saturation": {"host.load": {}, "host.top_cpu": {"n": 5}},
+                "disk_pressure": {"host.io": {}, "host.directory_sizes": {"mount": FILL},
+                                  "host.directory_sizes /": {"mount": "/"}},
+                "container_restart_loop": {"host.top_memory": {"n": 5}, "host.kernel_oom_records": {"minutes": 60}}}
+
+
+def test_every_case_of_an_offered_class_answers_its_new_tools():
+    """Step 03: the model asked `get_directory_sizes` 41 times in 24 disk runs and the cases answered only through
+    their `"*"` row (unknown): `disk-filler-no-logs` then concluded 2 of 3 times (EVAL-2: 1 of 5). Each case of a class
+    offered the new tools now answers them from its own story (labels unchanged)."""
+    from argus.domain.model import TargetInfo, TargetRef
+    from argus.evaluation.replay import FixtureExecutor
+    specs = _specs()
+    seen = 0
+    for path in sorted((ROOT / "tests" / "eval" / "cases").glob("*.yaml")):
+        case = yaml.safe_load(path.read_text(encoding="utf-8"))
+        tools = NEW_BY_CLASS.get(case["label"].get("class"))
+        if not tools:
+            continue
+        host = case["target"].split("/")[0]
+        ref = TargetRef.parse(f"{host}/host:{host}")
+        client = FixtureExecutor(case["fixtures"].get("host_probe", {}))
+        for name, args in tools.items():
+            spec = specs[name.split()[0]]
+            r = spec.impl(spec.args_model.model_validate(args), ref, TargetInfo(ref=ref, mounts=["/", FILL]), client)
+            assert "unknown" not in r.model_text, (path.name, name, r.model_text)
+            seen += 1
+    assert seen >= 40

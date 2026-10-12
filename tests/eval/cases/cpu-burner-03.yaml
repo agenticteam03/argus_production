@@ -38,6 +38,64 @@ fixtures:
     /containers/argus-lab-burner/events:
       events: []
   host_probe:
+    # T-0019 batch 2: the new host-probe routes, from this case's own story (labels unchanged)
+    /load:
+      load1: 0.4
+      load5: 0.38
+      load15: 0.3
+      runnable: 1
+      threads: 380
+      cpus: 2
+      pressure:
+        cpu:
+          some:
+            avg10: 2.0
+            avg60: 2.0
+            avg300: 2.0
+          full:
+            avg10: 0.0
+            avg60: 0.0
+            avg300: 0.0
+        memory: &id001
+          some:
+            avg10: 0.0
+            avg60: 0.0
+            avg300: 0.0
+          full:
+            avg10: 0.0
+            avg60: 0.0
+            avg300: 0.0
+        io: *id001
+      collected_at: '2026-10-12T06:00:00+00:00'
+    /processes:
+      by: cpu
+      processes:
+      - pid: 4242
+        command: python
+        state: R
+        rss_mib: 12.0
+        container_id: e0e0e0
+        kernel_thread: false
+        cpu_percent: 30.0
+      - pid: 812
+        command: dockerd
+        state: S
+        rss_mib: 98.0
+        container_id: null
+        kernel_thread: false
+        cpu_percent: 1.0
+      - pid: 640
+        command: containerd
+        state: S
+        rss_mib: 38.0
+        container_id: null
+        kernel_thread: false
+        cpu_percent: 0.5
+      pids_read: 204
+      truncated: false
+      cpus: 2
+      sample_s: 0.5
+      collected_at: '2026-10-12T06:00:00+00:00'
     '*':
       total_mib: 5800
       available_mib: 3900

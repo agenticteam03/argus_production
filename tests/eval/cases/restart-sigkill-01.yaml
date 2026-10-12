@@ -45,6 +45,42 @@ fixtures:
       - *id001
       - *id002
   host_probe:
+    # T-0019 batch 2: the new host-probe routes, from this case's own story (labels unchanged)
+    /oom:
+      source: kern.log
+      window_minutes: 60
+      complete: true
+      records_total: 0
+      by_container: []
+      records: []
+      oom_kill_since_boot: 18567
+      collected_at: '2026-10-12T06:00:00+00:00'
+    /processes:
+      by: memory
+      processes:
+      - pid: 812
+        command: dockerd
+        state: S
+        rss_mib: 98.0
+        container_id: null
+        kernel_thread: false
+      - pid: 4242
+        command: python
+        state: S
+        rss_mib: 9.5
+        container_id: c0ffee
+        kernel_thread: false
+      - pid: 640
+        command: containerd
+        state: S
+        rss_mib: 38.0
+        container_id: null
+        kernel_thread: false
+      pids_read: 204
+      truncated: false
+      cpus: 2
+      sample_s: null
+      collected_at: '2026-10-12T06:00:00+00:00'
     '*':
       total_mib: 5800
       available_mib: 4000
