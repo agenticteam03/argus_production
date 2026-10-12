@@ -460,7 +460,9 @@ def _usage(st: os.stat_result) -> int:
 
 def directory_sizes(path: str) -> dict:
     """The largest direct children of a declared mount: one filesystem, symlinks not followed, bounded in entries
-    and time (`complete: false` says the walk was cut)."""
+    and time (`complete: false` says the walk was cut). Each child gets a share of what is left (step 03 on vm-095:
+    in name order `usr/` used the whole budget and `var/` was never read), so every child is measured, at least
+    partly."""
     if path not in CONFIG.get("mounts", []):
         raise Err(400, "path is not a declared mount")
     base = ROOTFS + path
@@ -470,13 +472,18 @@ def directory_sizes(path: str) -> dict:
     deadline = time.monotonic() + DIR_MAX_SECONDS
     read, other_fs, complete, children = 0, 0, True, []
 
-    def budget_left() -> bool:
-        return read < DIR_MAX_ENTRIES and time.monotonic() < deadline
-
-    for entry in sorted(os.scandir(base), key=lambda e: e.name):
-        if not budget_left():
+    top = sorted(os.scandir(base), key=lambda e: e.name)
+    for i, entry in enumerate(top):
+        if read >= DIR_MAX_ENTRIES or time.monotonic() >= deadline:
             complete = False
             break
+        share = max(1, (DIR_MAX_ENTRIES - read) // (len(top) - i))
+        until = time.monotonic() + max(0.0, deadline - time.monotonic()) / (len(top) - i)
+        limit = read + share
+
+        def budget_left() -> bool:
+            return read < limit and time.monotonic() < until
+
         try:
             st = os.lstat(entry.path)
         except OSError:

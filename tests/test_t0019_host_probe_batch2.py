@@ -240,6 +240,24 @@ def test_directory_sizes_stop_at_their_budget_and_say_so(host, monkeypatch):
     assert any(c["complete"] is False for c in d["children"]) or len(d["children"]) < 3
 
 
+def test_directory_sizes_share_the_budget_so_every_child_is_measured(host, monkeypatch):
+    """Step 03 on vm-095: walking `/` in name order, `usr/` used the whole budget and `var/` (logs, Docker) was never
+    read. Each child now gets a share of what is left, so a late child is measured, at least partly."""
+    base = host.rootfs / FILL.lstrip("/")
+    (base / "a_many").mkdir(parents=True)
+    for i in range(30):
+        (base / "a_many" / f"f{i}").write_bytes(b"x")
+    (base / "z_big").mkdir()
+    (base / "z_big" / "f").write_bytes(b"x" * 512 * 1024)
+    svc = _probe(host, monkeypatch)
+    monkeypatch.setattr(svc.os.path, "ismount", lambda p: True)
+    monkeypatch.setattr(svc, "DIR_MAX_ENTRIES", 10)
+    d = svc.host_probe(["directory_sizes"], {"path": [FILL]})
+    names = [c["name"] for c in d["children"]]
+    assert names[0] == "z_big/" and "a_many/" in names and d["complete"] is False
+    assert next(c for c in d["children"] if c["name"] == "a_many/")["complete"] is False
+
+
 def test_directory_sizes_do_not_follow_symlinks(host, monkeypatch, tmp_path):
     base = _fill(host)
     outside = tmp_path / "outside"
