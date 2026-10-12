@@ -13,6 +13,8 @@ _PATTERNS: list[tuple[re.Pattern, str]] = [
     (re.compile(r"\bsk-[A-Za-z0-9_-]{16,}"), "[REDACTED KEY]"),
 ]
 _HIGH_ENTROPY = re.compile(r"\b[A-Za-z0-9+/_=-]{40,}\b")
+# a file path, not a token: lower-case segments of at most 32 characters, no + or = (T-0019 3b: a config path was masked)
+_PATH_LIKE = re.compile(r"(?:[a-z_]{1,32}=)?/?[a-z0-9._-]{1,32}(?:/[a-z0-9._-]{1,32})+/?")   # also `path=/a/b`
 _SECRET_KEYS = re.compile(r"(?i)(password|secret|token|api[_-]?key|private[_-]?key|^env$)")
 
 
@@ -22,8 +24,16 @@ class Redactor:
         for pattern, repl in _PATTERNS:
             value, n = pattern.subn(repl, value)
             count += n
-        value, n = _HIGH_ENTROPY.subn("[REDACTED HIGH-ENTROPY]", value)
-        return value, count + n
+        masked = 0
+
+        def mask(m: re.Match) -> str:
+            nonlocal masked
+            if _PATH_LIKE.fullmatch(m.group(0)):
+                return m.group(0)
+            masked += 1
+            return "[REDACTED HIGH-ENTROPY]"
+        value = _HIGH_ENTROPY.sub(mask, value)
+        return value, count + masked
 
     def value(self, obj: Any) -> tuple[Any, int]:
         if isinstance(obj, str):
