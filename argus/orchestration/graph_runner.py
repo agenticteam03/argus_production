@@ -134,8 +134,15 @@ class GraphRunner(SkeletonRunner):
     def _cls(name: str | None):
         return next((c for c in CLASSES if c.name == name), None)
 
-    def _ctx(self, inc: Incident, caller: str) -> InvocationContext:
-        return InvocationContext(incident=inc, caller=caller, scope=self.scope(inc.target))
+    def _ctx(self, inc: Incident, caller: str, evidence: list[dict]) -> InvocationContext:
+        """One context per graph step, so the per-capability counters (`max_per_incident`) are rebuilt from the
+        incident's evidence in the run state: every executed read, not the refused ones (OP-012). They survive a resume
+        because the evidence is checkpointed."""
+        counters: dict[str, int] = {}
+        for e in evidence:
+            if e.get("capability") and e.get("status") != "refused":
+                counters[e["capability"]] = counters.get(e["capability"], 0) + 1
+        return InvocationContext(incident=inc, caller=caller, scope=self.scope(inc.target), counters=counters)
 
     def _offered(self, cls) -> list[Any]:
         return [sp for sp in self.all_specs if sp.level <= self.max_tool_level and
@@ -282,8 +289,8 @@ class GraphRunner(SkeletonRunner):
         (review finding, conantkd). The node routes back to itself until the batch is done."""
         inc, cls = self._inc(s), self._cls(s["class_name"])
         strategy = self.strategies[cls.strategy]
-        ctx = self._ctx(inc, "model" if strategy.name == "model_loop" else f"strategy:{strategy.name}")
         evidence, down, pending = list(s.get("evidence", [])), dict(s.get("down", {})), list(s.get("pending", []))
+        ctx = self._ctx(inc, "model" if strategy.name == "model_loop" else f"strategy:{strategy.name}", evidence)
         if not s.get("act_open"):
             self._ev(inc, "act", "enter", calls=len(pending))
         if pending:
@@ -301,8 +308,8 @@ class GraphRunner(SkeletonRunner):
             inc.strategy, inc.outcome = "evidence_pack", IncidentOutcome(s["pack_outcome"])
             self.memory.update_incident(inc)
             self._ev(inc, "evidence_pack", "enter", reason=inc.outcome)
-        ctx = self._ctx(inc, "strategy:evidence_pack")
         evidence, down, pending = list(s.get("evidence", [])), dict(s.get("down", {})), list(s.get("pending", []))
+        ctx = self._ctx(inc, "strategy:evidence_pack", evidence)
         base = {"pack_started": True, "evidence": evidence, "down": down}
         if pending:
             self._read(inc, ctx, pending[:1], "evidence_pack", evidence, down)
