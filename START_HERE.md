@@ -59,8 +59,8 @@ Part 4 passes when the tests end with only dots and `s` (skipped), and lint prin
 
 ## Part 5 — Access to the two VMs (only needed for tasks that run commands on the VMs)
 
-Test: `ssh -o BatchMode=yes -o ConnectTimeout=10 argus-vm095 hostname` (expected `vm-appsvnic`) and the same with
-`argus-vm166` (expected `agent-test-vnic`).
+Test: `ssh -o BatchMode=yes -o ConnectTimeout=10 argus-vm095 hostname` (expected `argus-vm095`) and the same with
+`argus-vm166` (expected `argus-vm166`).
 
 If it fails:
 - the developer's `~/.ssh/config` needs the two entries shown in `brain/infrastructure/ssh-config.example`;

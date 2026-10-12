@@ -22,6 +22,10 @@ Rules:
 - Distinguish the root cause from victims (a service failing because its dependency is down is a victim).
 - You cannot change anything. Put recommended human actions in the diagnosis text.
 - Cite evidence IDs that support your conclusion. Escalate if the evidence is insufficient or contradictory.
+- Conclude only when the evidence establishes the root cause. If your diagnosis would say the cause is not
+  established, not proven, unknown or only plausible, call `escalate` instead: put what you found and what a human
+  should check in its reason. A symptom is not a root cause (a full filesystem or a failing check names what broke,
+  not why); do not name the affected host or service as the root cause just because nothing else was found.
 """
 
 DECISION_TOOLS = {"conclude", "escalate"}

@@ -12,7 +12,7 @@
 # =====================================================================================
 
 # --- E.0 [VM vm-095 · agent] marker and state probe (READ-ONLY apart from the marker) ------------------------------
-echo 'holder=conantkd session=2a4990e92fc4' | sudo tee /opt/argus-v18/SESSION >/dev/null
+echo 'holder=conantkd session=af6224b988ab' | sudo tee /opt/argus-v18/SESSION >/dev/null
 grep -q '^holder=conantkd ' /opt/argus-v18/SESSION && echo "session marker: mine" || echo "NOT YOUR SESSION - stop"
 sudo bash /opt/argus-v18/app/ops/deploy.sh status | grep -E '^(commit|ref)=|LAB BASELINE'
 sudo git -C /opt/argus-v18/app log --oneline -1

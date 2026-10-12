@@ -76,9 +76,9 @@ def test_the_round_is_planned_once_then_the_model_decides():
 
 
 def test_no_suspect_means_the_model_loop_as_before():
+    # a stopped writer IS a suspect since EVAL-2 (ACR-0008): tests/test_eval2_fixes.py
     for evidence in ([_disk(92.6)],                                         # no container status read yet
                      [_disk(92.6), _status(2, FILLER, mounts=f"{FILL}(ro)")],     # read-only: not a writer
-                     [_disk(92.6), _status(2, FILLER, state="exited")],            # stopped: not writing now
                      [_disk(41.0), _status(2, FILLER)],                             # the mount is not the full one
                      [_disk(92.6), _status(2, FILLER, mounts="")]):                 # no declared mount at all
         harness = Harness()

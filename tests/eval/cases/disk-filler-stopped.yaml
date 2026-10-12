@@ -1,4 +1,5 @@
 # EVAL-1: full, but the only mounting container is stopped: nobody to name, escalate
+# EVAL-2: the log shows no write history ("done" read as a finished fill and contradicted the label)
 id: disk-filler-stopped
 category: class
 target: vm-166/host:vm-166
@@ -44,7 +45,7 @@ fixtures:
       other_binds: 1
     /containers/argus-lab-filler/logs:
       lines:
-      - 'filler: done'
+      - 'filler: started with FILL_MB=0; nothing to write, exiting'
     /containers/argus-lab-filler/stats:
       memory_usage_bytes: 6500000
       memory_limit_bytes: 50331648

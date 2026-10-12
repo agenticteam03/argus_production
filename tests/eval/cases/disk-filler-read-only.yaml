@@ -1,4 +1,5 @@
 # EVAL-1: full, but the container mounts it read-only: not a writer, escalate
+# EVAL-2: the log no longer claims the writes (it contradicted the read-only mount and the label)
 id: disk-filler-read-only
 category: class
 target: vm-166/host:vm-166
@@ -44,7 +45,7 @@ fixtures:
       other_binds: 1
     /containers/argus-lab-filler/logs:
       lines:
-      - 'filler: wrote 202 MiB to /fill, 92.6% used'
+      - 'filler: /fill is mounted read-only; nothing written'
     /containers/argus-lab-filler/stats:
       memory_usage_bytes: 6500000
       memory_limit_bytes: 50331648
