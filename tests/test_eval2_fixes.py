@@ -3,8 +3,8 @@
 1. A stopped writer of the full filesystem is still a suspect (its data stays): `confirm_then_reason` reads its logs
    too (ACR-0008). The model alone never asked for them (`disk-filler-stopped-with-history`).
 2. The model named the host as root cause while its own diagnosis said nothing proved a cause (`disk-filler-no-logs`,
-   `disk-root-full-writer-elsewhere`): the system prompt says a symptom is not a root cause, and that the affected
-   host or service is not named as one only because nothing else was found.
+   `disk-root-full-writer-elsewhere`): the system prompt says a host-level symptom is not a root cause by itself:
+   the host is not named as one only because no container or process was found.
 3. Two disk cases had fixtures that contradicted their own label: a read-only mount whose logs claimed the writes, and
    a "stopped with no history" filler whose log said `done`. The labels stay; the fixtures now say what the case means.
 """
@@ -45,13 +45,15 @@ def test_the_baseline_still_names_only_running_writers():
     assert BaselineStrategy._confirm(view) == []
 
 
-def test_the_system_prompt_says_a_symptom_is_not_a_root_cause():
+def test_the_system_prompt_says_a_host_symptom_is_not_a_root_cause():
     from argus.tooling.model_harness import SYSTEM_PROMPT
     text = " ".join(SYSTEM_PROMPT.split())
-    assert "A symptom is not a root cause" in text
-    assert "only because no other component was found" in text and "points to no component" in text
-    # E.3: a wider rule ("escalate when the cause is only plausible") made the model escalate correct diagnoses
-    assert "plausible" not in text
+    assert "host-level symptom" in text and "is not a root cause by itself" in text
+    assert "Do not name the host as the root cause only because no container or process was found" in text
+    assert "can be the root cause of its own failure" in text      # a restart loop's container is its own cause
+    # E.3: "escalate when the cause is only plausible" made the model escalate correct diagnoses; E.3b: a rule about
+    # "the service that reported the symptom" made it escalate restart loops and failing health checks
+    assert "plausible" not in text and "reported the symptom" not in text
 
 
 def _case(name: str) -> dict:
