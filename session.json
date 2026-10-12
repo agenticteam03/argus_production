@@ -1,47 +1,35 @@
 {
-  "holder": "conantkd",
-  "session_id": "0a78ab6ab166",
-  "task": "T-0019",
-  "branch": "task/T-0019-batch2-host-probe",
-  "base_commit": "41c7e4d13e2ea3690805fe6736bf31a6c57c9e41",
-  "started_at": "2026-10-12T13:33:19+00:00",
-  "expires_at": "2026-10-12T14:33:19+00:00",
-  "released": true,
-  "handoff": {
-    "note": "for juanbetancurm. done: EVAL-2 (#89, ACR-0008), ACR-0007 accepted (#88), T-0019 batch 2 host-probe verbs (#90, stacked on #89). All three MERGEABLE/CLEAN, CI green, no shared files. merge order: #88 and #89 into main (any order), then #90 (GitHub retargets it to main when #89's branch is deleted; else change its base to main). environment: BOTH VMs run task/T-0019-batch2-host-probe 040b827 (includes EVAL-2), phase3_check 55/55, LAB BASELINE OK, NO INTERFERENCE. after the merges: AFTER-MERGE on both VMs (checkout main; target services up -d --build; on vm-095 rebuild agent+worker+scheduler TOGETHER, see block S3.5 in execution/history/T-0019/step-06/code.bash), then brain.py rollup on task/rollup-2026-10-12. next: T-0019 batch 3 (needs the 4.7 inspection policy first). open questions: restart-sigkill-01 (RB-008), wording checks, class registry decision (EVAL-2 table), which class gets get_socket_summary. #87 untouched.",
-    "branch": "task/T-0019-batch2-host-probe",
-    "at": "2026-10-12T13:33:36+00:00"
-  },
+  "holder": "juanbetancurm",
+  "session_id": "f3734af7cf36",
+  "task": "AFTER-MERGE-T-0019",
+  "branch": "main",
+  "base_commit": "45dda69e747e80d66d3c6a206766f3c099f24be9",
+  "started_at": "2026-10-12T15:01:16+00:00",
+  "expires_at": "2026-10-12T16:01:16+00:00",
+  "released": false,
+  "handoff": null,
   "vms": {
     "vm-095": {
-      "holder": "conantkd",
-      "session_id": "0a78ab6ab166",
-      "task": "T-0019",
-      "branch": "task/T-0019-batch2-host-probe",
-      "base_commit": "41c7e4d13e2ea3690805fe6736bf31a6c57c9e41",
-      "started_at": "2026-10-12T13:33:19+00:00",
-      "expires_at": "2026-10-12T14:33:19+00:00",
-      "released": true,
-      "handoff": {
-        "note": "for juanbetancurm. done: EVAL-2 (#89, ACR-0008), ACR-0007 accepted (#88), T-0019 batch 2 host-probe verbs (#90, stacked on #89). All three MERGEABLE/CLEAN, CI green, no shared files. merge order: #88 and #89 into main (any order), then #90 (GitHub retargets it to main when #89's branch is deleted; else change its base to main). environment: BOTH VMs run task/T-0019-batch2-host-probe 040b827 (includes EVAL-2), phase3_check 55/55, LAB BASELINE OK, NO INTERFERENCE. after the merges: AFTER-MERGE on both VMs (checkout main; target services up -d --build; on vm-095 rebuild agent+worker+scheduler TOGETHER, see block S3.5 in execution/history/T-0019/step-06/code.bash), then brain.py rollup on task/rollup-2026-10-12. next: T-0019 batch 3 (needs the 4.7 inspection policy first). open questions: restart-sigkill-01 (RB-008), wording checks, class registry decision (EVAL-2 table), which class gets get_socket_summary. #87 untouched.",
-        "branch": "task/T-0019-batch2-host-probe",
-        "at": "2026-10-12T13:33:36+00:00"
-      }
+      "holder": "juanbetancurm",
+      "session_id": "f3734af7cf36",
+      "task": "AFTER-MERGE-T-0019",
+      "branch": "main",
+      "base_commit": "45dda69e747e80d66d3c6a206766f3c099f24be9",
+      "started_at": "2026-10-12T15:01:16+00:00",
+      "expires_at": "2026-10-12T16:01:16+00:00",
+      "released": false,
+      "handoff": null
     },
     "vm-166": {
-      "holder": "conantkd",
-      "session_id": "0a78ab6ab166",
-      "task": "T-0019",
-      "branch": "task/T-0019-batch2-host-probe",
-      "base_commit": "41c7e4d13e2ea3690805fe6736bf31a6c57c9e41",
-      "started_at": "2026-10-12T13:33:19+00:00",
-      "expires_at": "2026-10-12T14:33:19+00:00",
-      "released": true,
-      "handoff": {
-        "note": "for juanbetancurm. done: EVAL-2 (#89, ACR-0008), ACR-0007 accepted (#88), T-0019 batch 2 host-probe verbs (#90, stacked on #89). All three MERGEABLE/CLEAN, CI green, no shared files. merge order: #88 and #89 into main (any order), then #90 (GitHub retargets it to main when #89's branch is deleted; else change its base to main). environment: BOTH VMs run task/T-0019-batch2-host-probe 040b827 (includes EVAL-2), phase3_check 55/55, LAB BASELINE OK, NO INTERFERENCE. after the merges: AFTER-MERGE on both VMs (checkout main; target services up -d --build; on vm-095 rebuild agent+worker+scheduler TOGETHER, see block S3.5 in execution/history/T-0019/step-06/code.bash), then brain.py rollup on task/rollup-2026-10-12. next: T-0019 batch 3 (needs the 4.7 inspection policy first). open questions: restart-sigkill-01 (RB-008), wording checks, class registry decision (EVAL-2 table), which class gets get_socket_summary. #87 untouched.",
-        "branch": "task/T-0019-batch2-host-probe",
-        "at": "2026-10-12T13:33:36+00:00"
-      }
+      "holder": "juanbetancurm",
+      "session_id": "f3734af7cf36",
+      "task": "AFTER-MERGE-T-0019",
+      "branch": "main",
+      "base_commit": "45dda69e747e80d66d3c6a206766f3c099f24be9",
+      "started_at": "2026-10-12T15:01:16+00:00",
+      "expires_at": "2026-10-12T16:01:16+00:00",
+      "released": false,
+      "handoff": null
     }
   }
 }
