@@ -16,7 +16,7 @@ from typing import Any, TypedDict
 from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.graph import END, START, StateGraph
 
-from argus.application.invoke_capability import InvocationContext
+from argus.application.invoke_capability import InvocationContext, refs_of
 from argus.detectors.classes import CLASSES, classes_for
 from argus.domain.model import (Conclude, EvidenceRef, Escalate, Incident, IncidentOutcome, IncidentStatus, TargetRef,
                                 InvalidDecision, Passage, RequestKind, UseReadTools)
@@ -164,8 +164,7 @@ class GraphRunner(SkeletonRunner):
     def _read(self, inc, ctx, calls: list[dict], node: str, evidence: list[dict], down: dict) -> None:
         for call in calls:
             obs, ref = self.invoke(ctx, call["name"], call["arguments"])
-            if ref:
-                evidence.append(ref.model_dump(mode="json"))
+            evidence.extend(r.model_dump(mode="json") for r in refs_of(obs, ref))   # §12.7: sub-reads too
             if obs.error_category in ("unreachable", "timeout"):
                 down[f"{obs.executor}@{obs.host}"] = obs.error_category
             self._ev(inc, node, "step", capability=obs.capability,

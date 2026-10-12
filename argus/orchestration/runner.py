@@ -13,7 +13,7 @@ import uuid
 from contextvars import ContextVar
 from typing import Any
 
-from argus.application.invoke_capability import InvocationContext, InvokeCapability
+from argus.application.invoke_capability import InvocationContext, InvokeCapability, refs_of
 from argus.detectors.classes import classes_for
 from argus.domain.model import (AuditRecord, Conclude, EvidenceRecord, EvidenceRef, Escalate, Incident,
                                 IncidentOutcome, IncidentStatus, InvalidDecision, RequestKind, TargetRef,
@@ -244,8 +244,7 @@ class SkeletonRunner:
                 for call in d.calls:
                     self._guard()
                     obs, ref = self.invoke(ctx, call.name, call.arguments)
-                    if ref:
-                        evidence.append(ref)
+                    evidence.extend(refs_of(obs, ref))          # §12.7: a combined call's sub-reads too
                     if obs.error_category in ("unreachable", "timeout"):
                         down[f"{obs.executor}@{obs.host}"] = obs.error_category
                     self._ev(inc, node, "step", capability=obs.capability,
