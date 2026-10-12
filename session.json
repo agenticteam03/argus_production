@@ -6,8 +6,12 @@
   "base_commit": "244453bca0e604072b0482a77eff80929661ff05",
   "started_at": "2026-10-12T18:19:25+00:00",
   "expires_at": "2026-10-12T23:00:58+00:00",
-  "released": false,
-  "handoff": null,
+  "released": true,
+  "handoff": {
+    "note": "Both VMs run task/T-0019-batch3b-host-verbs 9ac49ec (3a+3b; verified T-0019 step 08; LAB BASELINE OK, NO INTERFERENCE). Open for juanbetancurm's review: #97 roll-up, #98 3a, #103 3b (stacked on #98), #101 3c (verified step 07), #99 EVAL-3 step 2, #100 EVAL-4, #102 rotate-token, #104 E2E-8 (Phase 12 plan, assigned to juanbetancurm). After the merges: AFTER-MERGE both VMs to main (blocks C.1 step 07 / B.1 step 08 with BR=main), then rollup, then E2E-8.",
+    "branch": "main",
+    "at": "2026-10-12T21:06:16+00:00"
+  },
   "vms": {
     "vm-095": {
       "holder": "conantkd",
@@ -17,8 +21,12 @@
       "base_commit": "244453bca0e604072b0482a77eff80929661ff05",
       "started_at": "2026-10-12T18:19:25+00:00",
       "expires_at": "2026-10-12T23:00:58+00:00",
-      "released": false,
-      "handoff": null
+      "released": true,
+      "handoff": {
+        "note": "Both VMs run task/T-0019-batch3b-host-verbs 9ac49ec (3a+3b; verified T-0019 step 08; LAB BASELINE OK, NO INTERFERENCE). Open for juanbetancurm's review: #97 roll-up, #98 3a, #103 3b (stacked on #98), #101 3c (verified step 07), #99 EVAL-3 step 2, #100 EVAL-4, #102 rotate-token, #104 E2E-8 (Phase 12 plan, assigned to juanbetancurm). After the merges: AFTER-MERGE both VMs to main (blocks C.1 step 07 / B.1 step 08 with BR=main), then rollup, then E2E-8.",
+        "branch": "main",
+        "at": "2026-10-12T21:06:16+00:00"
+      }
     },
     "vm-166": {
       "holder": "conantkd",
@@ -28,8 +36,12 @@
       "base_commit": "244453bca0e604072b0482a77eff80929661ff05",
       "started_at": "2026-10-12T18:19:25+00:00",
       "expires_at": "2026-10-12T23:00:58+00:00",
-      "released": false,
-      "handoff": null
+      "released": true,
+      "handoff": {
+        "note": "Both VMs run task/T-0019-batch3b-host-verbs 9ac49ec (3a+3b; verified T-0019 step 08; LAB BASELINE OK, NO INTERFERENCE). Open for juanbetancurm's review: #97 roll-up, #98 3a, #103 3b (stacked on #98), #101 3c (verified step 07), #99 EVAL-3 step 2, #100 EVAL-4, #102 rotate-token, #104 E2E-8 (Phase 12 plan, assigned to juanbetancurm). After the merges: AFTER-MERGE both VMs to main (blocks C.1 step 07 / B.1 step 08 with BR=main), then rollup, then E2E-8.",
+        "branch": "main",
+        "at": "2026-10-12T21:06:16+00:00"
+      }
     }
   }
 }
