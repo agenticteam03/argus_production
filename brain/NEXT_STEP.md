@@ -1,6 +1,68 @@
 # Next step
 
-**Now (2026-10-11, roll-up, `conantkd`).** Both VMs run `main` `e3286df` (#75-#77), deployed in E2E-3 step 2.
+**Now (2026-10-12, roll-up, `conantkd`).** Both VMs run `main` `244453b` (#91-#95; observed with `deploy.sh status`
+at this roll-up); `main` is `817d88f` (+ #96, Brain only), so the deployment is current. `main-guard` is green again
+(#95, the retroactive lines for #91 and #92) and `verify-main` is clean.
+
+1. **EVAL-3 step 2 (vm-095):** the configured model on the 55 evaluation cases, as EVAL-2 did. `restart-sigkill-01`
+   is now labelled `no_action_escalated` (RB-008) and is expected to pass where the model escalates.
+2. **T-0019 batch 3** (journal, files, process details, `network.connectivity`; the last of Phase 3): first the §4.7
+   inspection policy in `config/policy.yaml`.
+3. **The Prometheus-down alarm:** T-0032's "not covered" (a watcher from the other host, or a dead-man alert).
+4. **Team decisions:** the class registry from EVAL-2's table (keep the model for cpu, blind spot, postgres, disk;
+   nginx, dependency, restart loop and health to be decided); the wording checks ("health check"); which class, if
+   any, is offered `get_socket_summary`. `restart-sigkill-01` is decided (EVAL-3, #93).
+5. **Follow-ups:** `ops/rotate-token.sh` (#94 review): `--rollback` leaves the token `0400` instead of its mode, and a
+   failed `docker compose` still prints "recreated"; `db_probe` rotation stays manual. Optional E2E-7 hardening (the
+   facts before the model, an explicit unknown cause). Older: OP-002 triage, the OP-003 proposal (ACR-0006), OP-004
+   and OP-008 `--apply` after a teammate reviews their previews.
+6. **Merged 2026-10-11/12:** #78-#86 (E2E-3 step 2, the 2026-10-11 roll-up, E2E-5, E2E-6, EVAL-1, retroactive lines), #88 (ACR-0007
+   accepted), #89 (EVAL-2, ACR-0008), #90 (T-0019 batch 2), #91 (AFTER-MERGE of #88-#90, SC-05 5/5), #92 (OP-012),
+   #93 (EVAL-3), #94 (T-0033), #95 (retroactive lines for #91, #92), #96 (T-0033 step 2). Phase 12: SC-01 to SC-08
+   all at 5/5.
+
+The paragraphs below, down to "Then (2026-10-11)", are the "Next step" sections this roll-up folded in (newest first);
+most are done, and the summary above supersedes them.
+
+The roll-up of 2026-10-11 and 2026-10-12; the Prometheus-down alarm (a watcher from the other host or a dead-man
+alert, T-0032's "not covered"); EVAL-3 step 2 in the next model evaluation batch.
+
+**T-0033 step 2** on the VMs after the merge (both leases): rotate vm-166's `host_probe` token and show the
+before / refused / recovered reports with the worker's restart count unchanged.
+
+EVAL-3 step 2 with the next evaluation batch (the configured model on the 55 cases).
+
+**OP-012 step 2:** vm-095's agent, worker and scheduler on `main` after the merge.
+
+Optional hardening from the SC-05 research (E2E-7): the facts before the model, an explicit unknown cause. Separately,
+the per-step budget counters (a fresh `InvocationContext` per act node) as their own task.
+
+The roll-up of 2026-10-11 and 2026-10-12 (`brain.py rollup`); then T-0019 batch 3 (after the §4.7 inspection policy).
+
+After #89 and this PR merge: AFTER-MERGE on both VMs (checkout `main`, the target services, and agent, worker and
+scheduler together). Then T-0019 batch 3 (journal, files, process details, `network.connectivity`), which first needs
+the §4.7 inspection policy in `config/policy.yaml`. Open questions for the team: `restart-sigkill-01` (RB-008: exit 137
+without OOM — the new kernel OOM records now prove "no kernel OOM kill"), the wording checks ("health check"), and
+offering `get_socket_summary` to a class (none needs host sockets yet).
+
+After the merge: the team decides the class registry from EVAL-2's table (keep the model for cpu, blind spot,
+postgres, disk; nginx, dependency, restart loop, health to be decided); `restart-sigkill-01` is a RB-008 question
+(exit 137 without OOM). The running agent on vm-095 gets the prompt change and ACR-0008 with its next rebuild on
+`main` (both leases).
+
+After #82 is approved and merged: rebuild vm-095's agent on main (both leases), then SC-05 × 5.
+
+**E2E-6 step 2:** `ops/e2e/run.py --runs 5 SC-02` on vm-095 (its lease only). Phase 12 then: SC-02's five runs, and
+SC-05 after #80 (E2E-5) and vm-095's agent rebuild.
+
+**E2E-5 (proposed 2026-10-11 by `conantkd`; next in the quality lane):** SC-05 is 3/5 after E2E-3. The model knows the
+filler has the full filesystem mounted rw, but in the misses it concludes without reading its logs. Proposal: when
+`container.status` shows a running container with the flagged filesystem in rw, the next read round (its logs and
+resources) is planned by rule; then the model decides. Step 1 is offline (test first); step 2 rebuilds vm-095's agent
+and runs SC-05 ×5. Phase 12 now: SC-01, SC-03, SC-04, SC-06, SC-07, SC-08 at 5/5; SC-05 3/5; SC-02 × 5 still to run.
+See [the task file](tasks/current/E2E-5-confirm-writer.md).
+
+**Then (2026-10-11, roll-up, `conantkd`).** Both VMs run `main` `e3286df` (#75-#77), deployed in E2E-3 step 2.
 `main-guard` is green again (#72) and `verify-main` is clean.
 
 1. **PR #78 (E2E-3 step 2, Brain only) waits for `juanbetancurm`'s review:** SC-08 5/5, SC-05 3/5. Both SC-05 misses

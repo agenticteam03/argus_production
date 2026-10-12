@@ -7,6 +7,14 @@ shared-Brain setup B1–B8 under way (three developers).
 > The VMs are authoritative for what runs there: run `sudo bash /opt/argus-v18/app/ops/deploy.sh status` (or read
 > `/opt/argus-v18/DEPLOYED`) and the state probe before trusting this file.
 
+> **Update 2026-10-12 late (`conantkd`, roll-up, OBSERVED with `deploy.sh status`):** **both VMs run `main`
+> `244453b`** (#91-#95: OP-012, EVAL-3, T-0033), deployed by `juanbetancurm` in T-0033 step 2 after the AFTER-MERGE
+> of #88-#90 (`45dda69`). vm-095's agent, worker and scheduler on one image (backup, 20/20 db checks, `phase3_check`
+> 55/55, WRITE GATE CLOSED); vm-166 checkout only. vm-166's `host_probe` token was rotated and the agent picked up its
+> new copy without a worker restart. LAB BASELINE OK, NO INTERFERENCE. `main` after it (#96) is Brain only. Evidence:
+> [`execution/history/T-0033/step-02/evidence.md`](execution/history/T-0033/step-02/evidence.md),
+> [`execution/history/AFTER-MERGE-T-0019/step-01/code.bash`](execution/history/AFTER-MERGE-T-0019/step-01/code.bash).
+
 > **Update 2026-10-12 (`conantkd`, T-0019 batch 2 step 03, OBSERVED):** **both VMs run
 > `task/T-0019-batch2-host-probe` `040b827`** (batch 2 rebased on `task/EVAL-2-model-trials`, so it also carries
 > EVAL-2: ACR-0008, its prompt rule, and batch 2's prompt rule): the target services on both hosts have the six new

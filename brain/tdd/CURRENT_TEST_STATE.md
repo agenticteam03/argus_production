@@ -1,6 +1,32 @@
 # Current test state
 
-**Last updated:** 2026-10-11 (roll-up) · **Commit:** `main` after #77
+**Last updated:** 2026-10-12 (roll-up) · **Commit:** `main` after #96 (`817d88f`)
+
+**2026-10-12, `main` `2fa4d01` (#91-#94), full suite on a laptop (roll-up, `conantkd`):** green, 20 skipped (Postgres
+and environment). New since EVAL-2: `tests/test_op012_incident_budget.py` 3 (red seen: 16 `container.status` reads
+under LangGraph, the policy allows 8), `tests/test_eval3_sigkill.py` 3 (red seen 2/3: the baseline answered
+`diagnosed`), `tests/test_t0033_token_rotation.py` 4 (red seen: no reload in `Dispatcher`). The MCP benchmark
+(`test_mcp_child.py`, p95 overhead < 100 ms) can fail on a loaded laptop; alone it passes.
+
+**T-0033 step 2, 2026-10-12:** No new tests (a VM proof). Main's CI green on `244453b`; T-0033's 4 tests and OP-012's 3
+run in CI.
+
+**T-0019 batch 2, 2026-10-12 (`task/T-0019-batch2-host-probe`):** `tests/test_t0019_host_probe_batch2.py` 36 tests
+(red seen for each step: probe verbs, capabilities, policy, memory bounds, walk share, case answers, prompt rule,
+invalid-decision reasons); full suite 555 passed, 20 skipped. Model evaluation on vm-095 (EVAL-2 + batch 2, 5 trials):
+0.92 (core 0.95), abstention 1.00, disk 1.00, hard 0 0 0.
+
+**EVAL-2, 2026-10-12 (`task/EVAL-2-model-trials`):** `tests/test_eval2_fixes.py` 7 new (red seen: no round for a
+stopped writer, no prompt rule, two contradictory fixtures, a store left behind); full suite green. Model evaluation on
+vm-095, 55 cases × 5: 0.93 (core 0.95), abstention 0.96, hard 0 0 0; baseline 52/55.
+
+**EVAL-1, 2026-10-11:** red seen (the baseline escalated the writer cases; after the review, it named the writer
+with empty logs); `tests/test_evaluation.py`, `test_e2e5_confirm_writer.py`, `test_t0024_sc05_disk.py` green (108);
+baseline evaluation 55 cases, 52 pass, `disk_pressure` 7/8 (the declared miss), hard 0 0 0.
+
+**E2E-5, 2026-10-11 (`task/E2E-5-confirm-writer`):** 7 tests in `tests/test_e2e5_confirm_writer.py` (red seen: no
+strategy; the skeleton test fails with `model_loop`, the filler's logs never read); SC-05 class test updated to the new
+strategy; core, graph and evaluation tests green.
 
 **LANES-2 follow-up, 2026-10-11:** `test_rollup_orders_same_day_entries_by_when_they_reached_the_branch` (red seen:
 file-name order); the roll-up tests pass; replayed on `main` before #73: the hand-set order of #73.
