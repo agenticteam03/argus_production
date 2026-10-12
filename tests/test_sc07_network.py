@@ -64,6 +64,7 @@ def test_inventory_renders_the_sc07_dependency_probe(tmp_path, monkeypatch):
     """The rendered vm-166 allowlist must match the inventory (one source) and probe client→backend on TCP 8080."""
     (tmp_path / "config").mkdir()
     shutil.copy(ROOT / "config" / "inventory.yaml", tmp_path / "config" / "inventory.yaml")
+    shutil.copy(ROOT / "config" / "policy.yaml", tmp_path / "config" / "policy.yaml")   # T-0019 3a: inspection
     render = _load("render_sc07", ROOT / "ops" / "render_target_config.py")
     monkeypatch.setattr(render, "ROOT", tmp_path)
     render.main()

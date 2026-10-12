@@ -8,12 +8,13 @@ from pathlib import Path
 import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
+REPO = ROOT                                   # where `argus` is imported from (tests move ROOT)
 
 
 def _inspection(host: str) -> dict:
     """T-0019 batch 3a: this host's part of the inspection policy (§4.7, config/policy.yaml); the probe re-checks it."""
     import sys
-    sys.path.insert(0, str(ROOT))
+    sys.path.insert(0, str(REPO))
     from argus.policy.inspection import InspectionPolicy
     pol = yaml.safe_load((ROOT / "config" / "policy.yaml").read_text(encoding="utf-8"))
     return InspectionPolicy.from_data(pol.get("inspection")).for_host(host)
