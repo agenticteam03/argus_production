@@ -2,8 +2,9 @@
 
 1. A stopped writer of the full filesystem is still a suspect (its data stays): `confirm_then_reason` reads its logs
    too (ACR-0008). The model alone never asked for them (`disk-filler-stopped-with-history`).
-2. The model concluded while its own diagnosis said the cause was not established (`disk-filler-no-logs`,
-   `disk-root-full-writer-elsewhere`): the system prompt says plainly that such a diagnosis is an escalation.
+2. The model named the host as root cause while its own diagnosis said nothing proved a cause (`disk-filler-no-logs`,
+   `disk-root-full-writer-elsewhere`): the system prompt says a symptom is not a root cause, and that the affected
+   host or service is not named as one only because nothing else was found.
 3. Two disk cases had fixtures that contradicted their own label: a read-only mount whose logs claimed the writes, and
    a "stopped with no history" filler whose log said `done`. The labels stay; the fixtures now say what the case means.
 """
@@ -44,11 +45,13 @@ def test_the_baseline_still_names_only_running_writers():
     assert BaselineStrategy._confirm(view) == []
 
 
-def test_the_system_prompt_says_an_unestablished_cause_is_an_escalation():
+def test_the_system_prompt_says_a_symptom_is_not_a_root_cause():
     from argus.tooling.model_harness import SYSTEM_PROMPT
     text = " ".join(SYSTEM_PROMPT.split())
-    assert "not established" in text and "escalate" in text
-    assert "symptom is not a root cause" in text
+    assert "A symptom is not a root cause" in text
+    assert "only because no other component was found" in text and "points to no component" in text
+    # E.3: a wider rule ("escalate when the cause is only plausible") made the model escalate correct diagnoses
+    assert "plausible" not in text
 
 
 def _case(name: str) -> dict:
