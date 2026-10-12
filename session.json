@@ -5,7 +5,7 @@
   "branch": "task/EVAL-2-model-trials",
   "base_commit": "01c2c7dd9ec4654c04c46314e3402a222d60d6e3",
   "started_at": "2026-10-12T05:32:02+00:00",
-  "expires_at": "2026-10-12T07:32:26+00:00",
+  "expires_at": "2026-10-12T08:14:47+00:00",
   "released": false,
   "handoff": null,
   "vms": {
@@ -16,7 +16,7 @@
       "branch": "task/EVAL-2-model-trials",
       "base_commit": "01c2c7dd9ec4654c04c46314e3402a222d60d6e3",
       "started_at": "2026-10-12T05:32:02+00:00",
-      "expires_at": "2026-10-12T07:32:26+00:00",
+      "expires_at": "2026-10-12T08:14:47+00:00",
       "released": false,
       "handoff": null
     },
