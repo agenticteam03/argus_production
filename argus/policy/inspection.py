@@ -127,7 +127,13 @@ class InspectionPolicy:
         entry = self.targets.get(target)
         if entry is None:
             return Decision(False, f"{target} has no inspection entry")
-        if not isinstance(arguments, dict) or arg not in arguments:
+        if not isinstance(arguments, dict):
+            return Decision(False, f"{capability} needs `{arg}`")
+        if kind == "service_config" and arguments.get("path") is None:
+            # T-0019 batch 3b: no path = every file listed for this target, and only those (the probe re-checks each)
+            return Decision(True, "service_config: the listed files") if entry.get("service_config") else \
+                Decision(False, f"no service configuration is allowed on {target}")
+        if arg not in arguments:
             return Decision(False, f"{capability} needs `{arg}`")
         value = arguments[arg]
         if kind == "processes":
