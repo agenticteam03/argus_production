@@ -100,10 +100,12 @@ _DISK = re.compile(r"\S+?:(/[^\s;]*) used=([0-9.]+)%")
 _MOUNT = re.compile(r"([^\s,]+)\((rw|ro)\)")
 
 
-def disk_suspects(view: InvestigationView) -> list[str]:
+def disk_suspects(view: InvestigationView, include_stopped: bool = False) -> list[str]:
     """The running containers that have a full declared filesystem mounted read-write, from evidence already read:
     `host.disk_usage` (the mounts at or above the detector's threshold) and `container.status` (`host_mounts`,
-    E2E-3). In evidence order, each once."""
+    E2E-3). In evidence order, each once. `include_stopped`: an exited writer too, whose data stays on the mount
+    (EVAL-2, ACR-0008); the baseline's rule keeps running writers only."""
+    states = {"running", "exited"} if include_stopped else {"running"}
     ok = [e for e in view.evidence if e.status == "ok"]
     full = {m for e in ok if e.capability == "host.disk_usage"
             for m, pct in _DISK.findall(e.model_text or "") if float(pct) >= DISK_FULL_PCT}
@@ -112,7 +114,7 @@ def disk_suspects(view: InvestigationView) -> list[str]:
         if e.capability != "container.status":
             continue
         f, who = _fields(e.model_text), _about(e.model_text)
-        if who and f.get("state") == "running" and who not in out and any(
+        if who and f.get("state") in states and who not in out and any(
                 mode == "rw" and m in full for m, mode in _MOUNT.findall(f.get("host_mounts", ""))):
             out.append(who)
     return out
@@ -131,11 +133,13 @@ class ConfirmThenReasonStrategy:
     def next_step(self, view: InvestigationView):
         planned = {c.arguments.get("target") for d in view.decisions_so_far if isinstance(d, UseReadTools)
                    for c in d.calls if c.name == "container.logs"}
-        pending = [s for s in disk_suspects(view) if s not in planned]
+        running = set(disk_suspects(view))
+        pending = [s for s in disk_suspects(view, include_stopped=True) if s not in planned]
         if pending and self.loop.harness is not None:
             self.last_source = "rule"
-            return UseReadTools(calls=[ReadCall(name=n, arguments={"target": s})
-                                       for s in pending for n in ("container.logs", "container.resources")])
+            return UseReadTools(calls=[ReadCall(name=n, arguments={"target": s}) for s in pending
+                                       for n in (("container.logs", "container.resources") if s in running
+                                                 else ("container.logs",))])     # a stopped one has no resources
         d = self.loop.next_step(view)
         self.last_source = self.loop.last_source
         return d

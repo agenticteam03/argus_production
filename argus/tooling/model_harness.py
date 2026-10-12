@@ -22,6 +22,10 @@ Rules:
 - Distinguish the root cause from victims (a service failing because its dependency is down is a victim).
 - You cannot change anything. Put recommended human actions in the diagnosis text.
 - Cite evidence IDs that support your conclusion. Escalate if the evidence is insufficient or contradictory.
+- A host-level symptom (a full filesystem, a saturated resource) is not a root cause by itself. Do not name the
+  host as the root cause only because no container or process was found to cause it: if the evidence points to no
+  component, call `escalate`, with what you found and what a human should check. A container whose own fault the
+  evidence shows (its OOM kill, crash, exit code, logs) can be the root cause of its own failure.
 """
 
 DECISION_TOOLS = {"conclude", "escalate"}

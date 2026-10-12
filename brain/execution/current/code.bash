@@ -9,4 +9,4 @@
 # and tell the agent "output.bash updated".
 # =====================================================================================
 
-# (no block yet: E2E-3 step 2 is verified on the VMs; its blocks are in execution/history/E2E-3/step-02/)
+# (no block yet: EVAL-2 ran on vm-095; its blocks are in execution/history/EVAL-2/step-01 and step-02)
