@@ -2,10 +2,10 @@
 
 | Field | Value |
 |---|---|
-| Status | `in progress` — batch 1 `done` (PR #27 merged); batch 2 `in progress` 2026-10-12 (`task/T-0019-batch2-host-probe`); batch 3 `planned` |
+| Status | `in progress` — batch 1 `done` (PR #27 merged); batch 2 `verified` 2026-10-12 (`task/T-0019-batch2-host-probe`, PR stacked on #89); batch 3 `planned` |
 | Phase | 3 — target services ([`../../IMPLEMENTATION_PLAN.md`](../../IMPLEMENTATION_PLAN.md): "DB probe (with SC-04)") |
 | Architecture | no change (no ACR): §4.6 (target-side probe services), §4.7 (inspection policy), §12.2 (catalogue) |
-| Branch | batch 1: `task/T-0019-db-probe` (PR #27 merged). Batch 2: `task/T-0019-batch2-host-probe` (from `main` 48a895b). Batch 3: its own branch from `main` |
+| Branch | batch 1: `task/T-0019-db-probe` (PR #27 merged). Batch 2: `task/T-0019-batch2-host-probe`, rebased on `task/EVAL-2-model-trials` in step 03 (it measures and changes EVAL-2's prompt), so its PR waits for #89. Batch 3: its own branch from `main` |
 | Owner | `conantkd` (+ agent) |
 | Needs the VM lease | the read-only checks, the deploy and the verification (vm-166 target side, vm-095 agent) |
 
@@ -73,8 +73,8 @@ of §4.6/§12.2 instead of the tool-description fix of T-0018). Every new Level 
 2. Tests first (red), then code: the probe verbs, the capabilities, the policy lines, `container.status` `id=`,
    `phase3_check`. **Done.**
 3. Deploy (target services on both VMs, the agent on vm-095; both leases), verify every verb through the agent's
-   code path, NO INTERFERENCE; one model trial of the three classes that are offered the new tools.
-4. Brain (plan, task, journal), PR.
+   code path, NO INTERFERENCE; the model on the 55 cases (3 trials), compared with EVAL-2. **Done** (below).
+4. Brain (plan, task, journal), PR. **Done.**
 
 ## Decisions for batch 1 (2026-10-07, `conantkd`)
 
@@ -150,4 +150,20 @@ of §4.6/§12.2 instead of the tool-description fix of T-0018). Every new Level 
     declared mount, stays on one filesystem, does not follow symlinks and says when its budget cut the walk;
     kernel OOM records come from the end of `kern.log`, then `kern.log.1`, bounded, with `complete: false` when the
     window starts before what was read; each class is offered only its own new tools (`socket_summary`: none).
+- **Batch 2 step 03 (2026-10-12, both VMs, both leases):** deployed and verified; four problems found and fixed on
+  the way, each test first ([evidence](../../execution/history/T-0019/step-06/evidence.md)):
+  1. the 64 MiB probe was **OOM-killed** while answering (measured: `/oom` of 24 h +16 MiB, the walk of `/` +31 MiB of
+     directory cache) → the log tail is streamed, the walk stops at 20 000 entries; peak 22 MiB with two walks and two
+     OOM reads at once;
+  2. the walk of `/` in name order never reached `var/` (`usr/` used the budget) → each child gets a share; vm-095 `/`
+     now shows `var/ ≥ 3987 MiB` first;
+  3. S3.2 recreated only `argus-v18-agent`: worker and scheduler (same image) kept the old code → the block recreates
+     the three; the capabilities verified through `tools_dispatcher` as `argus-tools` (the agent holds no token);
+  4. the evaluation: the cases could not answer the new tools (abstention 0.89) → 21 cases answer them from their own
+     story; then the model concluded from a big file in the abstain disk cases (disk 0.79) → prompt rule "where the
+     space went is not who wrote it". **5 trials: 0.92 (core 0.95), abstention 1.00, disk 1.00, hard 0 0 0**
+     (EVAL-2 E.4: 0.93 (0.95), 0.96, 0.97). An invalid-decision loop seen once (not reproduced in 6 replays) → the
+     results row now keeps each refusal's reason.
+  `phase3_check` 55/55 on both hosts; the new `get_kernel_oom_records` found the real OOM kill of row 1; both VMs on
+  `040b827`, `LAB BASELINE OK`, NO INTERFERENCE. Full suite 555 passed, 20 skipped.
 (filled in as the steps run)

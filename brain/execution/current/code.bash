@@ -9,4 +9,4 @@
 # and tell the agent "output.bash updated".
 # =====================================================================================
 
-# (no block yet: T-0019 batch 2 step 01 ran on vm-166; its block is in execution/history/T-0019/step-04)
+# (no block yet: T-0019 batch 2 ran on both VMs; its blocks are in execution/history/T-0019/step-04 and step-06)
