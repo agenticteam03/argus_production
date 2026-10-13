@@ -220,6 +220,8 @@ label:
   - health check
   - healthcheck
   - health probe
+  - health endpoint         # EVAL-6: the check's endpoint failing names it too (relabelled after EVAL-main)
+  - health handler
   - unhealthy
   runbooks:
   - RB-002
