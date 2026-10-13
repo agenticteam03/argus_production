@@ -1,11 +1,12 @@
 [
   {
-    "at": "2026-10-06T15:45:56.331422+00:00",
-    "key": "inc_b5c64b846477:escalation",
+    "at": "2026-10-13T06:28:46.329396+00:00",
+    "key": "inc_8659841acddc:escalation",
     "payload": {
       "diagnosis": "evidence pack collected; no diagnosis is claimed",
-      "incident_id": "inc_b5c64b846477",
+      "incident_id": "inc_8659841acddc",
       "outcome": "unsupported_escalated",
+      "route": "channel:operators",
       "target": "vm-095/container:argus-lab-worker"
     }
   }
