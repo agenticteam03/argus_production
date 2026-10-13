@@ -254,7 +254,9 @@ scenarios:
         timeout_s: 60
     investigations:
       - request: *sc01_request
-        expect: {outcome: [no_action_escalated, undiagnosable], class: container_restart_loop, reads_on: vm-166}
+        # E2E-9: a diagnosis is right only through another executor (the host probe's kernel OOM records, E2E-8 run 1)
+        expect: {outcome: [no_action_escalated, undiagnosable, diagnosed], class: container_restart_loop, reads_on: vm-166,
+                 if_diagnosed: {root_cause: "vm-166/container:argus-lab-worker", executor_down: docker_read}}
       - request: {target: "vm-095/container:argus-lab-api", reason: "is it healthy?", kind: check}
         expect: {outcome: no_incident, model: none, reads_on: vm-095}
     reset:
