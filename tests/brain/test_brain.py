@@ -543,3 +543,47 @@ def test_rollup_orders_same_day_entries_by_when_they_reached_the_branch(repos, m
     assert brain.main(["rollup"]) == 0
     log = (b / "journal" / "logbook.md").read_text(encoding="utf-8")
     assert log.index("M, an older day") < log.index("Z merged first") < log.index("A merged second")
+
+
+def _branch_then_rollup_on_main(repo: Path) -> None:
+    """A task branch with its own commit, then main moves on with a roll-up (summaries edited on main)."""
+    run(repo, "checkout", "-b", "task/T-0044-x")
+    (repo / "brain" / "journal" / "entries").mkdir(parents=True, exist_ok=True)
+    (repo / "brain" / "journal" / "entries" / "2026-10-12-T-0044.md").write_bytes(b"## 2026-10-12 - x (T-0044)\n")
+    run(repo, "add", "-A")
+    run(repo, "commit", "-m", "task work")
+    run(repo, "checkout", "main")
+    (repo / "brain" / "NEXT_STEP.md").write_bytes(b"# Next step\n\nrolled up on main\n")
+    run(repo, "add", "-A")
+    run(repo, "commit", "-m", "roll-up on main")
+    run(repo, "push", "origin", "HEAD:main")
+    run(repo, "fetch", "origin")
+    run(repo, "checkout", "task/T-0044-x")
+
+
+def test_lint_lets_a_task_branch_merge_main_after_a_rollup(repos, monkeypatch, capsys):
+    """LINT-merge-base: during `git merge origin/main` HEAD is still the branch's old tip, so the summaries changed by
+    main's roll-up looked like the branch's own edits and the merge commit was refused (PRs #101, #103)."""
+    repo = repos["alice"]
+    as_(monkeypatch, repo)
+    _rule_on_main(repo)
+    _branch_then_rollup_on_main(repo)
+    run(repo, "merge", "--no-ff", "--no-commit", "origin/main")
+    capsys.readouterr()
+    brain.main(["lint"])
+    assert "shared summaries" not in capsys.readouterr().out
+    run(repo, "commit", "-m", "merge main")                               # after the merge commit: still clean
+    brain.main(["lint"])
+    assert "shared summaries" not in capsys.readouterr().out
+
+
+def test_lint_still_refuses_a_summary_edit_made_during_a_merge_of_main(repos, monkeypatch, capsys):
+    repo = repos["alice"]
+    as_(monkeypatch, repo)
+    _rule_on_main(repo)
+    _branch_then_rollup_on_main(repo)
+    run(repo, "merge", "--no-ff", "--no-commit", "origin/main")
+    (repo / "brain" / "NEXT_STEP.md").write_bytes(b"# Next step\n\nrolled up on main\n\nand edited by the branch\n")
+    capsys.readouterr()
+    assert brain.main(["lint"]) == 1
+    assert "brain/NEXT_STEP.md: a task branch does not edit the shared summaries" in capsys.readouterr().out

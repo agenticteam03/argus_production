@@ -518,6 +518,12 @@ def summary_edits() -> list[str]:
     if not branch.startswith("task/") or branch.startswith("task/rollup"):
         return []
     base = git("merge-base", "HEAD", "refs/remotes/origin/main", check=False)
+    # LINT-merge-base: while `git merge origin/main` is in progress HEAD is still the branch's old tip, so the summaries
+    # main's roll-up changed would look like the branch's own edits. When a commit of main is being merged, judge from
+    # it: only what the branch changes on top of it counts.
+    merging = git("rev-parse", "-q", "--verify", "MERGE_HEAD", check=False)
+    if merging and git("merge-base", merging, "refs/remotes/origin/main", check=False) == merging:
+        base = merging
     if not base or "def cmd_rollup" not in git("show", f"{base}:brain/tools/brain.py", check=False):
         return []
     changed = set(git("diff", "--name-only", base, check=False).splitlines())
