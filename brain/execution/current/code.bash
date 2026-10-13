@@ -12,7 +12,7 @@
 # =====================================================================================
 # 2026-10-13, conantkd. T-0035 step 3 — verify the monitoring heartbeat as T-0032 did (juanbetancurm's note 3 of
 #   #108): a queued application incident of vm-166 stays open while vm-166's monitoring is lost.   [~40 min]
-# State before: both VMs on task/T-0035-monitoring-heartbeat 800a9df, the check on, both hosts `alive` (step 2).
+# State before: both VMs on task/T-0035-monitoring-heartbeat 239e1d6, the check on, both hosts `alive` (step 2).
 # Lease: both (renew first: python brain\tools\brain.py renew --vm both --minutes 90).
 # MUTATES (on purpose, all restored at the end): vm-095's worker stopped (so the incident stays queued); vm-166's
 #   argus-lab-cache stopped (the application alert), its Prometheus stopped ~6 min, then its Alertmanager ~6 min.
@@ -32,6 +32,8 @@ for h in ('vm-095', 'vm-166'):
 incs = s.list_incidents(40)
 for i in [i for i in incs if i.trigger_id.startswith('monitoring:')][:4]:
     print('monitoring', i.id, i.target, i.status, i.outcome, i.incident_class, '|', (i.diagnosis or '')[:170])
+    n = [x for x in s.notifications(200) if x['key'] == i.id + ':escalation'] if hasattr(s, 'notifications') else []
+    print('   notified:', bool(n), (n[0]['payload'].get('route') if n else None))
 app = [i for i in incs if i.trigger_id.startswith('alert:') and i.target.host == 'vm-166' and 'Heartbeat' not in i.reason]
 if app:
     a = app[0]
@@ -59,7 +61,7 @@ sudo docker stop argus-v18-prometheus </dev/null; date -u +%T
 #   - first: scheduler log `'resolve': 'heartbeat not fresh'` for vm-166 once its renewal is older than 180 s;
 #   - within ~4 min of the stop: `vm-166 state=lost … incident=inc_…` and ONE line
 #     `monitoring inc_… vm-166/host:vm-166 escalated undiagnosable monitoring_blind_spot | Host monitoring unavailable on
-#     vm-166 …: heartbeat lost …; Prometheus not reachable from Argus …`;
+#     vm-166 …: heartbeat lost …; Prometheus not reachable from Argus …` and `notified: True channel:operators`;
 #   - the app incident still `queued` with its occurrences `firing` (the alerts expired at their endsAt: not resolved);
 #   - vm-095 `alive` throughout.
 
