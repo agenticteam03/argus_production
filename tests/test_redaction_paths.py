@@ -1,28 +1,53 @@
-"""The redactor masks secrets, not file paths (found in T-0019 batch 3b step 08).
+"""The redactor masks secrets, not the file paths Argus itself declared (T-0019 batch 3b step 08; #107 review).
 
 `inspect_service_config` on vm-095 returned nginx's configuration with its path shown as
 `/[REDACTED HIGH-ENTROPY].conf`: the high-entropy rule (40+ characters of `[A-Za-z0-9+/_=-]`) took
-`opt/argus-v18/app/deploy/lab/nginx/default` for a token. A run of lower-case path segments (each at most 32
-characters, no `+` or `=`) is a path and stays; tokens — mixed case, base64 with `+`/`=`, long hex, `sk-` keys,
-URL credentials — are still masked.
+`opt/argus-v18/app/deploy/lab/nginx/default` for a token. #107 exempted every run of lower-case path segments; that
+also let lower-case secrets in URL paths through (an API key, a webhook, a presigned download). Now only the paths
+Argus declared stay readable: the inspection policy's `service_config` and `files` entries, and the inventory's
+mounts (not `/`). Everything else is masked as before #107.
 """
 from __future__ import annotations
 
 import pytest
 
 from argus.capabilities.redaction import Redactor
+from argus.infrastructure.wiring import declared_paths
 
-R = Redactor()
+NGINX = "/opt/argus-v18/app/deploy/lab/nginx/default.conf"
+R = Redactor(declared=[NGINX, "/srv/argus-lab-fill/", "/var/log/myapp/", "/"])
 
 
 @pytest.mark.parametrize("text", [
-    "config path=/opt/argus-v18/app/deploy/lab/nginx/default.conf",
-    "file /var/lib/docker/containers/argus-lab-api/hostconfig.json read",
+    f"config path={NGINX}",
+    f"<config path=\"{NGINX}\">",
     "mount /srv/argus-lab-fill/some-long-directory-name/data-0007.bin",
+    "file /var/log/myapp/a-rather-long-application-log-name-0001.log read",
 ])
-def test_a_file_path_is_not_masked(text):
+def test_a_declared_path_is_not_masked(text):
     out, n = R.text(text)
     assert out == text and n == 0
+
+
+@pytest.mark.parametrize("text", [
+    "GET /api/v1/keys/9f86d081884c7d659a2feaa0c55ad015 200",
+    "webhook https://hooks.example.com/services/t0a1b2c3d4/b9z8y7x6w5/x1y2z3w4v5u6t7s8r9q0p1o2",
+    "presigned /download/a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6/e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2",
+    "file /var/lib/docker/containers/argus-lab-api/hostconfig.json read",     # undeclared: masked, as before #107
+])
+def test_a_lower_case_secret_in_a_path_is_masked(text):
+    out, n = R.text(text)
+    assert "[REDACTED HIGH-ENTROPY]" in out and n >= 1
+
+
+def test_the_root_mount_declares_nothing():
+    out, n = Redactor(declared=["/"]).text("GET /api/v1/keys/9f86d081884c7d659a2feaa0c55ad015 200")
+    assert "9f86d081" not in out and n == 1
+
+
+def test_a_declared_prefix_does_not_cover_a_neighbour():
+    out, _ = R.text("mount /srv/argus-lab-fill-other/9f86d081884c7d659a2feaa0c55ad015/x")
+    assert "9f86d081" not in out
 
 
 @pytest.mark.parametrize("secret", [
@@ -36,6 +61,23 @@ def test_a_token_is_still_masked(secret):
     assert secret not in out and "[REDACTED HIGH-ENTROPY]" in out and n == 1
 
 
+def test_a_token_after_a_declared_path_is_still_masked():
+    out, _ = R.text(f"{NGINX} Xk3vQ9mZpL2wR8tY6uB1nC4dF7gH0jKsAeIoUy5T")
+    assert NGINX in out and "Xk3vQ9mZ" not in out
+
+
 def test_other_patterns_are_unchanged():
     out, _ = R.text("key sk-abcdefghijklmnopqrstuvwx and postgresql://argus:hunter2@db/x")   # brain-audit: allow (a fake key the test checks is masked)
     assert "sk-abcdef" not in out and "hunter2" not in out
+
+
+def test_the_declared_paths_come_from_the_policy_and_the_inventory():
+    paths = declared_paths({"inspection": {"targets": {"vm-166/container:argus-lab-nginx": {"service_config": [NGINX]},
+                                                       "vm-166/host:vm-166": {"files": ["/var/log/myapp/"]}}}},
+                           {"targets": [{"ref": "vm-166/host:vm-166", "mounts": ["/", "/srv/argus-lab-fill"]}]})
+    assert sorted(paths) == sorted([NGINX, "/var/log/myapp/", "/srv/argus-lab-fill/"])     # "/" is not a path to keep
+
+
+def test_marker_characters_in_the_input_change_nothing():
+    out, _ = R.text(f"7 {NGINX}")
+    assert NGINX in out and "" not in out

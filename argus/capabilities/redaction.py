@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import re
-from typing import Any
+from typing import Any, Iterable
 
 _PATTERNS: list[tuple[re.Pattern, str]] = [
     (re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----.*?-----END [A-Z ]*PRIVATE KEY-----", re.S), "[REDACTED PRIVATE KEY]"),
@@ -13,26 +13,64 @@ _PATTERNS: list[tuple[re.Pattern, str]] = [
     (re.compile(r"\bsk-[A-Za-z0-9_-]{16,}"), "[REDACTED KEY]"),
 ]
 _HIGH_ENTROPY = re.compile(r"\b[A-Za-z0-9+/_=-]{40,}\b")
-# a file path, not a token: lower-case segments of at most 32 characters, no + or = (T-0019 3b: a config path was masked)
-_PATH_LIKE = re.compile(r"(?:[a-z_]{1,32}=)?/?[a-z0-9._-]{1,32}(?:/[a-z0-9._-]{1,32})+/?")   # also `path=/a/b`
+_PATH_CHARS = re.compile(r"[A-Za-z0-9._/-]*")
 _SECRET_KEYS = re.compile(r"(?i)(password|secret|token|api[_-]?key|private[_-]?key|^env$)")
 
 
 class Redactor:
+    """`declared`: the paths Argus itself declared (the inspection policy's `service_config` and `files`, the
+    inventory's mounts; `wiring.declared_paths`). The high-entropy rule leaves those readable: a file exactly, a
+    directory (an entry ending in `/`; mounts are given that way) with what lies under it; `/` declares nothing. Any
+    other path is masked like any other long token: a lower-case secret can sit in a URL path (#107 review)."""
+
+    def __init__(self, declared: Iterable[str] = ()):
+        paths = {p for p in declared if isinstance(p, str) and p.startswith("/") and p.rstrip("/")}
+        self._files = sorted((p for p in paths if not p.endswith("/")), key=len, reverse=True)
+        self._dirs = sorted((p for p in paths if p.endswith("/")), key=len, reverse=True)
+
+    def _kept(self, value: str) -> list[tuple[int, int]]:
+        """The spans of `value` that are a declared file, or a path under a declared directory."""
+        spans = []
+        for d in self._dirs:
+            start = value.find(d)
+            while start >= 0:
+                spans.append((start, _PATH_CHARS.match(value, start + len(d)).end()))
+                start = value.find(d, start + 1)
+        for f in self._files:
+            start = value.find(f)
+            while start >= 0:
+                end = start + len(f)
+                if end == len(value) or not re.match(r"[A-Za-z0-9_/-]", value[end]):   # not a longer name
+                    spans.append((start, end))
+                start = value.find(f, start + 1)
+        merged: list[tuple[int, int]] = []
+        for a, b in sorted(spans):
+            if merged and a <= merged[-1][1]:
+                merged[-1] = (merged[-1][0], max(b, merged[-1][1]))
+            else:
+                merged.append((a, b))
+        return merged
+
     def text(self, value: str) -> tuple[str, int]:
         count = 0
         for pattern, repl in _PATTERNS:
             value, n = pattern.subn(repl, value)
             count += n
+        # declared paths are set aside (a short private-use marker the high-entropy rule cannot match), then put back
+        if self._files or self._dirs:
+            value = value.replace("", "�").replace("", "�")   # never a marker from the input
+        kept = self._kept(value) if self._files or self._dirs else []
+        parts = [value[a:b] for a, b in kept]
+        for i, (a, b) in reversed(list(enumerate(kept))):
+            value = f"{value[:a]}{i}{value[b:]}"
         masked = 0
 
         def mask(m: re.Match) -> str:
             nonlocal masked
-            if _PATH_LIKE.fullmatch(m.group(0)):
-                return m.group(0)
             masked += 1
             return "[REDACTED HIGH-ENTROPY]"
         value = _HIGH_ENTROPY.sub(mask, value)
+        value = re.sub("(\\d+)", lambda m: parts[int(m.group(1))], value)
         return value, count + masked
 
     def value(self, obj: Any) -> tuple[Any, int]:
