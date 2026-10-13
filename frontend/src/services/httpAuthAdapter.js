@@ -30,4 +30,9 @@ export const httpAuthAdapter = {
   async signOut() {
     clearToken();
   },
+
+  // T-0016 rule 4: the token lives in memory only, so a reload starts a new session — there is nothing to restore.
+  restore() {
+    return null;
+  },
 };

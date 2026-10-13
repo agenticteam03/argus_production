@@ -86,4 +86,8 @@ describe("httpArgusAdapter", () => {
   it("rejects the placeholder write call: this release is read-only", async () => {
     await expect(httpArgusAdapter.decideApproval("a1", "approve")).rejects.toMatchObject({ status: 403 });
   });
+
+  it("does not restore a session: the token lives in memory only (T-0016 rule 4)", () => {
+    expect(httpArgusAdapter.restore()).toBeNull();
+  });
 });

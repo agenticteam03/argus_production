@@ -20,7 +20,8 @@ rendering. Unit tests with Vitest; Playwright acceptance tests come next (T-0016
 
 1. **Login** — username + password, show/hide password button, inline error message, "Forgot password?" link
    (decorative for now), hero image on the right side. Clicking **Log in** with a demo account enters the app;
-   a wrong password shows the error without leaving the page.
+   a wrong password shows the error without leaving the page. The demo accounts can be replaced in `.env`
+   (`VITE_ARGUS_USERS`) so the login needs no database, and a mock login survives a page reload in the same tab.
 2. **Dashboard** — the landing screen after login:
    - the **agent chat**: type a question, press Send, watch the status line while it "works", the answer appears
      as a message (placeholder reply until the API exists);
@@ -42,7 +43,9 @@ rendering. Unit tests with Vitest; Playwright acceptance tests come next (T-0016
 
 - Menu items are filtered by role (viewer / operator / approver); a route the role cannot see is neither shown nor
   reachable by typing its URL.
-- Log out clears the session immediately (session lives in memory only).
+- Log out clears the session immediately. The mock session survives a page reload in the same tab (remembered
+  until logout, closing the tab, or a TTL, default 8 h); the real API token lives in memory only, so a reload asks
+  for the login again.
 - The dashboard refreshes every 5 s, the runbook list every 10 s; a "Live / Reconnecting…" pill shows whether
   data is flowing.
 

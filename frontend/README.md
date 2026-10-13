@@ -21,6 +21,11 @@ npm run build     # production build → dist/ (never committed; gitignored)
 Mock logins (no real API): `viewer`, `operator`, `approver` — password `argus-demo`. They live in
 `src/services/mockAuthAdapter.js` and are demo-only client-side data, not real credentials.
 
+These logins need **no database**: replace them with your own in `.env.local` via `VITE_ARGUS_USERS`, a JSON map
+of username → `{ password, role }` (see `.env.example`). A mock login also **survives a page reload** in the same
+tab — remembered until logout, closing the tab, or `VITE_ARGUS_SESSION_TTL_MIN` (default 8 h). The real API token
+never does (see rule 4 below).
+
 ### Against the real API (read-only)
 
 The API listens on `127.0.0.1:18000` of vm-095, so open a tunnel and disable the mock switch:
@@ -43,6 +48,7 @@ Argus handle and the team password; the token has `scope=read` and cannot write.
 | `src/components/` | Header, AgentChat, IncidentRow, RunTimeline, EvidenceAudit, RunbookCard, RunbookDrawer, `ui.jsx` primitives |
 | `src/context/AuthContext.jsx` | Session in memory only — never `localStorage`, cookies or the URL |
 | `src/services/index.js` | **The single swap point**: mock adapters by default, HTTP adapters with `VITE_ARGUS_MOCK=0` |
+| `src/services/mockSessionStore.js` | The mock session that survives a reload (`sessionStorage`, TTL); holds no token |
 | `src/services/http*.js` | The real API adapters (`auth`/`me`, incidents, events, evidence, escalations, overview) and `session.js` (the in-memory bearer token) |
 | `src/hooks/` | `useLiveOverview` (5 s poll), `useIncidentList`, `useIncident` + `usePoll`, `useRunbooks` (10 s poll) |
 | `src/utils/parseRunbook.js` | Runbook Markdown → the data shown on cards |
@@ -55,7 +61,8 @@ Argus handle and the team password; the token has `scope=read` and cannot write.
    change, never an undocumented route.
 3. **Buttons follow `/api/v1/me`** — an action appears only when the server lists it.
 4. **Token in memory only** (never `localStorage`/cookies/URL), request `scope=read`, show API text as text (no raw
-   HTML) so log lines cannot inject scripts. A `401` forgets the token and returns to login.
+   HTML) so log lines cannot inject scripts. A `401` forgets the token and returns to login. The **mock** login has
+   no token, so its session descriptor may survive a reload in `sessionStorage`; the real token never does.
 5. **Tests first** — no frontend code merges without a test that failed first; the CI job `frontend` must be green.
 
 ## Known follow-ups

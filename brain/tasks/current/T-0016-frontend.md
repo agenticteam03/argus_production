@@ -125,3 +125,15 @@ a screen or a button in `frontend/`.
     `juanes6554` asked to skip the test run this turn to save time, so the red/green is **pending** a `npm test`
     (frontend only) — the record here will be completed before any merge.
   - **green (build only):** `vite build` → 348 modules, no errors (verifies the new imports/JSX compile).
+
+- **2026-10-13 — no-database demo login + a session that survives a reload (`juanes6554`'s request):**
+  - **mock login without a database:** the three demo accounts can be replaced from `.env` (`VITE_ARGUS_USERS`, a
+    JSON map of username → `{ password, role }`); a bad value or unknown role falls back to the demo accounts, so
+    the demo never breaks. Still frontend-only — no `argus/` change, no ACR.
+  - **session across a reload, without touching rule 4:** the mock session (user + role, no token) is kept in
+    `sessionStorage` up to `VITE_ARGUS_SESSION_TTL_MIN` (default 8 h) and restored on load by `auth.restore()`
+    (`mockSessionStore.js`); logout, tab close or the TTL ends it. `httpAuthAdapter.restore()` returns `null`, so
+    the real API token stays **in memory only** — rule 4 is exactly as written. Recorded in `GUIDELINES.md`.
+  - **tests written (Vitest run deferred, as asked):** added `mockSessionStore.test.js` (save/load/TTL/clear/no
+    storage) and extended `mockAuthAdapter.test.js` (`.env` accounts, restore, logout) and `httpArgusAdapter.test.js`
+    (`restore()` → `null`). `vite build` still green.

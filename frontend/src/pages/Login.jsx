@@ -63,7 +63,7 @@ export default function LoginPage({ onLogin }) {
                 id="username"
                 type="text"
                 autoComplete="username"
-                placeholder="your handle"
+                placeholder="Enter your username"
                 className={inputClass}
                 value={username}
                 onChange={(e) => { setUsername(e.target.value); clearError(); }}
