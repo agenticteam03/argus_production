@@ -322,13 +322,14 @@ such as `"target": "container:argus-lab-api"`, is rejected with **422** before a
 
 ---
 
-## 5. Planned (not implemented yet)
+## 5. Runner-only scenarios and repeated runs
 
-| ID | Incident | Host | Missing piece |
+Every scenario is in the runner catalogue (`ops/e2e/scenarios.yaml`) and has five runs on the VMs (Phase 12, closed
+by E2E-8 on 2026-10-13). SC-06 (T-0028) and SC-08 (T-0029) are implemented; these two are run only through the runner:
+
+| ID | Incident | Host | Runs (E2E-8, `main` `ad72617`) |
 |---|---|---|---|
-| SC-06 | CPU saturation (capped burner) | vm-166 | `cpu_saturation` class |
-| SC-08 | nginx upstream failure | vm-166 | nginx + slow api + class |
-| SC-10 | monitoring blind spot (node-exporter stopped) | vm-095 | in the runner catalogue (E2E-8, `ops/e2e/scenarios.yaml`); 5 runs pending |
-| SC-12 | executor partition (gateway stopped) | vm-166 | in the runner catalogue (E2E-8, `ops/e2e/scenarios.yaml`); 5 runs pending |
+| SC-10 | monitoring blind spot (vm-095's node-exporter stopped) | vm-095 | 5/5: `monitoring_blind_spot`, RB-014, escalated with no model call; vm-166 unaffected |
+| SC-12 | executor partition (vm-166's read gateway stopped during SC-01) | vm-166 | 4/5: vm-166 escalates, vm-095 answers; the miss was a correct diagnosis through the host probe (kernel OOM records), an expectation older than the host probe |
 
 Full catalogue: `AAbrainProject/plans/argus-v1.8-two-vm-plan.md` §7.1.

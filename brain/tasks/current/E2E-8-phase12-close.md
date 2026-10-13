@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | `in progress` — written 2026-10-12 by `conantkd` for `juanbetancurm`; step 1 (catalogue, offline) done 2026-10-13 by `conantkd` (`task/E2E-8-catalogue`); step 2 (the runs) next |
+| Status | `done` — written 2026-10-12 by `conantkd` for `juanbetancurm`; step 1 (catalogue, offline) done 2026-10-13 by `conantkd` (`task/E2E-8-catalogue`, #131); step 2 (the runs) done 2026-10-13 by `conantkd` (`task/E2E-8-step2`, [evidence](../../execution/history/E2E-8/step-02/evidence.md)): Phase 12 closed. SC-12's expectation follows the host probe in its own task |
 | Phase | 12 (end-to-end tests) — [`../../IMPLEMENTATION_PLAN.md`](../../IMPLEMENTATION_PLAN.md) |
 | Architecture | no change expected (no ACR): runner catalogue entries and VM runs |
 | Branch | `task/E2E-8-phase12-close` (this file); the work on its own branches from `main` |
@@ -11,7 +11,7 @@
 
 ## Goal (plain language)
 
-Phase 12 asks for **five runs of every scenario** through the CLI path (`ops/e2e/run.py`). Today (2026-10-12):
+Phase 12 asks for **five runs of every scenario** through the CLI path (`ops/e2e/run.py`). When written (2026-10-12):
 
 | Scenario | In the runner catalogue | Runs on the VMs |
 |---|---|---|
@@ -74,6 +74,28 @@ Phase 12 is done when each line is 5/5 (or every miss is read and explained), as
     running); a test holds every scenario that stops an `argus-v18-*` service to that.
 - **Tests:** `tests/test_e2e8_catalogue.py` (11; red seen: `investigations` an unknown key, no SC-10 / SC-12 / ID-1, no
   host check); the 39 tests of `tests/test_e2e_runner.py` unchanged and green.
+
+## Step 2 — done 2026-10-13 (`conantkd` + agent, both leases)
+
+Both VMs on `main` `ad72617` (AFTER-MERGE the same day, #132). Batches run by `conantkd` on the laptop
+([evidence](../../execution/history/E2E-8/step-02/evidence.md)):
+
+| Scenario | Runs |
+|---|---|
+| H-1, H-2, SC-09, SC-11 | 5/5 each (batch 1, 18:14-18:16 UTC) |
+| SC-10 | 5/5: `monitoring_blind_spot`, RB-014, escalated, no model call; vm-166 `no_incident` |
+| identity proof (ID-1) | 5/5: two incidents per run, each with its own host's root cause and runbook |
+| SC-12 | **4/5**: run 1 `diagnosed` (`inc_abe543607681`) |
+
+**SC-12's miss, read:** the read gateway was down in every run (`docker_read` error). In run 1 the model also read
+the **host probe** (`host.memory`, `host.kernel_oom_records`: six memcg OOM kills of that container, 4.8 GiB free on
+the host) and diagnosed the worker with that evidence; in runs 2-5 it read only Prometheus and escalated. The
+"never `diagnosed`" expectation is older than the host probe (T-0019 batch 2): it meant "no diagnosis without
+evidence", which held in all five. Agreed follow-up (option a): SC-12 accepts `diagnosed` only with no successful
+read of the stopped gateway and the right root cause.
+
+**Phase 12:** every scenario has five runs and the one miss is explained: done. `IMPLEMENTATION_PLAN.md` row 12 goes to
+100 % in the next roll-up.
 
 ## Not in this task
 
