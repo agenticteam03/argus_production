@@ -6,10 +6,10 @@ member's approval in its pull request.
 
 | Field | Value |
 |---|---|
-| Status | `proposed` |
+| Status | `accepted` (applied in architecture 1.8.3) |
 | Proposed by | conantkd (+ agent) · 2026-10-08 |
-| Accepted by | conantkd · 2026-10-08 (decision text in §5); waits for the second approval |
-| Second approval (safety principle only) | **required** (host isolation): `juanbetancurm` in the T-0022 PR |
+| Accepted by | conantkd · 2026-10-08 (decision text in §5) |
+| Second approval (safety principle only) | **required** (host isolation): `juanbetancurm`, by the approval of the T-0022 PR #45 (2026-10-09) |
 | Architecture version | from `1.8.2` (ACR-0002, PR #39) → `1.8.3` |
 | Task / PR | T-0022 (phase 7, alerting) · PR to be opened |
 

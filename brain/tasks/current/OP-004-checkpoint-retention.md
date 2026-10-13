@@ -1,6 +1,6 @@
 # OP-004 — Checkpoint retention
 
-**Owner:** `conantkd` · **Branch:** `task/OP-004-checkpoint-cleanup` · **Status:** offline implementation verified; VM dry run pending.
+**Owner:** `conantkd` · **Branch:** `task/OP-004-checkpoint-cleanup` · **PR:** #42 (merged 2026-10-10) · **Status:** offline implementation merged; VM dry run done 2026-10-10; the first `--apply` and the timer wait for a teammate's review of the dry-run counts.
 
 ## Goal
 

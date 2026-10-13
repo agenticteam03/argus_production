@@ -2,9 +2,9 @@
 
 | Field | Value |
 |---|---|
-| Status | `proposed` — accepted by a teammate's approval of its pull request; applied (ARCHITECTURE.md, code) in the implementation pull request |
+| Status | `accepted` (#108, `juanbetancurm`, 2026-10-12); applied in T-0035 (ARCHITECTURE.md 1.8.8, code) |
 | Proposed by | `conantkd` (+ agent) · 2026-10-12 |
-| Accepted by | — |
+| Accepted by | `juanbetancurm` · 2026-10-12 (approval of #108) |
 | Second approval (safety principle only) | not needed (no safety principle is touched; see §4) |
 | Architecture version | from `1.8.7` → `1.8.8` (with the implementation) |
 | Task / PR | T-0035 (Phase 13: "Prometheus down on one host", T-0032's "not covered") · PR to be opened |
@@ -145,6 +145,6 @@ follows in its own pull request, which applies this ACR to `ARCHITECTURE.md`.
 
 ## 6. Applied
 
-- [ ] `ARCHITECTURE.md` updated (§4.1, §6.4, §7.3), version 1.8.8, changelog line (with the implementation PR)
+- [x] `ARCHITECTURE.md` updated (§6.4, §7.3; the rule in `deploy/monitoring/alerts.yml`), version 1.8.8, changelog line (T-0035)
 - [x] journal entry (`journal/entries/2026-10-12-ACR-0009.md`)
-- [ ] the architecture change and the first code that needs it in the same pull request (T-0035)
+- [x] the architecture change and the first code that needs it in the same pull request (T-0035)

@@ -162,6 +162,15 @@ class PostgresStore:
                       (resolved_at, identity))
         return {"incident_id": row[0][0], "fingerprint": row[0][1], "alertname": row[0][2]} if row else None
 
+    def monitoring_state(self, host: str) -> dict[str, Any] | None:
+        """ACR-0009: the stored heartbeat state of a host (migration 006)."""
+        row = self._q("SELECT state FROM monitoring_state WHERE host = %s", (host,))
+        return dict(row[0][0]) if row else None
+
+    def save_monitoring_state(self, host: str, state: dict[str, Any]) -> None:
+        self._q("INSERT INTO monitoring_state (host, state, updated_at) VALUES (%s, %s, now()) "
+                "ON CONFLICT (host) DO UPDATE SET state = EXCLUDED.state, updated_at = now()", (host, Jsonb(state)))
+
     def close_queued_incident(self, incident_id: str, outcome: str, diagnosis: str, closed_at: datetime) -> bool:
         """Close an incident no worker has claimed (T-0026). False when it is no longer queued (claimed meanwhile)."""
         patch = {"status": "closed", "outcome": outcome, "diagnosis": diagnosis,

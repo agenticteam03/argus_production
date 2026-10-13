@@ -2,9 +2,9 @@
 
 | Field | Value |
 |---|---|
-| Status | `proposed` → applied in the same pull request once accepted |
+| Status | `accepted` (applied in architecture 1.8.7) |
 | Proposed by | `conantkd` (+ agent) · 2026-10-12 |
-| Accepted by | — (a teammate's approval in the pull request) |
+| Accepted by | `juanbetancurm` · 2026-10-12, by the approval of PR #89 |
 | Second approval (safety principle only) | not needed (no safety principle is touched) |
 | Architecture version | from `1.8.6` → `1.8.7` |
 | Task / PR | EVAL-2 · PR to be opened |

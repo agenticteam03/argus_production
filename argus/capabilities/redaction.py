@@ -14,6 +14,10 @@ _PATTERNS: list[tuple[re.Pattern, str]] = [
 ]
 _HIGH_ENTROPY = re.compile(r"\b[A-Za-z0-9+/_=-]{40,}\b")
 _PATH_CHARS = re.compile(r"[A-Za-z0-9._/-]*")
+# #110 review: a declared path counts only where a path starts (not inside a URL or another path), and under a declared
+# directory a segment that holds a token is not kept (the high-entropy rule masks it)
+_IN_PATH = re.compile(r"[A-Za-z0-9._/:~%-]")
+_TOKEN = re.compile(r"[A-Za-z0-9+_=-]{40,}")
 _SECRET_KEYS = re.compile(r"(?i)(password|secret|token|api[_-]?key|private[_-]?key|^env$)")
 
 
@@ -31,17 +35,26 @@ class Redactor:
     def _kept(self, value: str) -> list[tuple[int, int]]:
         """The spans of `value` that are a declared file, or a path under a declared directory."""
         spans = []
+
+        def at_start(i: int) -> bool:
+            return i == 0 or not _IN_PATH.match(value[i - 1])
         for d in self._dirs:
             start = value.find(d)
             while start >= 0:
-                spans.append((start, _PATH_CHARS.match(value, start + len(d)).end()))
+                if at_start(start):
+                    end = start + len(d)
+                    for seg in value[end:_PATH_CHARS.match(value, end).end()].split("/"):
+                        if _TOKEN.search(seg):
+                            break
+                        end += len(seg) + 1
+                    spans.append((start, min(end, _PATH_CHARS.match(value, start + len(d)).end())))
                 start = value.find(d, start + 1)
         for f in self._files:
             start = value.find(f)
             while start >= 0:
                 end = start + len(f)
-                if end == len(value) or not re.match(r"[A-Za-z0-9_/-]", value[end]):   # not a longer name
-                    spans.append((start, end))
+                if at_start(start) and (end == len(value) or not re.match(r"[A-Za-z0-9_/-]", value[end])):
+                    spans.append((start, end))                                  # not inside a path, not a longer name
                 start = value.find(f, start + 1)
         merged: list[tuple[int, int]] = []
         for a, b in sorted(spans):

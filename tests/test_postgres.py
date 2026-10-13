@@ -315,3 +315,26 @@ def test_graph_runner_resumes_from_postgres_after_a_restart(runtime_dsn, tmp_pat
     assert done.outcome == IncidentOutcome.diagnosed
     assert len(FakeTargetAgent.calls) == reads               # the completed read was not repeated
     assert "incident.resumed" in [a.event for a in second.store.list_for(inc.id)]
+
+
+def test_monitoring_state_and_the_escalated_incident(store):
+    """T-0035 / ACR-0009 (migration 006): the runtime role keeps a host's heartbeat state, and a lost heartbeat's
+    incident is stored already escalated (no worker can claim it)."""
+    from argus.application.monitoring import MonitoringConfig, MonitoringWatch
+    from argus.domain.model import IncidentStatus, utcnow
+    host = f"vm-{secrets.token_hex(3)}"
+    assert store.monitoring_state(host) is None
+    store.save_monitoring_state(host, {"state": "alive", "fresh_ticks": 2})
+    store.save_monitoring_state(host, {"state": "lost", "fresh_ticks": 0})
+    assert store.monitoring_state(host) == {"state": "lost", "fresh_ticks": 0}
+    while store.claim_next_queued("drain", lease_s=86400 * 30):
+        pass
+    t = [utcnow()]
+    w = MonitoringWatch(store, MonitoringConfig(), now=lambda: t[0])
+    store.save_monitoring_state(host, {})
+    for _ in range(7):
+        w.observe(host, [])
+        t[0] += timedelta(minutes=1)
+    inc = store.get_incident(store.monitoring_state(host)["incident_id"])
+    assert inc.status == IncidentStatus.escalated and inc.incident_class == "monitoring_blind_spot"
+    assert store.claim_next_queued("worker") is None

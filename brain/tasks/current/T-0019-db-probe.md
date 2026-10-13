@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | `in progress` — batch 1 `done` (PR #27 merged); batch 2 `done` 2026-10-12 (PR #90 merged); batch 3 split in 3a / 3b / 3c (2026-10-12): 3a `in review` (`task/T-0019-batch3a-inspection-policy`), 3b and 3c `planned` |
+| Status | `in progress` — batch 1 (`task/T-0019-db-probe`), batch 2 (#90), batch 3a (#98), 3b (#103) and 3c (#101) merged and deployed on both VMs (`main` `d34f0cb`, AFTER-MERGE #112); the deny-floor follow-up of the #98/#103 review in review (#114); `network.listening_ports` proposed for later (batch 3c). Moves to `completed/` when #114 merges |
 | Phase | 3 — target services ([`../../IMPLEMENTATION_PLAN.md`](../../IMPLEMENTATION_PLAN.md): "DB probe (with SC-04)") |
 | Architecture | no change (no ACR): §4.6 (target-side probe services), §4.7 (inspection policy), §12.2 (catalogue) |
 | Branch | batch 1: `task/T-0019-db-probe` (PR #27 merged). Batch 2: `task/T-0019-batch2-host-probe`, rebased on `task/EVAL-2-model-trials` in step 03 (it measures and changes EVAL-2's prompt), so its PR waits for #89. Batch 3: its own branch from `main` |

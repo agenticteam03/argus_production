@@ -1,5 +1,59 @@
 # Next step
 
+**Now (2026-10-13, roll-up, `conantkd`).** Both VMs run `main` `d34f0cb` (#97-#111, AFTER-MERGE #112, from its
+evidence; not observed again at this roll-up); `main` after it is Brain only. The task files are up to date:
+`tasks/current/` holds only E2E-8, OP-004, OP-008, T-0016 and T-0019.
+
+1. **Review queue (17 PRs, #113-#129, all by `conantkd`):** suggested order #113 (`main-guard` green again), #114 (the
+   inspection deny floor), #115, #117, then the rest by number; #120 is stacked on #119. New work by `conantkd` should
+   avoid `catalog.py`, `config/policy.yaml`, `executors.py` and `wiring.py` until the capability PRs (#119-#125) merge.
+2. **After the merges:** AFTER-MERGE of both VMs to `main` (target services for #114 and #122; agent, worker and
+   scheduler together).
+3. **Waiting for a teammate:** OP-004 and OP-008's first `--apply` (review of the dry-run counts); ACR-0009 (#116) and
+   ACR-0010 (#124).
+4. **Team decisions:** the class registry ([D-003](OPEN_PROBLEMS.md)); which class, if any, is offered the tools that
+   are offered to no class yet (`get_socket_summary`, the snapshot, T-0036 to T-0040).
+5. **E2E-8** (`juanbetancurm`): SC-09 to SC-12 and the identity proof, five runs each. **Open problems:** OP-002
+   triage, the OP-003 proposal.
+
+The paragraphs below, down to "**Now (2026-10-12**", are the "Next step" sections this roll-up folded in (newest
+first); most are done, and the summary above supersedes them.
+
+AFTER-MERGE of both VMs to `main` once this and #109 are merged.
+
+Measure EVAL-5 and the diagnostic snapshot on vm-095 (needs the lease). Open findings for later tasks: #110 review
+(a declared directory matched without a left boundary) and #111 review (`PASS` with every step skipped; gitleaks
+scans ignored files without `--pr`).
+
+Use it for the open PRs while GitHub Actions does not run.
+
+After approval and merge: merge `main` into #103 (3b), then #101 (3c; also resolves `T-0019-db-probe.md`, both sections
+kept).
+
+A teammate accepts or rejects ACR-0009 in its PR; then T-0035 (implementation, tests first), then its VM proof.
+
+None.
+
+After the merge: AFTER-MERGE of both VMs to `main` (same services). Then batch 3b (host verbs under the 3a policy,
+#98). [Evidence](execution/history/T-0019/step-07/evidence.md).
+
+Batch 3b on the VMs (both leases), then the PR; after #98, #101 and this PR merge: AFTER-MERGE of both VMs to `main`.
+
+Offer the snapshot to a class after an evaluation batch; verify on vm-095 with the next AFTER-MERGE.
+
+Measure with the model in the next evaluation batch (nginx: 0.92–0.96 before).
+
+The nginx misses (the upstream not named as root cause) with the next evaluation batch.
+
+`juanbetancurm`: review #97–#103, AFTER-MERGE to `main`, then E2E-8.
+
+None for T-0033.
+
+After 3a is approved and merged: batch 3b (the four host-probe verbs under the policy), then 3c (network verbs).
+
+Read the 8 `health_check_failed` misses run by run (`eval-20261012-182757.jsonl` on vm-095) and decide the wording
+question; T-0019 batch 3 (3a in review, 3b, 3c).
+
 **Now (2026-10-12, roll-up, `conantkd`).** Both VMs run `main` `244453b` (#91-#95; observed with `deploy.sh status`
 at this roll-up); `main` is `817d88f` (+ #96, Brain only), so the deployment is current. `main-guard` is green again
 (#95, the retroactive lines for #91 and #92) and `verify-main` is clean.
@@ -60,7 +114,7 @@ filler has the full filesystem mounted rw, but in the misses it concludes withou
 `container.status` shows a running container with the flagged filesystem in rw, the next read round (its logs and
 resources) is planned by rule; then the model decides. Step 1 is offline (test first); step 2 rebuilds vm-095's agent
 and runs SC-05 ×5. Phase 12 now: SC-01, SC-03, SC-04, SC-06, SC-07, SC-08 at 5/5; SC-05 3/5; SC-02 × 5 still to run.
-See [the task file](tasks/current/E2E-5-confirm-writer.md).
+See [the task file](tasks/completed/E2E-5-confirm-writer.md).
 
 **Then (2026-10-11, roll-up, `conantkd`).** Both VMs run `main` `e3286df` (#75-#77), deployed in E2E-3 step 2.
 `main-guard` is green again (#72) and `verify-main` is clean.
@@ -68,7 +122,7 @@ See [the task file](tasks/current/E2E-5-confirm-writer.md).
 1. **PR #78 (E2E-3 step 2, Brain only) waits for `juanbetancurm`'s review:** SC-08 5/5, SC-05 3/5. Both SC-05 misses
    saw the filler's rw mount but concluded without reading its logs. It proposes **E2E-5** (a rule-planned
    confirmation read of the suspected writer) as the next quality-lane step and asks whether option 1 or option 2
-   (`tasks/current/E2E-5-confirm-writer.md` arrives with #78).
+   (`tasks/completed/E2E-5-confirm-writer.md` arrives with #78).
 2. **Phase 12:** SC-01, SC-03, SC-04, SC-06, SC-07, SC-08 at 5/5; SC-05 3/5 (E2E-5); SC-02 × 5 still to run
    (vm-095).
 3. **Merged 2026-10-11:** #72 (the exception for #68), #73 (first roll-up), #74 (E2E-2 step 2), #75 (E2E-3 step 1),
@@ -84,9 +138,9 @@ below was written before its step 2 ran (done, PR #78).
 **E2E-3 (2026-10-11):** step 1 is done offline (#75). After the merge, both leases: vm-166 `deploy.sh main` and
 rebuild the read-gateway; vm-095 backup, `deploy.sh main`, rebuild agent, worker and scheduler, `argus db check`,
 WRITE GATE CLOSED, NO INTERFERENCE; then `ops/e2e/run.py --runs 5 SC-05` on vm-166 (about 55 minutes). See
-[the task file](tasks/current/E2E-3-container-mounts.md).
+[the task file](tasks/completed/E2E-3-container-mounts.md).
 
-E2E-2 is done. Pending: [E2E-3](tasks/current/E2E-3-container-mounts.md), `container.status` reports the
+E2E-2 is done. Pending: [E2E-3](tasks/completed/E2E-3-container-mounts.md), `container.status` reports the
 host filesystems a container writes (the SC-05 writer link), then SC-05 ×5 again. Owner open; needs both leases for
 its step 2.
 
@@ -98,7 +152,7 @@ moved on to #65–#71. No lease is held.
 2. **E2E-2 step 2 (quality lane, `juanbetancurm`; both leases):** `main` changed `host.disk_usage` and
    `container.status` (#70, #71), so vm-095's agent needs a rebuild: backup, `deploy.sh main`, rebuild agent, worker
    and scheduler, `argus db check`, NO INTERFERENCE; then `ops/e2e/run.py --runs 5 SC-05 SC-07` on vm-166
-   ([task](tasks/current/E2E-2-evidence-gaps.md)). Phase 12 so far: SC-01, SC-03, SC-04, SC-06 at 5/5; SC-05 and
+   ([task](tasks/completed/E2E-2-evidence-gaps.md)). Phase 12 so far: SC-01, SC-03, SC-04, SC-06 at 5/5; SC-05 and
    SC-07 6/10 before E2E-2. SC-02 × 5 when vm-095 is free.
 3. **Done today, no deploy needed:** T-0031 (phase 8, the standing write-gate test; `ops/write-gate-check.sh`,
    `--host-only` on a Host T: CLOSED on both VMs); T-0032 (phase 13, Prometheus down on one host escalates that host
@@ -113,7 +167,7 @@ The sections below are older (2026-10-09 and earlier) and kept for the record; t
 
 **LANES-2 (2026-10-10, `juanbetancurm`):** task PRs write `journal/entries/` files instead of editing the logbook,
 CURRENT_TEST_STATE and NEXT_STEP; the first roll-up follows this merge. See
-[the task file](tasks/current/LANES-2-journal-rollup.md).
+[the task file](tasks/completed/LANES-2-journal-rollup.md).
 
 **OP-008 (2026-10-10, `conantkd`):** snapshot-consistent backup, verified markers and preview-first retention are
 implemented and dry-run on vm-095 (`VERIFY OK`, 0 sets to remove with `KEEP=7`). Next: a teammate reviews the
@@ -144,7 +198,7 @@ team:** `brain.py start` reports `59ffa39` (PR #44, OP-001) merged into `main` w
    ACR-0004; step 03 one incident `inc_8a4cf92444ae`, occurrences `started` + `attached`). T-0024 steps 2-4 (SC-05
    DIAGNOSED; vm-166 keeps the lab filesystem `/srv/argus-lab-fill`, `ops/lab-fill-mount.sh --remove` takes it away).
    T-0022 steps 5-6 and OP-010.
-3. **Done 2026-10-09:** resolved alerts (T-0026, ACR-0005, migration 005; [task file](tasks/current/T-0026-alert-resolution.md)):
+3. **Done 2026-10-09:** resolved alerts (T-0026, ACR-0005, migration 005; [task file](tasks/completed/T-0026-alert-resolution.md)):
    **both VMs run `task/T-0026-alert-resolution` `ea01c68`**; vm-095 has migration 005 (backup
    `argus-20261009T183857Z.dump` before). Its PR goes after #48. **Next code work:** OP-009 is fixed on `task/OP-009-lease-loss`
    (`main` merged in, PR not opened yet); OP-009 before any second worker, OP-004 checkpoint cleanup, SC-06 / SC-08, phase 12 with the
@@ -156,7 +210,7 @@ team:** `brain.py start` reports `59ffa39` (PR #44, OP-001) merged into `main` w
 **OP-001 (2026-10-09, `conantkd`):** the 21 runbook `detector` metadata fields and index now match the 20 incident
 classes in architecture §1.3 on `task/OP-001-runbook-detectors`. PR #44 passed the local full suite and CI; fast-track
 review and merge are next. This metadata update does not enable draft detectors or promote runbooks. See
-[the task file](tasks/current/OP-001-runbook-detectors.md).
+[the task file](tasks/completed/OP-001-runbook-detectors.md).
 
 **Now (2026-10-09, `conantkd`; read as the state after the T-0020 PR merges):** T-0020 (SC-04,
 `postgresql_connection_exhaustion`, RB-004) is done: verified on vm-166 (`inc_075fb0006098` DIAGNOSED). #36 (T-0021)
@@ -220,7 +274,7 @@ for its after-merge review by a teammate (fast-track rule).
 | Option | Phase | What | Depends on |
 |---|---|---|---|
 | ~~T-0014 — worker + scheduler~~ **done 2026-10-08** (`juanbetancurm`, PR #33) | 9 | split the agent into api / worker / scheduler; the worker claims queued incidents and **resumes interrupted runs from their checkpoint**; the scheduler runs periodic checks and pulls firing alerts | T-0013 merged |
-| **T-0015 — read access for user interfaces** (`juanbetancurm`) | 10 | read-only tokens, `GET /api/v1/me`, the UI contract: [`tasks/current/T-0015-ui-read-access.md`](tasks/current/T-0015-ui-read-access.md) | nothing (starts with ACR-0001 for OD-10) |
+| **T-0015 — read access for user interfaces** (`juanbetancurm`) | 10 | read-only tokens, `GET /api/v1/me`, the UI contract: [`tasks/completed/T-0015-ui-read-access.md`](tasks/completed/T-0015-ui-read-access.md) | nothing (starts with ACR-0001 for OD-10) |
 | **T-0016 — the web frontend** (`juanes6554`; say *"I want to implement the frontend"*) | 10 | his own framework in `frontend/`, test-driven (the agent writes the tests from his guidelines): [`tasks/current/T-0016-frontend.md`](tasks/current/T-0016-frontend.md) | T-0015 steps 1–5 merged |
 | ~~SC-07 — network/DNS scenario~~ **done 2026-10-07** (T-0018, `conantkd`) | 11 | verified on vm-166, twice; RB-009 read via `query_runbook` | — |
 | MCP tools child | 4 | tool calls through a separate stdio process under its own user | nothing (independent) |

@@ -5,6 +5,7 @@ credentials come from settings keyed by (host, executor). Nothing here is persis
 """
 from __future__ import annotations
 
+import re
 import time
 from string import Template
 from typing import Callable
@@ -42,6 +43,9 @@ class TargetAgentClient:
         return r.json()
 
 
+_MOUNT = re.compile(r"/[A-Za-z0-9_/-]*")          # as the inventory checks a mount (T-0024)
+
+
 class PrometheusClient:
     """prometheus executor: only named signal templates (never free-form PromQL)."""
 
@@ -50,16 +54,22 @@ class PrometheusClient:
         self.signals = signals
         self.timeout_s = timeout_s
 
-    def expr(self, signal: str, target: TargetRef) -> str:
+    def expr(self, signal: str, target: TargetRef, mounts: str = "") -> str:
+        """`mounts` (T-0036): the target's declared mounts joined by `|` (a PromQL regex), plain paths only, as the
+        inventory validates them; anything else is refused."""
         if signal not in self.signals:
             raise ExecutorError("invalid_args", f"unknown signal {signal!r}")
-        return Template(self.signals[signal]).substitute(host=target.host, name=target.name)
+        if mounts and not all(_MOUNT.fullmatch(m) for m in mounts.split("|")):
+            raise ExecutorError("invalid_args", "mounts must be plain absolute paths")
+        return Template(self.signals[signal]).substitute(host=target.host, name=target.name, mounts=mounts)
 
-    def range(self, signal: str, target: TargetRef, minutes: int, step_s: int) -> list[tuple[float, float]]:
-        end = time.time()
+    def range(self, signal: str, target: TargetRef, minutes: int, step_s: int,
+              mounts: str = "", end_offset_s: int = 0) -> list[tuple[float, float]]:
+        """`end_offset_s` (T-0038): the window ends that many seconds ago (an earlier window, same length)."""
+        end = time.time() - max(0, int(end_offset_s))
         try:
             r = httpx.get(f"{self.base_url}/api/v1/query_range",
-                          params={"query": self.expr(signal, target), "start": end - minutes * 60, "end": end,
+                          params={"query": self.expr(signal, target, mounts), "start": end - minutes * 60, "end": end,
                                   "step": step_s}, timeout=self.timeout_s)
             r.raise_for_status()
         except httpx.HTTPError as e:
