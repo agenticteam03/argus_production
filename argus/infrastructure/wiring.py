@@ -120,6 +120,16 @@ def _credentials(s: Settings, inventory: YamlInventory, require: bool, errors: l
     return creds
 
 
+def load_routing(config_dir: Path):
+    """T-0042 (§15.2): `routing.yaml`, validated against the class families (fail closed: ValueError); no file = the
+    default route only. The agent and the scheduler read it the same way."""
+    from argus.policy.routing import Routing
+    path = config_dir / "routing.yaml"
+    if not path.exists():
+        return Routing()
+    return Routing.from_data(yaml.safe_load(path.read_text(encoding="utf-8")), {c.family for c in CLASSES})
+
+
 def declared_paths(policy: dict | None, inventory: dict | None) -> list[str]:
     """The paths Argus itself declared, which the redactor leaves readable (#107 review): the inspection policy's
     `service_config` and `files` entries and the inventory's mounts (as directories; `/` is not one)."""
@@ -192,11 +202,8 @@ def build(settings: Settings | None = None, llm=None, metrics=None, executors: E
     # --- startup validation: every reference must resolve, or Argus refuses to start ----------------
     errors = []
     routing = None                                   # T-0042 (§15.2): escalation routing, validated like the rest
-    rpath = s.config_dir / "routing.yaml"
     try:
-        from argus.policy.routing import Routing
-        routing = (Routing.from_data(yaml.safe_load(rpath.read_text(encoding="utf-8")), {c.family for c in CLASSES})
-                   if rpath.exists() else Routing())
+        routing = load_routing(s.config_dir)
     except ValueError as e:
         errors.append(str(e))
     for spec in specs:

@@ -34,8 +34,9 @@ model), and while a host has no fresh heartbeat Argus resolves nothing on it.
   The ACR says "while its heartbeat is not fresh"; a first version that only stopped once lost resolved an
   application incident in the minutes before the loss was declared (caught by note 3's test).
 - **The loss is notified** like every escalation (§15.2): `<incident>:escalation` in the outbox, route
-  `channel:operators` (the `platform` family's route once `routing.yaml`, T-0042, is merged). Found missing on
-  2026-10-13 while building T-0042; the step-2 deployment (`800a9df`) does not have it yet.
+  of the `platform` family in `routing.yaml` (T-0042), else the default `channel:operators`; the scheduler reads the
+  file with the agent's validation (`load_routing`, fail closed; #127 review, `task/T-0035-platform-route`). Found missing on
+  2026-10-13 while building T-0042; on the VMs since the AFTER-MERGE to `main` `ad72617` (2026-10-13, default route).
 - **The heartbeat never reaches intake** (`HandleAlertNotification` ignores it by `alertname`: push and pull).
 - **State per host** in the store (`monitoring_state`, migration 006, both stores): a restart keeps a lost episode
   (no second incident) and starts a new grace otherwise.
@@ -54,7 +55,7 @@ model), and while a host has no fresh heartbeat Argus resolves nothing on it.
 
 ## Tests
 
-`tests/test_t0035_monitoring_heartbeat.py`, 22 tests (red seen: no `argus.application.monitoring`; and, added 2026-10-13, no escalation notification for a loss): fresh / kept but
+`tests/test_t0035_monitoring_heartbeat.py`, 25 tests (red seen: no `argus.application.monitoring`; and, added 2026-10-13, no escalation notification for a loss; and, #127 review, the loss's route ignores `routing.yaml`): fresh / kept but
 not renewed / expired / another host's; a loss opens one escalated incident with no run and the observed cause;
 Alertmanager unreachable; one incident per episode across a scheduler restart; two fresh ticks to recover and a later
 loss is a new episode; one late fresh tick does not end the grace; never seen after the grace; a queued application
