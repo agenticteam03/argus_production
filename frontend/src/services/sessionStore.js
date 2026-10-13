@@ -16,7 +16,8 @@ const storage = () => (typeof sessionStorage === "undefined" ? null : sessionSto
 
 // A JWT's own `exp` (seconds since epoch) is the real end of a token's life. Decode it without a library so a
 // restored token is never one the server will reject; any malformed token simply falls back to our TTL.
-const tokenExpiry = (token) => {
+// Exported so its behaviour (well-formed vs malformed token) is unit-tested directly.
+export const tokenExpiry = (token) => {
   try {
     const part = token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
     const pad = part.length % 4 ? "=".repeat(4 - (part.length % 4)) : "";
