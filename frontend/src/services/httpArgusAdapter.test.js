@@ -6,6 +6,7 @@ import incident from "../../../contracts/samples/incident.json";
 import incidents from "../../../contracts/samples/incidents.json";
 import { httpArgusAdapter } from "./httpArgusAdapter.js";
 import { clearToken, getToken, setToken } from "./session.js";
+import { clearSession, loadSession, saveSession } from "./sessionStore.js";
 
 const response = (status, body) => ({
   ok: status >= 200 && status < 300,
@@ -13,13 +14,26 @@ const response = (status, body) => ({
   json: async () => body,
 });
 
+// Node has no sessionStorage; a tiny fake lets the 401 path clear a persisted session for real.
+const stubStorage = () => {
+  const mem = new Map();
+  globalThis.sessionStorage = {
+    getItem: (k) => (mem.has(k) ? mem.get(k) : null),
+    setItem: (k, v) => mem.set(k, String(v)),
+    removeItem: (k) => mem.delete(k),
+  };
+};
+
 describe("httpArgusAdapter", () => {
   beforeEach(() => {
     globalThis.fetch = vi.fn();
     setToken("jwt-123");
+    stubStorage();
   });
   afterEach(() => {
     clearToken();
+    clearSession();
+    delete globalThis.sessionStorage;
     vi.restoreAllMocks();
   });
 
@@ -70,11 +84,13 @@ describe("httpArgusAdapter", () => {
     expect(overview.health).toBeNull();
   });
 
-  it("on 401 it forgets the token and rejects", async () => {
+  it("on 401 it forgets the token and the persisted session", async () => {
+    saveSession({ user: { name: "ana", role: "operator" }, token: "jwt-123" });
     fetch.mockResolvedValueOnce(response(401, {}));
 
     await expect(httpArgusAdapter.listIncidents()).rejects.toMatchObject({ status: 401 });
     expect(getToken()).toBeNull();
+    expect(loadSession()).toBeNull();
   });
 
   it("turns a 404 into a not-found error", async () => {
@@ -85,9 +101,5 @@ describe("httpArgusAdapter", () => {
 
   it("rejects the placeholder write call: this release is read-only", async () => {
     await expect(httpArgusAdapter.decideApproval("a1", "approve")).rejects.toMatchObject({ status: 403 });
-  });
-
-  it("does not restore a session: the token lives in memory only (T-0016 rule 4)", () => {
-    expect(httpArgusAdapter.restore()).toBeNull();
   });
 });

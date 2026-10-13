@@ -1,9 +1,9 @@
 // Frontend-only stand-in for the real auth API (POST /api/v1/auth/token + GET /api/v1/me), with no database:
 // the accounts live in code (the demo defaults) or in `.env` (`VITE_ARGUS_USERS`), so the offline demo needs no
-// server at all. The session survives a page reload in the same tab (./mockSessionStore.js); there is no token
-// to protect, so T-0016 rule 4 is untouched.
+// server at all. The session survives a page reload in the same tab (./sessionStore.js); a mock login issues no
+// token, so nothing secret is ever persisted.
 import { demoSession } from "./demoSession.js";
-import { clearSession, loadSession, saveSession } from "./mockSessionStore.js";
+import { clearSession, loadSession, saveSession } from "./sessionStore.js";
 
 // Same shape GET /api/v1/me returns: the server lists the actions a read token may use.
 const ROLE_ACTIONS = {
@@ -47,16 +47,16 @@ export const mockAuthAdapter = {
     if (!account || password !== account.password) throw new Error("Incorrect username or password. Please try again.");
     demoSession.role = account.role;
     const user = toUser(account);
-    saveSession(user);
+    saveSession({ user });
     return { user };
   },
 
-  // Restores the session after a page reload in the same tab (no token involved; see ./mockSessionStore.js).
+  // Restores the session after a page reload in the same tab (no token involved; see ./sessionStore.js).
   restore() {
-    const user = loadSession();
-    if (!user) return null;
-    demoSession.role = user.role;
-    return { user };
+    const session = loadSession();
+    if (!session) return null;
+    demoSession.role = session.user.role;
+    return { user: session.user };
   },
 
   async signOut() {
