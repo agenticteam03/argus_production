@@ -9,32 +9,32 @@ skeleton with checkpointing, the stdio MCP tools child, exact-route gateways and
 closed-write-gate HITL machinery. The current code started as a simplified lab core (SQLite, one process, direct tool
 calls); the phases below replace each simplification.
 
-## 1. Phases at a glance (status 2026-10-05; rows 3, 12 and 13 updated 2026-10-12)
+## 1. Phases at a glance (status 2026-10-13, roll-up after AFTER-MERGE #132)
 
 | # | Phase | What | Why | Status | Next |
 |---|---|---|---|---|---|
 | 0 | Discovery | facts about both VMs | never assume; protect the existing deployment | ✅ done | — |
 | 1 | Project init | v1.8 code layout, tests | a clean, testable core | ✅ 90 % | tidy as later phases touch it |
 | 2 | Inventory & identity | `vm-095` / `vm-166` as real hosts | the same name on two hosts must never be confused | ✅ done | — |
-| 3 | Target services | read gateway, probes, exporter per VM | Argus reads hosts only through narrow, audited services | ✅ 97 % | DB probe (T-0019 batch 1) and the host-probe diagnosis verbs (batch 2, 2026-10-12) done; batch 3 (journal, files, processes, connectivity) needs the §4.7 inspection policy |
-| 4 | Tools & guarded execution | every tool call through `InvokeCapability` | policy, audit and host isolation on every read | 🟡 85 % | T-0021 verified on vm-095 (worker in `mcp` mode, tokens readable only by `argus-tools`, TOOLS ISOLATION OK, OD-3 p95 overhead ~45 ms); PR #36 to review |
+| 3 | Target services | read gateway, probes, exporter per VM | Argus reads hosts only through narrow, audited services | ✅ 100 % | T-0019 done: DB probe (batch 1), host-probe verbs (batch 2), the §4.7 inspection policy and the journal / files / processes / network verbs (3a-3c), the deny floor (#114); T-0037 Docker read verbs (#122). On both VMs (`main` `ad72617`). `network.listening_ports` stays a proposal |
+| 4 | Tools & guarded execution | every tool call through `InvokeCapability` | policy, audit and host isolation on every read | ✅ 95 % | T-0021 done (#36, #39: reads in an MCP tools process under `argus-tools`, ACR-0002); T-0034 combined capabilities; T-0036 to T-0040 new capabilities merged and deployed, **offered to no class yet** (next: offer each to a class with evaluation cases) |
 | 5 | Postgres | system of record (incidents, evidence, audit) | durable insert-only evidence; LangGraph checkpoints need it | ✅ 100 % | — (backup/restore drill done 2026-10-06, T-0017) |
 | 6 | Runbooks | the library drives recall | diagnoses traceable to a runbook version | ✅ 85 % | recall-quality checks per class: T-0025 measures recall@3 in the §21.2 evaluation (step 1: harness + safety cases; step 2: the baseline and 5 cases per class) |
-| 7 | Monitoring & detection | per-host Prometheus, detectors | detect deterministically before any AI | ✅ 100 % | T-0022 (Argus-owned Alertmanager, node-exporter, cAdvisor; alerts pulled, ACR-0003); §6.4 correlation (OP-011, ACR-0004) and resolution (T-0026, ACR-0005); the four detectors: restart loop, health, dependency, **blind spot** (T-0027, RB-014): verified on both VMs 2026-10-09. Open: an expected-jobs list for absent scrape targets; `disk_pressure` evaluation cases |
-| 8 | Policies | scope, limits, closed write gate as data | safety is configuration, not code | ✅ 80 % | routing data; standing write-gate test on the VMs |
-| 9 | Agent workflow | the v1.8 skeleton in LangGraph | resume after a crash; a real worker and scheduler | 🟡 75 % | T-0013 (LangGraph + Postgres checkpoints) and OP-006 done; T-0014 done (lease, `argus api`/`worker`/`scheduler`, compose; on vm-095 a killed worker's run resumed from its checkpoint, a schedule coalesced while busy), PR #33 to merge; OP-004 checkpoint cleanup after it |
+| 7 | Monitoring & detection | per-host Prometheus, detectors | detect deterministically before any AI | ✅ 100 % | T-0022 (Argus-owned Alertmanager, node-exporter, cAdvisor; alerts pulled, ACR-0003); §6.4 correlation (OP-011, ACR-0004) and resolution (T-0026, ACR-0005); the four detectors: restart loop, health, dependency, **blind spot** (T-0027, RB-014); missing scrape jobs alert (T-0043); the monitoring heartbeat per host (T-0035, ACR-0009). On both VMs 2026-10-13. Open: `disk_pressure` evaluation cases |
+| 8 | Policies | scope, limits, closed write gate as data | safety is configuration, not code | ✅ 95 % | escalation routing as data (`routing.yaml`, T-0042; a monitoring loss on the `platform` route, #133); the standing write-gate test in every build and on the VMs (T-0031); the inspection policy and deny floor (T-0019). Open: real routes per family when the team names its channels |
+| 9 | Agent workflow | the v1.8 skeleton in LangGraph | resume after a crash; a real worker and scheduler | ✅ 90 % | T-0013 (LangGraph + Postgres checkpoints), OP-006 and T-0014 (lease, `argus api`/`worker`/`scheduler`, a killed worker's run resumed from its checkpoint) done (#33). Open: OP-004 checkpoint cleanup (merged #42, dry run on the VM; the first `--apply` and the timer with a teammate) |
 | 10 | Output modes | formatted CLI and `--raw` | readable for humans, complete for developers | ✅ 90 % | ACT result column wraps instead of being cut (fixed 2026-10-07, seen in the SC-07 demo); new scope: read-only web UI (T-0015 API side, T-0016 frontend) |
-| 11 | Synthetic incidents | controlled failures on both VMs | proof needs reproducible failures | 🟡 80 % | SC-06 CPU, SC-08 nginx (SC-04 done 2026-10-07, T-0020; SC-05 done 2026-10-09, T-0024) |
-| 12 | End-to-end tests | every scenario through the CLI | quality claims need repeated runs | 🟡 80 % | the scenario runner `ops/e2e/run.py` (T-0023): the eight class scenarios SC-01 to SC-08 at 5/5 on the VMs (SC-02 E2E-6, SC-05 E2E-5, 2026-10-12); H-1/H-2, SC-09 to SC-12 and the identity proof one run each on LangGraph; the model evaluation (55 cases, EVAL-2) 0.93 |
-| 13 | Failure & recovery | behaviour under real faults | failures become escalations, never crashes | ✅ 90 % | all four faults done on the VMs: worker killed mid-run (T-0014), Postgres restart (T-0030), Prometheus down on one host (T-0032), token rotation without a restart (T-0033, 2026-10-12). Open: an alarm when a host's own Prometheus is down; `db_probe` rotation is manual |
+| 11 | Synthetic incidents | controlled failures on both VMs | proof needs reproducible failures | ✅ 100 % | SC-01 to SC-12 and the identity proof on the VMs: SC-04 (T-0020), SC-05 (T-0024), SC-06 CPU (T-0028), SC-08 nginx (T-0029) included |
+| 12 | End-to-end tests | every scenario through the CLI | quality claims need repeated runs | ✅ 100 % | the scenario runner `ops/e2e/run.py` (T-0023): every scenario five runs on the VMs. SC-01 to SC-08 (E2E-1 to E2E-6); H-1/H-2, SC-09, SC-10, SC-11 and the identity proof 5/5, SC-12 4/5 with the miss read (E2E-8 step 2, 2026-10-13, #134 in review; SC-12's expectation follows the host probe, E2E-9, #135 in review). The model evaluation (55 cases × 5 trials) on `main` `d34f0cb`: 0.97 (267/275) after EVAL-6; the capabilities of T-0036 to T-0040 are offered to no class, so they do not change it yet |
+| 13 | Failure & recovery | behaviour under real faults | failures become escalations, never crashes | ✅ 95 % | all four faults done on the VMs: worker killed mid-run (T-0014), Postgres restart (T-0030), Prometheus down on one host (T-0032), token rotation without a restart (T-0033); a host's lost monitoring now alarms (T-0035 heartbeat). Open: the first real `db_probe` rotation on vm-166 (T-0041, script merged) |
 | 14 | Optional | swap-ability experiments | prove a new executor needs no core change | ⬜ 0 % | `ssh_verbs` executor, only if time allows |
 
-**Order of the remaining work:** 9 LangGraph + worker + scheduler → 4 MCP tools process → 7 alerting →
-11 the remaining scenarios → 12 repeated end-to-end runs → 13 recovery tests.
+**Order of the remaining work (2026-10-13):** offer the new capabilities (T-0036 to T-0040) to their classes, each
+with evaluation cases → the evaluation again on `main` → the small open items (OP-004 and OP-008 first `--apply`, the
+first `db_probe` rotation T-0041, T-0016's Playwright tests) → 14 only if time allows.
 
-**Scenarios passing on the real VMs (one run each):** H-1/H-2, SC-01, SC-02, the identity proof, SC-03, SC-09, SC-10,
-SC-11, SC-12. NO INTERFERENCE after every step. On the LangGraph runner (final `main` code, 2026-10-04/06): all of
-them verified as well — H-1/H-2, SC-01, SC-02, the identity proof, SC-03, SC-09, SC-10, SC-11, SC-12 (DEPLOY-MAIN, LGS).
+**Scenarios on the real VMs:** every scenario (H-1/H-2, SC-01 to SC-12, the identity proof) five runs through the
+runner, NO INTERFERENCE after every run (Phase 12). SC-12 4/5, its miss read (E2E-8 step 2).
 
 ## 2. Phase details
 

@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | `in review` — code and read-only checks on vm-095 done 2026-10-13 ([evidence](../../execution/history/T-0043/step-01/evidence.md)); Prometheus recreated on both hosts at the AFTER-MERGE |
+| Status | `done` 2026-10-13 — #128 merged; on both VMs since the AFTER-MERGE to `main` `ad72617` (#132, 2026-10-13): both Prometheus recreated, 10 rules, every target up |
 | Phase | 7 — monitoring and detection ("open: an expected-jobs list for absent scrape targets", [`../../IMPLEMENTATION_PLAN.md`](../../IMPLEMENTATION_PLAN.md)) |
 | Architecture | no change: RB-014 / `monitoring_blind_spot` (T-0027) read one more case |
 | Branch | `task/T-0043-missing-scrape-jobs` (from `main`) |

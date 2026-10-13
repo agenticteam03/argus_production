@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | `in review` — code done 2026-10-13 |
+| Status | `done` 2026-10-13 — #127 merged; on both VMs since the AFTER-MERGE to `main` `ad72617` (#132, 2026-10-13); `routing.yaml` with the default route only |
 | Phase | 8 — policies ("routing data", [`../../IMPLEMENTATION_PLAN.md`](../../IMPLEMENTATION_PLAN.md)) |
 | Architecture | no change (no ACR): §15.2 and §4 ("`routing.yaml` escalation routing per class family") as written |
 | Branch | `task/T-0042-routing` (from `main`) |

@@ -488,7 +488,7 @@ read-only session, never rows or SQL text; own token and image target (`pg8000` 
 red then green (119 passed); deployed on both VMs over SSH; `phase3_check` 33/33; the agent reads it through its
 own code path; NO INTERFERENCE. Also: OP-007 fixed and deployed (PR #29), AFTER-MERGE T-0018 done (PR #30), OP-008
 proposed (PR #31).
-References: `tasks/current/T-0019-db-probe.md`, `execution/history/T-0019/`, OPEN_PROBLEMS OP-007, OP-008.
+References: `tasks/completed/T-0019-db-probe.md`, `execution/history/T-0019/`, OPEN_PROBLEMS OP-007, OP-008.
 
 ## 2026-10-07 — SC-07 class demo; T-0015 step 6 proved (T-0015)
 
@@ -1284,7 +1284,7 @@ where the space went is not who wrote it). The branch was rebased on `task/EVAL-
 PR stacks on #89. Model, 5 trials on the 55 cases: **0.92 (core 0.95), abstention 1.00, disk 1.00, hard 0 0 0**
 (EVAL-2 E.4: 0.93 (0.95), 0.96, 0.97). The new `get_kernel_oom_records` found a real OOM kill (the probe's own, row 1
 of the evidence). Both VMs on `040b827`, `phase3_check` 55/55, NO INTERFERENCE.
-References: [`../tasks/current/T-0019-db-probe.md`](../tasks/current/T-0019-db-probe.md),
+References: [`../tasks/completed/T-0019-db-probe.md`](../tasks/completed/T-0019-db-probe.md),
 [`../execution/history/T-0019/step-04/evidence.md`](../execution/history/T-0019/step-04/evidence.md).
 
 ## 2026-10-12 — AFTER-MERGE of #88, #89, #90: both VMs on main (AFTER-MERGE-T-0019)
@@ -1402,7 +1402,7 @@ inventory or the host's declared mounts; each probe's rendered config carries it
 `/var/log/syslog` (rsyslog) filtered by unit, as `kern.log` in batch 2. No ACR (§4.7, §12.2).
 Consequences: nothing reads the policy until 3b's verbs exist; no deploy for 3a alone. Touches what Argus may read: a
 teammate's approval is required.
-References: [`../tasks/current/T-0019-db-probe.md`](../tasks/current/T-0019-db-probe.md).
+References: [`../tasks/completed/T-0019-db-probe.md`](../tasks/completed/T-0019-db-probe.md).
 
 ## 2026-10-12 — T-0033 follow-up: rotate-token.sh keeps the mode on a rollback and reports a failed recreate (T-0033)
 
@@ -1483,7 +1483,7 @@ symbolic links and non-regular files, bounds lines and bytes; the journal is rsy
 never read `cmdline` or `environ`. Only `host.service_config` is offered (to `nginx_upstream_failure`). The six nginx
 cases answer it with the lab's `default.conf`. Every `host-probe` verb of §4.6 now exists: phase 3 is complete.
 Consequences: verified on both VMs before the merge; the PR is stacked on #98.
-References: [`../tasks/current/T-0019-db-probe.md`](../tasks/current/T-0019-db-probe.md).
+References: [`../tasks/completed/T-0019-db-probe.md`](../tasks/completed/T-0019-db-probe.md).
 
 ## 2026-10-12 — T-0019 batch 3c: why two containers cannot reach each other, and repeated TCP (T-0019)
 
@@ -1501,7 +1501,7 @@ Verified on both VMs (`030690a`, both leases): the routes from the host, the age
 55 cases × 5: 0.96 (core 0.99), hard 0 0 0; `check_connectivity` used in 25 runs; SC-07's case read in 2 reads with
 the cause stated (4.16 → 3.40 reads per dependency run). LAB BASELINE OK, NO INTERFERENCE.
 Consequences: both VMs run the branch until it merges (then AFTER-MERGE to `main`).
-References: [`../tasks/current/T-0019-db-probe.md`](../tasks/current/T-0019-db-probe.md).
+References: [`../tasks/completed/T-0019-db-probe.md`](../tasks/completed/T-0019-db-probe.md).
 
 ## 2026-10-12 — The redactor masks secrets, not file paths (REDACT-paths)
 
@@ -1620,3 +1620,286 @@ Decision / result:
   OP-001 there: PR #44 merged.
 Consequences: Brain only, no code. Done on the roll-up branch because `NEXT_STEP.md` links to some of the moved files.
 References: `brain/tasks/completed/`, `brain/OPEN_PROBLEMS.md` (D-003).
+
+## 2026-10-12 — REDACT-declared-boundary: a declared path counts only where a path starts (review of #110)
+
+Type: fix
+Who: conantkd (+ agent)
+Context: the non-blocking finding of the #110 review. A declared directory was matched anywhere in the text and kept
+everything under it, so these stayed unmasked: `https://hooks.example.com/srv/argus-lab-fill/<40-char token>` (the
+declared directory inside a URL), `/evil/srv/argus-lab-fill/<token>` (after another path) and
+`/srv/argus-lab-fill/<token>` (a token as a name under the declared directory).
+Decision / result: in `Redactor._kept`:
+- a declared file or directory counts only where a path starts: the character before it is not a path or URL
+  character (`[A-Za-z0-9._/:~%-]`); `path=`, a quote, a bracket or a space before it are fine;
+- under a declared directory the kept span stops before the first segment that holds a token (40+ token characters):
+  the high-entropy rule masks that segment, the declared prefix stays readable.
+Consequences: stricter only; every declared path written at a path start reads as before. Touches redaction (a safety
+principle): needs a teammate's approval.
+References: `argus/capabilities/redaction.py`, `tests/test_redaction_paths.py`.
+
+## 2026-10-12 — T-0019: the inspection deny floor closed before any path is added to `files` (review of #98 / #103)
+
+Type: fix
+Who: conantkd (+ agent)
+Context: `juanbetancurm`'s non-blocking notes on #98 (3a) and #103 (3b): close the gaps of the built-in deny floor
+before any path is added to a `files` allowlist; open with `O_NOFOLLOW` in the probe's `_real_file`; the flaky `NOW`
+in `tests/test_t0019_host_probe_batch2.py`. Today every `files` list is empty, so no read was exposed.
+Decision / result:
+- `BUILTIN_DENY` adds `/proc/`, `/var/lib/docker/`, `/etc/shadow-`, `/etc/gshadow`, `/etc/gshadow-`, `/etc/sudoers`,
+  `/etc/sudoers.d/`, `.ssh`, `id_*`, `*.env`, `*token*` (was only in the data).
+- A pattern without `/` now matches **any component** of the path, not only the file name (`/srv/tokens/x`,
+  `~/.ssh/config` were allowed). Case-insensitive as before.
+- The probe carries the same floor (`INSPECT_FLOOR`, a test keeps it equal to `BUILTIN_DENY`) and applies it whatever
+  its rendered `target.json` says.
+- `_real_file` opens with `O_NOFOLLOW` and checks "regular file" on the open descriptor: a link put in place between
+  the walk and the open is refused (ELOOP → 403). It returns the open file; `_tail` and `service_config` read from it.
+- `now` is a fixture taken when each OOM test starts (a ~10-minute suite moved the 50-minute-old record out of the
+  60-minute window).
+- `deploy/target/config/*.json` re-rendered (only the `deny` list changes).
+Consequences: touches a safety principle (secrets, host inspection): needs a teammate's approval. The VMs get the new
+probe and config at the next AFTER-MERGE (needs the lease). Kept local until CI ran again.
+References: `argus/policy/inspection.py`, `services/target/service.py`, `tests/test_t0019_batch3b_host_verbs.py`,
+`tests/test_t0019_host_probe_batch2.py`.
+
+## 2026-10-12 — LOCAL-CI: every mode checks a clean worktree of the commit (review of #111)
+
+Type: fix
+Who: conantkd (+ agent)
+Context: the #111 review. Without `--pr` / `--main`, `ops/local_ci.py` ran the checks in the developer's own checkout,
+so gitleaks (`--no-git`, a directory scan) also read the checkout's ignored files (`.venv`, `node_modules`,
+`brain/execution/current/output.bash`): false positives, and files that are never committed were scanned. The other
+note of that review ("PASS when every step is skipped") was overstated: `audit`, `lint` and `tests` never skip (they
+need only Python); only `secrets`, `promql` and `frontend` can, and the protocol leaves those to the reviewer. Not
+changed.
+Decision / result: every mode checks a temporary `git worktree` of the commit (HEAD needs a clean working tree, as
+before; the PR's last push or `origin/main` as before), removed at the end.
+Consequences: the HEAD mode now sees exactly the commit's files, as CI does; it installs the frontend's packages in
+the worktree (`npm ci` did that already).
+References: `ops/local_ci.py` (`_commit`, `main`), `tests/test_local_ci.py`.
+
+## 2026-10-12 — T-0035 step 1: the monitoring heartbeat per host (ACR-0009), code and architecture
+
+Type: feature
+Who: conantkd (+ agent)
+Context: ACR-0009 accepted by `juanbetancurm` in #108, with three notes: measure the real `updatedAt` renewal before
+fixing `stale_after` (a kept-but-not-renewed copy is the important test); two consecutive fresh ticks for recovery
+and to leave the startup grace; the verification includes a queued application incident that stays open.
+Decision / result: the heartbeat rule on every host; `AlertNotification.updated_at`; `MonitoringWatch` in the
+reconcile tick (fresh / starting / alive / lost, one escalated incident per episode with no run and no model, two
+fresh ticks to recover); no resolution on a tick without a fresh heartbeat; the heartbeat never reaches intake; state
+per host (migration 006, both stores); `argus monitoring maintenance`; `ARCHITECTURE.md` 1.8.8 (§6.4, §7.3); the
+ACR marked accepted and applied. The check ships **off** (`monitoring_heartbeat.enabled: false`) until the rule is on
+both hosts.
+One correction to the first version: it stopped resolving only once the loss was declared, so an application incident
+was resolved in the minutes between the last renewal and the loss. The ACR's rule is "while its heartbeat is not
+fresh"; `observe` now blocks resolution on every tick without a fresh heartbeat.
+Consequences: step 2 needs both leases (migration, the rule on both Prometheus, the scheduler; measure `updatedAt`
+before turning the check on); step 3 verifies it as T-0032 did.
+References: [task](../tasks/completed/T-0035-monitoring-heartbeat.md), [ACR-0009](../architecture/changes/ACR-0009-monitoring-heartbeat.md).
+
+Added 2026-10-13: the loss incident also enqueues its escalation notification (§15.2), which the first
+version forgot (it is stored already escalated, so the runner's `record` never sees it).
+
+## 2026-10-13 — T-0041: `rotate-token.sh` rotates `db_probe` (and Prometheus's copy)
+
+Type: feature
+Who: conantkd (+ agent)
+Context: T-0033 left the `db_probe` rotation manual: vm-166's Prometheus scrapes the db-probe with the same token.
+Decision / result: `rotate-token.sh db_probe` writes the new token to the service's and to Prometheus's copy (owner and
+mode kept), recreates the service, and a rollback restores both; no Prometheus copy = no change. Prometheus reads the
+file at every scrape: no restart.
+Consequences: Phase 13's last open rotation; a real rotation on vm-166 after the merge.
+References: [task](../tasks/current/T-0041-db-probe-rotation.md).
+
+## 2026-10-13 — EVAL-6: the health endpoint / handler named counts as naming the failing check
+
+Type: evaluation label
+Who: conantkd (+ agent)
+Context: of the 10 misses of the evaluation on `main` `d34f0cb` (EVAL-main, #118), two were right diagnoses of
+`health-api-vm166-01` (trials 2 and 3: "its health endpoint returns HTTP 500 because settings.load() raises KeyError:
+'FEATURE_FLAGS'"; "failing its health handler") graded as misses because the wording list (EVAL-4) had only "health
+check", "healthcheck", "health probe", "unhealthy". The case's failing check is the Docker health check that calls
+that endpoint.
+Decision / result: the five health cases also accept "health endpoint" and "health handler". The outcome, class and
+root-cause target are still required. Re-graded without a model call (`argus.evaluation.regrade`):
+
+| run | before | EVAL-6 |
+|---|---|---|
+| `main` `d34f0cb` (EVAL-main) | 0.96 (265/275), health 0.88 | **0.97 (267/275), health 0.96** |
+| snapshot offered (EVAL-snapshot, #121) | 0.94, health 0.72 | 0.94, health 0.72 (its misses are escalations) |
+
+The other misses, left as they are: `dep-backend-wrong-network` ×2 (the model blames the client, not the backend on
+the wrong network: `network.connectivity` does not say which side is off its inventory-assigned network — a
+capability improvement for later); `nginx-slow-check` ×2 (nginx's 2 s timeout vs the upstream's 5 s: a label question
+for the team); four abstentions / an exhausted step budget (model behaviour).
+Consequences: health is no longer the weakest class on `main`; the snapshot decision (#121) stands.
+References: `tests/eval/cases/health-*.yaml`, `tests/test_eval4_health_wording.py`.
+
+## 2026-10-13 — EVAL on main d34f0cb: 0.96 (core 0.97), abstention 0.98, hard 0 0 0
+
+Type: evidence
+Who: conantkd (+ agent)
+Context: after the AFTER-MERGE of #97–#111 (both VMs on `main` `d34f0cb`), the configured model on the 55 evaluation
+cases, 5 trials, as at T-0019 3c step 07.
+Decision / result: 265 / 275 passed; accuracy 0.96 (core 0.97), abstention 0.98, recall@3 1.00, 3.8 reads per
+incident, hard metrics 0 0 0. Same overall accuracy as step 07; dependency and nginx one run lower each (0.92),
+health 0.88. Within the noise of 5 trials; no class regressed by more than one run.
+Consequences: `main` is a good baseline for the snapshot measurement (offering `capture_diagnostic_snapshot` to a
+class) and for T-0035. Follow-up: the two `dep-backend-wrong-network` misses, from the results file on vm-095.
+References: [evidence](../execution/history/EVAL-main/step-01/evidence.md).
+
+## 2026-10-13 — EVAL-snapshot: the snapshot offered to health_check_failed lowers it (0.88 → 0.72); not offered
+
+Type: evidence / decision
+Who: conantkd (+ agent)
+Context: T-0034 offered `capture_diagnostic_snapshot` to no class until measured.
+Decision / result: offered to `health_check_failed` on a branch and measured against `main` (55 cases, 5 trials, same
+model): the model used it in 19 of 25 health runs, read more (7.8 vs 4.6 per run) and escalated more:
+`health_check_failed` 0.88 → 0.72, overall 0.96 → 0.94, hard 0 0 0 both. The offer is reverted; the snapshot stays in
+the catalogue, offered to no class.
+Consequences: the same rule for the other new reads (T-0036–T-0039): each offered to a class only with a batch that
+shows it helps.
+References: [evidence](../execution/history/EVAL-snapshot/step-01/evidence.md).
+
+## 2026-10-13 — ACR-0010 proposed: a combined capability may read the current incident's own record
+
+Type: architecture proposal
+Who: conantkd (+ agent)
+Context: `analysis.timeline` (`correlate_incident_timeline`) is the last §12 read capability not built. It needs the
+incident's alert occurrences and stored evidence references, which a combined capability cannot reach (§12.7 gives
+it `read` only).
+Decision / result: proposed: the §12.7 invoker gains `incident_record()` — the current incident's alerts and evidence
+references only, read-only, redacted, counted against `max_subcalls`, audited; then `analysis.timeline` on it.
+Alternative D (drop the capability from §12) is offered to the reviewer.
+Consequences: nothing is implemented before acceptance.
+References: [ACR-0010](../architecture/changes/ACR-0010-incident-timeline.md).
+
+## 2026-10-13 — E2E-8 step 1: SC-10, SC-12 and the identity proof in the runner's catalogue
+
+Type: feature
+Who: conantkd (+ agent), on `juanbetancurm`'s E2E-8 plan
+Context: Phase 12 needs five runs of every scenario through `ops/e2e/run.py`; SC-10, SC-12 and the identity proof
+were not in the catalogue (they stop Argus's own services or need two hosts at once).
+Decision / result:
+- The runner takes commands and gates on another host (`{host: ..., run: ...}`, gate `host:`), lists of gates, and
+  several investigations per run, sent together and each graded; every touched host must be in `hosts`.
+- SC-10 stops vm-095's `argus-v18-node-exporter` (the `monitoring_blind_spot` class of T-0027), not the gate exporter
+  of the LGS run (that one ends `undiagnosable` before any class). SC-12 stops vm-166's read gateway during SC-01's
+  loop: escalated, never `diagnosed`, and vm-095 still answers. ID-1 runs SC-01 and SC-02 together through YAML
+  anchors. Their reset starts the stopped service first.
+- `on:` was the first key name for a command's host: PyYAML (YAML 1.1) reads it as `true`; renamed `host:`.
+Consequences: no VM change; the runs (E2E-8 step 2) need both leases.
+References: `ops/e2e/run.py`, `ops/e2e/scenarios.yaml`, `tests/test_e2e8_catalogue.py`.
+
+## 2026-10-13 — T-0036 step 1: CPU, disk and network histories (§12 Level 2)
+
+Type: feature
+Who: conantkd (+ agent)
+Context: §12 lists `get_cpu_history`, `get_disk_history` and `get_network_history` next to `get_memory_history`;
+only memory and restarts existed.
+Decision / result: three signal templates and three capabilities on the `_history` pattern (Level 2, safe,
+`prometheus`, `max_per_incident` 4): CPU per container (cores) or host (busy share), disk over the host's declared
+mounts (none = NO DATA), network per container (bytes/s). `PrometheusClient` fills `$mounts` from the inventory,
+plain paths only. Offered to no class until measured.
+Consequences: no architecture change; step 2 reads them on the VMs from a one-off container.
+References: [task](../tasks/current/T-0036-metric-histories.md).
+
+## 2026-10-13 — T-0038 step 1: `compare_incident_baseline` (§12 Level 3)
+
+Type: feature
+Who: conantkd (+ agent)
+Context: one of the four §12 capabilities still missing after T-0036 and T-0037.
+Decision / result: `metrics.compare_baseline`: a named metric (memory, cpu, restarts, disk, network) now and over the
+same window 1 h / 24 h / 3 d earlier; mean, max and the change; the signal chosen by the target kind, an impossible
+pair refused; no stored baseline. `PrometheusClient.range` takes `end_offset_s`. Offered to no class.
+Consequences: stacked on T-0036 (#119); no architecture change.
+References: [task](../tasks/current/T-0038-compare-baseline.md).
+
+## 2026-10-13 — T-0040: `trace_request_path` (§12 Level 3, combined)
+
+Type: feature
+Who: conantkd (+ agent)
+Context: one of the last two §12 capabilities (with `analysis.timeline`).
+Decision / result: a combined capability on T-0034's mechanism: per declared same-host container dependency (≤ 3),
+`container.status`, `network.connectivity` and `network.resolve_dns`, each through `InvokeCapability`; other-host or
+host dependencies listed, never read. Offered to no class. TCP to the dependency's port left out (the impl does not
+see the dependencies' inventory entries).
+Consequences: `analysis.timeline` needs alerts and stored evidence inside a combined impl, which extends the §12.7
+invoker (`read` only today): a design decision for the team, not taken here.
+References: [task](../tasks/current/T-0040-trace-request-path.md).
+
+## 2026-10-13 — T-0042: escalation routing as data (`routing.yaml`, §15.2)
+
+Type: feature
+Who: conantkd (+ agent)
+Context: §15.2 and §4 name `config/routing.yaml`; it did not exist, so an escalation's notification did not say where
+it went (Phase 8, "routing data").
+Decision / result: `Routing` (alert name, then class family, else default; `channel:` or `peer:` targets), validated
+at startup; `config/routing.yaml` sends everything to `channel:operators` (as before); every escalation notification
+carries `route`.
+Consequences: no architecture change; a team or a peer agent gets its share by editing the file.
+References: [task](../tasks/completed/T-0042-routing.md).
+
+## 2026-10-13 — T-0043: a scrape job that disappears is a blind spot too
+
+Type: feature
+Who: conantkd (+ agent)
+Context: Phase 7's open item: a job gone from a host's Prometheus left no `up` series, so nothing fired and
+`scrape_targets_down` read 0.
+Decision / result: `external_labels: {argus_host}` per host; `ArgusScrapeTargetMissing` (`absent()` of the exporter,
+node-exporter and cAdvisor jobs, 2 minutes); `scrape_targets_down` counts those missing jobs too, so RB-014 matches.
+`db-probe` (vm-166 only) not covered by a shared rule.
+Consequences: both Prometheus recreated at the AFTER-MERGE; existing alerts keep their labels.
+References: [task](../tasks/completed/T-0043-missing-scrape-jobs.md).
+
+## 2026-10-13 — T-0037 step 1: processes, Docker disk use, windowed and searched logs (§12 Level 2)
+
+Type: feature
+Who: conantkd (+ agent)
+Context: of the 44 read capabilities of §12, 8 were missing; these are the four on the read gateway.
+Decision / result: four gateway routes and four capabilities, offered to no class: `get_container_processes` (PID,
+PPID, command name; never arguments), `get_docker_disk_usage` (totals, no names), `get_detailed_logs` (1–120 min,
+≤ 500 lines, a stream), `search_logs` (a fixed set of named patterns, never free text).
+Consequences: no architecture change; the target services need a rebuild at the AFTER-MERGE. Still missing from
+§12: `metrics.compare_baseline`, `knowledge.prior_incidents`, `analysis.timeline`, `analysis.trace_request_path`.
+References: [task](../tasks/current/T-0037-docker-read-verbs.md).
+
+## 2026-10-13 — T-0039: `query_prior_incidents` (§10.5, §12 Level 3)
+
+Type: feature
+Who: conantkd (+ agent)
+Context: one of the three §12 capabilities still missing after T-0036–T-0038.
+Decision / result: `knowledge.prior_incidents`, in-worker over `IncidentMemoryPort.similar_incidents`: closed
+incidents of the same target and class, newest first (date, outcome, confidence, root cause, diagnosis ≤ 300 chars);
+an unknown class refused; no memory = unavailable. The worker's `KnowledgeClient` now gets the store. Offered to no
+class.
+Consequences: no architecture change; no target read (Argus's own store), so no VM step before the merge.
+References: [task](../tasks/current/T-0039-prior-incidents.md).
+
+## 2026-10-13 — AFTER-MERGE: both VMs on main ad72617 (#113-#131)
+
+Type: deployment
+Who: conantkd (+ agent)
+Context: E2E-8 step 2 must run on `main`. Both VMs ran `task/T-0035-monitoring-heartbeat` `239e1d6` (T-0035 step 3),
+with migration 006 applied and the heartbeat rule loaded.
+Decision / result: both VMs on `main` `ad72617`: target services rebuilt; on vm-095 a backup, migrations (001–006,
+nothing new) and agent, worker and scheduler recreated together (20/20, 55/55, WRITE GATE CLOSED); then both
+Prometheus recreated (10 rules, heartbeat loaded, every target up). `monitoring_state` alive on both hosts, no
+incident opened. LAB BASELINE OK and NO INTERFERENCE on both.
+Consequences: blocks sent over `ssh … bash -s` need `</dev/null` on each command (one read the rest of the block).
+References: [evidence](../execution/history/AFTER-MERGE-main-2026-10-13/step-01/evidence.md).
+
+## 2026-10-13 — T-0035: a monitoring loss takes the `platform` route of routing.yaml
+
+Type: fix
+Who: conantkd (+ agent)
+Context: #127 review (`juanbetancurm`): the loss notification of T-0035 (`argus/application/monitoring.py`) still sent
+the fixed `channel:operators`; its comment said it would take the `platform` family's route once `routing.yaml`
+(T-0042) was merged, and it was.
+Decision / result: `MonitoringWatch` takes the validated `Routing` and routes a loss by the family of
+`monitoring_blind_spot` (`platform`), else the default. `load_routing` (wiring) reads `routing.yaml` for the agent and
+the scheduler alike (fail closed: an invalid file stops the scheduler as it stops the agent). Today's file has no
+`by_family` entry, so the route on the VMs stays `channel:operators`.
+Consequences: vm-095's scheduler gets it at the next AFTER-MERGE; no migration, no Prometheus change.
+References: [task](../tasks/completed/T-0035-monitoring-heartbeat.md).
