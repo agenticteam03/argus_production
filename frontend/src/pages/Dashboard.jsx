@@ -2,10 +2,10 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import AgentChat from "../components/AgentChat.jsx";
 import IncidentRow from "../components/IncidentRow.jsx";
-import { Arrow, Bell, Card, Empty, Inbox, OutcomeBadge, Shield } from "../components/ui.jsx";
+import { Arrow, Bell, Card, Empty, Inbox, LivePill, OutcomeBadge, Shield } from "../components/ui.jsx";
 import { useAuth } from "../context/AuthContext.jsx";
 import { useLiveOverview } from "../hooks/useLiveOverview.js";
-import { argus } from "../services/index.js";
+import { argus, dataSource } from "../services/index.js";
 import { dateTime, timeAgo } from "../utils/format.js";
 
 function IncidentsCard({ incidents, className }) {
@@ -108,7 +108,7 @@ function EscalationsCard({ escalations }) {
 
 export default function Dashboard() {
   const { user } = useAuth();
-  const { incidents, approvals, escalations, health, live, refresh } = useLiveOverview();
+  const { incidents, approvals, escalations, health, live, updatedAt, refresh } = useLiveOverview();
   // A read token never lists `approve`, so the buttons stay hidden (ACR-0001); the UI never decides who may act.
   const canDecide = user.actions?.includes("approve") ?? false;
   // The server derives the actor from the token; an expired/conflicting decision just triggers a refresh.
@@ -121,10 +121,7 @@ export default function Dashboard() {
           <h1 className="text-[28px] font-semibold tracking-[-0.03em]">Dashboard</h1>
           <p className="text-sm text-muted">Live overview of your infrastructure and the Argus agent.</p>
         </div>
-        <span className="inline-flex items-center gap-2 rounded-full border border-line bg-card px-3 py-1.5 text-xs text-muted">
-          <span className={`size-2 rounded-full ${live ? "animate-pulse bg-emerald-400" : "bg-amber-400"}`} />
-          {live ? "Live" : "Reconnecting…"}
-        </span>
+        <LivePill live={live} source={dataSource} at={updatedAt} />
       </div>
 
       <AgentChat />

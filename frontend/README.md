@@ -6,7 +6,8 @@ Everything here is self-contained: the core team never edits this folder, and no
 > **Status:** read-only. It runs on **mock adapters by default** (the offline demo and the unit tests need no
 > server); set `VITE_ARGUS_MOCK=0` to talk to the real API through the dev proxy. It only reads (ACR-0001):
 > approvals, the agent chat that starts investigations and the health data stay placeholders until a new ACR
-> gives the UI the matching actions (`/me`).
+> gives the UI the matching actions (`/me`). The pill by each page title is honest about the source: **Demo data**
+> while mock adapters are in use, **Live** (with the time of the last successful refresh) against the real API.
 
 ## Quick start (Node 24+)
 
@@ -35,6 +36,10 @@ ssh -L 18000:127.0.0.1:18000 argus-vm095      # keep it open
 $env:VITE_ARGUS_MOCK = "0"; npm run dev       # Vite proxies /api to 127.0.0.1:18000 (vite.config.js)
 ```
 
+Instead of exporting the variable each time you can keep `VITE_ARGUS_MOCK=0` in `.env.development.local`
+(gitignored). That file is **dev-only** — `npm test` and `npm run build` use other modes and stay on the mock
+adapters unless you set the variable yourself.
+
 The browser talks to the dev server, so there is no CORS and `ARGUS_UI_ORIGINS` stays empty. Log in with a real
 Argus handle and the team password; the token has `scope=read` and cannot write. See
 [`../docs/API-FOR-UI.md`](../docs/API-FOR-UI.md) for the only routes a UI may use.
@@ -47,7 +52,7 @@ Argus handle and the team password; the token has `scope=read` and cannot write.
 | `src/pages/` | Login, Dashboard, Incidents list/detail, Runbooks (other routes are explicit "Coming soon" placeholders) |
 | `src/components/` | Header, AgentChat, IncidentRow, RunTimeline, EvidenceAudit, RunbookCard, RunbookDrawer, `ui.jsx` primitives |
 | `src/context/AuthContext.jsx` | Session in memory only — never `localStorage`, cookies or the URL |
-| `src/services/index.js` | **The single swap point**: mock adapters by default, HTTP adapters with `VITE_ARGUS_MOCK=0` |
+| `src/services/index.js` | **The single swap point**: mock adapters by default, HTTP adapters with `VITE_ARGUS_MOCK=0`; also exports `dataSource` (`demo`/`api`) for the pill |
 | `src/services/mockSessionStore.js` | The mock session that survives a reload (`sessionStorage`, TTL); holds no token |
 | `src/services/http*.js` | The real API adapters (`auth`/`me`, incidents, events, evidence, escalations, overview) and `session.js` (the in-memory bearer token) |
 | `src/hooks/` | `useLiveOverview` (5 s poll), `useIncidentList`, `useIncident` + `usePoll`, `useRunbooks` (10 s poll) |
@@ -70,7 +75,12 @@ Argus handle and the team password; the token has `scope=read` and cannot write.
 - **Acceptance (Playwright) + contract check**: the API client is checked against `contracts/ui-api.json`, and the
   read-only network guard fails any non-`GET` request (T-0016 steps 2–3, still to add).
 - **Menu from `/me` actions** instead of `routes.js` roles (ACR-0001 rule), once there is more than one action.
-- **Write features need an ACR**: agent chat that starts an investigation, approvals, simulator, scheduler, health.
+- **Real agent chat and health need the API, not just permission.** A `scope=read` token is refused by design
+  (ACR-0001), and `POST /api/v1/investigations` is not in the contract *and* only **starts** an investigation for
+  a target — no route answers a free-text question. The health card's four fields have no route either (the only
+  ops route, `/healthz`, is not in the contract and returns different data). Both need a new route + contract,
+  samples and guard, plus an ACR. The **Live** pill is short polling (5 s); there is no SSE route, so it is fresh,
+  not pushed.
 - **Incident trigger/severity** on cards need a contract change on the API side.
 - **`react-router` 6 → 7**: `npm audit` reports 2 moderate advisories (open redirect via backslash in `<Link>` —
   not exploitable today because every `to` value is a constant from `routes.js`; and an SSR-only issue — we have

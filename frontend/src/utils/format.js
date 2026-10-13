@@ -6,6 +6,10 @@ export const timeAgo = (iso) => {
 };
 
 export const dateTime = (iso) => (iso ? new Date(iso).toLocaleString([], { dateStyle: "medium", timeStyle: "medium" }) : "—");
+
+// The "Live" pill: mock data is labelled as demo whatever the poll says, so it is never mistaken for a
+// live deployment; otherwise it reflects whether the last request to the API actually succeeded.
+export const liveLabel = (live, source) => (source === "demo" ? "Demo data" : live ? "Live" : "Reconnecting…");
 export const clock = (iso) => new Date(iso).toLocaleTimeString([], { hour12: false });
 export const shortHash = (hash) => (hash ? `${hash.slice(0, 12)}…` : "—");
 

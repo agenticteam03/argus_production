@@ -137,3 +137,19 @@ a screen or a button in `frontend/`.
   - **tests written (Vitest run deferred, as asked):** added `mockSessionStore.test.js` (save/load/TTL/clear/no
     storage) and extended `mockAuthAdapter.test.js` (`.env` accounts, restore, logout) and `httpArgusAdapter.test.js`
     (`restore()` → `null`). `vite build` still green.
+
+- **2026-10-13 — "is any of this real?" → honest Live pill + a real-API run setup (`juanes6554`):**
+  - **finding (no code change needed to be real):** incidents, timelines, evidence and escalations are real today
+    with `VITE_ARGUS_MOCK=0` + the vm-095 tunnel; the UI never touches Postgres itself (the API does). The **agent
+    chat** cannot be real yet: `POST /api/v1/investigations` needs a full token and only *starts* an investigation
+    for a target — no route answers a free-text question. The **health/status card** has no route either (`/healthz`
+    is not in the UI contract and returns different data). Both need a new route + contract/samples/guard + an ACR
+    (written up in `frontend/README.md`); the chat stays a placeholder until then.
+  - **the pill is now honest:** `LivePill` takes `source`/`at`; the new `dataSource` export in `services/index.js`
+    (`demo`/`api`) labels mock runs, and `liveLabel` (`utils/format.js`) plus the last-refresh clock make a "Live"
+    that is visibly tied to a successful request. Dashboard and Incidents pass both; the runbook library and the run
+    timeline are unchanged.
+  - **real run wired:** `frontend/.env.local` (gitignored) sets `VITE_ARGUS_MOCK=0`; the tunnel was closed while
+    writing (`curl 127.0.0.1:18000` → exit 7), so the live smoke test still needs the tunnel + a real DB login.
+  - **tests written (Vitest run deferred, as asked):** `utils/format.test.js` (`liveLabel`) and `index.test.js`
+    (`dataSource`). `vite build` green.

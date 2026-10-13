@@ -2,9 +2,10 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import IncidentRow from "../components/IncidentRow.jsx";
 import { Card, Empty, ErrorCard, fieldClass, Inbox, LivePill, OUTCOME_META, Search, Select, Skeleton, STATUS_META } from "../components/ui.jsx";
 import { useIncidentList } from "../hooks/useIncidentList.js";
+import { dataSource } from "../services/index.js";
 
 export default function Incidents() {
-  const { rows, error, live, retry } = useIncidentList();
+  const { rows, error, live, updatedAt, retry } = useIncidentList();
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState("");
   const [outcome, setOutcome] = useState("");
@@ -34,7 +35,7 @@ export default function Incidents() {
           <h1 ref={headingRef} tabIndex={-1} className="text-[28px] font-semibold tracking-[-0.03em] outline-none">Incidents</h1>
           <p className="text-sm text-muted">What Argus investigated, and how each run ended.</p>
         </div>
-        <LivePill live={live} />
+        <LivePill live={live} source={dataSource} at={updatedAt} />
       </div>
 
       {error && !rows ? (

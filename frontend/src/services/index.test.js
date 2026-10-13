@@ -25,4 +25,15 @@ describe("services index (mock switch)", () => {
     expect(auth).toBe(httpAuthAdapter);
     expect(argus).toBe(httpArgusAdapter);
   });
+
+  it("reports the data source so the UI can label demo data", async () => {
+    vi.resetModules();
+    const demo = await import("./index.js");
+    expect(demo.dataSource).toBe("demo");
+
+    vi.resetModules();
+    vi.stubEnv("VITE_ARGUS_MOCK", "0");
+    const real = await import("./index.js");
+    expect(real.dataSource).toBe("api");
+  });
 });

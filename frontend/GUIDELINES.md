@@ -46,8 +46,9 @@ rendering. Unit tests with Vitest; Playwright acceptance tests come next (T-0016
 - Log out clears the session immediately. The mock session survives a page reload in the same tab (remembered
   until logout, closing the tab, or a TTL, default 8 h); the real API token lives in memory only, so a reload asks
   for the login again.
-- The dashboard refreshes every 5 s, the runbook list every 10 s; a "Live / Reconnecting…" pill shows whether
-  data is flowing.
+- The dashboard refreshes every 5 s, the incident list every 5 s and the runbook list every 10 s. The pill by the
+  page title says **Demo data** in mock mode and, against the real API, **Live** with the time of the last
+  successful refresh (or **Reconnecting…** when a poll fails) — so it is visibly live, not decorative.
 
 ## Constraints I accept (T-0016 rules)
 

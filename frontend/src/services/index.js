@@ -10,6 +10,10 @@ import { mockAuthAdapter } from "./mockAuthAdapter.js";
 
 const USE_MOCK = import.meta.env.VITE_ARGUS_MOCK !== "0";
 
+// "demo" while the mock adapters are in use, "api" when talking to the real Argus API. The "Live" pill
+// shows this, so demo data is never mistaken for a live deployment.
+export const dataSource = USE_MOCK ? "demo" : "api";
+
 export const auth = USE_MOCK ? mockAuthAdapter : httpAuthAdapter;
 export const argus = USE_MOCK ? mockArgusAdapter : httpArgusAdapter;
 export const runbooks = fileRunbooksAdapter;

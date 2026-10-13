@@ -5,11 +5,11 @@ import { usePoll } from "./usePoll.js";
 
 export function useIncidentList() {
   const { logout } = useAuth();
-  const [state, setState] = useState({ rows: null, error: null, live: true });
+  const [state, setState] = useState({ rows: null, error: null, live: true, updatedAt: null });
 
   const load = useCallback(async () => {
     try {
-      setState({ rows: await argus.listIncidents({ limit: 30 }), error: null, live: true });
+      setState({ rows: await argus.listIncidents({ limit: 30 }), error: null, live: true, updatedAt: Date.now() });
     } catch (err) {
       if (err.status === 401) return logout();
       // First load failed -> error state. A later poll failed -> keep the rows and show "Reconnecting…".
