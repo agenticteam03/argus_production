@@ -43,6 +43,11 @@ model), and while a host has no fresh heartbeat Argus resolves nothing on it.
   turned it on once the rule ran on both hosts. **The AFTER-MERGE of this PR must recreate `argus-v18-prometheus` on
   both hosts** (the rule file is bind-mounted): a scheduler with the check on and a Prometheus without the rule would
   stop every resolution and, after the grace, open a loss incident per host.
+- **Deployment order (learned in step 2):** the scheduler that filters the heartbeat must run **before** the rule is
+  loaded. In step 2 the rule was loaded at 04:58 UTC while vm-095 still ran `main`'s scheduler, which took the
+  heartbeat for an ordinary alert: one incident per host (`inc_37f342b585bb` vm-166, `inc_e1bcaffa0d3f` vm-095), both
+  `unsupported_escalated` in about 5 s (no class matched, no diagnosis, no model reasoning), never repeated (same
+  alert identity). From an older scheduler: rebuild vm-095's scheduler first, then recreate both Prometheus.
 
 ## Tests
 
