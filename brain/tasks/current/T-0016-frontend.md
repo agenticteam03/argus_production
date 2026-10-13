@@ -135,6 +135,8 @@ a screen or a button in `frontend/`.
     `sessionStorage` up to `VITE_ARGUS_SESSION_TTL_MIN` (default 8 h) and restored on load by `auth.restore()`
     (`mockSessionStore.js`); logout, tab close or the TTL ends it. `httpAuthAdapter.restore()` returns `null`, so
     the real API token stays **in memory only** — rule 4 is exactly as written. Recorded in `GUIDELINES.md`.
+    *(Superseded below: `mockSessionStore.js` became `sessionStore.js` and rule 4 was amended to allow this tab's
+    `sessionStorage` for the real token too; accepted by `conantkd` in the #137 review.)*
   - **tests written (Vitest run deferred, as asked):** added `mockSessionStore.test.js` (save/load/TTL/clear/no
     storage) and extended `mockAuthAdapter.test.js` (`.env` accounts, restore, logout) and `httpArgusAdapter.test.js`
     (`restore()` → `null`). `vite build` still green.
