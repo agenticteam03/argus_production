@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import hashlib
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -54,6 +54,13 @@ class UrlArgs(_Args):
 class RunbookArgs(_Args):
     runbook_id: str = Field(..., pattern=r"^RB-[0-9]{3}$", description="a runbook of the library, e.g. RB-009")
     query: str = Field(..., min_length=1, max_length=200, description="what to look for in that runbook")
+
+
+class CompareArgs(_Args):
+    metric: Literal["memory", "cpu", "restarts", "disk", "network"] = Field(
+        ..., description="memory, cpu or restarts of a container; memory, cpu, disk or network of a host")
+    minutes: int = Field(30, ge=5, le=240, description="window in minutes")
+    earlier: Literal["1h", "24h", "7d"] = Field("24h", description="the same window this long before")
 
 
 class HistoryArgs(_Args):
@@ -534,6 +541,58 @@ def _history(signal: str, label: str, by_kind: dict[str, tuple[str, str]] | None
     return impl
 
 
+# T-0038: metric -> (signal, label) per target kind; a pair that is absent is refused, never guessed
+_BASELINE = {"container": {"memory": ("container_memory_bytes", "memory bytes"),
+                           "cpu": ("container_cpu_cores", "CPU cores in use"),
+                           "restarts": ("container_restart_count", "restart count")},
+             "host": {"memory": ("host_memory_available_ratio", "memory available share"),
+                      "cpu": ("host_cpu_busy_ratio", "CPU busy share"),
+                      "disk": ("host_disk_used_ratio_mounts", "fullest declared filesystem used share"),
+                      "network": ("host_network_bytes_per_s", "host network bytes/s (received + sent)")}}
+_EARLIER_S = {"1h": 3600, "24h": 86400, "7d": 7 * 86400}
+
+
+def _summary(series) -> dict | None:
+    if not series:
+        return None
+    vals = [v for _, v in series]
+    return {"samples": len(vals), "mean": round(sum(vals) / len(vals), 6), "max": max(vals), "min": min(vals)}
+
+
+def compare_baseline(args: CompareArgs, target: TargetRef, info, client) -> CapabilityResult:
+    pair = _BASELINE.get(target.kind, {}).get(args.metric)
+    if pair is None:
+        return CapabilityResult(values={}, status="error", error_category="invalid_args",
+                                model_text=f"{args.metric} is not compared for a {target.kind} (choose one of "
+                                           f"{', '.join(sorted(_BASELINE.get(target.kind, {})))})")
+    signal, label = pair
+    params = {}
+    if signal == "host_disk_used_ratio_mounts":
+        declared = "|".join(info.mounts) if info is not None and info.mounts else ""
+        if not declared:
+            return CapabilityResult(values={}, status="error", error_category="not_found",
+                                    model_text=f"{label} for {target}: NO DATA, no declared mounts (unknown, not zero)")
+        params["mounts"] = declared
+    step = max(15, args.minutes * 60 // 60)
+    now_s = _summary(client.range(signal, target, args.minutes, step, **params))
+    off = _EARLIER_S[args.earlier]
+    old_s = _summary(client.range(signal, target, args.minutes, step, end_offset_s=off, **params))
+    if now_s is None and old_s is None:
+        return CapabilityResult(values={"now": None, "earlier": None}, status="error", error_category="not_found",
+                                model_text=f"{label} for {target}: NO DATA in either window (unknown, not zero)")
+
+    def part(name, s):
+        return f"{name}: NO DATA (unknown, not zero)" if s is None else f"{name} mean={s['mean']:g} max={s['max']:g}"
+    text = f"{label} for {target}: {part(f'last {args.minutes} min', now_s)}; {part(f'{args.earlier} earlier', old_s)}"
+    if now_s and old_s:
+        text += (f"; mean x{now_s['mean'] / old_s['mean']:.3g}" if old_s["mean"] else
+                 f"; mean +{now_s['mean'] - old_s['mean']:g} (earlier mean 0)")
+    return CapabilityResult(values={"metric": args.metric, "signal": signal, "earlier": old_s, "now": now_s,
+                                    "minutes": args.minutes, "offset": args.earlier},
+                            model_text=text, partial=now_s is None or old_s is None,
+                            coverage=f"{args.minutes} min now and {args.earlier} earlier")
+
+
 def build_catalog() -> list[CapabilitySpec]:
     C, H, N, P = frozenset({"container"}), frozenset({"host"}), frozenset({"container"}), frozenset({"container"})
     return [
@@ -657,6 +716,11 @@ def build_catalog() -> list[CapabilitySpec]:
                        "time window.", "did the host's traffic stop, drop or surge, and when", HistoryArgs, H, 2,
                        "READ_ONLY_SAFE", frozenset({"network_history"}), "prometheus",
                        _history("host_network_bytes_per_s", "host network bytes/s (received + sent)")),
+        CapabilitySpec("metrics.compare_baseline", "compare_incident_baseline",
+                       "One metric now against the same window earlier (1h, 24h or 7d ago): mean and max of each and "
+                       "the change. No stored baseline.", "is this level unusual for this target, or normal for it",
+                       CompareArgs, C | H, 3, "READ_ONLY_SAFE", frozenset({"baseline"}), "prometheus",
+                       compare_baseline),   # T-0038, offered to no class yet
         CapabilitySpec("analysis.diagnostic_snapshot", "capture_diagnostic_snapshot",
                        "A container's status, resources and recent logs, and its host's memory and CPU, in one call "
                        "(each part stored as its own evidence).", "a first broad look at a container and its host",
