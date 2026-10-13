@@ -10,6 +10,10 @@ capabilities:
   container.logs:          {max_per_incident: 6}
   container.health:        {max_per_incident: 6}
   container.events:        {max_per_incident: 4}
+  container.processes:     {max_per_incident: 4}   # T-0037: offered to no class yet
+  docker.disk_usage:       {max_per_incident: 2}
+  container.detailed_logs: {max_per_incident: 4}
+  container.search_logs:   {max_per_incident: 6}
   host.cpu:                {max_per_incident: 4}
   host.memory:             {max_per_incident: 4}
   host.uptime:             {max_per_incident: 2}

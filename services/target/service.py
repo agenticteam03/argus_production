@@ -225,6 +225,57 @@ def last_exit(d: dict, evs: list[dict]) -> tuple[int, bool]:
     return code, oom
 
 
+# T-0037: the named log patterns of `search_logs` (the catalogue's SEARCH_PATTERNS: a test keeps them equal). Never a
+# pattern from the request: the model picks a NAME.
+LOG_PATTERNS = {
+    "error": re.compile(r"(?i)\b(error|exception|traceback|fatal|panic)\b"),
+    "timeout": re.compile(r"(?i)\b(timed? ?out|timeout|deadline exceeded)\b"),
+    "refused": re.compile(r"(?i)\b(connection refused|refused|unreachable|no route to host)\b"),
+    "oom": re.compile(r"(?i)\b(out of memory|oom|cannot allocate memory|memoryerror)\b"),
+    "disk_full": re.compile(r"(?i)\b(no space left on device|disk full|enospc)\b"),
+    "auth": re.compile(r"(?i)\b(unauthori[sz]ed|forbidden|authentication failed|permission denied)\b"),
+    "restart": re.compile(r"(?i)\b(starting|started|shutting down|shutdown|terminated|sigterm|exiting)\b"),
+}
+
+
+def _window_logs(name: str, minutes: int, stdout: bool, stderr: bool) -> tuple[list[str], bool]:
+    """The container's log lines of the last `minutes` (at most 500, the newest)."""
+    since = int(time.time()) - minutes * 60
+    code, raw = docker(f"/containers/{name}/logs?stdout={int(stdout)}&stderr={int(stderr)}&timestamps=1"
+                       f"&since={since}&tail=500", timeout=15)
+    if code >= 300:
+        raise Err(502, f"docker logs {code}")
+    tty = bool((djson(f"/containers/{name}/json").get("Config") or {}).get("Tty"))
+    lines = [ln[:500] for ln in demux(raw, tty)]
+    return lines[-500:], len(lines) >= 500
+
+
+def _minutes(q: dict, default: int = 30) -> int:
+    try:
+        m = int(q.get("minutes", [str(default)])[0])
+    except ValueError:
+        raise Err(400, "minutes must be a number") from None
+    if not 1 <= m <= 120:
+        raise Err(400, "minutes must be 1..120")
+    return m
+
+
+def docker_df() -> dict:
+    """`/system/df` reduced to totals (T-0037): no image, container or volume name leaves the gateway."""
+    d = djson("/system/df")
+    imgs, ctrs, vols = d.get("Images") or [], d.get("Containers") or [], d.get("Volumes") or []
+    unused_imgs = [i for i in imgs if not i.get("Containers")]
+    unused_vols = [v for v in vols if not (v.get("UsageData") or {}).get("RefCount")]
+    vsize = lambda v: max(0, (v.get("UsageData") or {}).get("Size") or 0)        # noqa: E731
+    return {"images": {"count": len(imgs), "bytes": sum(i.get("Size") or 0 for i in imgs),
+                       "unused_count": len(unused_imgs), "unused_bytes": sum(i.get("Size") or 0 for i in unused_imgs)},
+            "containers": {"count": len(ctrs), "writable_bytes": sum(c.get("SizeRw") or 0 for c in ctrs),
+                           "stopped_count": sum(c.get("State") != "running" for c in ctrs)},
+            "volumes": {"count": len(vols), "bytes": sum(vsize(v) for v in vols),
+                        "unused_count": len(unused_vols), "unused_bytes": sum(vsize(v) for v in unused_vols)},
+            "build_cache_bytes": sum(b.get("Size") or 0 for b in d.get("BuildCache") or []), "collected_at": now()}
+
+
 def read_gateway(parts: list[str], q: dict) -> dict:
     if parts == ["containers"]:
         rows = json.loads(docker("/containers/json?all=1")[1])
@@ -233,6 +284,8 @@ def read_gateway(parts: list[str], q: dict) -> dict:
         return {"containers": out, "collected_at": now()}
     if parts == ["connectivity"]:
         return connectivity(q.get("from", [""])[0], q.get("to", [""])[0])
+    if parts == ["docker", "df"]:
+        return docker_df()
     if len(parts) == 3 and parts[0] == "containers":
         name, what = allowed(parts[1]), parts[2]
         if what == "status":
@@ -254,6 +307,33 @@ def read_gateway(parts: list[str], q: dict) -> dict:
         if what == "events":
             evs = container_events(name, max(1, min(120, int(q.get("minutes", ["30"])[0]))))
             return {"events": evs[-200:], "truncated": len(evs) > 200, "collected_at": now()}
+        if what == "top":                       # T-0037: the command's NAME only, never its arguments
+            d = djson(f"/containers/{name}/top")
+            titles = d.get("Titles") or []
+            ix = {t: titles.index(t) for t in ("PID", "PPID", "CMD", "COMMAND") if t in titles}
+            cmd_i = ix.get("CMD", ix.get("COMMAND"))
+            procs = []
+            for row in (d.get("Processes") or [])[:50]:
+                cmd = (row[cmd_i].split() or [""])[0] if cmd_i is not None and cmd_i < len(row) else ""
+                procs.append({"pid": int(row[ix["PID"]]) if "PID" in ix else None,
+                              "ppid": int(row[ix["PPID"]]) if "PPID" in ix else None,
+                              "command": cmd.rsplit("/", 1)[-1].rstrip(":")[:64]})   # "postgres: checkpointer"
+            return {"processes": procs, "count": len(d.get("Processes") or []), "collected_at": now()}
+        if what == "logs_window":
+            minutes, stream = _minutes(q), q.get("stream", ["both"])[0]
+            if stream not in ("both", "stdout", "stderr"):
+                raise Err(400, "stream must be both, stdout or stderr")
+            lines, cut = _window_logs(name, minutes, stream != "stderr", stream != "stdout")
+            return {"lines": lines, "minutes": minutes, "stream": stream, "truncated": cut, "collected_at": now()}
+        if what == "search":
+            key = q.get("pattern", [""])[0]
+            if key not in LOG_PATTERNS:
+                raise Err(400, f"pattern must be one of {sorted(LOG_PATTERNS)}")
+            minutes = _minutes(q)
+            lines, cut = _window_logs(name, minutes, True, True)
+            hits = [ln for ln in lines if LOG_PATTERNS[key].search(ln)]
+            return {"pattern": key, "matched": len(hits), "lines": hits[-50:], "minutes": minutes,
+                    "truncated": cut or len(hits) > 50, "collected_at": now()}
     raise Err(404, "no such route")
 
 
