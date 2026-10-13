@@ -82,9 +82,11 @@ def scheduler() -> None:
         if cfg.heartbeat:               # ACR-0009 / T-0035: the monitoring heartbeat per host
             from datetime import timedelta
             from argus.application.monitoring import MonitoringConfig, MonitoringWatch
+            from argus.infrastructure.wiring import load_routing
             watch = MonitoringWatch(store, MonitoringConfig(stale_after=timedelta(seconds=cfg.stale_after_s),
                                                             grace=timedelta(seconds=cfg.grace_s)),
-                                    prometheus_ready=_prometheus_ready(inventory))
+                                    prometheus_ready=_prometheus_ready(inventory),
+                                    routing=load_routing(s.config_dir))       # #127 review: the `platform` route
             log.info("monitoring heartbeat: stale after %d s, grace %d s", cfg.stale_after_s, cfg.grace_s)
         reconcile = ReconcileFiringAlerts(source,
                                           HandleAlertNotification(store, inventory, make_metrics(s, inventory)),

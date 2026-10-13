@@ -375,3 +375,40 @@ def test_a_loss_is_notified_like_any_escalation(make_app):
     p = notes[0]["payload"]
     assert p["incident_id"] == inc.id and p["outcome"] == "undiagnosable" and p["route"] == "channel:operators"
     assert "Host monitoring unavailable" in p["diagnosis"]
+
+
+# --- #127 review (juanbetancurm): the loss's notification takes the `platform` family's route of routing.yaml
+
+def _routing(by_family):
+    from argus.detectors.classes import CLASSES
+    from argus.policy.routing import Routing
+    return Routing.from_data({"default": "channel:operators", "by_family": by_family}, {c.family for c in CLASSES})
+
+
+def _loss_route(app, clock, routing):
+    w = MonitoringWatch(app.store, CFG, now=clock, routing=routing)
+    _alive(w, clock)
+    for _ in range(6):
+        w.observe(HOST, [])
+        clock.tick()
+    inc = _monitoring_incidents(app)[0]
+    return next(n for n in app.store.notifications() if n["key"] == f"{inc.id}:escalation")["payload"]["route"]
+
+
+def test_a_loss_goes_to_the_platform_family_route(make_app):
+    assert _loss_route(make_app(), Clock(T0), _routing({"platform": "channel:platform-oncall"})) == "channel:platform-oncall"
+
+
+def test_a_loss_with_no_platform_route_goes_to_the_default(make_app):
+    assert _loss_route(make_app(), Clock(T0), _routing({"database": "channel:dba"})) == "channel:operators"
+
+
+def test_the_scheduler_reads_the_same_validated_routing_file(tmp_path):
+    from argus.infrastructure.wiring import load_routing
+    (tmp_path / "routing.yaml").write_text("default: channel:operators\nby_family: {platform: peer:infra-agent}\n",
+                                           encoding="utf-8")
+    assert load_routing(tmp_path).target("platform", None) == "peer:infra-agent"
+    assert load_routing(tmp_path / "none").default == "channel:operators"          # no file: the default
+    (tmp_path / "routing.yaml").write_text("default: channel:operators\nby_family: {nope: channel:x}\n", encoding="utf-8")
+    with pytest.raises(ValueError):
+        load_routing(tmp_path)                                                       # fail closed, as the agent
