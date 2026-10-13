@@ -66,3 +66,19 @@ tests:
         exp_samples:
           - labels: 'argus:restarts_10m{argus_host="vm-166",container="argus-lab-worker"}'
             value: 2
+
+  - name: T-0043 a missing expected job counts as one target down
+    interval: 1m
+    input_series:
+      - series: 'up{argus_host="vm-166",job="argus-v18-exporter"}'
+        values: '1+0x5'
+      - series: 'up{argus_host="vm-166",job="argus-v18-cadvisor"}'
+        values: '1+0x5'
+      - series: 'up{argus_host="vm-166",job="argus-v18-db-probe"}'
+        values: '0+0x5'
+    promql_expr_test:
+      - expr: '(count(up{argus_host="vm-166"} == 0) or vector(0)) + (3 - (count(up{argus_host="vm-166",job=~"argus-v18-(exporter|node-exporter|cadvisor)"}) or vector(0)))'
+        eval_time: 4m
+        exp_samples:
+          - labels: '{}'
+            value: 2

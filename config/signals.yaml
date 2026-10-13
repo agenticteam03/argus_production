@@ -34,6 +34,7 @@ host_disk_used_ratio_5m: 'max(min_over_time((1 - node_filesystem_avail_bytes{arg
 host_disk_hours_to_full: 'min(node_filesystem_avail_bytes{argus_host="$host",mountpoint=~"$mounts"} / (-deriv(node_filesystem_avail_bytes{argus_host="$host",mountpoint=~"$mounts"}[15m]) > 0)) / 3600'
 # T-0027 (RB-014): how many of the host's scrape targets are down (`up == 0`); 0 when all are up. A target down leaves
 # the signals it feeds empty: the class monitoring_blind_spot, never a healthy host.
-scrape_targets_down:   'count(up{argus_host="$host"} == 0) or vector(0)'
+# T-0043: plus the expected jobs every host scrapes (exporter, node-exporter, cAdvisor) that have no `up` series at all.
+scrape_targets_down:   '(count(up{argus_host="$host"} == 0) or vector(0)) + (3 - (count(up{argus_host="$host",job=~"argus-v18-(exporter|node-exporter|cadvisor)"}) or vector(0)))'
 # Freshness gate (not a detector signal): the host's exporter scrape must be up, otherwise detection is undiagnosable.
 _scrape_up:            'up{argus_host="$host",job="argus-v18-exporter"}'
