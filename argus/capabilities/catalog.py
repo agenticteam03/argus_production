@@ -56,6 +56,11 @@ class RunbookArgs(_Args):
     query: str = Field(..., min_length=1, max_length=200, description="what to look for in that runbook")
 
 
+class PriorArgs(_Args):
+    incident_class: str = Field(..., pattern=r"^[a-z_]{3,64}$", description="the incident class to look up")
+    k: int = Field(3, ge=1, le=5, description="how many, newest first")
+
+
 SEARCH_PATTERNS = ("error", "timeout", "refused", "oom", "disk_full", "auth", "restart")   # T-0037: gateway's names
 
 
@@ -542,6 +547,26 @@ def knowledge_runbook(args: RunbookArgs, target: TargetRef, info, client) -> Cap
                             model_text=f"{args.runbook_id}: {len(rows)} section(s) for {args.query!r}\n{text}")
 
 
+def knowledge_prior_incidents(args: PriorArgs, target: TargetRef, info, client) -> CapabilityResult:
+    """T-0039: earlier CLOSED incidents of this target and class (the open one being investigated is never one)."""
+    from argus.detectors.classes import CLASSES
+    if args.incident_class not in {c.name for c in CLASSES}:
+        return CapabilityResult(values={}, status="error", error_category="invalid_args",
+                                model_text=f"{args.incident_class!r} is not an incident class")
+    rows = []
+    for i in client.prior_incidents(target, args.incident_class, args.k)[:args.k]:
+        rows.append({"incident_id": i.id, "opened_at": i.opened_at.isoformat(), "outcome": str(i.outcome or ""),
+                     "confidence": i.confidence, "root_cause_target": i.root_cause_target,
+                     "diagnosis": (i.diagnosis or "")[:300], "findings": list(i.findings)[:3]})
+    if not rows:
+        text = f"no prior closed incident of {args.incident_class} on {target}"
+    else:
+        text = f"{len(rows)} prior closed incident(s) of {args.incident_class} on {target}, newest first:\n" + "\n".join(
+            f"- {r['opened_at'][:16]} {r['outcome']} (confidence {r['confidence'] or '?'}, root cause "
+            f"{r['root_cause_target'] or '?'}): {r['diagnosis']}" for r in rows)
+    return CapabilityResult(values={"incident_class": args.incident_class, "incidents": rows}, model_text=text)
+
+
 # --- §12.7 combined (T-0034): sub-reads through InvokeCapability, never an executor ---------------------------------
 SNAPSHOT_READS = (("container.status", "self", {}), ("container.resources", "self", {}),
                   ("container.logs", "self", {"tail": 30}), ("host.memory", "host", {}), ("host.cpu", "host", {}))
@@ -842,6 +867,11 @@ def build_catalog() -> list[CapabilitySpec]:
                        "the evidence points to a cause another runbook covers (e.g. a branch runbook of the class)",
                        RunbookArgs, C | H, 3, "READ_ONLY_SAFE", frozenset({"knowledge"}), "argus_internal",
                        knowledge_runbook, runs_in="worker", max_output_bytes=16384),
+        CapabilitySpec("knowledge.prior_incidents", "query_prior_incidents",
+                       "Earlier closed incidents of this target and class: date, outcome, confidence, root cause and a "
+                       "short diagnosis, newest first.", "has this happened here before, and what was it then",
+                       PriorArgs, C | H, 3, "READ_ONLY_SAFE", frozenset({"prior_incidents"}), "argus_internal",
+                       knowledge_prior_incidents, runs_in="worker", max_output_bytes=16384),   # T-0039
         CapabilitySpec("database.health", "inspect_database_health",
                        "PostgreSQL health read on the target host with a monitoring role: connection slots used vs "
                        "usable, connections by state and by client (application/role), the longest open transactions "

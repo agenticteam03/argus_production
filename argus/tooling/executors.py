@@ -81,13 +81,20 @@ class PrometheusClient:
 
 
 class KnowledgeClient:
-    """argus_internal executor (in-worker, ARCHITECTURE §10.5): reads the runbook library through the KnowledgePort.
-    No network, no token. A query with no matching words still returns the runbook's working sections."""
+    """argus_internal executor (in-worker, ARCHITECTURE §10.5): reads the runbook library through the KnowledgePort,
+    and earlier closed incidents through the IncidentMemoryPort (T-0039). No network, no token. A query with no
+    matching words still returns the runbook's working sections."""
 
     FALLBACK_QUERY = "diagnostic workflow decision tree evidence interpretation"
 
-    def __init__(self, knowledge):
-        self.knowledge = knowledge
+    def __init__(self, knowledge, memory=None):
+        self.knowledge, self.memory = knowledge, memory
+
+    def prior_incidents(self, target: TargetRef, incident_class: str, k: int) -> list:
+        """Closed incidents of this target and class, newest first (`similar_incidents`)."""
+        if self.memory is None:
+            raise ExecutorError("unreachable", "no incident memory in this process")
+        return self.memory.similar_incidents(target, incident_class, k)
 
     def runbook(self, runbook_id: str, query: str, k: int = 3) -> list:
         if runbook_id not in getattr(self.knowledge, "ids", set()):

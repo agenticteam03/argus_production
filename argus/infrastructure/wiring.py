@@ -223,9 +223,9 @@ def build(settings: Settings | None = None, llm=None, metrics=None, executors: E
     if executors is None:
         executors = _target_executors(signals)
     knowledge = TfidfRunbooks(str(s.runbooks_dir), s.runbooks_commit and f"commit {s.runbooks_commit}")
-    if "argus_internal" not in executors.names():              # in-worker capabilities (knowledge.runbook)
-        executors.register("argus_internal", lambda url, tok: KnowledgeClient(knowledge))
     store = store or make_store(s)
+    if "argus_internal" not in executors.names():              # in-worker capabilities (knowledge.*)
+        executors.register("argus_internal", lambda url, tok: KnowledgeClient(knowledge, store))   # T-0039: memory
     if s.tool_catalogue == "mcp":       # target-side reads in the tools process, started on the first call
         from argus.tooling.mcp.client import child_client
         from argus.tooling.providers import McpCatalogue
