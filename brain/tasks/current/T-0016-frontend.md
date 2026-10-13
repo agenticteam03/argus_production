@@ -70,6 +70,20 @@ CI job (it changes `.github/workflows/`) and any change to `contracts/` (shared 
    `127.0.0.1:18010`. Deploy, open it through `ssh -L 18010:127.0.0.1:18010 argus-vm095`, show a real incident;
    NO INTERFERENCE.
 
+### Step 4 — proposed by ACR-0011 (public HTTPS; replaces step 4 only once the ACR is accepted)
+
+[ACR-0011](../../architecture/changes/ACR-0011-public-https-ui.md): users open `https://argus.<domain>` with their
+Argus login, without SSH. Each sub-step is its own PR and test-first. Nothing is public before 4e.
+
+| Sub-step | What | Acceptance criteria |
+|---|---|---|
+| 4a API (offline) | a login through the edge issues only read tokens; `access.login_failed` with a rate limit per user and per address, and a lockout; `GET /incidents` `limit` capped | tests red then green: an edge login without `scope=read` → 400, the loopback login unchanged; the N+1th failed login → 429 and audited, never with the password; `limit=1000` → at most the cap; the contract test green |
+| 4b Frontend (offline) | no mock adapter or demo password in a real build; the runbooks out of the bundle, loaded from `/runbooks/` after login; polling 15–30 s, paused while the tab is hidden | a build test: `dist/` has no `argus-demo` and no runbook text; Vitest for the loader and the polling; `npm run build` green |
+| 4c Edge image (offline) | `deploy/ui/`: multi-stage Dockerfile (`aarch64`), `nginx.conf` (the contract allowlist, methods, `limit_req`, the headers, SPA fallback, the auth-checked `/runbooks/`), compose, env template | `nginx -t` in CI; a test that the allowlist equals `contracts/ui-api.json`; a local container answers the curl matrix of ACR-0011 §3.1 row 10 on loopback |
+| 4d On vm-095, loopback first | deploy `argus-v18-ui` on `127.0.0.1:18010` (no public port); the original step 4 through `ssh -L` | a real incident shown; `/docs` and `POST /api/v1/investigations` 404 through the edge; NO INTERFERENCE |
+| 4e Public (needs the pending data of ACR-0011 §8) | the cloud rule, DNS, the certificate (`argus-v18-certbot.timer`), `0.0.0.0:443` (+ `:80`), the `DOCKER-USER` rules tagged `argus-v18`, one account per person | from outside: HTTPS valid, HTTP 301, the curl matrix, the headers; a dry renewal succeeds; `nonint-check` NO INTERFERENCE (with the `argus-v18` exclusion); rollback rehearsed once (stop, rules removed, back) |
+| 4f Record | ARCHITECTURE 1.8.10 applied; `environment.md`, `SECURITY.md`, `API-FOR-UI.md` updated | Brain lint clean; evidence with the deployed commit and NO INTERFERENCE |
+
 ## Later: from reading to acting (each level is its own task and ACR)
 
 | Level | What the user gets | What Argus adds | Frontend change |
