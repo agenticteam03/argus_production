@@ -55,7 +55,8 @@ def _frames(lines: list[tuple[int, str]]) -> bytes:
 TOP = {"Titles": ["UID", "PID", "PPID", "C", "STIME", "TTY", "TIME", "CMD"],
        "Processes": [["root", "4242", "4200", "0", "10:00", "?", "00:00:01",
                       "python /app/server.py --db-password=hunter2 --port 8080"],
-                     ["root", "4250", "4242", "0", "10:00", "?", "00:00:00", "/usr/bin/gunicorn -w 2"]]}
+                     ["root", "4250", "4242", "0", "10:00", "?", "00:00:00", "/usr/bin/gunicorn -w 2"],
+                     ["999", "4260", "4242", "0", "10:00", "?", "00:00:00", "postgres: checkpointer"]]}
 DF = {"LayersSize": 2_000_000_000,
       "Images": [{"Id": "sha256:aaa", "RepoTags": ["argus-lab-api:1"], "Size": 150_000_000, "SharedSize": 0,
                   "Containers": 1},
@@ -91,8 +92,9 @@ def test_processes_are_pid_ppid_and_command_name_never_the_arguments(tmp_path, m
     monkeypatch.setattr(svc, "docker", _fake_docker([]))
     d = svc.read_gateway(["containers", "argus-lab-api", "top"], {})
     assert d["processes"] == [{"pid": 4242, "ppid": 4200, "command": "python"},
-                              {"pid": 4250, "ppid": 4242, "command": "gunicorn"}]
-    assert "hunter2" not in json.dumps(d) and "/app/server.py" not in json.dumps(d) and d["count"] == 2
+                              {"pid": 4250, "ppid": 4242, "command": "gunicorn"},
+                              {"pid": 4260, "ppid": 4242, "command": "postgres"}]
+    assert "hunter2" not in json.dumps(d) and "/app/server.py" not in json.dumps(d) and d["count"] == 3
 
 
 def test_disk_usage_is_totals_only(tmp_path, monkeypatch):

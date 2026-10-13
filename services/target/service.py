@@ -317,7 +317,7 @@ def read_gateway(parts: list[str], q: dict) -> dict:
                 cmd = (row[cmd_i].split() or [""])[0] if cmd_i is not None and cmd_i < len(row) else ""
                 procs.append({"pid": int(row[ix["PID"]]) if "PID" in ix else None,
                               "ppid": int(row[ix["PPID"]]) if "PPID" in ix else None,
-                              "command": cmd.rsplit("/", 1)[-1][:64]})
+                              "command": cmd.rsplit("/", 1)[-1].rstrip(":")[:64]})   # "postgres: checkpointer"
             return {"processes": procs, "count": len(d.get("Processes") or []), "collected_at": now()}
         if what == "logs_window":
             minutes, stream = _minutes(q), q.get("stream", ["both"])[0]
