@@ -754,6 +754,12 @@ def network_probe(parts: list[str], q: dict) -> dict:
 # the standard library. Deny wins; a path must already be absolute and normal; its real location under /rootfs must be
 # exactly the requested one (no symlink anywhere); only regular files; bounded in lines and bytes.
 INSPECT_KEYWORDS = {"environment_variables"}
+# The agent's BUILTIN_DENY (argus/policy/inspection.py; a test keeps them equal): applied here too, whatever the
+# rendered copy says, so a stale or hand-edited target.json cannot open a credential path.
+INSPECT_FLOOR = ("environment_variables", "/run/secrets/", "/opt/argus-v18/secrets/", "/root/", "/proc/",
+                 "/var/lib/docker/", "/etc/shadow", "/etc/shadow-", "/etc/gshadow", "/etc/gshadow-", "/etc/sudoers",
+                 "/etc/sudoers.d/", ".ssh", "id_*", "*.key", "*.pem", ".env", "*.env", "*password*", "*token*")
+O_NOFOLLOW = getattr(os, "O_NOFOLLOW", 0)                    # 0 only where the probe never runs (Windows tests)
 UNIT_PROGRAMS = {"docker.service": "dockerd", "containerd.service": "containerd"}   # rsyslog's program name of a unit
 JOURNAL_MAX_BYTES, JOURNAL_LINE_CHARS = 4 * 2**20, 300
 
@@ -773,8 +779,8 @@ def _normal_path(path) -> str | None:
 
 
 def _denied_path(path: str) -> bool:
-    name = posixpath.basename(path).lower()
-    for d in _ins().get("deny", []):
+    parts = [p.lower() for p in path.split("/") if p]
+    for d in dict.fromkeys([*INSPECT_FLOOR, *_ins().get("deny", [])]):
         if d in INSPECT_KEYWORDS:
             continue
         if d.endswith("/"):
@@ -783,7 +789,7 @@ def _denied_path(path: str) -> bool:
         elif d.startswith("/"):
             if path == d or fnmatch.fnmatchcase(path, d):
                 return True
-        elif fnmatch.fnmatch(name, d.lower()):
+        elif any(fnmatch.fnmatchcase(p, d.lower()) for p in parts):
             return True
     return False
 
@@ -803,7 +809,9 @@ def _entry(target: str) -> dict:
     return entry
 
 
-def _real_file(path: str) -> str:
+def _real_file(path: str):
+    """The open file (binary) at exactly `path` under /rootfs: no symbolic link on the way (walk) nor at the end
+    (O_NOFOLLOW at the open, #103 review), and a regular file by its open descriptor."""
     cur = ROOTFS
     for part in (x for x in path.split("/") if x):           # no symbolic link anywhere on the way
         cur = f"{cur}/{part}"
@@ -814,12 +822,19 @@ def _real_file(path: str) -> str:
         raise Err(404, "no such file")
     if not stat.S_ISREG(os.lstat(full).st_mode):
         raise Err(403, "not a regular file")
-    return full
+    try:
+        fd = os.open(full, os.O_RDONLY | getattr(os, "O_BINARY", 0) | getattr(os, "O_NONBLOCK", 0) | O_NOFOLLOW)
+    except OSError as e:                                      # ELOOP: a link was put there after the walk
+        raise Err(403, f"the file cannot be opened as a regular file: {e.strerror}") from None
+    if not stat.S_ISREG(os.fstat(fd).st_mode):
+        os.close(fd)
+        raise Err(403, "not a regular file")
+    return os.fdopen(fd, "rb")
 
 
-def _tail(full: str, max_bytes: int) -> tuple[list[str], bool]:
-    size = os.path.getsize(full)
-    with open(full, "rb") as f:
+def _tail(f, max_bytes: int) -> tuple[list[str], bool]:
+    with f:
+        size = os.fstat(f.fileno()).st_size
         f.seek(max(0, size - max_bytes))
         data = f.read(max_bytes)
     lines = data.decode("utf-8", "replace").splitlines()
@@ -845,8 +860,8 @@ def service_config(target: str, path: str | None) -> dict:
     for p in paths:
         if not inspection_allows(target, "service_config", p):
             raise Err(403, "path not allowed by the inspection policy")
-        full, limit = _real_file(p), _ins_limits()["max_bytes"]
-        with open(full, "rb") as f:
+        limit = _ins_limits()["max_bytes"]
+        with _real_file(p) as f:
             data = f.read(limit + 1)
         files.append({"path": p, "text": data[:limit].decode("utf-8", "replace"), "truncated": len(data) > limit})
     return {"target": target, "files": files, "collected_at": now()}
