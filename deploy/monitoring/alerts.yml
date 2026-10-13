@@ -38,3 +38,6 @@ groups:
         expr: label_replace((rate(container_cpu_cfs_throttled_periods_total{name=~"argus-.*"}[3m]) / (rate(container_cpu_cfs_periods_total{name=~"argus-.*"}[3m]) > 0) >= 0.5) and on(argus_host, name) (rate(container_cpu_usage_seconds_total{name=~"argus-.*"}[3m]) / on(argus_host, name) (container_spec_cpu_quota{name=~"argus-.*"} / container_spec_cpu_period{name=~"argus-.*"}) >= 0.8), "container", "$1", "name", "(.*)")
         for: 5m
         annotations: {summary: "container {{ $labels.name }} is throttled at its CPU quota and uses all of it"}
+      - alert: ArgusMonitoringHeartbeat    # ACR-0009 / T-0035: always firing while this Prometheus evaluates rules; Argus
+        expr: count by (argus_host) (up{argus_host!=""}) > 0   # checks its renewal (updatedAt), never an incident itself
+        annotations: {summary: "monitoring heartbeat of {{ $labels.argus_host }}"}

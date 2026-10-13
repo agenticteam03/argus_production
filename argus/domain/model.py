@@ -247,6 +247,7 @@ class AlertNotification(BaseModel):
     status: Literal["firing", "resolved"]
     starts_at: datetime
     ends_at: datetime | None = None
+    updated_at: datetime | None = None        # ACR-0009: when Alertmanager last received it (a renewal, not presence)
     labels: dict[str, str] = {}
     annotations: dict[str, str] = {}
 
