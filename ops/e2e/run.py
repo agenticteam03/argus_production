@@ -53,7 +53,8 @@ PROM_VALUE = ("python3 -c 'import json,sys; r=json.load(sys.stdin)[\"data\"][\"r
 SCENARIO_KEYS = {"id", "title", "host", "hosts", "start", "pre_gate", "gate", "request", "expect", "investigations",
                  "reset"}
 GATE_KEYS = {"cmd", "promql", "expect", "timeout_s", "every_s", "host"}
-EXPECT_KEYS = {"outcome", "class", "root_cause", "first_runbook", "model", "reads_on", "findings_any"}
+EXPECT_KEYS = {"outcome", "class", "root_cause", "first_runbook", "model", "reads_on", "findings_any", "if_diagnosed"}
+IF_DIAGNOSED_KEYS = {"root_cause", "executor_down"}      # E2E-9: a diagnosis made without the executor a scenario stopped
 FINAL = ("closed", "escalated")
 NEEDS_OPERATOR = ("evidence", "audit")      # the API shows them only to operators and approvers
 
@@ -145,6 +146,8 @@ def _investigation(sid: str, req: dict, exp: dict) -> "tuple[dict, dict]":
         raise ValueError(f"{sid}: request needs exactly target, reason, kind (check|report)")
     if set(exp) - EXPECT_KEYS or "outcome" not in exp:
         raise ValueError(f"{sid}: expect needs an outcome and only {sorted(EXPECT_KEYS)}")
+    if "if_diagnosed" in exp and (not isinstance(exp["if_diagnosed"], dict) or set(exp["if_diagnosed"]) != IF_DIAGNOSED_KEYS):
+        raise ValueError(f"{sid}: if_diagnosed needs exactly {sorted(IF_DIAGNOSED_KEYS)}")
     return req, exp
 
 
@@ -264,6 +267,22 @@ def grade(expect: dict, inc: dict) -> list[str]:
         text = " ".join([*(inc.get("findings") or []), inc.get("diagnosis") or ""]).lower()
         if not any(s.lower() in text for s in expect["findings_any"]):
             problems.append(f"none of {expect['findings_any']} in the findings or the diagnosis")
+    if expect.get("if_diagnosed") and inc.get("outcome") == "diagnosed":
+        problems += _diagnosed_without(expect["if_diagnosed"], inc)
+    return problems
+
+
+def _diagnosed_without(cond: dict, inc: dict) -> list[str]:
+    """E2E-9 (SC-12): a diagnosis while the scenario stopped `executor_down` passes only with the right root cause, no
+    successful read through that executor (else the cut did not happen) and a successful read through another."""
+    problems, down = [], cond["executor_down"]
+    if inc.get("root_cause_target") != cond["root_cause"]:
+        problems.append(f"diagnosed root cause {inc.get('root_cause_target')!r}, expected {cond['root_cause']!r}")
+    reads = [e for e in inc.get("evidence") or [] if e.get("executor")]
+    if any(e["executor"] == down and e.get("status") == "ok" for e in reads):
+        problems.append(f"a successful read through {down}, which the scenario stopped")
+    if not any(e["executor"] != down and e.get("status") == "ok" for e in reads):
+        problems.append(f"diagnosed with no successful read (only {down} or none)")
     return problems
 
 

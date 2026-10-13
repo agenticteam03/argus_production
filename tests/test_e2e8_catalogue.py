@@ -164,7 +164,7 @@ def test_sc12_escalates_on_vm166_without_its_read_gateway_and_vm095_still_answer
     assert any("rm -sf argus-lab-worker-oom" in c for c in sc.reset)
     cut, other = sc.investigations
     assert cut[0]["target"] == "vm-166/container:argus-lab-worker"
-    assert "diagnosed" not in cut[1]["outcome"] and cut[1]["reads_on"] == "vm-166"   # never a made-up diagnosis
+    assert cut[1]["if_diagnosed"]["executor_down"] == "docker_read" and cut[1]["reads_on"] == "vm-166"   # E2E-9
     assert other[0]["target"].startswith("vm-095/") and other[1]["outcome"] == "no_incident"
 
 
