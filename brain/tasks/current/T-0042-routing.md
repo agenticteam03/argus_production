@@ -19,6 +19,8 @@
 - The runner's escalation notification (`<incident>:escalation`, the outbox, unchanged key) now carries `route`. The
   alert name comes from the incident's first alert occurrence; the family from its class.
 - No file = the default route (older checkouts keep working).
+- **The UI contract changes:** `contracts/samples/escalations.json` gains `route` (regenerated; the other samples
+  unchanged). A change to `contracts/` needs a teammate (the frontend lane, T-0016).
 
 ## Tests
 
