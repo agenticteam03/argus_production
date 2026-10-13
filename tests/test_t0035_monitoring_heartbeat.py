@@ -336,14 +336,14 @@ def test_the_adapter_reads_updated_at():
 
 
 # --- configuration and wiring -------------------------------------------------------------------------------------------
-def test_the_heartbeat_check_is_configured_and_off_until_the_rule_is_deployed():
+def test_the_heartbeat_check_is_configured():
     from pathlib import Path
     from argus.infrastructure.scheduler import load_reconcile
     cfg = load_reconcile((Path(__file__).resolve().parents[1] / "deploy" / "scheduler" / "schedules.yaml")
                          .read_text(encoding="utf-8"))
-    assert cfg.heartbeat is False and (cfg.stale_after_s, cfg.grace_s) == (180, 300)
-    on = load_reconcile("reconcile_firing_alerts: {enabled: true, every_s: 60, monitoring_heartbeat: {enabled: true}}")
-    assert on.heartbeat is True
+    assert cfg.heartbeat is True and (cfg.stale_after_s, cfg.grace_s) == (180, 300)   # step 2: the rule is deployed
+    off = load_reconcile("reconcile_firing_alerts: {enabled: true, every_s: 60}")
+    assert off.heartbeat is False                                       # absent = off
     with pytest.raises(ValueError):                                    # one tick is not enough to judge a renewal
         load_reconcile("reconcile_firing_alerts: {enabled: true, every_s: 60, "
                        "monitoring_heartbeat: {enabled: true, stale_after_s: 60}}")

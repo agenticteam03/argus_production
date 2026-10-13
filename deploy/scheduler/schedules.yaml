@@ -18,10 +18,13 @@ schedules:
 reconcile_firing_alerts:
   enabled: true
   every_s: 60
-  # T-0035 (ACR-0009): the monitoring heartbeat per host. Off until both hosts' Prometheus run the
-  # ArgusMonitoringHeartbeat rule (deploy/monitoring/alerts.yml): turned on, a host without a fresh heartbeat resolves
-  # no alert and, after grace_s, opens a "Host monitoring unavailable" incident. stale_after_s: at least two ticks.
+  # T-0035 (ACR-0009): the monitoring heartbeat per host. Needs the ArgusMonitoringHeartbeat rule
+  # (deploy/monitoring/alerts.yml) loaded in every host's Prometheus (recreate argus-v18-prometheus after a deploy that
+  # changes alerts.yml): a host without a fresh heartbeat resolves no alert and, after grace_s, opens a "Host
+  # monitoring unavailable" incident. stale_after_s: at least two ticks. Measured on Alertmanager 0.34.0 (T-0035 step
+  # 2): updatedAt renewed every 60-75 s, endsAt = updatedAt + 240 s; 180 s tolerates one missed renewal and declares a
+  # loss before the hosts' other alerts expire.
   monitoring_heartbeat:
-    enabled: false
+    enabled: true
     stale_after_s: 180
     grace_s: 300

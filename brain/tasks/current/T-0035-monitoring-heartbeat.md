@@ -39,8 +39,10 @@ model), and while a host has no fresh heartbeat Argus resolves nothing on it.
 - **Maintenance**: `argus monitoring maintenance <host> --minutes N --as <who>` (1..240, audited); a loss in it is
   audited `monitoring.lost_in_maintenance`, no incident; one still present after it ends opens its incident.
 - **Configuration**: `reconcile_firing_alerts.monitoring_heartbeat` in `deploy/scheduler/schedules.yaml`
-  (`enabled`, `stale_after_s` ≥ two ticks, `grace_s` ≥ `stale_after_s`). **Shipped `enabled: false`**: turned on
-  before the rule is on every host, no host would resolve an alert again.
+  (`enabled`, `stale_after_s` ≥ two ticks, `grace_s` ≥ `stale_after_s`). Step 1 shipped it `enabled: false`; step 2
+  turned it on once the rule ran on both hosts. **The AFTER-MERGE of this PR must recreate `argus-v18-prometheus` on
+  both hosts** (the rule file is bind-mounted): a scheduler with the check on and a Prometheus without the rule would
+  stop every resolution and, after the grace, open a loss incident per host.
 
 ## Tests
 
