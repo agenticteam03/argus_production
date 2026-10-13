@@ -8,8 +8,8 @@ Tests run **all the time**, not only at approval. The pull-request check is the 
 | 2. Green | the same test | agent, laptop | after each small code change |
 | 3. Suite | the full offline suite (`pytest -q`, seconds) | agent, laptop | after every green, and before every commit |
 | 4. Integration | Postgres tests (`ARGUS_TEST_PG_OWNER_DSN`, a throwaway Postgres in Docker Desktop) | agent, laptop | before committing anything that touches persistence |
-| 5. CI on every push | offline suite + Postgres service + LF check + secret scan + Brain lint | GitHub Actions | **every push to any branch** |
-| 6. Merge gate | the same CI, green on the pull request's latest commit | GitHub | before merging into `main` |
+| 5. CI on every push | offline suite + Postgres service + LF check + secret scan + Brain lint | GitHub Actions (when it does not run: `ops/local_ci.py`, laptop) | **every push to any branch** |
+| 6. Merge gate | the same CI, green on the pull request's latest commit (or a `LOCAL CI PASS` comment for it, [`../agents/REVIEW_PROTOCOL.md`](../agents/REVIEW_PROTOCOL.md)) | GitHub / the reviewer | before merging into `main` |
 | 7. Deployment validation | `phase3_check`, `argus db check`, scenario runs, `nonint-check.sh` | developer runs `code.bash` on the VMs | after every deployment step |
 
 ## Rules
