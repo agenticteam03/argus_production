@@ -505,16 +505,28 @@ def diagnostic_snapshot(args: NoArgs, target: TargetRef, info, invoker) -> Capab
                             partial=bool(failed))
 
 # --- prometheus ----------------------------------------------------------------------------------
-def _history(signal: str, label: str):
+def _history(signal: str, label: str, by_kind: dict[str, tuple[str, str]] | None = None, mounts: bool = False):
+    """A history over one named signal; `by_kind`: another signal and label per target kind (T-0036: a host's CPU);
+    `mounts`: the signal reads the target's declared mounts (none declared = NO DATA, unknown)."""
     def impl(args: HistoryArgs, target: TargetRef, info, client) -> CapabilityResult:
-        series = client.range(signal, target, args.minutes, step_s=max(15, args.minutes * 60 // 60))
+        sig, lab = (by_kind or {}).get(target.kind, (signal, label))
+        step = max(15, args.minutes * 60 // 60)
+        if mounts:
+            declared = "|".join(info.mounts) if info is not None and info.mounts else ""
+            if not declared:
+                return CapabilityResult(values={"points": []}, status="error", error_category="not_found",
+                                        model_text=f"{lab} for {target}: NO DATA, no declared mounts (unknown, not "
+                                                   f"zero)", coverage="no declared mounts")
+            series = client.range(sig, target, args.minutes, step_s=step, mounts=declared)
+        else:
+            series = client.range(sig, target, args.minutes, step_s=step)
         if not series:
             return CapabilityResult(values={"points": []}, status="error", error_category="not_found",
-                                    model_text=f"{label} for {target}: NO DATA in {args.minutes} min (unknown, not zero)",
+                                    model_text=f"{lab} for {target}: NO DATA in {args.minutes} min (unknown, not zero)",
                                     coverage="no samples")
         vals = [v for _, v in series]
         first, last = vals[0], vals[-1]
-        text = (f"{label} for {target} over {args.minutes} min: {len(vals)} samples, first={first:g} "
+        text = (f"{lab} for {target} over {args.minutes} min: {len(vals)} samples, first={first:g} "
                 f"last={last:g} min={min(vals):g} max={max(vals):g}")
         return CapabilityResult(values={"points": [[t, v] for t, v in series][-60:]}, model_text=text,
                                 source_time=datetime.fromtimestamp(series[-1][0], timezone.utc),
@@ -628,6 +640,23 @@ def build_catalog() -> list[CapabilitySpec]:
         CapabilitySpec("metrics.restart_history", "get_restart_history", "Container restart count over a time window.",
                        "is it a restart loop and since when", HistoryArgs, C, 2, "READ_ONLY_SAFE",
                        frozenset({"stability"}), "prometheus", _history("container_restart_count", "restart count")),
+        # T-0036: the other Level 2 histories of §12, offered to no class until an evaluation batch measures them
+        CapabilitySpec("metrics.cpu_history", "get_cpu_history",
+                       "CPU over a time window: a container's cores in use, or a host's busy share.",
+                       "sustained CPU vs a short spike; since when", HistoryArgs, C | H, 2, "READ_ONLY_SAFE",
+                       frozenset({"cpu_history"}), "prometheus",
+                       _history("container_cpu_cores", "CPU cores in use",
+                                by_kind={"host": ("host_cpu_busy_ratio", "CPU busy share")})),
+        CapabilitySpec("metrics.disk_history", "get_disk_history",
+                       "The used share of the host's fullest declared filesystem over a time window.",
+                       "is a filesystem filling, how fast, since when", HistoryArgs, H, 2, "READ_ONLY_SAFE",
+                       frozenset({"disk_history"}), "prometheus",
+                       _history("host_disk_used_ratio_mounts", "fullest declared filesystem used share", mounts=True)),
+        CapabilitySpec("metrics.network_history", "get_network_history",
+                       "A host's network traffic on its real interfaces (received + sent bytes per second) over a "
+                       "time window.", "did the host's traffic stop, drop or surge, and when", HistoryArgs, H, 2,
+                       "READ_ONLY_SAFE", frozenset({"network_history"}), "prometheus",
+                       _history("host_network_bytes_per_s", "host network bytes/s (received + sent)")),
         CapabilitySpec("analysis.diagnostic_snapshot", "capture_diagnostic_snapshot",
                        "A container's status, resources and recent logs, and its host's memory and CPU, in one call "
                        "(each part stored as its own evidence).", "a first broad look at a container and its host",
