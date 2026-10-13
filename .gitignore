@@ -5,6 +5,7 @@ output*.bash
 # Secrets and local environment — never in the repository (SSH keys stay in ~/.ssh on the laptop)
 .env
 *.env.local
+.env.*.local
 deploy/**/secrets/
 *.pem
 *.key

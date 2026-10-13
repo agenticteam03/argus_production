@@ -1,4 +1,5 @@
-import { dateTime, shortHash } from "../utils/format.js";
+import { useState } from "react";
+import { auditDetail, dateTime, shortHash } from "../utils/format.js";
 import SafeMarkdown from "./SafeMarkdown.jsx";
 import { Card, Lock } from "./ui.jsx";
 
@@ -23,7 +24,7 @@ function EvidenceItem({ e, open, onToggle }) {
         <span className="rounded-md border border-line px-2 py-0.5 text-xs text-muted">{e.status ?? "—"}</span>
       </div>
       <dl className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs md:grid-cols-3">
-        {facts.map(([k, v]) => <div key={k} className="min-w-0"><dt className="text-muted">{k}</dt><dd className="truncate text-[#d6dbe6]">{v ?? "—"}</dd></div>)}
+        {facts.map(([k, v]) => <div key={k} className="min-w-0"><dt className="text-muted">{k}</dt><dd className="break-words text-[#d6dbe6]">{v ?? "—"}</dd></div>)}
       </dl>
       <button aria-expanded={open} aria-controls={panel} onClick={onToggle} className="mt-2 cursor-pointer text-xs text-accent-hover hover:underline">Details</button>
       <div id={panel} hidden={!open} className="mt-2 space-y-2 border-t border-line pt-2">
@@ -32,6 +33,14 @@ function EvidenceItem({ e, open, onToggle }) {
       </div>
     </li>
   );
+}
+
+// `detail` is an object on the real API and a string in the demo data; render text inline and an object as JSON.
+function AuditDetail({ detail }) {
+  const d = auditDetail(detail);
+  if (d.kind === "empty") return <p className="text-[13px] text-muted">—</p>;
+  if (d.kind === "json") return <pre className="overflow-x-auto rounded-lg bg-card p-3 text-xs text-[#d6dbe6]">{d.text}</pre>;
+  return <p className="whitespace-pre-wrap text-[13px] text-[#d6dbe6]">{d.text}</p>;
 }
 
 export function EvidenceSection({ items, open, onToggle }) {
@@ -47,36 +56,51 @@ export function EvidenceSection({ items, open, onToggle }) {
 }
 
 export function AuditSection({ items, evidenceIds, onJump }) {
+  // The detail is often a large JSON object, so keep the audit list scannable and show it on demand (as Evidence does).
+  const [open, setOpen] = useState(() => new Set());
+  const toggle = (i) => setOpen((prev) => { const next = new Set(prev); next.has(i) ? next.delete(i) : next.add(i); return next; });
+
   return (
     <Card title="Audit" count={items.length}>
       {items.length === 0 ? (
         <NoItems>No audit entries.</NoItems>
       ) : (
         <ul className="space-y-2">
-          {items.map((a, i) => (
-            <li key={i} className="rounded-xl bg-field p-3 text-xs">
-              <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                <time dateTime={a.at} className="font-mono text-muted">{dateTime(a.at)}</time>
-                <span className="text-sm font-medium">{a.event ?? "—"}</span>
-                <span className="text-muted">{a.capability ?? "—"}</span>
-              </div>
-              <dl className="mt-1.5 grid grid-cols-2 gap-x-4 gap-y-1 md:grid-cols-3">
-                <div><dt className="text-muted">Actor</dt><dd>{a.actor ?? "—"}</dd></div>
-                <div><dt className="text-muted">Policy rule</dt><dd className="font-mono">{a.policy_rule ?? "—"}</dd></div>
-                <div>
-                  <dt className="text-muted">Evidence</dt>
-                  <dd>
-                    {a.evidence_id && evidenceIds.has(a.evidence_id) ? (
-                      <button onClick={() => onJump(a.evidence_id)} className="cursor-pointer font-mono text-accent-hover hover:underline">{a.evidence_id}</button>
-                    ) : (
-                      <span className="font-mono">{a.evidence_id ?? "—"}</span>
-                    )}
-                  </dd>
+          {items.map((a, i) => {
+            const detail = auditDetail(a.detail);
+            const panel = `audit-detail-${i}`;
+            return (
+              <li key={i} className="rounded-xl bg-field p-3 text-xs">
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                  <time dateTime={a.at} className="font-mono text-muted">{dateTime(a.at)}</time>
+                  <span className="text-sm font-medium">{a.event ?? "—"}</span>
+                  <span className="text-muted">{a.capability ?? "—"}</span>
+                  {detail.kind !== "empty" && (
+                    <button aria-expanded={open.has(i)} aria-controls={panel} onClick={() => toggle(i)} className="ml-auto cursor-pointer text-xs text-accent-hover hover:underline">Details</button>
+                  )}
                 </div>
-              </dl>
-              <p className="mt-1.5 whitespace-pre-wrap text-[13px] text-[#d6dbe6]">{a.detail ?? "—"}</p>
-            </li>
-          ))}
+                <dl className="mt-1.5 grid grid-cols-2 gap-x-4 gap-y-1 md:grid-cols-3">
+                  <div className="min-w-0"><dt className="text-muted">Actor</dt><dd className="break-words">{a.actor ?? "—"}</dd></div>
+                  <div className="min-w-0"><dt className="text-muted">Policy rule</dt><dd className="break-words font-mono">{a.policy_rule ?? "—"}</dd></div>
+                  <div className="min-w-0">
+                    <dt className="text-muted">Evidence</dt>
+                    <dd>
+                      {a.evidence_id && evidenceIds.has(a.evidence_id) ? (
+                        <button onClick={() => onJump(a.evidence_id)} className="cursor-pointer font-mono text-accent-hover hover:underline">{a.evidence_id}</button>
+                      ) : (
+                        <span className="break-words font-mono">{a.evidence_id ?? "—"}</span>
+                      )}
+                    </dd>
+                  </div>
+                </dl>
+                {detail.kind !== "empty" && (
+                  <div id={panel} hidden={!open.has(i)} className="mt-2 border-t border-line pt-2">
+                    <AuditDetail detail={a.detail} />
+                  </div>
+                )}
+              </li>
+            );
+          })}
         </ul>
       )}
     </Card>

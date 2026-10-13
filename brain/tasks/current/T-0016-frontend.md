@@ -52,8 +52,9 @@ CI job (it changes `.github/workflows/`) and any change to `contracts/` (shared 
    it as a separate API change (a contract update), never call undocumented routes.
 3. **Buttons follow `/api/v1/me`:** the app shows an action only when `/api/v1/me` lists it. New Argus features
    then appear by adding actions on the server, not by rewriting the frontend.
-4. **Token in memory only** (never `localStorage`, cookies or the URL); request `scope=read` at login; API text
-   is shown as text (no raw HTML), so log lines cannot inject scripts.
+4. **Token out of `localStorage`/cookies/URL** — kept in memory and, so a reload in the same tab keeps the
+   session, in `sessionStorage` (`frontend/src/services/sessionStore.js`), bounded by the token's own JWT `exp`;
+   request `scope=read` at login; API text is shown as text (no raw HTML), so log lines cannot inject scripts.
 5. **Brain:** fill in this file and append to the journal during the task; `CURRENT_STATE.md` and `NEXT_STEP.md`
    only in the last PR; merge `main` into the branch before pushing (never rebase a pushed branch).
 
@@ -111,3 +112,87 @@ a screen or a button in `frontend/`.
     `.github/workflows/` or `contracts/` change); merged up to date with `main` (`afe84a6`). CI: `frontend` green;
     the `test` job first failed on a Docker Hub unauthenticated pull-rate limit while pulling `postgres:16-alpine`
     (infrastructure, before any test ran) and was re-run.
+
+- **2026-10-13 — connect the two remaining documented read routes (branch `task/T-0016-step3-screens`):**
+  - every read route in `docs/API-FOR-UI.md` is now wired: `GET /api/v1/evidence/{id}` (`getEvidence`) and
+    `GET /api/v1/escalations` (`listEscalations`) were the only two missing, so they join the HTTP adapter and the
+    mock adapter (parity), and `getOverview` now carries real escalations; the Dashboard gains an **Escalations**
+    card (target → incident, outcome badge, route, clamped diagnosis). Writes stay mock-only: there is still no
+    approve/deny route and `POST /api/v1/investigations` needs a full token (level 1 ACR).
+  - **not connected on purpose:** `GET /healthz` (not in the UI contract — the UI must not call undocumented
+    routes) and `POST /api/v1/investigations` (a write a `scope=read` token never gets).
+  - **tests written (Vitest run deferred):** extended `httpArgusAdapter.test.js` (evidence + escalations + overview
+    now asserts two GETs) and added `mockArgusAdapter.test.js` (escalation shape, overview, viewer 403 on evidence).
+    `juanes6554` asked to skip the test run this turn to save time, so the red/green is **pending** a `npm test`
+    (frontend only) — the record here will be completed before any merge.
+  - **green (build only):** `vite build` → 348 modules, no errors (verifies the new imports/JSX compile).
+
+- **2026-10-13 — no-database demo login + a session that survives a reload (`juanes6554`'s request):**
+  - **mock login without a database:** the three demo accounts can be replaced from `.env` (`VITE_ARGUS_USERS`, a
+    JSON map of username → `{ password, role }`); a bad value or unknown role falls back to the demo accounts, so
+    the demo never breaks. Still frontend-only — no `argus/` change, no ACR.
+  - **session across a reload, without touching rule 4:** the mock session (user + role, no token) is kept in
+    `sessionStorage` up to `VITE_ARGUS_SESSION_TTL_MIN` (default 8 h) and restored on load by `auth.restore()`
+    (`mockSessionStore.js`); logout, tab close or the TTL ends it. `httpAuthAdapter.restore()` returns `null`, so
+    the real API token stays **in memory only** — rule 4 is exactly as written. Recorded in `GUIDELINES.md`.
+  - **tests written (Vitest run deferred, as asked):** added `mockSessionStore.test.js` (save/load/TTL/clear/no
+    storage) and extended `mockAuthAdapter.test.js` (`.env` accounts, restore, logout) and `httpArgusAdapter.test.js`
+    (`restore()` → `null`). `vite build` still green.
+
+- **2026-10-13 — "is any of this real?" → honest Live pill + a real-API run setup (`juanes6554`):**
+  - **finding (no code change needed to be real):** incidents, timelines, evidence and escalations are real today
+    with `VITE_ARGUS_MOCK=0` + the vm-095 tunnel; the UI never touches Postgres itself (the API does). The **agent
+    chat** cannot be real yet: `POST /api/v1/investigations` needs a full token and only *starts* an investigation
+    for a target — no route answers a free-text question. The **health/status card** has no route either (`/healthz`
+    is not in the UI contract and returns different data). Both need a new route + contract/samples/guard + an ACR
+    (written up in `frontend/README.md`); the chat stays a placeholder until then.
+  - **the pill is now honest:** `LivePill` takes `source`/`at`; the new `dataSource` export in `services/index.js`
+    (`demo`/`api`) labels mock runs, and `liveLabel` (`utils/format.js`) plus the last-refresh clock make a "Live"
+    that is visibly tied to a successful request. Dashboard and Incidents pass both; the runbook library and the run
+    timeline are unchanged.
+  - **real run wired:** `frontend/.env.local` (gitignored) sets `VITE_ARGUS_MOCK=0`; the tunnel was closed while
+    writing (`curl 127.0.0.1:18000` → exit 7), so the live smoke test still needs the tunnel + a real DB login.
+  - **tests written (Vitest run deferred, as asked):** `utils/format.test.js` (`liveLabel`) and `index.test.js`
+    (`dataSource`). `vite build` green.
+
+- **2026-10-13 — reload keeps the real session; the incidents list pages 30 at a time (`juanes6554`'s request):**
+  - **session across a reload, now in real mode too:** `mockSessionStore.js` became `sessionStore.js` and stores
+    `{ user, token, expiresAt }`. `httpAuthAdapter.signIn` saves the token, `restore()` puts it back in memory, and
+    `signOut`/`401` clear it (`http.js`). Nothing goes to `localStorage`, cookies or the URL. `expiresAt` is the
+    earlier of `VITE_ARGUS_SESSION_TTL_MIN` and the token's own JWT `exp`, so a dead token is never restored. This
+    is a **deliberate amendment of rule 4** ("in memory only" → "never `localStorage`/cookies/URL; may be in this
+    tab's `sessionStorage`"), because the previous turn's mock-only persistence left real mode logging out on every
+    reload; rule 4 in this file and in `frontend/README.md` were updated together.
+  - **incidents list paging:** `useIncidentList` fetches the newest rows once (up to `INCIDENTS_CAP = 1000`) — the
+    API has no `offset` and no total — and the page shows 30 at a time with a **Show more** button; the summary
+    gives how many are visible and the real total (`utils/paging.js`, `incidentsSummary`). Adding `offset`/cursor
+    and a count to `GET /api/v1/incidents` is recorded as a contract ask in `frontend/README.md`.
+  - **tests written (Vitest run deferred, as asked):** `sessionStore.test.js` (renamed; adds the token round-trip
+    and JWT-`exp` expiry), `httpAuthAdapter.test.js` (restore puts the token back; signOut clears both), and
+    `httpArgusAdapter.test.js` (401 clears the persisted session; the stale `restore()` case removed), plus the new
+    `paging.test.js` for `incidentsSummary`.
+
+- **2026-10-13 — the incident page reads again, the status colours breathe, and the deferred Vitest run closes (this PR):**
+  - **first the crash, found by `juanes6554`:** on the real API an audit entry's `detail` is a JSON object
+    (`AuditRecord.detail: dict[str, JsonValue]`, `argus/domain/model.py`) but a string in the demo fixtures, so
+    rendering it directly threw "Objects are not valid as a React child" and, with no error boundary, unmounted the
+    whole app — only the page gradient remained. `utils/format.js` now normalises it (`auditDetail` → `text`/`json`/
+    `empty`), the audit `detail` renders as text/JSON, and a new per-route `ErrorBoundary`
+    (`components/ErrorBoundary.jsx`, keyed on the pathname) keeps a future render error from blanking the app. The
+    demo fixtures had hidden the bug; a real-shape sample is used in the tests. (`ae0d595`)
+  - **colours (owner: "a little more vibrant, not too much"):** the status shades had been muted a turn earlier to the
+    point of looking grey; their chroma is raised (~1.6–1.8×) in the `@theme` block of `frontend/src/index.css` —
+    same hues and lightness, still below Tailwind's defaults, so every existing `text-emerald-300` / `bg-amber-400/10`
+    / … class is unchanged. (`bdadd25` muted them, `bc21ab2` brings them partway back.)
+  - **incident page (owner: "easier to read, without changing too much, match the other pages"):** fact values no
+    longer truncate (targets, trigger/policy ids were cut off — `break-words`, `break-all` for the incident id); a
+    little more vertical rhythm and hairline dividers inside the Diagnosis card; and each audit entry's JSON `detail`
+    now sits behind the same **Details** toggle the evidence list already uses, so the audit trail stays scannable.
+    Same cards, tokens and spacing as the other pages; the only new interaction is that toggle. (`bc21ab2`)
+  - **red seen:** `npm test` → 1 failed file: `sessionStore.test.js` could not load — `tokenExpiry` was module-private
+    in `sessionStore.js` while the test imported it (`TypeError: tokenExpiry is not a function`).
+  - **green:** after exporting the helper → `npm test` **12 files / 70 tests passed**, `vite build` → **351 modules**.
+    This closes the four earlier 2026-10-13 bullets whose red/green was deliberately deferred to this run.
+  - **committed:** `bdadd25`, `ae0d595`, `bc21ab2` (UI), `1c6b7da` (the test fix); `origin/main` merged into the branch
+    before pushing. Still open: the Playwright acceptance tests, the read-only network guard, the
+    `contracts/ui-api.json` check, and the incident-list `offset`/total contract ask.

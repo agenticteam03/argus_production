@@ -18,9 +18,22 @@ export const httpArgusAdapter = {
     return getJson(`/api/v1/incidents/${id}/events?after=${after}`);
   },
 
-  // The dashboard builds its incidents from the list; approvals and health have no route yet, so they are empty.
+  async getEvidence(id) {
+    return getJson(`/api/v1/evidence/${encodeURIComponent(id)}`);
+  },
+
+  async listEscalations() {
+    return getJson("/api/v1/escalations");
+  },
+
+  // The dashboard builds its incidents from the list and its escalations from their route;
+  // approvals are writes and health has no route yet, so they stay empty.
   async getOverview() {
-    return { incidents: await httpArgusAdapter.listIncidents({ limit: 5 }), approvals: [], health: null };
+    const [incidents, escalations] = await Promise.all([
+      httpArgusAdapter.listIncidents({ limit: 5 }),
+      httpArgusAdapter.listEscalations(),
+    ]);
+    return { incidents, approvals: [], escalations, health: null };
   },
 
   // The agent chat starts an investigation, which is a write a read token never gets: it stays a placeholder

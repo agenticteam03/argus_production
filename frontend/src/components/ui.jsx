@@ -1,3 +1,5 @@
+import { clock, liveLabel } from "../utils/format.js";
+
 const icon = (paths) => (props) => (
   <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" {...props}>{paths}</svg>
 );
@@ -47,12 +49,19 @@ export const Search = icon(<><circle cx="11" cy="11" r="7" /><path d="m21 21-4.3
 export const Warning = icon(<path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0ZM12 9v4m0 4h.01" />);
 export const Close = icon(<path d="M18 6 6 18M6 6l12 12" />);
 
-export const LivePill = ({ live }) => (
-  <span className="inline-flex items-center gap-2 rounded-full border border-line bg-card px-3 py-1.5 text-xs text-muted">
-    <span className={`size-2 rounded-full ${live ? "animate-pulse bg-emerald-400" : "bg-amber-400"}`} />
-    {live ? "Live" : "Reconnecting…"}
-  </span>
-);
+// `source` ("demo"/"api") and `at` (the last successful refresh, ms) make the pill honest: demo data is
+// labelled, and the clock next to "Live" ticks with each poll, so it is visibly live rather than decorative.
+export const LivePill = ({ live, source, at }) => {
+  const demo = source === "demo";
+  const dot = demo ? "bg-amber-400" : live ? "animate-pulse bg-emerald-400" : "bg-amber-400";
+  return (
+    <span className="inline-flex items-center gap-2 rounded-full border border-line bg-card px-3 py-1.5 text-xs text-muted">
+      <span className={`size-2 rounded-full ${dot}`} />
+      {liveLabel(live, source)}
+      {at != null && <span className="text-muted/60">· updated {clock(at)}</span>}
+    </span>
+  );
+};
 
 export const Lock = icon(<><rect x="4" y="11" width="16" height="10" rx="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" /></>);
 

@@ -1,6 +1,6 @@
 // Placeholder for the Argus API. Swap for an HTTP adapter with the same methods (services/index.js).
 // Every incident call is a GET and is recorded in `calls`, so tests can assert paths such as limit=30.
-import { demoEvents, demoIncident, demoList } from "./demoIncidents.js";
+import { demoEscalations, demoEvents, demoEvidence, demoIncident, demoList } from "./demoIncidents.js";
 import { demoSession } from "./demoSession.js";
 
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -36,13 +36,31 @@ export const mockArgusAdapter = {
     return all.filter((e) => e.seq > after);
   },
 
-  // The overview has no endpoint today (only GET /healthz): incidents come from the list, health stays "No data".
+  // The overview builds its incidents from the list, escalations from their route; approvals and health have
+  // no endpoint today, so they stay empty ("No data").
   async getOverview() {
     return {
       incidents: await mockArgusAdapter.listIncidents({ limit: 5 }),
       approvals: [],
+      escalations: await mockArgusAdapter.listEscalations(),
       health: { wireguard: null, prometheus: null, tokens: { used: null, limit: null }, resolvedToday: null },
     };
+  },
+
+  async listEscalations() {
+    record("/api/v1/escalations");
+    await wait(200);
+    return demoEscalations();
+  },
+
+  // Like the server: only operator/approver may read one evidence record (GET /api/v1/evidence/{id}).
+  async getEvidence(id) {
+    record(`/api/v1/evidence/${id}`);
+    await wait(150);
+    if (demoSession.role !== "operator" && demoSession.role !== "approver") throw httpError(403, "This role may not read evidence.");
+    const found = demoEvidence(id);
+    if (!found) throw httpError(404, "Evidence not found");
+    return found;
   },
 
   async askAgent(text, onStatus) {

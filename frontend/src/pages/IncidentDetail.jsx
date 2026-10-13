@@ -11,7 +11,10 @@ const Back = () => (
   <Link to="/incidents" className="inline-flex text-[13px] text-accent-hover hover:underline">← Incidents</Link>
 );
 const Fact = ({ label, children }) => (
-  <div className="min-w-0"><dt className="text-xs text-muted">{label}</dt><dd className="truncate text-sm">{children ?? "—"}</dd></div>
+  <div className="min-w-0">
+    <dt className="text-xs text-muted">{label}</dt>
+    <dd className="mt-0.5 break-words text-sm leading-snug text-[#d6dbe6]">{children ?? "—"}</dd>
+  </div>
 );
 
 export default function IncidentDetail() {
@@ -69,18 +72,18 @@ export default function IncidentDetail() {
   const evidenceIds = new Set((inc.evidence ?? []).map((e) => e.evidence_id));
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       <p role="status" aria-live="polite" className="sr-only">{announce}</p>
       <Back />
 
       <section className="rounded-2xl border border-line bg-card/80 p-5">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <span className="min-w-0 truncate font-mono text-xs text-accent-hover">{inc.id}</span>
+          <span className="min-w-0 break-all font-mono text-xs text-accent-hover">{inc.id}</span>
           <span className="flex flex-wrap gap-1.5"><StatusBadge status={inc.status} /><OutcomeBadge outcome={inc.outcome} /></span>
         </div>
-        <h1 ref={headingRef} tabIndex={-1} className="mt-2 text-[26px] font-semibold tracking-[-0.03em] outline-none">{inc.target}</h1>
-        {inc.reason && <p className="mt-1 text-sm text-[#a3abba]">{inc.reason}</p>}
-        <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3 md:grid-cols-3">
+        <h1 ref={headingRef} tabIndex={-1} className="mt-2 text-[26px] font-semibold leading-tight tracking-[-0.03em] outline-none">{inc.target}</h1>
+        {inc.reason && <p className="mt-1.5 text-sm leading-relaxed text-[#a3abba]">{inc.reason}</p>}
+        <dl className="mt-5 grid grid-cols-2 gap-x-4 gap-y-4 md:grid-cols-3">
           <Fact label="Class">{inc.incident_class}</Fact>
           <Fact label="Strategy">{inc.strategy}</Fact>
           <Fact label="Triggered by">{inc.trigger_kind}</Fact>
@@ -98,16 +101,18 @@ export default function IncidentDetail() {
         ) : (
           <p className="text-sm text-muted">{active ? "No diagnosis yet" : "No diagnosis was produced"}</p>
         )}
-        <dl className="mt-4 grid gap-3 sm:grid-cols-2">
+        <dl className="mt-4 grid gap-4 border-t border-line pt-4 sm:grid-cols-2">
           <Fact label="Root cause target">{inc.root_cause_target}</Fact>
           <Fact label="Confidence">{inc.confidence == null ? null : String(inc.confidence)}</Fact>
         </dl>
-        <h3 className="mb-2 mt-4 text-sm font-medium">Findings</h3>
-        {inc.findings?.length ? (
-          <ul className="list-disc space-y-1 pl-5 text-sm text-[#d6dbe6]">{inc.findings.map((f, i) => <li key={i}>{f}</li>)}</ul>
-        ) : (
-          <p className="text-sm text-muted">No findings recorded.</p>
-        )}
+        <div className="mt-4 border-t border-line pt-4">
+          <h3 className="text-sm font-medium">Findings</h3>
+          {inc.findings?.length ? (
+            <ul className="mt-2 list-disc space-y-1.5 pl-5 text-sm leading-relaxed text-[#d6dbe6]">{inc.findings.map((f, i) => <li key={i}>{f}</li>)}</ul>
+          ) : (
+            <p className="mt-2 text-sm text-muted">No findings recorded.</p>
+          )}
+        </div>
       </Card>
 
       <RunTimeline events={events} active={active} reconnecting={reconnecting} />

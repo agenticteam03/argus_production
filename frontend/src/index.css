@@ -11,7 +11,23 @@
   --color-field-line: #232a37;
   --color-accent: #3b82f6;
   --color-accent-hover: #5b9bff;
-  --color-danger: #f87171;
+  --color-danger: oklch(74% 0.115 25);
+
+  /* Status palette. The status/risk badges use Tailwind's built-in shades (emerald/amber/red/sky/blue); overriding
+     those shades here keeps every existing class (text-emerald-300, bg-amber-400/10, border-red-400/20, ...) but
+     tunes them to a lower chroma than Tailwind's defaults, so the accents read clearly next to the blue theme
+     without the neon look. No component markup changes. */
+  --color-red-400: oklch(61% 0.13 25);
+  --color-red-300: oklch(76% 0.105 25);
+  --color-amber-400: oklch(73% 0.115 80);
+  --color-amber-300: oklch(84% 0.10 80);
+  --color-emerald-400: oklch(65% 0.10 165);
+  --color-emerald-300: oklch(80% 0.09 165);
+  --color-sky-400: oklch(67% 0.095 233);
+  --color-sky-300: oklch(81% 0.08 233);
+  --color-blue-400: oklch(65% 0.10 255);
+  --color-blue-300: oklch(80% 0.085 255);
+
   --font-sans: "Inter Variable", Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
 }
 
