@@ -5,7 +5,7 @@
   "branch": "main",
   "base_commit": "5296671b0e7a23685bd160e7b603a5e54855d8cd",
   "started_at": "2026-10-13T02:07:34+00:00",
-  "expires_at": "2026-10-13T03:07:34+00:00",
+  "expires_at": "2026-10-13T04:07:42+00:00",
   "released": false,
   "handoff": null,
   "vms": {
@@ -16,7 +16,7 @@
       "branch": "main",
       "base_commit": "5296671b0e7a23685bd160e7b603a5e54855d8cd",
       "started_at": "2026-10-13T02:07:34+00:00",
-      "expires_at": "2026-10-13T03:07:34+00:00",
+      "expires_at": "2026-10-13T04:07:42+00:00",
       "released": false,
       "handoff": null
     },
@@ -27,7 +27,7 @@
       "branch": "main",
       "base_commit": "5296671b0e7a23685bd160e7b603a5e54855d8cd",
       "started_at": "2026-10-13T02:07:34+00:00",
-      "expires_at": "2026-10-13T03:07:34+00:00",
+      "expires_at": "2026-10-13T04:07:42+00:00",
       "released": false,
       "handoff": null
     }
