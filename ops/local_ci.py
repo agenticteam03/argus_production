@@ -203,6 +203,16 @@ def _git(*args: str, cwd: Path = REPO) -> str:
     return out.strip()
 
 
+def _commit(a) -> str:
+    """The commit to check: the PR's last push, origin/main, or this checkout's HEAD (its working tree clean)."""
+    if a.pr is not None or a.main:
+        _git("fetch", "-q", "origin", f"pull/{a.pr}/head" if a.pr is not None else "main")
+        return _git("rev-parse", "FETCH_HEAD")
+    if _git("status", "--porcelain"):
+        sys.exit("local_ci: the working tree is not clean; commit or stash first (the result must match a commit)")
+    return _git("rev-parse", "HEAD")
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--pr", type=int, help="check this pull request's last push")
@@ -211,25 +221,18 @@ def main(argv: list[str] | None = None) -> int:
     a = ap.parse_args(argv)
     if a.post and a.pr is None:
         ap.error("--post needs --pr")
-    tmp = None
-    if a.pr is not None or a.main:
-        ref = f"pull/{a.pr}/head" if a.pr is not None else "main"
-        _git("fetch", "-q", "origin", ref)
-        sha = _git("rev-parse", "FETCH_HEAD")
-        tmp = Path(tempfile.mkdtemp(prefix="argus-localci-"))
-        _git("worktree", "add", "-q", "--detach", str(tmp / "src"), sha)
-        src = tmp / "src"
-    else:
-        if _git("status", "--porcelain"):
-            sys.exit("local_ci: the working tree is not clean; commit or stash first (the result must match a commit)")
-        sha, src = _git("rev-parse", "HEAD"), REPO
-    print(f"local_ci: checking {sha[:12]} in {src.name}", flush=True)
+    sha = _commit(a)
+    # always a clean temporary worktree of that commit (#111 review): the checks see exactly the commit's files, never
+    # this checkout's ignored ones (.venv, node_modules, brain/execution/current/output.bash) that gitleaks would scan
+    tmp = Path(tempfile.mkdtemp(prefix="argus-localci-"))
+    _git("worktree", "add", "-q", "--detach", str(tmp / "src"), sha)
+    src = tmp / "src"
+    print(f"local_ci: checking {sha[:12]} in a clean worktree", flush=True)
     try:
         results = LocalCI(src).all(main=a.main)
     finally:
-        if tmp:
-            run(["git", "worktree", "remove", "--force", str(tmp / "src")], cwd=REPO, timeout=300)
-            shutil.rmtree(tmp, ignore_errors=True)
+        run(["git", "worktree", "remove", "--force", str(tmp / "src")], cwd=REPO, timeout=300)
+        shutil.rmtree(tmp, ignore_errors=True)
     text = report(sha, results, pr=a.pr, ref="origin/main" if a.main else None)
     print("\n" + text)
     if a.post:
