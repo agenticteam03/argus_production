@@ -81,7 +81,7 @@ def test_the_snapshot_is_a_level_3_combined_capability_in_the_worker():
     assert (s.model_name, s.level, s.executor, s.runs_in, s.max_subcalls) == \
            ("capture_diagnostic_snapshot", 3, "argus_internal", "worker", 6)
     assert s.target_kinds == frozenset({"container"})
-    assert [c.name for c in CLASSES if s.tags & c.tool_tags] == []          # offered to no class until measured
+    assert [c.name for c in CLASSES if s.tags & c.tool_tags] == ["health_check_failed"]   # EVAL-snapshot: measured
     pol = yaml.safe_load(open("config/policy.yaml", encoding="utf-8"))
     assert pol["capabilities"]["analysis.diagnostic_snapshot"]["max_per_incident"] == 1
 

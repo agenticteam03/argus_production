@@ -144,7 +144,8 @@ CLASSES: list[IncidentClassSpec] = [
     IncidentClassSpec(name="health_check_failed", family="availability", target_kinds={"container"},
                       required_signals={"health_unhealthy"}, runbook_ids=["RB-002"],
                       branch_runbook_ids=["RB-003"], strategy="model_loop",
-                      tool_tags={"availability", "logs", "dependency", "network", "container", "knowledge"},
+                      tool_tags={"availability", "logs", "dependency", "network", "container", "knowledge",
+                                 "snapshot"},   # EVAL-snapshot: measured against main d34f0cb (EVAL-main)
                       detector=health_check_failed),
     IncidentClassSpec(name="postgresql_connection_exhaustion", family="database", target_kinds={"container"},
                       required_signals={"db_connection_usage", "db_up"}, runbook_ids=["RB-004"],
