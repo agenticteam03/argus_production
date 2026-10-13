@@ -2,6 +2,44 @@
 
 **Last updated:** 2026-10-12 (roll-up) · **Commit:** `main` after #96 (`817d88f`)
 
+`tests/test_t0035_monitoring_heartbeat.py`: 3 new tests (red seen): the `platform` route, the default when only
+another family has one, and `load_routing` (a file with a `platform` route, no file, an unknown family refused).
+
+No code change. Local CI unchanged.
+
+`tests/test_t0039_prior_incidents.py`: 7 tests (red seen: no capability).
+
+`tests/test_t0037_docker_read_verbs.py`: 12 tests (red seen: no route, no capability).
+
+`tests/test_t0043_missing_scrape_jobs.py`: 4 tests (red seen); one promtool case; the T-0027 signal check updated.
+
+`tests/test_t0042_routing.py`: 10 tests (red seen: no `route` in the notification).
+
+`tests/test_t0040_trace_request_path.py`: 6 tests (red seen: no capability).
+
+`tests/test_t0038_compare_baseline.py`: 14 tests (red seen: no capability).
+
+`tests/test_t0036_metric_histories.py`: 14 tests (red seen: no `mounts` parameter in the Prometheus client).
+
+`tests/test_e2e8_catalogue.py` 11 (red seen), `tests/test_e2e_runner.py` 39 unchanged, green.
+
+`tests/test_eval4_health_wording.py`: the word list updated; 1 test added with the two answers seen (pass) and a
+diagnosis naming no check (still fails).
+
+`tests/test_t0033_rotate_token_script.py`: 3 tests added (red seen: `db_probe` refused).
+
+`tests/test_t0035_monitoring_heartbeat.py`: 22 tests (red seen: no `argus.application.monitoring`);
+`tests/test_postgres.py`: 1 test added (the state and the escalated incident under the runtime role; runs on CI).
+
+`tests/test_local_ci.py`: 1 test added (red seen: the HEAD mode checked this checkout).
+
+23 floor paths refused by both the agent and the probe with an allow-everything list (16 were allowed: red seen); 5
+ordinary paths still allowed; name patterns on directories; the open uses `O_NOFOLLOW` (red seen); a symlink swapped
+in after the walk is refused (Linux only, skipped on Windows); a stale probe copy still gets the floor.
+
+`tests/test_redaction_paths.py`: 8 tests added (red seen: the URL and the other-path cases unmasked, and a token under
+the declared directory kept); 5 declared paths at a path start still readable.
+
 `tests/test_redaction_paths.py`: 18 tests (red seen: the three URL-path secrets unmasked on `main`, and no
 `declared_paths`).
 

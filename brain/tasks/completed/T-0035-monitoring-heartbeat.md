@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | `in progress` — step 1 (code, offline) done 2026-10-12; step 2 (the VMs) next |
+| Status | `done` 2026-10-13 — #116 and the `platform` route (#133) merged; on both VMs since the AFTER-MERGE to `main` `ad72617` (#132, 2026-10-13): heartbeat `alive` on both hosts, migration 006 applied |
 | Phase | 13 — "Prometheus down on one host" (T-0032's "not covered") ([`../../IMPLEMENTATION_PLAN.md`](../../IMPLEMENTATION_PLAN.md)) |
 | Architecture | [ACR-0009](../../architecture/changes/ACR-0009-monitoring-heartbeat.md), accepted in #108 (`juanbetancurm`); applied here: `ARCHITECTURE.md` 1.8.8 (§6.4, §7.3) |
 | Branch | `task/T-0035-monitoring-heartbeat` (from `main`) |

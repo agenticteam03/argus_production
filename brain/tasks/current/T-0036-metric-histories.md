@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | `in review` — step 1 (code) and step 2 (read on both hosts, [evidence](../../execution/history/T-0036/step-02/evidence.md)) done 2026-10-13; step 3 (offer to a class) later |
+| Status | `in progress` — #119 merged; on both VMs since the AFTER-MERGE to `main` `ad72617` (#132, 2026-10-13); next: offer to a class (step 3, with evaluation cases) |
 | Phase | 9 — Level 2 capabilities ([`../../IMPLEMENTATION_PLAN.md`](../../IMPLEMENTATION_PLAN.md)) |
 | Architecture | no change (no ACR): implements the §12 Level 2 table as written (`get_cpu_history`, `get_disk_history`, `get_network_history`); §"extension": a metric-history capability = a signal template + a capability |
 | Branch | `task/T-0036-metric-histories` (from `main`) |

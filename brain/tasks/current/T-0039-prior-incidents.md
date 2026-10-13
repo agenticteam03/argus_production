@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | `in review` — code done 2026-10-13; on vm-095 with the AFTER-MERGE (it reads Argus's own store: no target read) |
+| Status | `in progress` — #123 merged; on both VMs since the AFTER-MERGE to `main` `ad72617` (#132, 2026-10-13); next: offer to a class, with evaluation cases |
 | Phase | 4 / 9 — Level 3 capabilities ([`../../IMPLEMENTATION_PLAN.md`](../../IMPLEMENTATION_PLAN.md)) |
 | Architecture | no change (no ACR): §10.5 ("a strategy may request more through … `knowledge.prior_incidents`") and the §12 Level 3 row, as written |
 | Branch | `task/T-0039-prior-incidents` (from `main`) |

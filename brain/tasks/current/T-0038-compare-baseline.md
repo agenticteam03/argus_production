@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | `in review` — step 1 (code) and step 2 (both hosts, [evidence](../../execution/history/T-0038/step-02/evidence.md)) done 2026-10-13; step 3 later |
+| Status | `in progress` — #120 merged; on both VMs since the AFTER-MERGE to `main` `ad72617` (#132, 2026-10-13); next: offer to a class (step 3, with evaluation cases) |
 | Phase | 4 / 9 — Level 3 capabilities ([`../../IMPLEMENTATION_PLAN.md`](../../IMPLEMENTATION_PLAN.md)) |
 | Architecture | no change (no ACR): the §12 Level 3 row `metrics.compare_baseline` ("same signals over an earlier healthy window; no stored baseline") |
 | Branch | `task/T-0038-compare-baseline`, **on top of `task/T-0036-metric-histories`** (it uses T-0036's signals and the client's `mounts`): merge #119 first |

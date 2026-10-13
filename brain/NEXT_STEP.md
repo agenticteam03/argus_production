@@ -1,5 +1,62 @@
 # Next step
 
+**Now (2026-10-13, evening roll-up, `conantkd`).** Both VMs run `main` `ad72617` (#113-#131, AFTER-MERGE #132:
+migrations 001-006, both Prometheus with the heartbeat rule, heartbeat `alive` on both hosts). #133 (the `platform`
+route of a monitoring loss) merged after it: vm-095's scheduler gets it at the next AFTER-MERGE. **Phase 12 is
+done:** every scenario five runs (E2E-8 step 2, #134 in review; SC-12 4/5, its miss a correct diagnosis through the
+host probe; its expectation follows it in E2E-9, #135 in review). Leases released. The lines below this paragraph are
+the rolled-up "next steps" of today's entries: the E2E-8, AFTER-MERGE, T-0035, T-0037, T-0043 and routing ones are done.
+
+Next, in order:
+1. Review #134 and #135 (`juanbetancurm`).
+2. Offer the new capabilities to their classes, each with evaluation cases (T-0036 histories, T-0037 logs and
+   processes, T-0038 baseline, T-0039 prior incidents, T-0040 request path); EVAL-snapshot showed an offer can lower a
+   class (0.88 → 0.72), so measure every offer against `main` (0.97, 267/275, EVAL-6).
+3. Small open items: OP-004 and OP-008 first `--apply` with a teammate; T-0041 first `db_probe` rotation on vm-166;
+   T-0016 Playwright tests; team decisions on the `nginx-slow-check` label and `network.connectivity` networks.
+
+PR (reviewer `juanbetancurm`); the VMs get it at the next AFTER-MERGE.
+
+E2E-8 step 2 on both VMs: `ops/e2e/run.py H-1 H-2 SC-09 SC-11 --runs 5`, then `SC-10 SC-12 ID-1 --runs 5`.
+
+After the merge, on vm-095: one call on a target with closed incidents (from the worker container).
+
+Step 2 done (evidence in `execution/history/T-0037/step-02/`; a trailing colon in command names fixed). Next: the AFTER-MERGE rebuilds the target services; then offer to a class with an evaluation batch.
+
+At the AFTER-MERGE: recreate both Prometheus; `scrape_targets_down` stays 0.
+
+With the AFTER-MERGE on vm-095: the next escalation's notification shows `route: channel:operators`.
+
+After the merge: one call from vm-095's worker on `vm-166/container:argus-lab-api` (its dependency `argus-lab-cache`).
+
+Step 2 done (evidence in `execution/history/T-0038/step-02/`; the 7-day offset replaced by 3 days, inside the retention). Next: offer it to a class with an evaluation batch.
+
+Step 2 done (evidence in `execution/history/T-0036/step-02/`); the network history became the host's. Next: offer the histories to a class with an evaluation batch; decide per-container traffic (cAdvisor network metrics).
+
+E2E-8 step 2 (both leases): `ops/e2e/run.py H-1 H-2 SC-09 SC-11 --runs 5`, then `ops/e2e/run.py SC-10 SC-12 ID-1
+--runs 5`; read every miss.
+
+A teammate accepts (or chooses D) in the PR; then the implementation PR.
+
+None for the snapshot in this class. Candidates for the next batch: the metric histories or `search_logs` for the
+class whose misses they address.
+
+The snapshot measurement: offer `capture_diagnostic_snapshot` to a class on a branch and compare with this run.
+
+Team decisions: the `nginx-slow-check` root-cause label; whether `network.connectivity` should report each side's
+inventory-assigned networks (for `dep-backend-wrong-network`).
+
+After the merge, with the developer: rotate vm-166's `db_probe` token and the agent's copy; `up` stays 1.
+
+T-0035 step 2 on the VMs (both leases): migration 006, the rule on both hosts, the scheduler; measure `updatedAt`
+renewal on Alertmanager 0.34.0; then turn the check on.
+
+Open the PR when a reviewer is available.
+
+PR #114 (reviewer `juanbetancurm`); the VMs get it at the next AFTER-MERGE.
+
+Open the PR when a reviewer is available.
+
 **Now (2026-10-13, roll-up, `conantkd`).** Both VMs run `main` `d34f0cb` (#97-#111, AFTER-MERGE #112, from its
 evidence; not observed again at this roll-up); `main` after it is Brain only. The task files are up to date:
 `tasks/current/` holds only E2E-8, OP-004, OP-008, T-0016 and T-0019.
@@ -238,7 +295,7 @@ user, draft PR #36): step 4 (compose) now, step 5 on vm-095 with the lease. Open
 **Earlier (2026-10-07, `conantkd`):** T-0019 batch 1 (the db-probe and `database.health`) is deployed on both VMs
 from `task/T-0019-db-probe`; its PR waits for review (after PR #29, OP-007, which it includes). After the merge:
 AFTER-MERGE (both VMs back on `main`, checkout only). Next: **T-0019 batch 2** (host-probe load, io, top
-processes, sockets, directory sizes, kernel OOM records; [task file](tasks/current/T-0019-db-probe.md)), or
+processes, sockets, directory sizes, kernel OOM records; [task file](tasks/completed/T-0019-db-probe.md)), or
 **SC-04** (`postgresql_connection_exhaustion`, RB-004) which now has its probe. Open PRs: #29 (OP-007), #30
 (AFTER-MERGE T-0018 record), #31 (OP-008 proposal).
 

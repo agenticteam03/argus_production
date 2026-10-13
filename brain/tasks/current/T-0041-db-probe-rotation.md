@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | `in review` — script and tests done 2026-10-13; one real rotation on vm-166 after the merge (with the developer) |
+| Status | `in progress` — #126 merged; next: one real rotation on vm-166 (with the developer) |
 | Phase | 13 — failure and recovery ("`db_probe` rotation is manual", T-0033) ([`../../IMPLEMENTATION_PLAN.md`](../../IMPLEMENTATION_PLAN.md)) |
 | Architecture | no change |
 | Branch | `task/T-0041-db-probe-rotation` (from `main`) |

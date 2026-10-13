@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | `in review` — code done 2026-10-13; on vm-095 from the worker after the merge |
+| Status | `in progress` — #125 merged; on both VMs since the AFTER-MERGE to `main` `ad72617` (#132, 2026-10-13); next: offer to a class, with evaluation cases |
 | Phase | 4 / 9 — Level 3, combined capabilities §12.7 ([`../../IMPLEMENTATION_PLAN.md`](../../IMPLEMENTATION_PLAN.md)) |
 | Architecture | no change (no ACR): the §12 Level 3 row `analysis.trace_request_path` ("combined; follows the inventory dependency graph"), built on T-0034's mechanism |
 | Branch | `task/T-0040-trace-request-path` (from `main`) |
