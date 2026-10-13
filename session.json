@@ -5,7 +5,7 @@
   "branch": "task/AFTER-MERGE-main-2026-10-13",
   "base_commit": "bbe3f1a07ca96ab3766d2e49b4ad07ca20e20ba8",
   "started_at": "2026-10-13T16:09:15+00:00",
-  "expires_at": "2026-10-13T17:09:15+00:00",
+  "expires_at": "2026-10-13T19:17:37+00:00",
   "released": false,
   "handoff": null,
   "vms": {
@@ -16,7 +16,7 @@
       "branch": "task/AFTER-MERGE-main-2026-10-13",
       "base_commit": "bbe3f1a07ca96ab3766d2e49b4ad07ca20e20ba8",
       "started_at": "2026-10-13T16:09:15+00:00",
-      "expires_at": "2026-10-13T17:09:15+00:00",
+      "expires_at": "2026-10-13T19:17:37+00:00",
       "released": false,
       "handoff": null
     },
@@ -27,7 +27,7 @@
       "branch": "task/AFTER-MERGE-main-2026-10-13",
       "base_commit": "bbe3f1a07ca96ab3766d2e49b4ad07ca20e20ba8",
       "started_at": "2026-10-13T16:09:15+00:00",
-      "expires_at": "2026-10-13T17:09:15+00:00",
+      "expires_at": "2026-10-13T19:17:37+00:00",
       "released": false,
       "handoff": null
     }
