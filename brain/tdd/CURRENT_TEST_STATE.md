@@ -2,6 +2,43 @@
 
 **Last updated:** 2026-10-12 (roll-up) · **Commit:** `main` after #96 (`817d88f`)
 
+`tests/test_redaction_paths.py`: 18 tests (red seen: the three URL-path secrets unmasked on `main`, and no
+`declared_paths`).
+
+`tests/test_local_ci.py`: 9 tests (red seen: no `ops/local_ci.py`).
+
+`tests/brain/test_brain.py`: 2 tests added (red seen: the merge of main after a roll-up refused; a summary edited during
+the merge still refused).
+
+`tests/test_redaction_paths.py`: 8 tests (red seen 3/3 on the paths); the core and knowledge tests that use the
+redactor pass.
+
+`tests/test_t0019_batch3c_network.py`: 15 tests (red seen: no `/connectivity` route, no `attempts`, no capability, no
+case answers).
+
+Review of #101 (`juanbetancurm`): `/tcp` attempts now share an 8 s budget (under the agent's 10 s client
+timeout; each attempt waits `min(3 s, what is left)`, `budget_exhausted` when spent); before, 5 attempts to
+a port that never answers could take 17 s and end the read `timeout`. One more test (16), red seen. The
+scope of `to` (allowlisted, same host, not checked against the incident's scope) is noted in the task file.
+
+`tests/test_t0019_batch3b_host_verbs.py`: 18 tests (red seen: no routes, no capabilities, no case answers; the symlink
+test runs where symbolic links can be made, CI).
+
+`tests/test_combined_capabilities.py`: 8 tests (red seen: no `max_subcalls`, no snapshot, no `refs_of`).
+
+`tests/test_tool_allowed_values.py`: 3 tests (red seen: no `allowed_values`, the probes offered on every target).
+
+`tests/test_eval4_health_wording.py`: 4 tests (red seen 3/4 with the old labels).
+
+`tests/test_t0033_rotate_token_script.py`: 4 tests (red seen 3/4: hard-coded paths, mode 0400 after a rollback,
+"recreated" after a failed compose); the mode check runs where the filesystem has POSIX modes (CI).
+
+`tests/test_t0019_batch3a_inspection.py`: 33 tests (red seen: no `argus.policy.inspection`), green. `tests/test_sc07_network.py`'s render test now copies `policy.yaml` too (the renderer has two inputs).
+Full suite green on the laptop (pytest exit 0).
+
+No new tests (a model evaluation). Model evaluation on vm-095, 55 cases × 5: 0.96 (core 0.99), abstention 0.98, hard
+0 0 0 (EVAL-2 E.4: 0.93, 0.95, 0.96).
+
 **2026-10-12, `main` `2fa4d01` (#91-#94), full suite on a laptop (roll-up, `conantkd`):** green, 20 skipped (Postgres
 and environment). New since EVAL-2: `tests/test_op012_incident_budget.py` 3 (red seen: 16 `container.status` reads
 under LangGraph, the policy allows 8), `tests/test_eval3_sigkill.py` 3 (red seen 2/3: the baseline answered

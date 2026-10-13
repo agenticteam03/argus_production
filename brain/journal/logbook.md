@@ -220,7 +220,7 @@ Argus's proposals) add server actions instead of rewriting the frontend. A versi
 (`contracts/ui-api.json` + sample responses) is tested on the API side. The frontend is test-driven: `juanes6554`
 writes guidelines, the agent writes the tests first (Playwright acceptance with a network read-only guard, contract,
 unit), a CI job `frontend` enforces them. It starts with ACR-0001 (OD-10).
-References: `tasks/current/T-0015-ui-read-access.md`, `tasks/current/T-0016-frontend.md`.
+References: `tasks/completed/T-0015-ui-read-access.md`, `tasks/current/T-0016-frontend.md`.
 
 ## 2026-10-05 — Unintended practice-lab files removed from main
 
@@ -516,7 +516,7 @@ reads `deploy/scheduler/schedules.yaml` (shipped with no enabled schedule) and g
 fixes the backup check with one exported snapshot.
 Consequences: deploying it needs migration 003 before the worker starts; step 5 (vm-095, VM lease) proves a killed
 worker's run resumes and a schedule is submitted once and coalesced while busy. 161 passed, 1 skipped.
-References: `brain/tasks/current/T-0014-worker-scheduler.md`, `deploy/vm-095/compose.core.yml`,
+References: `brain/tasks/completed/T-0014-worker-scheduler.md`, `deploy/vm-095/compose.core.yml`,
 `deploy/migrations/003_worker_lease.sql`, PR #31 (OP-008).
 
 ## 2026-10-08 — T-0014 step 5: a killed worker's run resumes; the scheduler coalesces (T-0014)
@@ -534,7 +534,7 @@ the worker; the worker killed with `kill -9` in the middle of SC-02, the same in
 target was busy, the queued check run when the worker came back; shipped file restored. NO INTERFERENCE.
 Consequences: T-0014 is done and waits for review and merge (PR #33); then vm-095 back to `main` (checkout only),
 and T-0021 step 4 (compose for the tools process) can start. Phase 13 "kill the worker mid-run" is covered.
-References: `tasks/current/T-0014-worker-scheduler.md`, `execution/history/T-0014/step-05/evidence.md`.
+References: `tasks/completed/T-0014-worker-scheduler.md`, `execution/history/T-0014/step-05/evidence.md`.
 
 ## 2026-10-08 — T-0021: target-side reads in an MCP tools process under its own user (T-0021)
 
@@ -551,7 +551,7 @@ runs `ARGUS_TOOL_CATALOGUE=mcp`: TOOLS ISOLATION OK, SC-02 DIAGNOSED through the
 can no longer list) was found on the VM and fixed with a test. 183 passed, 2 skipped.
 Consequences: PR #36 needs a teammate's review (safety model). Until it merges, vm-095 must not get `main` without
 the rollback (its api and worker would not start). The code default stays `direct`; flipping it is for the review.
-References: `tasks/current/T-0021-tool-isolation.md`, `execution/history/T-0021/step-05/evidence.md`, PR #36.
+References: `tasks/completed/T-0021-tool-isolation.md`, `execution/history/T-0021/step-05/evidence.md`, PR #36.
 
 ## 2026-10-08 — SC-04 verified, reviews, T-0020 ready for review (T-0020)
 
@@ -569,7 +569,7 @@ its working folder and run it as `argus-tools` through the sudo launcher, reprod
 needed for `setpriv` → `sudo`), after-merge reviews of #33 and #37 posted. OP-009 opened from the #33 review.
 Consequences: T-0020 is done and waits for review. vm-095 runs T-0021 without T-0020, so the class reaches the agent
 when vm-095 is back on `main`. Phase 11 at 70 %.
-References: `tasks/current/T-0020-sc04-pg-connections.md`, `execution/history/T-0020/`, OPEN_PROBLEMS OP-009, PRs #33-#37.
+References: `tasks/completed/T-0020-sc04-pg-connections.md`, `execution/history/T-0020/`, OPEN_PROBLEMS OP-009, PRs #33-#37.
 
 ## 2026-10-08 — phase 7 on vm-166, OP-010 verified, SC-05 coded (T-0022, OP-010, T-0024)
 
@@ -589,7 +589,7 @@ declared mount, `disk_pressure`, `rslave`, the bounded filler and the lab mount 
 diagnosis showed the filler outside a host incident's scope, fixed with `depends_on` (the §5 rule).
 Consequences: vm-166 on `task/OP-010-reserved-slot`; T-0024 local only; PRs wait for #38 and for `conantkd`'s
 order; vm-095 work waits for #36. Session closed, lease released.
-References: `tasks/current/T-0022-alerting.md`, `tasks/current/T-0024-sc05-disk.md`, OPEN_PROBLEMS OP-010,
+References: `tasks/completed/T-0022-alerting.md`, `tasks/completed/T-0024-sc05-disk.md`, OPEN_PROBLEMS OP-010,
 `execution/history/T-0022/step-04/`, `execution/history/OP-010/step-01/`.
 
 ## 2026-10-08 — OP-009: a worker that loses its lease stops its run (OP-009)
@@ -617,7 +617,7 @@ starts the launcher from that folder (old launcher: STOP, fixed launcher: OK, on
 that hangs is now replaced after the call times out. vm-095's compose defaults to `mcp`. 185 passed, 2 skipped.
 Consequences: PR #36 needs the re-review and the ACR's second approval; vm-095 gets the fixed launcher with a
 redeploy of the branch and a new isolation check (step 5e, with the lease).
-References: `architecture/changes/ACR-0002-tools-uid-sudo-launcher.md`, `tasks/current/T-0021-tool-isolation.md`,
+References: `architecture/changes/ACR-0002-tools-uid-sudo-launcher.md`, `tasks/completed/T-0021-tool-isolation.md`,
 PR #36.
 
 ## 2026-10-09 — T-0021: step 5e on vm-095, and PR #36 merged before its re-review (T-0021)
@@ -631,7 +631,7 @@ TOOLS ISOLATION OK, NO INTERFERENCE. Meanwhile PR #36 was merged into `main` (`a
 Consequences: per REVIEW_PROTOCOL, a follow-up PR (`task/T-0021-review-fixes`) brings the fixes, ACR-0002 and the
 step 5e record to `main` and gets the missing review (no force push, no fast-track: ACR, safety principle). Until it
 merges, `main` must not be deployed on vm-095.
-References: `execution/history/T-0021/step-05e/evidence.md`, `tasks/current/T-0021-tool-isolation.md`, PR #36.
+References: `execution/history/T-0021/step-05e/evidence.md`, `tasks/completed/T-0021-tool-isolation.md`, PR #36.
 
 ## 2026-10-09 — T-0023: a runner for repeated end-to-end scenario runs (T-0023)
 
@@ -644,7 +644,7 @@ sleeps), always resets, stops the batch on interference or a failed reset, grade
 runbook, model use and the host of every read, and writes one JSON line per run outside the repository. Catalogue:
 H-1, H-2, SC-01, SC-02, SC-03, SC-07, SC-09, SC-11. 22 new tests; 206 passed, 2 skipped.
 Consequences: step 2 is the first real batch with the lease (H-1, H-2, SC-09, SC-11 once; SC-01 and SC-03 × 5).
-References: `tasks/current/T-0023-e2e-runner.md`, `ops/e2e/scenarios.yaml`.
+References: `tasks/completed/T-0023-e2e-runner.md`, `ops/e2e/scenarios.yaml`.
 
 ## 2026-10-09 — T-0023: the first real batch of the scenario runner (T-0023)
 
@@ -657,7 +657,7 @@ was reset and checked clean, the batch stopped as designed, and the runner now k
 dropped connection (`4f8ae43`).
 Consequences: phase 12 has its first repeated runs. Next: SC-02 and SC-07 × 5; each new scenario (SC-04 after #38)
 gets a catalogue entry and 5 runs.
-References: `tasks/current/T-0023-e2e-runner.md`, `execution/history/T-0023/step-02/evidence.md`.
+References: `tasks/completed/T-0023-e2e-runner.md`, `execution/history/T-0023/step-02/evidence.md`.
 
 ## 2026-10-09 — review of PR #40: two runner fixes made by the reviewer (T-0023)
 
@@ -669,7 +669,7 @@ Decision / result: (1) an incident view without `evidence` and `audit` (the runn
 never a PASS; before, the model and host checks passed on nothing. (2) The reset runs only once a start was attempted;
 SC-07's reset succeeds when its network is already gone. 6 new tests, red seen; `test_e2e_runner.py` 33 passed.
 Consequences: run the batches as an operator user. Every catalogued reset must be idempotent.
-References: `tasks/current/T-0023-e2e-runner.md`, PR #40.
+References: `tasks/completed/T-0023-e2e-runner.md`, PR #40.
 
 ## 2026-10-09 — OP-004 offline checkpoint retention implementation
 
@@ -697,7 +697,7 @@ test compares both surfaces with the architecture table (red before, green after
 promoted.
 Consequences: review the corpus-only PR. Library metadata revision is v1.1.1; the §1.3 v1.1.0 citation remains its
 original design baseline.
-References: `tasks/current/OP-001-runbook-detectors.md`, OPEN_PROBLEMS OP-001, `argus/runbooks/RUNBOOK-INDEX.md`.
+References: `tasks/completed/OP-001-runbook-detectors.md`, OPEN_PROBLEMS OP-001, `argus/runbooks/RUNBOOK-INDEX.md`.
 
 ## 2026-10-09 — OP-008 offline backup retention and snapshot consistency
 
@@ -723,7 +723,7 @@ becomes a false incident.
 Decision / result: the exporter publishes Docker's creation time and `restarts_10m` uses the young branch first.
 Three unit tests were red, then green. Five `promtool` synthetic-series cases pass and are added to CI. This is
 offline verification only; PR #38 and vm-166's T-0020 checkout must be reconciled before VM deployment and SC-01.
-References: `tasks/current/OP-005-restart-signal.md`, `tests/test_op005_young_restarts.py`,
+References: `tasks/completed/OP-005-restart-signal.md`, `tests/test_op005_young_restarts.py`,
 `tests/promql/op005_test.yml`, OPEN_PROBLEMS OP-005.
 
 ## 2026-10-09 — OP-005 verified on both VMs; PR #41 reviewed and fast-tracked (OP-005)
@@ -741,7 +741,7 @@ container invented no restart. `/opt/argus-v18/secrets/prometheus` created on pu
 NO INTERFERENCE on both.
 Consequences: OP-005 fixed. PR #43 (CI step) needs `juanbetancurm`. vm-166 runs `task/OP-005-vm166-proof` until the
 T-0022 and OP-010 PRs merge.
-References: `tasks/current/OP-005-restart-signal.md`, `execution/history/OP-005/step-02/evidence.md`, PRs #41, #43.
+References: `tasks/completed/OP-005-restart-signal.md`, `execution/history/OP-005/step-02/evidence.md`, PRs #41, #43.
 
 ## 2026-10-09 — T-0022 verified on both VMs: firing alerts are pulled and open incidents (T-0022)
 
@@ -755,7 +755,7 @@ Two alerts on one target (SC-03) opened two incidents: §6.4 correlation is not 
 NO INTERFERENCE on both.
 Consequences: T-0022 done; its PR needs `juanbetancurm`'s second approval of ACR-0003. Next: OP-011, the OP-010
 DIAGNOSED run at 100 %, T-0024 (SC-05).
-References: `tasks/current/T-0022-alerting.md`, `execution/history/T-0022/step-05/`, `step-06/`, OPEN_PROBLEMS OP-011.
+References: `tasks/completed/T-0022-alerting.md`, `execution/history/T-0022/step-05/`, `step-06/`, OPEN_PROBLEMS OP-011.
 
 ## 2026-10-09 — OP-010 fixed: SC-04 at 100 % DIAGNOSED from the pulled alert (OP-010)
 
@@ -781,7 +781,7 @@ testing only, not in fstab). The filler took it to 92.6 %; after 5 minutes `Host
 pulled it and `inc_4d78232433a1` was DIAGNOSED (`disk_pressure`, root cause `argus-lab-filler`), with no unscoped
 deletion advised. Reset; the lab filesystem stays mounted and empty. RB-005 1.0.2. NO INTERFERENCE on both.
 Consequences: T-0024 done; phase 11 at 80 % (SC-06, SC-08 left). The time to full lags a stop by up to 15 minutes.
-References: `tasks/current/T-0024-sc05-disk.md`, `execution/history/T-0024/step-02/evidence.md`.
+References: `tasks/completed/T-0024-sc05-disk.md`, `execution/history/T-0024/step-02/evidence.md`.
 
 ## 2026-10-09 — OP-011: alert correlation deployed; ACR-0004 (the same episode) accepted
 
@@ -823,7 +823,7 @@ When all of an incident's alerts resolve: queued → closed `resolved_externally
 concluded → unchanged. Migration 005: `resolved_at`, `UPDATE (status, resolved_at)` forward only for the runtime role.
 Consequences: code and tests done (301 passed, 3 skipped with Postgres); the VM step (migration 005 on vm-095, SC-03
 on vm-166) is next. Stacked on OP-011 (#48).
-References: `tasks/current/T-0026-alert-resolution.md`, `architecture/changes/ACR-0005-pull-alert-resolution.md`.
+References: `tasks/completed/T-0026-alert-resolution.md`, `architecture/changes/ACR-0005-pull-alert-resolution.md`.
 
 ## 2026-10-09 — T-0026 verified: SC-03's alerts resolve when the cache is back (T-0026, ACR-0005)
 
@@ -836,7 +836,7 @@ checkout. SC-03: one incident `inc_ed6a85ccd28f` (DIAGNOSED, two occurrences, no
 active); the cache started at 18:46:13, the alerts cleared at 18:46:54, and the pass at 18:46:56 resolved both
 occurrences (`absent_from_pull`), audited, the concluded incident unchanged. LAB BASELINE OK, NO INTERFERENCE.
 Consequences: T-0026 done; its PR is stacked on #48. Both VMs run `task/T-0026-alert-resolution`.
-References: `tasks/current/T-0026-alert-resolution.md`, `execution/history/T-0026/step-02/evidence.md`.
+References: `tasks/completed/T-0026-alert-resolution.md`, `execution/history/T-0026/step-02/evidence.md`.
 
 ## 2026-10-09 — T-0025: the §21.2 evaluation, step 1 (T-0025)
 
@@ -850,7 +850,7 @@ request, no cross-host read). The replay is pinned to fixtures, SQLite and no en
 inside the worker container without touching anything real. 7 cases; the 6 safety cases pass offline, recall@3 1.00.
 Consequences: step 2 adds the deterministic baseline strategy and 5 cases per enabled class; step 3 runs the real
 model's trials on vm-095 and gives each class its gate (or the baseline strategy).
-References: `tasks/current/T-0025-evaluation.md`, `tests/eval/`.
+References: `tasks/completed/T-0025-evaluation.md`, `tests/eval/`.
 
 ## 2026-10-09 — T-0025: the deterministic baseline and 29 evaluation cases (T-0025)
 
@@ -863,7 +863,7 @@ accuracy 1.00, safe abstention 1.00, hard 0 0 0. The cases and rules were writte
 consistency, not generality; the class registry is unchanged (all four classes still `model_loop`).
 Consequences: step 3 runs the configured model on the same cases on vm-095 (lease), ≥ 5 trials each; a class whose
 model results do not match the baseline switches to `baseline` in the registry (a data change).
-References: `tasks/current/T-0025-evaluation.md`, `tests/eval/`.
+References: `tasks/completed/T-0025-evaluation.md`, `tests/eval/`.
 
 ## 2026-10-09 — T-0025: the configured model measured on the §21.2 cases (T-0025)
 
@@ -879,7 +879,7 @@ and one wrong label); every fix is recorded in the task file.
 Consequences: proposal for the team: `dependency_unavailable` → `baseline` (the rule of §21.2), the others stay
 `model_loop`, with the bias caveat (the baseline's rules and the cases were written together). Open: the abstention
 gap and a rubric for evidence support.
-References: `tasks/current/T-0025-evaluation.md`, `tests/eval/`.
+References: `tasks/completed/T-0025-evaluation.md`, `tests/eval/`.
 
 ## 2026-10-09 — T-0027: the monitoring blind spot class; phase 7 complete (T-0027)
 
@@ -896,7 +896,7 @@ vm-166 → `inc_263f471e33e3` escalated as `monitoring_blind_spot`, evidence pac
 NO INTERFERENCE.
 Consequences: phase 7 complete. Open: absent scrape targets need a pinned expected-jobs list; `disk_pressure` needs
 its 5 cases (quality lane). PR stacked on T-0026.
-References: `tasks/current/T-0027-blind-spot.md`, `execution/history/T-0027/step-02/evidence.md`.
+References: `tasks/completed/T-0027-blind-spot.md`, `execution/history/T-0027/step-02/evidence.md`.
 
 ## 2026-10-10 — T-0029: SC-08 DIAGNOSED on vm-166; phase 11's planned scenarios done (T-0029)
 
@@ -911,7 +911,7 @@ nginx answered 504, the api's probe 200; `inc_46cdffa78fdb` DIAGNOSED with high 
 resolved after the scenario went down. NO INTERFERENCE.
 Consequences: SC-08 done; with SC-06 (T-0028) the planned scenarios of phase 11 are done. Both VMs run
 `task/T-0029-vm-proof` `eebfa72`. Open: `http_errors_latency` (RB-011), the access-log metrics (ACR).
-References: `tasks/current/T-0029-sc08-nginx.md`, `execution/history/T-0029/step-02/evidence.md`.
+References: `tasks/completed/T-0029-sc08-nginx.md`, `execution/history/T-0029/step-02/evidence.md`.
 
 ## 2026-10-10 — T-0030: a Postgres restart is a pause, never a crash (T-0030)
 
@@ -924,7 +924,7 @@ SC-03 run (the run DIAGNOSED) and stopped 30 s (the worker logged one retry, the
 no Argus container restarted; NO INTERFERENCE.
 Consequences: phase 13's Postgres restart is done. Next: Prometheus down on one host; token rotation. vm-095 runs
 `task/T-0030-vm-proof` `a56f014`, vm-166 `task/T-0029-vm-proof` `eebfa72`.
-References: `tasks/current/T-0030-pg-restart.md`, `execution/history/T-0030/step-02/evidence.md`.
+References: `tasks/completed/T-0030-pg-restart.md`, `execution/history/T-0030/step-02/evidence.md`.
 
 ## 2026-10-09 — T-0016 step 3: connect the read-only UI to the real API (T-0016)
 
@@ -958,7 +958,7 @@ DIAGNOSED with high confidence (quota-constrained, RB-006 H5; "do not restart or
 positive, resolved after the burner was removed. NO INTERFERENCE.
 Consequences: SC-06 done (phase 11). Both VMs run `task/T-0028-vm-proof` `ed689b0` (T-0027 + T-0028) until the stack
 merges. The busy-host CPU trigger stays open (needs the host-scope ACR).
-References: `tasks/current/T-0028-sc06-cpu.md`, `execution/history/T-0028/step-02/evidence.md`.
+References: `tasks/completed/T-0028-sc06-cpu.md`, `execution/history/T-0028/step-02/evidence.md`.
 
 ## 2026-10-10 — OP-004: checkpoint retention dry run on vm-095; the owner secret is not root's (OP-004)
 
@@ -995,7 +995,7 @@ brain tests pass. This is the first journal entry written as its own file (PARAL
 summaries are not edited by this task.
 Consequences: after the merge, `git pull` on `main`; claim only the VM you need. A change to the agent on vm-095
 still needs both leases.
-References: [`../tasks/current/LANES-1-lease-per-vm.md`](../tasks/current/LANES-1-lease-per-vm.md),
+References: [`../tasks/completed/LANES-1-lease-per-vm.md`](../tasks/completed/LANES-1-lease-per-vm.md),
 [`../policies/PARALLEL_LANES.md`](../policies/PARALLEL_LANES.md).
 
 ## 2026-10-10 — E2E-1: SC-04, SC-05, SC-06 in the runner catalogue
@@ -1008,7 +1008,7 @@ Decision / result: the catalogue entries use the commands of the VM proofs and g
 threshold. Resets remove only the lab container the scenario started (`rm -f`). 4 new test cases (red seen); the 36
 runner tests pass. No VM was touched.
 Consequences: a 5-run batch on vm-166 (step 2) needs that VM's lease. The shared summaries are left to the roll-up.
-References: [`../tasks/current/E2E-1-catalogue-sc04-06.md`](../tasks/current/E2E-1-catalogue-sc04-06.md).
+References: [`../tasks/completed/E2E-1-catalogue-sc04-06.md`](../tasks/completed/E2E-1-catalogue-sc04-06.md).
 
 ## 2026-10-10 — E2E-1 step 2: the runner's first batch on vm-166, 17/20 (E2E-1)
 
@@ -1022,7 +1022,7 @@ misses are the model's: SC-07 once named the client instead of the backend (a wr
 escalated without naming the filler (a safe abstention).
 Consequences: read the three incidents' evidence before changing anything; then a second batch of SC-07 and SC-05,
 and SC-02 when vm-095 is free. Phase 12: SC-01, SC-03, SC-04, SC-06 at 5/5.
-References: [`../tasks/current/E2E-1-catalogue-sc04-06.md`](../tasks/current/E2E-1-catalogue-sc04-06.md),
+References: [`../tasks/completed/E2E-1-catalogue-sc04-06.md`](../tasks/completed/E2E-1-catalogue-sc04-06.md),
 [`../execution/history/E2E-1/step-02/evidence.md`](../execution/history/E2E-1/step-02/evidence.md).
 
 ## 2026-10-10 — T-0032: Prometheus down on one host (phase 13)
@@ -1036,7 +1036,7 @@ the handling in each runner). On vm-095 Prometheus was stopped about 2 min: a vm
 LAB BASELINE OK, NO INTERFERENCE. No code change was needed.
 Consequences: no alert fires while a host's own Prometheus is down; a cross-host watcher or dead-man alert is a
 follow-up. The shared summaries are left to the roll-up.
-References: [`../tasks/current/T-0032-prometheus-down.md`](../tasks/current/T-0032-prometheus-down.md),
+References: [`../tasks/completed/T-0032-prometheus-down.md`](../tasks/completed/T-0032-prometheus-down.md),
 [`../execution/history/T-0032/step-02/evidence.md`](../execution/history/T-0032/step-02/evidence.md).
 
 ## 2026-10-10 — LANES-2: journal entries as files and brain.py rollup (LANES-2)
@@ -1052,7 +1052,7 @@ lint` refuses those three edits on task branches made after this rule (roll-up b
 `GITHUB_HEAD_REF`, and a 7th pins the CI case (detached HEAD, PR branch from that variable).
 Consequences: after the merge, agents write entry files; whoever merges last that day runs the roll-up on a
 `task/rollup-<date>` branch.
-References: [`../tasks/current/LANES-2-journal-rollup.md`](../tasks/current/LANES-2-journal-rollup.md).
+References: [`../tasks/completed/LANES-2-journal-rollup.md`](../tasks/completed/LANES-2-journal-rollup.md).
 
 ## 2026-10-10 — E2E-1 step 3: the misses are two evidence gaps; batch 2 (E2E-1)
 
@@ -1080,7 +1080,7 @@ Decision / result: `host.disk_usage` without a mount reads every declared mount;
 `networks` and `container.status` says when it is not on them (declared for SC-07's client and backend). 8 new tests
 (red seen 6/8); the baseline evaluation is unchanged (hard 0 0 0).
 Consequences: after the merge, rebuild vm-095's agent (both leases) and run SC-05 and SC-07 five times each.
-References: [`../tasks/current/E2E-2-evidence-gaps.md`](../tasks/current/E2E-2-evidence-gaps.md).
+References: [`../tasks/completed/E2E-2-evidence-gaps.md`](../tasks/completed/E2E-2-evidence-gaps.md).
 
 ## 2026-10-10 — E2E-2 follow-up: an unmounted disk is a stated fact, not a failed read (E2E-2)
 
@@ -1093,7 +1093,7 @@ the read fails only when every mount fails; an explicit mount fails as before; `
 tests (red seen 2/4). No VM step of its own: it ships with E2E-2's step 2 rebuild.
 Consequences: SC-05's re-run is unaffected while the lab filesystem is mounted; when it is removed, the model still
 sees the root disk and is told the lab mount is missing.
-References: [`../tasks/current/E2E-2-evidence-gaps.md`](../tasks/current/E2E-2-evidence-gaps.md).
+References: [`../tasks/completed/E2E-2-evidence-gaps.md`](../tasks/completed/E2E-2-evidence-gaps.md).
 
 ## 2026-10-10 — T-0031: the standing write-gate test (phase 8)
 
@@ -1109,7 +1109,7 @@ Step 3 (both leases): `--host-only` on vm-166, the Host T where §2 would place 
 CLOSED` (no action container, mount, variable or credential); the extended check again on vm-095: `WRITE GATE CLOSED`.
 Consequences: phase 8's standing test is done. The code is stricter than §12 (`container.restart` is not registered at
 all). The shared summaries are left to the roll-up.
-References: [`../tasks/current/T-0031-write-gate-standing.md`](../tasks/current/T-0031-write-gate-standing.md),
+References: [`../tasks/completed/T-0031-write-gate-standing.md`](../tasks/completed/T-0031-write-gate-standing.md),
 [`../execution/history/T-0031/step-02/evidence.md`](../execution/history/T-0031/step-02/evidence.md),
 [`../execution/history/T-0031/step-03/evidence.md`](../execution/history/T-0031/step-03/evidence.md).
 
@@ -1127,8 +1127,8 @@ writer was unproven.
 Consequences: both evidence gaps are closed. A new, smaller one is open: nothing but the logs links a container to
 the filesystem it fills. The general fix, `container.status` reporting the container's host mounts, is
 recorded as the pending task E2E-3 (not started).
-References: [`../tasks/current/E2E-2-evidence-gaps.md`](../tasks/current/E2E-2-evidence-gaps.md),
-[`../tasks/current/E2E-3-container-mounts.md`](../tasks/current/E2E-3-container-mounts.md),
+References: [`../tasks/completed/E2E-2-evidence-gaps.md`](../tasks/completed/E2E-2-evidence-gaps.md),
+[`../tasks/completed/E2E-3-container-mounts.md`](../tasks/completed/E2E-3-container-mounts.md),
 [`../execution/history/E2E-2/step-02/evidence.md`](../execution/history/E2E-2/step-02/evidence.md).
 
 ## 2026-10-11 — E2E-3 step 1: container.status names the declared filesystems a container mounts (E2E-3)
@@ -1142,7 +1142,7 @@ declared mount with `rw`/`ro` and a count of the other binds; `container.status`
 `host_mounts=/srv/argus-lab-fill(rw)`. Matching in the gateway (not the catalogue) keeps every undeclared host path on
 the VM. 5 new tests (red seen 4/5); the baseline evaluation is unchanged.
 Consequences: after the merge, both leases: rebuild vm-166's read-gateway and vm-095's agent, then SC-05 × 5.
-References: [`../tasks/current/E2E-3-container-mounts.md`](../tasks/current/E2E-3-container-mounts.md).
+References: [`../tasks/completed/E2E-3-container-mounts.md`](../tasks/completed/E2E-3-container-mounts.md).
 
 ## 2026-10-11 — LANES-2 follow-up: the roll-up keeps the merge order within a day (LANES-2)
 
@@ -1154,7 +1154,7 @@ Decision / result: `brain.py rollup` sorts by the date in the file name, then by
 (its first first-parent commit: on `main`, its PR's merge), then by name; an entry not committed yet comes last.
 Replayed on `main` before #73, it gives exactly the order set by hand in #73. 1 new test (red seen).
 Consequences: no hand reordering in the next roll-ups.
-References: [`../tasks/current/LANES-2-journal-rollup.md`](../tasks/current/LANES-2-journal-rollup.md).
+References: [`../tasks/completed/LANES-2-journal-rollup.md`](../tasks/completed/LANES-2-journal-rollup.md).
 
 ## 2026-10-11 — E2E-4: SC-08 in the runner catalogue (E2E-4)
 
@@ -1165,7 +1165,7 @@ Decision / result: its catalogue entry uses T-0029's start command and gates on 
 (`http_gateway_error_ratio_5m` ≥ 0.5); the reset removes only `argus-lab-nginx` and `argus-lab-slow` (never
 `compose down`). 2 new test cases (red seen); 37 runner tests pass.
 Consequences: `run.py --runs 5 SC-08` on vm-166 (its lease) completes phase 12's catalogue except SC-10/SC-12.
-References: [`../tasks/current/E2E-4-catalogue-sc08.md`](../tasks/current/E2E-4-catalogue-sc08.md).
+References: [`../tasks/completed/E2E-4-catalogue-sc08.md`](../tasks/completed/E2E-4-catalogue-sc08.md).
 
 ## 2026-10-11 — E2E-3 step 2: both VMs on main with host_mounts; SC-08 5/5, SC-05 3/5 (the misses read) (E2E-3)
 
@@ -1178,9 +1178,9 @@ CLOSED, LAB BASELINE OK, NO INTERFERENCE). Batch: SC-08 5/5, SC-05 3/5, 0 errors
 `host_mounts=/srv/argus-lab-fill(rw)` and called the filler the likely writer, but named the host. They concluded
 without reading the filler's logs, so the gap is a confirmation read, not a fact.
 Consequences: proposed E2E-5, a rule-planned confirmation read of the suspected writer, as the next step.
-References: [`../tasks/current/E2E-3-container-mounts.md`](../tasks/current/E2E-3-container-mounts.md),
+References: [`../tasks/completed/E2E-3-container-mounts.md`](../tasks/completed/E2E-3-container-mounts.md),
 [`../execution/history/E2E-3/step-02/evidence.md`](../execution/history/E2E-3/step-02/evidence.md),
-[`../tasks/current/E2E-5-confirm-writer.md`](../tasks/current/E2E-5-confirm-writer.md).
+[`../tasks/completed/E2E-5-confirm-writer.md`](../tasks/completed/E2E-5-confirm-writer.md).
 
 ## 2026-10-11 — E2E-5 step 1: confirm_then_reason, a rule-planned confirmation round (E2E-5, ACR-0007)
 
@@ -1207,7 +1207,7 @@ Decision / result: on vm-095 the gate's PromQL runs inside `argus-v18-prometheus
 URL-encoded by the runner); vm-166 unchanged. Checked read-only on vm-095 first. No deploy change, no new port.
 Tests: 2 new, red seen; runner tests 39/39.
 Consequences: SC-02 × 5 can run (step 2, vm-095's lease).
-References: [`../tasks/current/E2E-6-prom-gate-vm095.md`](../tasks/current/E2E-6-prom-gate-vm095.md).
+References: [`../tasks/completed/E2E-6-prom-gate-vm095.md`](../tasks/completed/E2E-6-prom-gate-vm095.md).
 
 ## 2026-10-11 — EVAL-1: the disk_pressure cases and baseline rule (§21.2) (EVAL-1)
 
@@ -1226,7 +1226,7 @@ text); else it escalates. The stopped writer with history is a declared baseline
 names only running writers; reading that history is the model's job. `AWAITING_CASES` is empty. Baseline: 55 cases,
 52 pass (the three declared misses), `disk_pressure` 7/8, hard 0 0 0.
 Consequences: the model's run on these cases (vm-095, the configured model × 5) goes with the next evaluation batch.
-References: [`../tasks/current/T-0025-evaluation.md`](../tasks/current/T-0025-evaluation.md).
+References: [`../tasks/completed/T-0025-evaluation.md`](../tasks/completed/T-0025-evaluation.md).
 
 ## 2026-10-11 — E2E-6 step 2: SC-02 5/5 on vm-095 (E2E-6)
 
@@ -1239,7 +1239,7 @@ Decision / result: `run.py --runs 5 SC-02` on vm-095's current agent (`e3286df`)
 Tests: none (a VM batch).
 Consequences: SC-02 passes Phase 12's five-run bar. The remaining Phase 12 scenario is SC-05, after #82 and vm-095's
 agent rebuild on main (E2E-5).
-References: [`../tasks/current/E2E-6-prom-gate-vm095.md`](../tasks/current/E2E-6-prom-gate-vm095.md).
+References: [`../tasks/completed/E2E-6-prom-gate-vm095.md`](../tasks/completed/E2E-6-prom-gate-vm095.md).
 
 ## 2026-10-12 — EVAL-2: the configured model on all 55 evaluation cases, and the fixes it showed (EVAL-2, ACR-0008)
 
@@ -1258,7 +1258,7 @@ Consequences: §3 "Enablement" now has a model measurement for every registered 
 cpu, blind spot, postgres match; disk beats; nginx, dependency, restart loop, health are 0.04-0.20 under (escalations
 and wording); the registry decision is the team's. A host-wide `docker image prune` ran during the clean-up (no
 non-Argus change); next time remove the Argus image by name only.
-References: [`../tasks/current/EVAL-2-model-trials.md`](../tasks/current/EVAL-2-model-trials.md),
+References: [`../tasks/completed/EVAL-2-model-trials.md`](../tasks/completed/EVAL-2-model-trials.md),
 [`../architecture/changes/ACR-0008-stopped-writer-suspect.md`](../architecture/changes/ACR-0008-stopped-writer-suspect.md).
 
 ## 2026-10-12 — T-0019 batch 2: the host-probe's diagnosis verbs (load, io, top processes, sockets, directory sizes, kernel OOM records)
@@ -1316,7 +1316,7 @@ while `main-guard` was red and before ACR-0007's acceptance was on record (the u
 Tests: none (a VM batch).
 Consequences: Phase 12's five-run bar is met for SC-05 (and SC-02, E2E-6). E2E-5 is done. ACR-0008 (#89) extends the
 same round to an exited writer.
-References: [`../tasks/current/E2E-5-confirm-writer.md`](../tasks/current/E2E-5-confirm-writer.md).
+References: [`../tasks/completed/E2E-5-confirm-writer.md`](../tasks/completed/E2E-5-confirm-writer.md).
 
 ## 2026-10-12 — OP-012 step 1: the per-incident read limit holds under the LangGraph runner (OP-012)
 
@@ -1330,7 +1330,7 @@ only), so the limit holds for the whole incident and across a resume. No ACR: th
 policy file.
 Tests: 3 new (red seen), both runners and a resume; related suites 143 passed.
 Consequences: the deployed agent gets the fix with its next rebuild on `main` (step 2, both leases).
-References: [`../tasks/current/OP-012-incident-read-budget.md`](../tasks/current/OP-012-incident-read-budget.md).
+References: [`../tasks/completed/OP-012-incident-read-budget.md`](../tasks/completed/OP-012-incident-read-budget.md).
 
 ## 2026-10-12 — EVAL-3 step 1: an exit 137 without an OOM kill escalates (EVAL-3)
 
@@ -1344,7 +1344,7 @@ label changed after seeing the model's answers; recorded here and in the task, j
 Tests: 3 new (red seen); related suites 138 passed. Baseline unchanged: 52/55, hard 0 0 0.
 Consequences: the model's escalation of an unexplained kill counts as right; `container_restart_loop` should rise in
 the next evaluation batch.
-References: [`../tasks/current/EVAL-3-sigkill-label.md`](../tasks/current/EVAL-3-sigkill-label.md).
+References: [`../tasks/completed/EVAL-3-sigkill-label.md`](../tasks/completed/EVAL-3-sigkill-label.md).
 
 ## 2026-10-12 — T-0033 step 1: a rotated executor token is picked up without a restart (T-0033)
 
@@ -1357,7 +1357,7 @@ the tools process and the direct mode wire it to `Settings.secret`. `ops/rotate-
 host (never printed, `.prev` kept, the one service recreated, `--rollback`). No ACR.
 Tests: 4 new (red seen); full suite green locally (see the PR).
 Consequences: a rotation becomes a short window of `forbidden` reads (escalations), then recovery without a restart.
-References: [`../tasks/current/T-0033-token-rotation.md`](../tasks/current/T-0033-token-rotation.md).
+References: [`../tasks/completed/T-0033-token-rotation.md`](../tasks/completed/T-0033-token-rotation.md).
 
 ## 2026-10-12 — T-0033 step 2: a token rotated on vm-166, picked up without a restart; #91–#95 deployed (T-0033)
 
@@ -1371,5 +1371,252 @@ vm-166 checkout only. vm-166's `host_probe` token rotated with `ops/rotate-token
 Leases released. One correction while running (T.4's hash lines), recorded in the evidence.
 Consequences: Phase 13's token rotation is covered for `docker_read`, `host_probe` and `network_probe`; `db_probe`
 also needs its Prometheus scrape token and stays manual.
-References: [`../tasks/current/T-0033-token-rotation.md`](../tasks/current/T-0033-token-rotation.md),
+References: [`../tasks/completed/T-0033-token-rotation.md`](../tasks/completed/T-0033-token-rotation.md),
 [evidence](../execution/history/T-0033/step-02/evidence.md).
+
+## 2026-10-12 — EVAL-3 step 2: the model escalates the unexplained SIGKILL 5/5; 0.96 on the 55 cases (EVAL-3)
+
+Type: test result
+Who: conantkd (+ agent)
+Context: EVAL-3 step 1 (#93) relabelled `restart-sigkill-01` `no_action_escalated` (RB-008). Step 2 runs the configured
+model on the 55 cases, the first model run on `main` after OP-012 and T-0033.
+Decision / result: vm-095, `ops/eval-run.sh` with its defaults (the deployed image and checkout, `main` `244453b`), 5
+trials: 0.96 (core 0.99), abstention 0.98, `restart-sigkill-01` 5/5, restart loop 1.00, disk 1.00, hard 0 0 0.
+`health_check_failed` 0.72 (8 of the 10 misses with `ambiguous-health-no-cause`), nginx 0.92. NO INTERFERENCE.
+Consequences: EVAL-3 is done. The health class is the weakest: the "health check" wording question has numbers now.
+References: [`../tasks/completed/EVAL-3-sigkill-label.md`](../tasks/completed/EVAL-3-sigkill-label.md),
+[evidence](../execution/history/EVAL-3/step-02/evidence.md).
+
+## 2026-10-12 — T-0019 batch 3a: the inspection policy (§4.7) before any file, journal or process read (T-0019)
+
+Type: feature
+Who: conantkd (+ agent)
+Context: T-0019 batch 3 adds host-probe verbs that read files, service configuration, the journal and process details.
+§4.7 says a per-target inspection policy decides what they may touch; none existed. Batch 3 is split in three PRs
+(3a policy, 3b host verbs, 3c network verbs) so the policy is reviewed on its own.
+Decision / result: `config/policy.yaml` gains `inspection:` (`files` empty everywhere; nginx's `default.conf` as
+`service_config`; journal `docker.service`/`containerd.service` 200 lines; `processes` on both hosts; deny list;
+`arbitrary_exec: false`). `argus/policy/inspection.py` decides each read (deny wins, a built-in deny floor, paths
+refused unless already normal); the engine applies it as rule `inspection`; `build()` refuses entries outside the
+inventory or the host's declared mounts; each probe's rendered config carries its host's part. `journal` will read
+`/var/log/syslog` (rsyslog) filtered by unit, as `kern.log` in batch 2. No ACR (§4.7, §12.2).
+Consequences: nothing reads the policy until 3b's verbs exist; no deploy for 3a alone. Touches what Argus may read: a
+teammate's approval is required.
+References: [`../tasks/current/T-0019-db-probe.md`](../tasks/current/T-0019-db-probe.md).
+
+## 2026-10-12 — T-0033 follow-up: rotate-token.sh keeps the mode on a rollback and reports a failed recreate (T-0033)
+
+Type: fix
+Who: conantkd (+ agent)
+Context: the review of #94 found two gaps in `ops/rotate-token.sh`, both on the error paths: `--rollback` left the live
+token with `.prev`'s mode 0400, and a failed `docker compose` recreate was hidden and still reported "recreated".
+Decision / result: the rollback writes `.prev`'s content into a new file with the live file's owner and mode; the
+recreate's exit status is checked: on failure the script prints the error, says the service still holds the previous
+token and how to roll back, and exits 1. The script takes `ARGUS_DEPLOY_HOME`, `ARGUS_DOCKER`, `ARGUS_HOSTNAME` for tests.
+Consequences: no deploy needed (the script runs from the checkout; it reaches the VMs with the next `deploy.sh main`).
+References: [`../tasks/completed/T-0033-token-rotation.md`](../tasks/completed/T-0033-token-rotation.md).
+
+## 2026-10-12 — E2E-8 planned: close Phase 12 (five runs of every scenario) for juanbetancurm (E2E-8)
+
+Type: decision
+Who: conantkd (+ agent)
+Context: Phase 12 is at 80 %: SC-01 … SC-08 are 5/5; H-1, H-2, SC-09, SC-11 ran once; SC-10, SC-12 and the identity
+proof are not in the runner catalogue (they stop Argus's own services, or need two incidents at once).
+Decision / result: task file `E2E-8-phase12-close.md` written for `juanbetancurm`: prerequisites (the merge order of
+#97–#103 and an AFTER-MERGE of both VMs to `main`), the catalogue entries for SC-10, SC-12 and the identity proof
+(tests first; the identity proof needs a small runner change), and five runs of each.
+Consequences: Phase 12 reaches 100 % when every line is 5/5. `conantkd` released both leases after T-0019 step 08.
+References: [`../tasks/current/E2E-8-phase12-close.md`](../tasks/current/E2E-8-phase12-close.md).
+
+## 2026-10-12 — EVAL-4: health diagnoses may name the failing check in other words; strict accuracy 0.96 → 0.99 (EVAL-4)
+
+Type: fix
+Who: conantkd (+ agent)
+Context: EVAL-3 step 2 (#99): `health_check_failed` 0.72 strict, 0.99 core overall; 6 of the 8 health misses had the
+right root cause and class but wrote "health probe" or "unhealthy" instead of "health check".
+Decision / result: the five health cases accept `health check`, `healthcheck`, `health probe`, `unhealthy` (relabelled
+after seeing the answers, disclosed). New `argus.evaluation.regrade` grades a stored results file again without a model
+call. EVAL-3 step 2's 275 runs: 265 → 271 passed, 0.96 → 0.99 (core 0.99), health 0.72 → 0.96; the old labels
+reproduce the run's own summary exactly.
+Consequences: the health wording question is closed. Real misses left: one health escalation with the cause in the
+logs, one abstain miss, two nginx runs without the upstream as root cause.
+References: [`../tasks/completed/EVAL-4-health-wording.md`](../tasks/completed/EVAL-4-health-wording.md).
+
+## 2026-10-12 — EVAL-5: the model sees which URL and port each target allows (EVAL-5)
+
+Type: fix
+Who: conantkd (+ agent)
+Context: EVAL-3 step 2 and T-0019 batch 3c: `check_http_endpoint` was called 11 times on `argus-lab-slow`, which has
+no HTTP endpoint in the inventory (TCP 8080 only); every call failed as `invalid_args`, and the three nginx misses
+escalated or named no root cause after it ("the direct probe was invalid").
+Decision / result: `InvestigationView.allowed_values` carries, per target in scope, the inventory's `http_endpoints`
+(`url`) and `tcp_ports` (`port`), filled by both runners. In the tool definitions, a probe with such an argument is
+offered only on targets with allowed values, the argument gets an enum, and the description lists them ("Allowed:
+vm-166/container:argus-lab-nginx: http://argus-lab-nginx:8080/"). A probe with no allowed target is not offered.
+Consequences: the model can no longer ask a URL or port the probe would refuse. Not yet measured with the model (both
+leases were released; the next evaluation batch on vm-095 measures it, nginx cases first).
+References: `argus/tooling/model_harness.py`, `argus/orchestration/runner.py`.
+
+## 2026-10-12 — T-0034: combined capabilities (§12.7) and the first one, the diagnostic snapshot (T-0034)
+
+Type: feature
+Who: conantkd (+ agent)
+Context: §12.7's combined capabilities had no mechanism (T-0019 3c chose not to build it for one network verb).
+Decision / result: `CapabilitySpec.max_subcalls`; `InvokeCapability` runs a combined capability with a read-only
+sub-invoker: each sub-read goes back through `InvokeCapability` (caller `capability:<name>`, shared budget, policy,
+audit, evidence); past `max_subcalls` or nested = refused and audited; the result references its sub-reads, and both
+runners keep them as citable evidence (`refs_of`). First use `analysis.diagnostic_snapshot` (Level 3, 6 sub-reads),
+offered to no class until an evaluation batch measures it. No ACR (§12.7 as written).
+Consequences: Phase 4's open item (combined capabilities) has its mechanism; `analysis.timeline` and
+`analysis.trace_request_path` can follow on it.
+References: [`../tasks/completed/T-0034-combined-capabilities.md`](../tasks/completed/T-0034-combined-capabilities.md).
+
+## 2026-10-12 — T-0019 batch 3b: file, configuration, journal and process reads under §4.7; phase 3 complete (T-0019)
+
+Type: feature
+Who: conantkd (+ agent)
+Context: batch 3a (#98) put the §4.7 inspection policy in `config/policy.yaml`; batch 3b adds the host-probe verbs
+that use it. EVAL-3 step 2 and 3c: nginx misses where the model could not see the configured timeout.
+Decision / result: four Level 3 capabilities (`host.read_file`, `host.service_config`, `host.journal`,
+`host.process_details`); the probe re-checks the policy from its rendered copy (same rules, a parity test), refuses
+symbolic links and non-regular files, bounds lines and bytes; the journal is rsyslog's text by program; process details
+never read `cmdline` or `environ`. Only `host.service_config` is offered (to `nginx_upstream_failure`). The six nginx
+cases answer it with the lab's `default.conf`. Every `host-probe` verb of §4.6 now exists: phase 3 is complete.
+Consequences: verified on both VMs before the merge; the PR is stacked on #98.
+References: [`../tasks/current/T-0019-db-probe.md`](../tasks/current/T-0019-db-probe.md).
+
+## 2026-10-12 — T-0019 batch 3c: why two containers cannot reach each other, and repeated TCP (T-0019)
+
+Type: feature
+Who: conantkd (+ agent)
+Context: batch 3 split in 3a (inspection policy, #98), 3b (host verbs) and 3c (network verbs). SC-07 (T-0018): the
+model sees a failing DNS/TCP from the app network, and has to infer from two statuses that the backend sits on
+another network.
+Decision / result: `network.connectivity` (Level 2, read gateway `GET /connectivity`): both sides' networks and the
+shared ones, names only; offered to `dependency_unavailable` only. `network.tcp_connect` takes `attempts` (1-5) with
+each attempt's latency. Option A2 (decided by `conantkd`); the §12.7 combined capability was not built for one use.
+`listening_ports` is left out (it needs a container's network namespace: two executors). The 6 dependency evaluation
+cases answer the new route from their own status fixtures.
+Verified on both VMs (`030690a`, both leases): the routes from the host, the agent's code path, and the model on the
+55 cases × 5: 0.96 (core 0.99), hard 0 0 0; `check_connectivity` used in 25 runs; SC-07's case read in 2 reads with
+the cause stated (4.16 → 3.40 reads per dependency run). LAB BASELINE OK, NO INTERFERENCE.
+Consequences: both VMs run the branch until it merges (then AFTER-MERGE to `main`).
+References: [`../tasks/current/T-0019-db-probe.md`](../tasks/current/T-0019-db-probe.md).
+
+## 2026-10-12 — The redactor masks secrets, not file paths (REDACT-paths)
+
+Type: fix
+Who: conantkd (+ agent)
+Context: T-0019 batch 3b step 08: `inspect_service_config` on vm-095 showed nginx's configuration path as
+`/[REDACTED HIGH-ENTROPY].conf`; the high-entropy rule (40+ characters of `[A-Za-z0-9+/_=-]`) took
+`opt/argus-v18/app/deploy/lab/nginx/default` for a token.
+Decision / result: a high-entropy match that is a run of lower-case path segments (at most 32 characters each, no `+`
+or `=`, optionally after `key=`) is left as is; everything else is masked as before. On all 853 fixture strings of the
+55 evaluation cases the new redactor gives exactly the old output; tokens (mixed case, base64, long hex) stay masked.
+Consequences: paths in observations (configuration files, mounts, logs) reach the model readable.
+References: `argus/capabilities/redaction.py`, `tests/test_redaction_paths.py`.
+
+## 2026-10-12 — ACR-0009 proposed: a monitoring heartbeat per host (ACR-0009)
+
+Type: decision
+Who: conantkd (+ agent)
+Context: Phase 13's last item (T-0032's "not covered"): when a host's Prometheus stops, nothing tells anyone, and the
+host's application alerts expire after about 4 minutes, so `resolve_absent` (ACR-0005) records resolutions that never
+happened and closes queued incidents `resolved_externally`.
+Decision / result: ACR-0009 proposed (document only). An always-firing `ArgusMonitoringHeartbeat` alert per host,
+checked on every reconcile tick by renewal (`updatedAt`, `endsAt`), not presence, silences included; a lost heartbeat
+opens one incident per host and episode (`monitoring_blind_spot`, RB-014, "Host monitoring unavailable"), escalated at
+once with no run and no model call; no resolution of that host's alerts while lost; recovery after two fresh ticks;
+explicit, time-bounded maintenance by CLI; state in Postgres; a bounded readiness read of the host's Prometheus to
+refine the cause. Alternatives (cross-host watching, direct Prometheus polling, relying on investigations, a new class)
+recorded in the ACR.
+Consequences: implementation T-0035 after acceptance, in its own PR (it applies the ACR to `ARCHITECTURE.md`, 1.8.8),
+then a VM proof with both leases.
+References: [`../architecture/changes/ACR-0009-monitoring-heartbeat.md`](../architecture/changes/ACR-0009-monitoring-heartbeat.md).
+
+## 2026-10-12 — brain.py lint lets a task branch merge main after a roll-up (LINT-merge-base)
+
+Type: fix
+Who: conantkd (+ agent)
+Context: merging `main` into #101 and #103 (after the roll-up #97) was refused by the pre-commit lint: "a task branch
+does not edit the shared summaries" for `logbook.md`, `CURRENT_TEST_STATE.md` and `NEXT_STEP.md`. While `git merge`
+is in progress HEAD is still the branch's old tip, so `merge-base(HEAD, origin/main)` is the old base and the
+summaries changed by main's roll-up looked like the branch's own edits. Any task branch merging `main` after a
+roll-up hits it.
+Decision / result: `summary_edits` judges from `MERGE_HEAD` when a commit of `main` is being merged: only what the
+branch changes on top of it counts. A summary edited by the branch during the merge is still refused. Not skipped with
+`--no-verify`: the merges of #101 and #103 wait for this fix.
+Consequences: touches the enforcement (`brain.py`): needs a teammate's approval. After the merge, `main` is merged into
+#103 and #101.
+References: `brain/tools/brain.py` (`summary_edits`), `tests/brain/test_brain.py`.
+
+## 2026-10-12 — Local CI: the checks of ci.yml on a laptop when GitHub Actions does not run (LOCAL-CI)
+
+Type: process
+Who: juanbetancurm (+ agent)
+Context: the runs on `main` after #103, #101 and #107 did not start (GitHub Actions jobs "not started"). The merges
+had been checked on a laptop (full suite, lint, render, `verify-main` on `5b01397`), but nothing in the protocol said
+how, or what counts as the merge check then.
+Decision / result: `ops/local_ci.py` runs the steps of `.github/workflows/ci.yml` on an exact commit (a PR's last push
+in a clean temporary worktree, `origin/main` with `verify-main`, or a clean HEAD) and prints one `LOCAL CI PASS|FAIL
+<commit>` block; `--post` comments it on the PR. A missing tool is `skipped`, never a pass; a test that fails in the
+full run and passes alone is `flaky`; a test on the `KNOWN_LOCAL` list (failing only on a laptop, today the MCP timing benchmark) is `known-local`, named. `REVIEW_PROTOCOL.md` ("When CI does not run"): the reviewer's `LOCAL CI PASS`
+comment on the approved commit replaces the green CI in the merge check; after merging, `--main` replaces
+`main-guard`. `TDD.md` stages 5-6 and `AGENT_PROTOCOL.md` point to it.
+Consequences: every developer and agent follows the same steps while Actions does not run; when it runs again, its CI
+is the merge check again.
+References: `ops/local_ci.py`, `tests/test_local_ci.py`, `brain/agents/REVIEW_PROTOCOL.md`.
+
+## 2026-10-12 — AFTER-MERGE: both VMs on main d34f0cb (#97–#111)
+
+Type: deployment
+Who: conantkd (+ agent; the agent ran the blocks over ssh)
+Context: the VMs ran `task/T-0019-batch3b-host-verbs` `9ac49ec` (3a + 3b) while #97–#111 were merged. `juanbetancurm`
+asked in #110 not to deploy `main` before #110 (redactor: only declared paths readable) and #109 (`/tcp` 8 s budget).
+Both merged; #111 (local CI) adds only `ops/local_ci.py` and docs.
+Decision / result: both VMs on `main` `d34f0cb`: target services rebuilt on both; on vm-095 one backup, then agent,
+worker and scheduler recreated together on one image. Checks: 20/20 database, 55/55 phase 3, write gate closed,
+LAB BASELINE OK and NO INTERFERENCE on both; the 3c routes and the agent's 3c reads answer; the snapshot is in the
+catalogue; the redactor keeps the declared nginx path and masks a URL-path secret.
+Consequences: the deployment matches `main` again. Next on the VMs: measure EVAL-5 and the snapshot (model calls).
+References: [evidence](../execution/history/AFTER-MERGE-main/step-01/evidence.md), session `4f8a9d4f8dc1`.
+
+## 2026-10-13 — The redactor keeps only the paths Argus declared readable (REDACT-declared-paths)
+
+Type: fix
+Who: juanbetancurm (+ agent)
+Context: #107 (REDACT-paths) left every run of lower-case path segments unmasked, so the nginx configuration path of
+T-0019 3b reached the model readable. The review of #107 found that it also let lower-case secrets in URL paths
+through (an API key in `/api/v1/keys/<32 hex>`, a webhook URL, a presigned download path), which `main` before #107
+masked. #107 was merged on the condition that this is fixed before `main` is deployed to the VMs.
+Decision / result: `Redactor(declared=...)` sets aside only the paths Argus itself declared before the high-entropy
+rule and puts them back after it: the inspection policy's `service_config` and `files` entries and the inventory's
+mounts (as directories; `/` declares nothing), from `wiring.declared_paths`, in both places the redactor is built
+(`build`, `tools_dispatcher`). Every other path is masked as before #107. On the 899 fixture strings of the
+evaluation cases, the new redactor differs from the one before #107 only on the 6 strings that are the declared nginx
+`default.conf` path.
+Consequences: the nginx configuration path stays readable for the model; a secret in any undeclared path is masked
+again. Declaring a new `files` entry in the policy also makes its path readable.
+References: `argus/capabilities/redaction.py`, `argus/infrastructure/wiring.py`, `tests/test_redaction_paths.py`.
+
+## 2026-10-13 — Task files brought up to date with the merged pull requests
+
+Type: process
+Who: conantkd (+ agent)
+Context: many files in `tasks/current/` still said `in progress`, `in review` or "waits for review" after their pull
+requests had merged (checked against GitHub's merged list, #7-#112); two ACRs applied to the architecture still said
+`proposed`.
+Decision / result:
+- 31 finished tasks moved to `tasks/completed/` with their final status and PR numbers (the rule in
+  `tasks/completed/README.md`); every link to them rewritten (`lint` clean).
+- 5 stay in `tasks/current/`: E2E-8 (planned, `juanbetancurm`), OP-004 and OP-008 (the first `--apply` waits for a
+  teammate's review of the dry run), T-0016 (Playwright, the network guard and the contract check still open,
+  `juanes6554`), T-0019 (its deny-floor follow-up #114 is in review). OP-004's status said "VM dry run pending": it
+  was done 2026-10-10.
+- T-0023 step 3 is done through E2E-1 to E2E-6 (SC-01 to SC-08 at 5/5); E2E-4's step 2 was E2E-3 step 2's SC-08 5/5.
+- ACR-0003 `accepted` (`juanbetancurm`'s approval of #45, 2026-10-09) and ACR-0008 `accepted` (approval of #89,
+  2026-10-12): both were already applied (architecture 1.8.3 and 1.8.7).
+- The class-registry question of T-0025 and EVAL-2 is now an open decision of its own: D-003 in `OPEN_PROBLEMS.md`.
+  OP-001 there: PR #44 merged.
+Consequences: Brain only, no code. Done on the roll-up branch because `NEXT_STEP.md` links to some of the moved files.
+References: `brain/tasks/completed/`, `brain/OPEN_PROBLEMS.md` (D-003).
