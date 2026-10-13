@@ -6,8 +6,12 @@
   "base_commit": "5296671b0e7a23685bd160e7b603a5e54855d8cd",
   "started_at": "2026-10-13T02:07:34+00:00",
   "expires_at": "2026-10-13T04:07:42+00:00",
-  "released": false,
-  "handoff": null,
+  "released": true,
+  "handoff": {
+    "note": "Both VMs still run task/T-0019-batch3b-host-verbs 9ac49ec (3a+3b); nothing was deployed in session 2f45e4f747a1 (SESSION marker not written). main is 5296671 (#97-#108 merged). AFTER-MERGE to main pending: block ready in conantkd's local brain/execution/current/code.bash (M.1, A.1 both VMs, A.2, A.3). Open: #109 (lint merge-base fix + /tcp 8 s budget, needs teammate approval). GitHub Actions minutes exhausted: CI does not run.",
+    "branch": "main",
+    "at": "2026-10-13T02:31:56+00:00"
+  },
   "vms": {
     "vm-095": {
       "holder": "conantkd",
@@ -17,8 +21,12 @@
       "base_commit": "5296671b0e7a23685bd160e7b603a5e54855d8cd",
       "started_at": "2026-10-13T02:07:34+00:00",
       "expires_at": "2026-10-13T04:07:42+00:00",
-      "released": false,
-      "handoff": null
+      "released": true,
+      "handoff": {
+        "note": "Both VMs still run task/T-0019-batch3b-host-verbs 9ac49ec (3a+3b); nothing was deployed in session 2f45e4f747a1 (SESSION marker not written). main is 5296671 (#97-#108 merged). AFTER-MERGE to main pending: block ready in conantkd's local brain/execution/current/code.bash (M.1, A.1 both VMs, A.2, A.3). Open: #109 (lint merge-base fix + /tcp 8 s budget, needs teammate approval). GitHub Actions minutes exhausted: CI does not run.",
+        "branch": "main",
+        "at": "2026-10-13T02:31:56+00:00"
+      }
     },
     "vm-166": {
       "holder": "conantkd",
@@ -28,8 +36,12 @@
       "base_commit": "5296671b0e7a23685bd160e7b603a5e54855d8cd",
       "started_at": "2026-10-13T02:07:34+00:00",
       "expires_at": "2026-10-13T04:07:42+00:00",
-      "released": false,
-      "handoff": null
+      "released": true,
+      "handoff": {
+        "note": "Both VMs still run task/T-0019-batch3b-host-verbs 9ac49ec (3a+3b); nothing was deployed in session 2f45e4f747a1 (SESSION marker not written). main is 5296671 (#97-#108 merged). AFTER-MERGE to main pending: block ready in conantkd's local brain/execution/current/code.bash (M.1, A.1 both VMs, A.2, A.3). Open: #109 (lint merge-base fix + /tcp 8 s budget, needs teammate approval). GitHub Actions minutes exhausted: CI does not run.",
+        "branch": "main",
+        "at": "2026-10-13T02:31:57+00:00"
+      }
     }
   }
 }
