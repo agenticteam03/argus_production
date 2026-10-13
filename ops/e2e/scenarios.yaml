@@ -13,7 +13,10 @@
 #             every read must stay on it), findings_any
 #   reset     runs once a start was attempted, also after an error; a failed reset stops the batch. Idempotent:
 #             it must succeed when what it removes is already gone
-# Not here yet: SC-10 and SC-12 (they stop Argus's own services).
+#   E2E-8:    a command may run on another host ({host: vm-095, run: ...}), a gate may name its `host`, pre_gate and
+#             gate may be lists, and `investigations` (a list of {request, expect}) are sent together, each
+#             graded; every host a command, gate or request touches must be in `hosts`. SC-01/SC-02's anchors
+#             (&sc01_...) are reused by SC-12 and the identity proof ID-1, so they never drift apart.
 # SC-04, SC-05, SC-06 (E2E-1): the commands and gates of their VM proofs (T-0020, T-0024, T-0028); the gates use
 # the detector's own signal and threshold. SC-08 (E2E-4): the same, from T-0029's VM proof.
 
@@ -33,42 +36,42 @@ scenarios:
   - id: SC-01
     title: OOM restart loop on vm-166 (killed by its own 64 MiB limit)
     host: vm-166
-    pre_gate:
+    pre_gate: &sc01_pre_gate
       promql: 'max_over_time(argus_container_restart_count{argus_host="vm-166",container="argus-lab-worker"}[10m]) - min_over_time(argus_container_restart_count{argus_host="vm-166",container="argus-lab-worker"}[10m])'
       expect: "^(none|0)$"
       timeout_s: 900
       every_s: 30
     start:
-      - cd /opt/argus-v18/app/deploy/lab && sudo docker compose -f compose.lab.yml --profile sc01 up -d argus-lab-worker-oom
-    gate:
+      - &sc01_start cd /opt/argus-v18/app/deploy/lab && sudo docker compose -f compose.lab.yml --profile sc01 up -d argus-lab-worker-oom
+    gate: &sc01_gate
       promql: 'max_over_time(argus_container_restart_count{argus_host="vm-166",container="argus-lab-worker"}[10m]) - min_over_time(argus_container_restart_count{argus_host="vm-166",container="argus-lab-worker"}[10m])'
       expect: ">=3"
       timeout_s: 300
       every_s: 15
-    request: {target: "vm-166/container:argus-lab-worker", reason: "keeps restarting", kind: report}
-    expect: {outcome: diagnosed, class: container_restart_loop, first_runbook: RB-001, reads_on: vm-166}
+    request: &sc01_request {target: "vm-166/container:argus-lab-worker", reason: "keeps restarting", kind: report}
+    expect: &sc01_expect {outcome: diagnosed, class: container_restart_loop, first_runbook: RB-001, reads_on: vm-166}
     reset:
-      - cd /opt/argus-v18/app/deploy/lab && sudo docker compose -f compose.lab.yml --profile sc01 rm -sf argus-lab-worker-oom
+      - &sc01_reset cd /opt/argus-v18/app/deploy/lab && sudo docker compose -f compose.lab.yml --profile sc01 rm -sf argus-lab-worker-oom
 
   - id: SC-02
     title: non-OOM crash loop on vm-095 (same container name as SC-01)
     host: vm-095
-    pre_gate:
+    pre_gate: &sc02_pre_gate
       promql: 'max_over_time(argus_container_restart_count{argus_host="vm-095",container="argus-lab-worker"}[10m]) - min_over_time(argus_container_restart_count{argus_host="vm-095",container="argus-lab-worker"}[10m])'
       expect: "^(none|0)$"
       timeout_s: 900
       every_s: 30
     start:
-      - cd /opt/argus-v18/app/deploy/lab && sudo docker compose -f compose.lab.yml --profile sc02 up -d argus-lab-worker-crash
-    gate:
+      - &sc02_start cd /opt/argus-v18/app/deploy/lab && sudo docker compose -f compose.lab.yml --profile sc02 up -d argus-lab-worker-crash
+    gate: &sc02_gate
       promql: 'max_over_time(argus_container_restart_count{argus_host="vm-095",container="argus-lab-worker"}[10m]) - min_over_time(argus_container_restart_count{argus_host="vm-095",container="argus-lab-worker"}[10m])'
       expect: ">=3"
       timeout_s: 300
       every_s: 15
-    request: {target: "vm-095/container:argus-lab-worker", reason: "keeps restarting", kind: report}
-    expect: {outcome: diagnosed, class: container_restart_loop, first_runbook: RB-008, reads_on: vm-095}
+    request: &sc02_request {target: "vm-095/container:argus-lab-worker", reason: "keeps restarting", kind: report}
+    expect: &sc02_expect {outcome: diagnosed, class: container_restart_loop, first_runbook: RB-008, reads_on: vm-095}
     reset:
-      - cd /opt/argus-v18/app/deploy/lab && sudo docker compose -f compose.lab.yml --profile sc02 rm -sf argus-lab-worker-crash
+      - &sc02_reset cd /opt/argus-v18/app/deploy/lab && sudo docker compose -f compose.lab.yml --profile sc02 rm -sf argus-lab-worker-crash
 
   - id: SC-03
     title: the cache stops; the api is the victim, the cache the root cause (vm-166)
@@ -208,3 +211,72 @@ scenarios:
     host: vm-166
     request: {target: "vm-166/container:argus-api-1", reason: "check", kind: report}
     expect: {outcome: refused, class: null, model: none, reads_on: vm-166}
+
+  # E2E-8: SC-10 and SC-12 stop an Argus service; their reset starts it first (`docker start` also succeeds when it is
+  # already running), so a failed run never leaves monitoring or the read path down.
+  - id: SC-10
+    title: vm-095's node-exporter stopped is a monitoring blind spot of vm-095, never a healthy host; vm-166 unaffected
+    host: vm-095
+    hosts: [vm-095, vm-166]
+    pre_gate:
+      promql: 'up{argus_host="vm-095",job="argus-v18-node-exporter"}'
+      expect: "==1"
+      timeout_s: 300
+      every_s: 15
+    start:
+      - sudo docker stop argus-v18-node-exporter
+    gate:                         # the scrape is down: what scrape_targets_down counts (T-0027)
+      promql: 'up{argus_host="vm-095",job="argus-v18-node-exporter"}'
+      expect: "==0"
+      timeout_s: 180
+      every_s: 10
+    investigations:
+      - request: {target: "vm-095/host:vm-095", reason: "is the host healthy?", kind: check}
+        expect: {outcome: no_action_escalated, class: monitoring_blind_spot, first_runbook: RB-014, model: none,
+                 reads_on: vm-095}
+      - request: {target: "vm-166/container:argus-lab-api", reason: "is it healthy?", kind: check}
+        expect: {outcome: no_incident, model: none, reads_on: vm-166}
+    reset:
+      - sudo docker start argus-v18-node-exporter
+
+  - id: SC-12
+    title: vm-166's read gateway stopped during an OOM loop escalates on vm-166 (no made-up diagnosis); vm-095 still answers
+    host: vm-166
+    hosts: [vm-166, vm-095]
+    pre_gate: *sc01_pre_gate
+    start:
+      - *sc01_start
+      - sudo docker stop argus-v18-read-gateway
+    gate:
+      - *sc01_gate                # Prometheus still counts the restarts (the exporter has its own Docker socket)
+      - cmd: sudo docker inspect -f '{{.State.Running}}' argus-v18-read-gateway
+        expect: "^false$"
+        timeout_s: 60
+    investigations:
+      - request: *sc01_request
+        expect: {outcome: [no_action_escalated, undiagnosable], class: container_restart_loop, reads_on: vm-166}
+      - request: {target: "vm-095/container:argus-lab-api", reason: "is it healthy?", kind: check}
+        expect: {outcome: no_incident, model: none, reads_on: vm-095}
+    reset:
+      - sudo docker start argus-v18-read-gateway
+      - *sc01_reset
+
+  - id: ID-1
+    title: identity proof - SC-01 on vm-166 and SC-02 on vm-095 together (same container name, two hosts)
+    host: vm-166
+    hosts: [vm-166, vm-095]
+    pre_gate:
+      - *sc01_pre_gate
+      - {<<: *sc02_pre_gate, host: vm-095}
+    start:
+      - *sc01_start
+      - {host: vm-095, run: *sc02_start}
+    gate:
+      - *sc01_gate
+      - {<<: *sc02_gate, host: vm-095}
+    investigations:
+      - {request: *sc01_request, expect: *sc01_expect}
+      - {request: *sc02_request, expect: *sc02_expect}
+    reset:
+      - *sc01_reset
+      - {host: vm-095, run: *sc02_reset}

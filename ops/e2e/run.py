@@ -12,7 +12,9 @@ failed on the VM is not.
 
 One run: the session marker on each touched host is yours -> nonint-check before -> pre-gate (the signal is clean)
 -> start -> gate (the signal the detector reads, polled, never a fixed sleep) -> investigate -> wait for the result
--> grade -> reset (always once a start was attempted, also after an error) -> nonint-check after. A host that does
+-> grade -> reset (always once a start was attempted, also after an error) -> nonint-check after. A command or a gate
+may run on another host than the scenario's (E2E-8), and a run may send several investigations together; each is
+graded and the run passes only when all of them do. A host that does
 not say NO INTERFERENCE, or a failed reset, stops the whole batch. A wrong diagnosis is a FAIL of that run; the batch
 goes on. An incident view without evidence and audit (the runner's user is not an operator) is an ERROR, never a
 PASS. Each run is written as one JSON line (default ~/argus-e2e/, outside the repository).
@@ -48,8 +50,9 @@ PROM = "http://127.0.0.1:18090/api/v1/query"                    # each host's ow
 PROM_IN_CONTAINER = {"vm-095": "argus-v18-prometheus"}
 PROM_VALUE = ("python3 -c 'import json,sys; r=json.load(sys.stdin)[\"data\"][\"result\"]; "
               "print(r[0][\"value\"][1] if r else \"none\")'")
-SCENARIO_KEYS = {"id", "title", "host", "hosts", "start", "pre_gate", "gate", "request", "expect", "reset"}
-GATE_KEYS = {"cmd", "promql", "expect", "timeout_s", "every_s"}
+SCENARIO_KEYS = {"id", "title", "host", "hosts", "start", "pre_gate", "gate", "request", "expect", "investigations",
+                 "reset"}
+GATE_KEYS = {"cmd", "promql", "expect", "timeout_s", "every_s", "host"}
 EXPECT_KEYS = {"outcome", "class", "root_cause", "first_runbook", "model", "reads_on", "findings_any"}
 FINAL = ("closed", "escalated")
 NEEDS_OPERATOR = ("evidence", "audit")      # the API shows them only to operators and approvers
@@ -84,6 +87,7 @@ class Gate:
     expect: str
     timeout_s: float = 180
     every_s: float = 10
+    host: str = "vm-166"
 
     @classmethod
     def from_dict(cls, sid: str, raw: dict | None, host: str = "vm-166") -> "Gate | None":
@@ -94,8 +98,16 @@ class Gate:
             raise ValueError(f"{sid}: unknown gate keys {sorted(unknown)}")
         if ("cmd" in raw) == ("promql" in raw):
             raise ValueError(f"{sid}: a gate has exactly one of cmd / promql")
+        host = raw.get("host", host)
+        if host not in SSH_ALIAS:
+            raise ValueError(f"{sid}: unknown host {host}")
         cmd = raw.get("cmd") or f"{promql_cmd(host, raw['promql'])} | {PROM_VALUE}"
-        return cls(cmd, str(raw["expect"]), float(raw.get("timeout_s", 180)), float(raw.get("every_s", 10)))
+        return cls(cmd, str(raw["expect"]), float(raw.get("timeout_s", 180)), float(raw.get("every_s", 10)), host)
+
+    @classmethod
+    def list_from(cls, sid: str, raw: dict | list | None, host: str) -> "list[Gate]":
+        """One gate, or a list of gates (E2E-8: each may name its own `host`)."""
+        return [cls.from_dict(sid, g, host) for g in ([] if raw is None else raw if isinstance(raw, list) else [raw])]
 
     def opens(self, out: str) -> bool:
         last = (out.strip().splitlines() or [""])[-1].strip()
@@ -110,18 +122,59 @@ class Gate:
         return re.search(self.expect, last) is not None
 
 
+class Cmd(str):
+    """A catalogued command and the host it runs on: `"..."` on the scenario's host, or `{host: ..., run: "..."}`
+    (not `on`: YAML 1.1 reads that key as true)."""
+
+    host: str
+
+    def __new__(cls, raw: "str | dict", default_host: str, sid: str) -> "Cmd":
+        if isinstance(raw, dict):
+            if set(raw) != {"host", "run"}:
+                raise ValueError(f"{sid}: a command is a string or {{host, run}}")
+            raw, default_host = raw["run"], raw["host"]
+        if default_host not in SSH_ALIAS:
+            raise ValueError(f"{sid}: unknown host {default_host}")
+        c = super().__new__(cls, raw)
+        c.host = default_host
+        return c
+
+
+def _investigation(sid: str, req: dict, exp: dict) -> "tuple[dict, dict]":
+    if set(req) != {"target", "reason", "kind"} or req["kind"] not in ("check", "report"):
+        raise ValueError(f"{sid}: request needs exactly target, reason, kind (check|report)")
+    if set(exp) - EXPECT_KEYS or "outcome" not in exp:
+        raise ValueError(f"{sid}: expect needs an outcome and only {sorted(EXPECT_KEYS)}")
+    return req, exp
+
+
 @dataclass
 class Scenario:
     id: str
     title: str
     host: str
-    request: dict
-    expect: dict
+    investigations: list[tuple[dict, dict]]          # (request, expect): sent together, each graded
     hosts: list[str] = field(default_factory=list)
-    start: list[str] = field(default_factory=list)
-    reset: list[str] = field(default_factory=list)
-    pre_gate: Gate | None = None
-    gate: Gate | None = None
+    start: list[Cmd] = field(default_factory=list)
+    reset: list[Cmd] = field(default_factory=list)
+    pre_gates: list[Gate] = field(default_factory=list)
+    gates: list[Gate] = field(default_factory=list)
+
+    @property
+    def request(self) -> dict:
+        return self.investigations[0][0]
+
+    @property
+    def expect(self) -> dict:
+        return self.investigations[0][1]
+
+    @property
+    def pre_gate(self) -> Gate | None:
+        return self.pre_gates[0] if self.pre_gates else None
+
+    @property
+    def gate(self) -> Gate | None:
+        return self.gates[0] if self.gates else None
 
     @classmethod
     def from_dict(cls, raw: dict) -> "Scenario":
@@ -129,26 +182,37 @@ class Scenario:
         unknown = set(raw) - SCENARIO_KEYS
         if unknown:
             raise ValueError(f"{sid}: unknown keys {sorted(unknown)}")
-        for key in ("title", "host", "request", "expect"):
+        for key in ("title", "host"):
             if key not in raw:
                 raise ValueError(f"{sid}: missing {key}")
         if raw["host"] not in SSH_ALIAS:
             raise ValueError(f"{sid}: unknown host {raw['host']}")
-        req = raw["request"]
-        if set(req) != {"target", "reason", "kind"} or req["kind"] not in ("check", "report"):
-            raise ValueError(f"{sid}: request needs exactly target, reason, kind (check|report)")
-        exp = raw["expect"]
-        if set(exp) - EXPECT_KEYS or "outcome" not in exp:
-            raise ValueError(f"{sid}: expect needs an outcome and only {sorted(EXPECT_KEYS)}")
+        single = "request" in raw or "expect" in raw
+        if single == ("investigations" in raw):
+            raise ValueError(f"{sid}: give request and expect, or investigations (a list of them), not both")
+        if single:
+            if "request" not in raw or "expect" not in raw:
+                raise ValueError(f"{sid}: missing {'expect' if 'request' in raw else 'request'}")
+            invs = [_investigation(sid, raw["request"], raw["expect"])]
+        else:
+            if not raw["investigations"] or any(set(i) != {"request", "expect"} for i in raw["investigations"]):
+                raise ValueError(f"{sid}: investigations is a list of {{request, expect}}")
+            invs = [_investigation(sid, i["request"], i["expect"]) for i in raw["investigations"]]
         hosts = raw.get("hosts") or [raw["host"]]
         if any(h not in SSH_ALIAS for h in hosts):
             raise ValueError(f"{sid}: unknown host in hosts")
-        start, reset = list(raw.get("start") or []), list(raw.get("reset") or [])
+        start = [Cmd(c, raw["host"], sid) for c in raw.get("start") or []]
+        reset = [Cmd(c, raw["host"], sid) for c in raw.get("reset") or []]
         if bool(start) != bool(reset):
             raise ValueError(f"{sid}: whatever is started must be reset")
-        return cls(sid, raw["title"], raw["host"], req, exp, hosts, start, reset,
-                   Gate.from_dict(sid, raw.get("pre_gate"), raw["host"]),
-                   Gate.from_dict(sid, raw.get("gate"), raw["host"]))
+        pre_gates = Gate.list_from(sid, raw.get("pre_gate"), raw["host"])
+        gates = Gate.list_from(sid, raw.get("gate"), raw["host"])
+        # every host a command runs on or an investigation reads is checked (session marker, NO INTERFERENCE)
+        touched = ({c.host for c in start + reset} | {g.host for g in pre_gates + gates} | {raw["host"]}
+                   | {req["target"].split("/", 1)[0] for req, _ in invs})
+        if touched - set(hosts):
+            raise ValueError(f"{sid}: {sorted(touched - set(hosts))} not in hosts {hosts}")
+        return cls(sid, raw["title"], raw["host"], invs, hosts, start, reset, pre_gates, gates)
 
 
 def load_catalogue(path: Path = CATALOGUE) -> dict[str, Scenario]:
@@ -218,6 +282,7 @@ class RunResult:
     first_runbook: str | None = None
     duration_s: float = 0
     started_at: str = ""
+    investigations: list[dict] = field(default_factory=list)   # one per investigation; the first is also above
 
 
 def ssh(host: str, cmd: str, timeout_s: float = 120, attempts: int = 4, wait_s: float = 15) -> tuple[int, str]:
@@ -238,10 +303,10 @@ def ssh(host: str, cmd: str, timeout_s: float = 120, attempts: int = 4, wait_s: 
     return rc, out
 
 
-def _wait(gate: Gate, host: str, shell: Shell, now, sleep) -> tuple[bool, str]:
+def _wait(gate: Gate, shell: Shell, now, sleep) -> tuple[bool, str]:
     deadline, out = now() + gate.timeout_s, ""
     while True:
-        _, out = shell(host, gate.cmd, 60)
+        _, out = shell(gate.host, gate.cmd, 60)
         if gate.opens(out):
             return True, out
         if now() >= deadline:
@@ -262,37 +327,51 @@ def run_once(sc: Scenario, i: int, runs: int, shell: Shell, api, me: str, now, s
         shell(h, NONINT.format(label="before"), 180)
     started = False                             # reset only what a start may have created
     try:
-        if sc.pre_gate:
-            ok, out = _wait(sc.pre_gate, sc.host, shell, now, sleep)
+        on = (lambda g: f" on {g.host}") if len({g.host for g in sc.pre_gates + sc.gates}) > 1 else (lambda g: "")
+        for g in sc.pre_gates:
+            ok, out = _wait(g, shell, now, sleep)
             if not ok:
-                res.problems.append(f"pre-gate never clean: last {out[-60:]!r}, wanted {sc.pre_gate.expect}")
+                res.problems.append(f"pre-gate never clean{on(g)}: last {out[-60:]!r}, wanted {g.expect}")
                 return res
         for cmd in sc.start:
             started = True
-            rc, out = shell(sc.host, cmd, 300)
+            rc, out = shell(cmd.host, cmd, 300)
             if rc != 0:
-                res.problems.append(f"start failed (rc {rc}): {cmd} -> {out[-200:]}")
+                res.problems.append(f"start failed (rc {rc}) on {cmd.host}: {cmd} -> {out[-200:]}")
                 return res
-        if sc.gate:
-            ok, out = _wait(sc.gate, sc.host, shell, now, sleep)
+        for g in sc.gates:
+            ok, out = _wait(g, shell, now, sleep)
             if not ok:
-                res.problems.append(f"gate never opened: last {out[-60:]!r}, wanted {sc.gate.expect}")
+                res.problems.append(f"gate never opened{on(g)}: last {out[-60:]!r}, wanted {g.expect}")
                 return res
-        iid = api.investigate(sc.request["target"], sc.request["reason"], sc.request["kind"])
-        res.incident_id = iid
-        deadline = now() + investigate_timeout_s
+        # E2E-8: every investigation is sent before the first is polled (the identity proof needs them together)
+        iids = [api.investigate(req["target"], req["reason"], req["kind"]) for req, _ in sc.investigations]
+        res.incident_id = iids[0]
+        deadline, views = now() + investigate_timeout_s, {}
         while True:
-            inc = api.incident(iid)
-            if inc.get("status") in FINAL:
+            for iid in iids:
+                if views.get(iid, {}).get("status") not in FINAL:
+                    views[iid] = api.incident(iid)
+            if all(v.get("status") in FINAL for v in views.values()):
                 break
             if now() >= deadline:
-                res.problems.append(f"no result within {investigate_timeout_s:.0f} s (status {inc.get('status')})")
+                late = ", ".join(f"{i} {v.get('status')}" for i, v in views.items() if v.get("status") not in FINAL)
+                res.problems.append(f"no result within {investigate_timeout_s:.0f} s (status {late})")
                 return res
             sleep(poll_s)
-        res.outcome, res.incident_class = inc.get("outcome"), inc.get("incident_class")
-        res.root_cause_target, res.first_runbook = inc.get("root_cause_target"), first_runbook(inc)
-        res.problems = grade(sc.expect, inc)
-        if any(k not in inc for k in NEEDS_OPERATOR):
+        several = len(iids) > 1
+        for iid, (req, exp) in zip(iids, sc.investigations):
+            inc = views[iid]
+            problems = grade(exp, inc)
+            res.investigations.append({"target": req["target"], "incident_id": iid, "outcome": inc.get("outcome"),
+                                       "incident_class": inc.get("incident_class"),
+                                       "root_cause_target": inc.get("root_cause_target"),
+                                       "first_runbook": first_runbook(inc), "problems": problems})
+            res.problems += [f"{req['target']}: {p}" if several else p for p in problems]
+        first = res.investigations[0]
+        res.outcome, res.incident_class = first["outcome"], first["incident_class"]
+        res.root_cause_target, res.first_runbook = first["root_cause_target"], first["first_runbook"]
+        if any(k not in v for v in views.values() for k in NEEDS_OPERATOR):
             return res                          # ERROR: nothing was graded, so not a FAIL of the diagnosis either
         res.verdict = "FAIL" if res.problems else "PASS"
         return res
@@ -303,7 +382,7 @@ def run_once(sc: Scenario, i: int, runs: int, shell: Shell, api, me: str, now, s
         return res
     finally:
         res.duration_s = round(now() - t0, 1)
-        failed = [cmd for cmd in (sc.reset if started else []) if shell(sc.host, cmd, 300)[0] != 0]
+        failed = [cmd for cmd in (sc.reset if started else []) if shell(cmd.host, cmd, 300)[0] != 0]
         disturbed = [h for h in sc.hosts if "NO INTERFERENCE" not in shell(h, NONINT.format(label="after"), 180)[1]]
         if failed:
             res.problems.append(f"reset failed: {failed}")
@@ -427,15 +506,12 @@ def healthz(base: str) -> bool:
 def describe(sc: Scenario, me: str) -> list[str]:
     lines = [f"== {sc.id}: {sc.title}  (host {sc.host}; touched: {', '.join(sc.hosts)})",
              f"  session marker must be holder={me} on {', '.join(sc.hosts)}; nonint-check before"]
-    if sc.pre_gate:
-        lines.append(f"  pre-gate [{sc.host}] until {sc.pre_gate.expect} (max {sc.pre_gate.timeout_s:.0f} s): "
-                     f"{sc.pre_gate.cmd}")
-    lines += [f"  start [{sc.host}]: {c}" for c in sc.start]
-    if sc.gate:
-        lines.append(f"  gate [{sc.host}] until {sc.gate.expect} (max {sc.gate.timeout_s:.0f} s): {sc.gate.cmd}")
-    lines.append(f"  investigate: {json.dumps(sc.request)}")
-    lines.append(f"  expect: {json.dumps(sc.expect)}")
-    lines += [f"  reset [{sc.host}]: {c}" for c in sc.reset]
+    lines += [f"  pre-gate [{g.host}] until {g.expect} (max {g.timeout_s:.0f} s): {g.cmd}" for g in sc.pre_gates]
+    lines += [f"  start [{c.host}]: {c}" for c in sc.start]
+    lines += [f"  gate [{g.host}] until {g.expect} (max {g.timeout_s:.0f} s): {g.cmd}" for g in sc.gates]
+    for req, exp in sc.investigations:
+        lines += [f"  investigate: {json.dumps(req)}", f"  expect: {json.dumps(exp)}"]
+    lines += [f"  reset [{c.host}]: {c}" for c in sc.reset]
     lines.append("  nonint-check after (NO INTERFERENCE, or the batch stops)")
     return lines
 

@@ -328,7 +328,7 @@ such as `"target": "container:argus-lab-api"`, is rejected with **422** before a
 |---|---|---|---|
 | SC-06 | CPU saturation (capped burner) | vm-166 | `cpu_saturation` class |
 | SC-08 | nginx upstream failure | vm-166 | nginx + slow api + class |
-| SC-10 | monitoring blind spot (exporter stopped) | vm-095 | scripted in code.bash Task 10, not yet verified |
-| SC-12 | executor partition (gateway stopped) | vm-166 | scripted in code.bash Task 10, not yet verified |
+| SC-10 | monitoring blind spot (node-exporter stopped) | vm-095 | in the runner catalogue (E2E-8, `ops/e2e/scenarios.yaml`); 5 runs pending |
+| SC-12 | executor partition (gateway stopped) | vm-166 | in the runner catalogue (E2E-8, `ops/e2e/scenarios.yaml`); 5 runs pending |
 
 Full catalogue: `AAbrainProject/plans/argus-v1.8-two-vm-plan.md` §7.1.
