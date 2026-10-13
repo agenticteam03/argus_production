@@ -1,4 +1,4 @@
-import { dateTime, shortHash } from "../utils/format.js";
+import { auditDetail, dateTime, shortHash } from "../utils/format.js";
 import SafeMarkdown from "./SafeMarkdown.jsx";
 import { Card, Lock } from "./ui.jsx";
 
@@ -32,6 +32,14 @@ function EvidenceItem({ e, open, onToggle }) {
       </div>
     </li>
   );
+}
+
+// `detail` is an object on the real API and a string in the demo data; render text inline and an object as JSON.
+function AuditDetail({ detail }) {
+  const d = auditDetail(detail);
+  if (d.kind === "empty") return <p className="mt-1.5 text-[13px] text-muted">—</p>;
+  if (d.kind === "json") return <pre className="mt-1.5 overflow-x-auto rounded-lg bg-field p-3 text-xs text-[#d6dbe6]">{d.text}</pre>;
+  return <p className="mt-1.5 whitespace-pre-wrap text-[13px] text-[#d6dbe6]">{d.text}</p>;
 }
 
 export function EvidenceSection({ items, open, onToggle }) {
@@ -74,7 +82,7 @@ export function AuditSection({ items, evidenceIds, onJump }) {
                   </dd>
                 </div>
               </dl>
-              <p className="mt-1.5 whitespace-pre-wrap text-[13px] text-[#d6dbe6]">{a.detail ?? "—"}</p>
+              <AuditDetail detail={a.detail} />
             </li>
           ))}
         </ul>

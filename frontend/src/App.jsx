@@ -1,4 +1,5 @@
-import { BrowserRouter, Navigate, Outlet, Route, Routes } from "react-router-dom";
+import { BrowserRouter, Navigate, Outlet, Route, Routes, useLocation } from "react-router-dom";
+import ErrorBoundary from "./components/ErrorBoundary.jsx";
 import Header from "./components/Header.jsx";
 import { AuthProvider, useAuth } from "./context/AuthContext.jsx";
 import Dashboard from "./pages/Dashboard.jsx";
@@ -17,12 +18,18 @@ const Placeholder = ({ title }) => (
 
 const pages = { "/incidents": Incidents, "/incidents/:id": IncidentDetail, "/tools/runbooks": Runbooks };
 
-const Shell = () => (
-  <>
-    <Header />
-    <main className="mx-auto w-full max-w-[1200px] px-4 py-6 sm:px-6"><Outlet /></main>
-  </>
-);
+// Keyed on the path so an error on one page does not stick when the user navigates elsewhere.
+const Shell = () => {
+  const { pathname } = useLocation();
+  return (
+    <>
+      <Header />
+      <main className="mx-auto w-full max-w-[1200px] px-4 py-6 sm:px-6">
+        <ErrorBoundary key={pathname}><Outlet /></ErrorBoundary>
+      </main>
+    </>
+  );
+};
 
 function AppRoutes() {
   const { user, login } = useAuth();
