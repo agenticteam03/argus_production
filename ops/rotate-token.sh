@@ -1,12 +1,15 @@
 #!/bin/sh
 # T-0033 (Phase 13): rotate ONE executor token of THIS host's target service. The token is never printed.
-#   sudo sh /opt/argus-v18/app/ops/rotate-token.sh <docker_read|host_probe|network_probe> --as <developer>
+#   sudo sh /opt/argus-v18/app/ops/rotate-token.sh <docker_read|host_probe|network_probe|db_probe> --as <developer>
 #   sudo sh /opt/argus-v18/app/ops/rotate-token.sh <executor> --rollback --as <developer>   (back to <file>.prev)
 # A new random token replaces /opt/argus-v18/secrets/<executor>_token (same owner and mode; the old one is kept as
 # <executor>_token.prev, mode 0400, until the next rotation), then that ONE service is recreated so it reads it (the
 # service reads its token at start). The agent's copy on vm-095 (/opt/argus-v18/secrets/agent/<host>/) is replaced
 # separately; the agent re-reads it on its next rejected read, without a restart (argus/tooling/dispatch.py).
-# db_probe is not rotated here: this host's Prometheus scrapes it with the same token (its scrape config too).
+# db_probe (T-0041): this host's Prometheus scrapes it with the same token (`credentials_file`
+# /etc/prometheus/secrets/db_probe_token = <secrets>/prometheus/db_probe_token). Both copies get the new token (each
+# keeps its owner and mode) before the service is recreated; Prometheus reads the file at every scrape, so it needs no
+# restart (a scrape in between may be refused: the blind-spot alert waits 2 minutes). No Prometheus copy = no change.
 # A rollback keeps the live file's owner and mode; a failed recreate exits 1 and says how to roll back (#94 review).
 # Tests: ARGUS_DEPLOY_HOME, ARGUS_DOCKER and ARGUS_HOSTNAME replace /opt/argus-v18, docker and the host name.
 set -eu
@@ -22,10 +25,24 @@ case $EX in
   docker_read)   SVC=argus-v18-read-gateway ;;
   host_probe)    SVC=argus-v18-host-probe ;;
   network_probe) SVC=argus-v18-network-probe ;;
-  *) echo "executor must be docker_read, host_probe or network_probe (db_probe: see the header)"; exit 2 ;;
+  db_probe)      SVC=argus-v18-db-probe ;;
+  *) echo "executor must be docker_read, host_probe, network_probe or db_probe"; exit 2 ;;
 esac
 F=$HOME_DIR/secrets/${EX}_token
 [ -f "$F" ] || { echo "no $F: nothing to rotate"; exit 1; }
+P=""
+if [ "$EX" = db_probe ]; then
+  P=$HOME_DIR/secrets/prometheus/db_probe_token
+  [ -f "$P" ] || { echo "no $P (the prometheus scrape copy): nothing changed"; exit 1; }
+fi
+copy_to_prometheus() {   # the live token into Prometheus's copy, keeping that copy's owner and mode
+  [ -n "$P" ] || return 0
+  T=$(mktemp "$HOME_DIR/secrets/prometheus/.db_probe_token.XXXXXX")
+  cat "$F" >"$T"
+  chown --reference="$P" "$T"
+  chmod --reference="$P" "$T"
+  mv "$T" "$P"
+}
 case $(echo "$HOST" | sed 's/^argus-//') in
   vm095) V=vm-095; O=compose.core-join.yml ;;
   vm166) V=vm-166; O=compose.loopback.yml ;;
@@ -40,6 +57,7 @@ if [ "$MODE" = rollback ]; then
   chown --reference="$F" "$NEW"
   chmod --reference="$F" "$NEW"
   mv "$NEW" "$F"
+  copy_to_prometheus
 else
   NEW=$(mktemp "$HOME_DIR/secrets/.${EX}_token.XXXXXX")
   tr -dc 'A-Za-z0-9_-' </dev/urandom | head -c 43 >"$NEW"
@@ -49,6 +67,7 @@ else
   cp -p "$F" "$F.prev"
   chmod 0400 "$F.prev"
   mv "$NEW" "$F"
+  copy_to_prometheus
 fi
 
 cd "$HOME_DIR/app/deploy/target"
@@ -63,3 +82,4 @@ fi
 echo "$OUT" | grep -E 'Recreated|Started' || true
 echo "TOKEN $UP $EX on $V by $WHO: $SVC recreated; sha256 $(sha256sum "$F" | cut -c1-12)" \
   "(the token itself is not printed)"
+[ -n "$P" ] && echo "the prometheus copy updated too: Prometheus reads it at its next scrape (no restart)" || true
