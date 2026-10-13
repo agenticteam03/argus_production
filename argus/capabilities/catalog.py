@@ -38,6 +38,13 @@ class DiskArgs(_Args):
 
 class PortArgs(_Args):
     port: int = Field(..., ge=1, le=65535, description="an allowlisted TCP port of the target")
+    attempts: int = Field(1, ge=1, le=5, description="connect attempts 0.5 s apart: more than 1 tells an "
+                                                     "intermittent failure from a permanent one")
+
+
+class ConnectivityArgs(_Args):
+    to: str = Field(..., pattern=r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$",
+                    description="the destination container's name, on the same host (e.g. a declared dependency)")
 
 
 class UrlArgs(_Args):
@@ -266,6 +273,27 @@ def host_sockets(args: NoArgs, target: TargetRef, info, client) -> CapabilityRes
                               f"tw={_fmt(tcp.get('tw'))}")
 
 
+class FileArgs(_Args):
+    path: str = Field(..., min_length=2, max_length=512, description="an absolute file path the inspection policy "
+                                                                       "allows for this target")
+    lines: int = Field(100, ge=1, le=500, description="the most recent lines to read")
+
+
+class ConfigArgs(_Args):
+    path: str | None = Field(None, max_length=512, description="omit it: every configuration file the inspection "
+                                                               "policy lists for this target")
+
+
+class JournalArgs(_Args):
+    unit: str = Field(..., pattern=r"^[A-Za-z0-9@_.-]{1,128}$", description="an allowlisted systemd unit, e.g. "
+                                                                          "docker.service")
+    lines: int = Field(50, ge=1, le=200, description="the most recent lines of that unit")
+
+
+class PidArgs(_Args):
+    pid: int = Field(..., ge=1, le=4194304, description="a process id, e.g. from get_top_cpu_processes")
+
+
 class MountArgs(_Args):
     mount: str = Field(..., description="a declared mount point of the host (as in get_disk_usage)")
 
@@ -329,10 +357,41 @@ def net_tcp(args: PortArgs, target: TargetRef, info: TargetInfo | None, client) 
     allowed = info.tcp_ports if info else []
     if args.port not in allowed:
         raise ExecutorError("invalid_args", f"port {args.port} not allowlisted for {target} (allowed: {allowed})")
-    d = client.get("/tcp", {"host": target.name, "port": args.port})
-    return CapabilityResult(values=d, model_text=f"tcp {target.name}:{args.port} from {target.host} app network: "
-                            f"{'ok in ' + str(d.get('duration_ms')) + ' ms' if d.get('ok') else 'FAILED ' + str(d.get('error'))}",
-                            source_time=_ts(d.get("collected_at")), units={"duration_ms": "ms"})
+    params = {"host": target.name, "port": args.port}
+    if args.attempts > 1:                                  # T-0019 batch 3c; one attempt = the old request
+        params["attempts"] = args.attempts
+    d = client.get("/tcp", params)
+    text = (f"tcp {target.name}:{args.port} from {target.host} app network: "
+            f"{'ok in ' + str(d.get('duration_ms')) + ' ms' if d.get('ok') else 'FAILED ' + str(d.get('error'))}")
+    tries = d.get("attempts")
+    if isinstance(tries, list) and len(tries) > 1:
+        each = ", ".join(f"{'ok' if t.get('ok') else 'FAIL'} {t.get('duration_ms')} ms" for t in tries)
+        text = (f"tcp {target.name}:{args.port} from {target.host} app network: {_fmt(d.get('succeeded'))}/{len(tries)} "
+                f"connected ({each})")
+    return CapabilityResult(values=d, model_text=text, source_time=_ts(d.get("collected_at")), units={"duration_ms": "ms"})
+
+
+def _side(s: dict, name: str) -> str:
+    nets, running = s.get("networks"), s.get("running")
+    state = "running" if running else "not running" if running is False else "state unknown"
+    where = ",".join(nets) if nets else ("no network" if nets == [] else "unknown networks")
+    return f"{name} ({state}) on {where}"
+
+
+def net_connectivity(args: ConnectivityArgs, target: TargetRef, info, client) -> CapabilityResult:
+    """T-0019 batch 3c (§12.2 `check_connectivity`): both sides' networks and the shared ones, from the read gateway."""
+    if args.to == target.name:
+        raise ExecutorError("invalid_args", f"{target} and the destination are the same container")
+    d = client.get("/connectivity", {"from": target.name, "to": args.to})
+    src, dst, shared = d.get("from") or {}, d.get("to") or {}, d.get("shared")
+    if shared is None or src.get("networks") is None or dst.get("networks") is None:
+        verdict = "shared networks unknown"
+    elif shared:
+        verdict = f"shared networks: {','.join(shared)}"
+    else:
+        verdict = "NO shared network: they cannot reach each other on a common network"
+    return CapabilityResult(values=d, model_text=f"connectivity {target.host}: {_side(src, target.name)} -> "
+                            f"{_side(dst, args.to)}; {verdict}", source_time=_ts(d.get("collected_at")))
 
 
 def net_http(args: UrlArgs, target: TargetRef, info: TargetInfo | None, client) -> CapabilityResult:
@@ -343,6 +402,52 @@ def net_http(args: UrlArgs, target: TargetRef, info: TargetInfo | None, client) 
     return CapabilityResult(values=d, model_text=f"http {args.url}: status={_fmt(d.get('status'))} "
                             f"duration={_fmt(d.get('duration_ms'))} ms error={_fmt(d.get('error'))}",
                             source_time=_ts(d.get("collected_at")), units={"duration_ms": "ms"})
+
+
+# --- T-0019 batch 3b: Level 3 reads under the inspection policy (§4.7) ----------------------------------------------
+def host_read_file(args: FileArgs, target: TargetRef, info, client) -> CapabilityResult:
+    d = client.get("/read_file", {"target": str(target), "path": args.path, "lines": args.lines})
+    rows = d.get("lines") or []
+    text = (f"file {args.path} on {target}: last {len(rows)} line(s){' (more before)' if d.get('truncated') else ''}\n"
+            + "\n".join(rows))
+    return CapabilityResult(values=d, model_text=text, source_time=_ts(d.get("collected_at")),
+                            truncated=bool(d.get("truncated")))
+
+
+def host_service_config(args: ConfigArgs, target: TargetRef, info, client) -> CapabilityResult:
+    params = {"target": str(target)}
+    if args.path:
+        params["path"] = args.path
+    d = client.get("/service_config", params)
+    files = d.get("files")
+    if not files:
+        return CapabilityResult(values=d, status="error", error_category="not_found",
+                                model_text=f"service configuration of {target}: none returned (unknown)")
+    text = "\n".join(f"<config path=\"{f.get('path')}\"{' truncated=\"true\"' if f.get('truncated') else ''}>\n"
+                     f"{f.get('text', '')}\n</config>" for f in files)
+    return CapabilityResult(values=d, model_text=f"service configuration of {target} ({len(files)} file(s)):\n{text}",
+                            source_time=_ts(d.get("collected_at")))
+
+
+def host_journal(args: JournalArgs, target: TargetRef, info, client) -> CapabilityResult:
+    d = client.get("/journal", {"target": str(target), "unit": args.unit, "lines": args.lines})
+    if d.get("source") != "syslog" or d.get("lines") is None:
+        return CapabilityResult(values=d, status="error", error_category="not_found",
+                                model_text=f"journal of {args.unit} on {target}: no log source (unknown, not quiet)")
+    rows = d["lines"]
+    head = (f"journal of {args.unit} on {target} (syslog, program {d.get('program')}): {len(rows)} line(s)"
+            f"{'' if d.get('window_complete', True) else ' from the last part of the log only'}")
+    return CapabilityResult(values=d, model_text=head + ("\n" + "\n".join(rows) if rows else ": none in the window"),
+                            source_time=_ts(d.get("collected_at")))
+
+
+def host_process_details(args: PidArgs, target: TargetRef, info, client) -> CapabilityResult:
+    d = client.get("/process_details", {"target": str(target), "pid": args.pid})
+    lim = (d.get("limits") or {}).get("max_open_files") or [None, None]
+    text = (f"pid {d.get('pid')} {d.get('name')} on {target}: state={_fmt(d.get('state'))} "
+            f"threads={_fmt(d.get('threads'))} rss={_fmt(d.get('rss_mib'))} MiB peak={_fmt(d.get('hwm_mib'))} MiB "
+            f"open files {_fmt(d.get('open_files'))} / {_fmt(lim[0])} container={d.get('container_id') or 'host'}")
+    return CapabilityResult(values=d, model_text=text, source_time=_ts(d.get("collected_at")))
 
 
 # --- db_probe ------------------------------------------------------------------------------------
@@ -479,6 +584,23 @@ def build_catalog() -> list[CapabilitySpec]:
                        "The largest entries directly under a declared mount (one filesystem, bounded walk).",
                        "which directory fills a filesystem", MountArgs, H, 2, "READ_ONLY_SAFE",
                        frozenset({"disk"}), "host_probe", host_directory_sizes),
+        CapabilitySpec("host.read_file", "inspect_approved_file",
+                       "The last lines of a file the inspection policy allows for this target.",
+                       "a specific log or diagnostics file is named by the evidence", FileArgs, C | H, 3,
+                       "READ_ONLY_SENSITIVE", frozenset({"files"}), "host_probe", host_read_file),
+        CapabilitySpec("host.service_config", "inspect_service_config",
+                       "The configuration files of this target that the inspection policy lists (e.g. a proxy's "
+                       "timeouts and upstreams).", "the failure may come from a configured limit or route, such as "
+                       "a proxy timeout", ConfigArgs, C | H, 3, "READ_ONLY_SENSITIVE", frozenset({"config"}),
+                       "host_probe", host_service_config),
+        CapabilitySpec("host.journal", "get_journal_logs",
+                       "Recent log lines of an allowlisted systemd unit of the host (e.g. the Docker daemon).",
+                       "a container problem may come from the Docker or containerd daemon", JournalArgs, H, 3,
+                       "READ_ONLY_SENSITIVE", frozenset({"journal"}), "host_probe", host_journal),
+        CapabilitySpec("host.process_details", "inspect_process_details",
+                       "One process of the host: state, threads, memory, open files against its limit, container.",
+                       "one process (from the top lists) needs a closer look", PidArgs, H, 3, "READ_ONLY_SENSITIVE",
+                       frozenset({"process"}), "host_probe", host_process_details),
         CapabilitySpec("host.socket_summary", "get_socket_summary",
                        "TCP sockets of the host's own network namespace by state, and its listening ports.",
                        "a host-level service may be leaking or refusing connections", NoArgs, H, 2,
@@ -489,6 +611,11 @@ def build_catalog() -> list[CapabilitySpec]:
         CapabilitySpec("network.tcp_connect", "check_tcp_connection", "TCP connect to an allowlisted port of the target from its host's app network.",
                        "a dependency may be unreachable", PortArgs, N, 1, "READ_ONLY_SAFE",
                        frozenset({"network", "dependency"}), "network_probe", net_tcp),
+        CapabilitySpec("network.connectivity", "check_connectivity",
+                       "The networks of this container and of a destination container on the same host, and the ones "
+                       "they share (names only).", "a dependency is unreachable although it is running: are both "
+                       "sides on a common network?", ConnectivityArgs, C, 2, "READ_ONLY_SAFE",
+                       frozenset({"connectivity"}), "docker_read", net_connectivity),
         CapabilitySpec("network.http_probe", "check_http_endpoint", "HTTP GET of an allowlisted endpoint: status and latency.",
                        "a web/API endpoint may be failing", UrlArgs, P, 1, "READ_ONLY_SAFE",
                        frozenset({"network", "availability"}), "network_probe", net_http),

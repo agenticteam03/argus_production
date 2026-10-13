@@ -10,6 +10,20 @@ metrics:
     dependency_probe_min: 0
 fixtures:
   docker_read:
+    # T-0019 batch 3c: /connectivity from this case's own status fixtures (labels unchanged)
+    /connectivity?from=argus-lab-client&to=argus-lab-backend:
+      from:
+        name: argus-lab-client
+        running: true
+        networks:
+        - argus-lab-app
+      to:
+        name: argus-lab-backend
+        running: true
+        networks:
+        - argus-lab-iso
+      shared: []
+      collected_at: null
     /containers/argus-lab-client/status:
       id: c0ffee
       state: running

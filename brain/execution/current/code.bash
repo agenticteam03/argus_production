@@ -9,4 +9,4 @@
 # and tell the agent "output.bash updated".
 # =====================================================================================
 
-# (no block yet: EVAL-3 step 2 ran on vm-095; its block is in execution/history/EVAL-3/step-02)
+# (no task in progress)

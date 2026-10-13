@@ -203,3 +203,49 @@ its own:
   `phase3_check` 55/55 on both hosts; the new `get_kernel_oom_records` found the real OOM kill of row 1; both VMs on
   `040b827`, `LAB BASELINE OK`, NO INTERFERENCE. Full suite 555 passed, 20 skipped.
 (filled in as the steps run)
+
+## Batch 3b (2026-10-12, `conantkd` + agent): host verbs under the inspection policy
+
+Branch `task/T-0019-batch3b-host-verbs`, stacked on 3a (`task/T-0019-batch3a-inspection-policy`, #98): its PR waits for
+#98. With it, every verb of §4.6's `host-probe` exists: **phase 3 is complete** (with 3c, #101, for the network probe).
+
+| Probe route | Capability (model name) | Reads | Bounds |
+|---|---|---|---|
+| `GET /read_file?target=&path=&lines=` | `host.read_file` (`inspect_approved_file`) | the last lines of a file the policy lists for the target | lines ≤ `limits.max_lines`, bytes ≤ `limits.max_bytes` |
+| `GET /service_config?target=[&path=]` | `host.service_config` (`inspect_service_config`) | the target's listed configuration files (no path = all of them) | bytes ≤ `limits.max_bytes` each |
+| `GET /journal?target=&unit=&lines=` | `host.journal` (`get_journal_logs`) | `/var/log/syslog` (rsyslog), the lines of the unit's program (`docker.service` → `dockerd`, `containerd.service` → `containerd`) | lines ≤ the unit's `max_lines`; the last 4 MiB of the log; 300 chars a line; no file = `unavailable` (unknown) |
+| `GET /process_details?target=&pid=` | `host.process_details` (`inspect_process_details`) | `/proc/<pid>/status`, `limits`, the fd count, the container id; **never `cmdline` or `environ`** | one pid |
+
+- **All Level 3, `READ_ONLY_SENSITIVE`**, each with a `config/policy.yaml` line.
+- **The probe re-checks the policy** from its rendered config (`inspection` in `deploy/target/config/<host>.json`) with
+  its own small copy of the rules (the probe image has only the standard library); a parity test runs both on the same
+  paths. A path is read only if no component under `/rootfs` is a symbolic link and it is a regular file. Bounds are
+  refused (400), never clamped.
+- **Offered:** only `host.service_config`, to `nginx_upstream_failure` (tag `config`): the model can read nginx's
+  `proxy_read_timeout 2s` (SC-08's cause: the upstream answers after 5 s). The other three are offered to no class yet
+  (like `host.socket_summary`): `files` is empty, and no case needs the journal or process details yet.
+- **3a adjustment:** `host.service_config` without a `path` is allowed when the target lists configuration files (the
+  model cannot guess a path); the probe returns those files only.
+- **Evaluation cases:** the 6 `nginx-*` cases answer `/service_config` with the lab's `default.conf`, the file SC-08 runs
+  with (labels unchanged).
+
+## Batch 3c (2026-10-12, `conantkd` + agent): network verbs
+
+Branch `task/T-0019-batch3c-network-verbs`, from `main`; independent of 3a (no §4.7 read). Decided 2026-10-12
+(`conantkd`), option **A2**:
+
+- **`network.connectivity`** (`check_connectivity`, Level 2, SAFE, executor `docker_read`): a new read-gateway route
+  `GET /connectivity?from=&to=` for two allowlisted containers of the host: each side's networks (names only) and
+  running state, and the networks they share. "No shared network" states SC-07's cause in one read. It is offered
+  only to `dependency_unavailable` (its own tag `connectivity`), whose 6 evaluation cases answer it.
+- **Rejected for now (A1):** a combined capability (§12.7: sub-reads through `InvokeCapability`, `max_subcalls`) that
+  would also run DNS and TCP. The mechanism does not exist yet; building it for one use was not worth it. DNS and TCP
+  stay their own verbs. `container.status` already shows each side's networks (T-0018, E2E-2).
+- **`network.tcp_connect`** (`check_tcp_connection`) takes `attempts` 1–5, 0.5 s apart; the probe returns each
+  attempt's result and latency, `succeeded`, and `ok` only when every attempt connected. One attempt sends the old
+  request and gets the old answer (plus `attempts`). §12.2 names a separate `network.tcp_connection`; its model name
+  is already this capability's, so the existing one is extended instead.
+- **`network.listening_ports`: not in 3c.** What really listens inside a container needs its network namespace (a pid
+  from Docker, `/proc/<pid>/net/tcp` from the host probe): two executors. Proposed later, with the host verbs.
+- **Evaluation cases:** the 6 `dependency_unavailable` cases answer `/connectivity?from=<target>&to=<each declared
+  dependency>` from their own status fixtures (networks, `state`), labels unchanged (rule written before any model run).

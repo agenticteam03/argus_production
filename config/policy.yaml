@@ -21,9 +21,14 @@ capabilities:
   host.io:                 {max_per_incident: 3}
   host.directory_sizes:    {max_per_incident: 3}   # declared mounts only (inventory `mounts`), one filesystem
   host.socket_summary:     {max_per_incident: 2}   # offered to no class yet (tag `sockets`)
+  host.read_file:          {max_per_incident: 3}   # T-0019 batch 3b, Level 3: under `inspection` below (files: none yet)
+  host.service_config:     {max_per_incident: 2}   # Level 3: the listed config files (nginx_upstream_failure)
+  host.journal:            {max_per_incident: 2}   # Level 3: allowlisted units, rsyslog's text (offered to no class yet)
+  host.process_details:    {max_per_incident: 3}   # Level 3: never cmdline or environ (offered to no class yet)
   network.resolve_dns:     {max_per_incident: 4}
   network.tcp_connect:     {max_per_incident: 4}
   network.http_probe:      {max_per_incident: 4}
+  network.connectivity:    {max_per_incident: 3}   # T-0019 batch 3c, Level 2: read gateway; two allowlisted containers, network names only
   metrics.memory_history:  {max_per_incident: 4}
   metrics.restart_history: {max_per_incident: 4}
   analysis.diagnostic_snapshot: {max_per_incident: 1}   # T-0034, Level 3, §12.7: combined; offered to no class yet
