@@ -52,8 +52,9 @@ CI job (it changes `.github/workflows/`) and any change to `contracts/` (shared 
    it as a separate API change (a contract update), never call undocumented routes.
 3. **Buttons follow `/api/v1/me`:** the app shows an action only when `/api/v1/me` lists it. New Argus features
    then appear by adding actions on the server, not by rewriting the frontend.
-4. **Token in memory only** (never `localStorage`, cookies or the URL); request `scope=read` at login; API text
-   is shown as text (no raw HTML), so log lines cannot inject scripts.
+4. **Token out of `localStorage`/cookies/URL** — kept in memory and, so a reload in the same tab keeps the
+   session, in `sessionStorage` (`frontend/src/services/sessionStore.js`), bounded by the token's own JWT `exp`;
+   request `scope=read` at login; API text is shown as text (no raw HTML), so log lines cannot inject scripts.
 5. **Brain:** fill in this file and append to the journal during the task; `CURRENT_STATE.md` and `NEXT_STEP.md`
    only in the last PR; merge `main` into the branch before pushing (never rebase a pushed branch).
 
@@ -153,3 +154,20 @@ a screen or a button in `frontend/`.
     writing (`curl 127.0.0.1:18000` → exit 7), so the live smoke test still needs the tunnel + a real DB login.
   - **tests written (Vitest run deferred, as asked):** `utils/format.test.js` (`liveLabel`) and `index.test.js`
     (`dataSource`). `vite build` green.
+
+- **2026-10-13 — reload keeps the real session; the incidents list pages 30 at a time (`juanes6554`'s request):**
+  - **session across a reload, now in real mode too:** `mockSessionStore.js` became `sessionStore.js` and stores
+    `{ user, token, expiresAt }`. `httpAuthAdapter.signIn` saves the token, `restore()` puts it back in memory, and
+    `signOut`/`401` clear it (`http.js`). Nothing goes to `localStorage`, cookies or the URL. `expiresAt` is the
+    earlier of `VITE_ARGUS_SESSION_TTL_MIN` and the token's own JWT `exp`, so a dead token is never restored. This
+    is a **deliberate amendment of rule 4** ("in memory only" → "never `localStorage`/cookies/URL; may be in this
+    tab's `sessionStorage`"), because the previous turn's mock-only persistence left real mode logging out on every
+    reload; rule 4 in this file and in `frontend/README.md` were updated together.
+  - **incidents list paging:** `useIncidentList` fetches the newest rows once (up to `INCIDENTS_CAP = 1000`) — the
+    API has no `offset` and no total — and the page shows 30 at a time with a **Show more** button; the summary
+    gives how many are visible and the real total (`utils/paging.js`, `incidentsSummary`). Adding `offset`/cursor
+    and a count to `GET /api/v1/incidents` is recorded as a contract ask in `frontend/README.md`.
+  - **tests written (Vitest run deferred, as asked):** `sessionStore.test.js` (renamed; adds the token round-trip
+    and JWT-`exp` expiry), `httpAuthAdapter.test.js` (restore puts the token back; signOut clears both), and
+    `httpArgusAdapter.test.js` (401 clears the persisted session; the stale `restore()` case removed), plus the new
+    `paging.test.js` for `incidentsSummary`.

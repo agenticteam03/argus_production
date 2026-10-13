@@ -43,9 +43,12 @@ rendering. Unit tests with Vitest; Playwright acceptance tests come next (T-0016
 
 - Menu items are filtered by role (viewer / operator / approver); a route the role cannot see is neither shown nor
   reachable by typing its URL.
-- Log out clears the session immediately. The mock session survives a page reload in the same tab (remembered
-  until logout, closing the tab, or a TTL, default 8 h); the real API token lives in memory only, so a reload asks
-  for the login again.
+- Log out clears the session immediately. A session survives a page reload in the same tab (remembered until
+  logout, closing the tab, or a TTL, default 8 h); a real session is additionally bounded by the token's own
+  expiry, and a `401` forgets it.
+- The incident list loads the newest rows once (up to 1000) and shows them **30 at a time**: a **Show more** button
+  at the end and a line giving how many are visible and the real total (`src/utils/paging.js`). The API has no
+  `offset`, so the paging happens in the browser.
 - The dashboard refreshes every 5 s, the incident list every 5 s and the runbook list every 10 s. The pill by the
   page title says **Demo data** in mock mode and, against the real API, **Live** with the time of the last
   successful refresh (or **Reconnecting…** when a poll fails) — so it is visibly live, not decorative.

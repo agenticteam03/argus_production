@@ -3,15 +3,19 @@ import IncidentRow from "../components/IncidentRow.jsx";
 import { Card, Empty, ErrorCard, fieldClass, Inbox, LivePill, OUTCOME_META, Search, Select, Skeleton, STATUS_META } from "../components/ui.jsx";
 import { useIncidentList } from "../hooks/useIncidentList.js";
 import { dataSource } from "../services/index.js";
+import { incidentsSummary, PAGE_SIZE } from "../utils/paging.js";
 
 export default function Incidents() {
-  const { rows, error, live, updatedAt, retry } = useIncidentList();
+  const { rows, error, live, updatedAt, retry, truncated } = useIncidentList();
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState("");
   const [outcome, setOutcome] = useState("");
   const [target, setTarget] = useState("");
+  const [visible, setVisible] = useState(PAGE_SIZE);
   const headingRef = useRef(null);
   useEffect(() => { headingRef.current?.focus(); }, []);
+  // A new filter is a new result set: go back to the first page so "Show more" always starts from the top.
+  useEffect(() => { setVisible(PAGE_SIZE); }, [query, status, outcome, target]);
 
   const targets = useMemo(() => [...new Set((rows ?? []).map((r) => r.target))].sort(), [rows]);
   const filtered = useMemo(() => {
@@ -27,6 +31,9 @@ export default function Incidents() {
 
   const filtersActive = query || status || outcome || target;
   const clear = () => { setQuery(""); setStatus(""); setOutcome(""); setTarget(""); };
+
+  const shown = filtered.slice(0, visible);
+  const remaining = filtered.length - shown.length;
 
   return (
     <div className="space-y-6">
@@ -77,9 +84,21 @@ export default function Incidents() {
             </div>
           ) : (
             <>
-              <p className="text-xs text-muted">Showing {filtered.length} of {rows.length} · only the latest 30 incidents are loaded</p>
+              <p className="text-xs text-muted">
+                {incidentsSummary({ shown: shown.length, matched: filtered.length, total: rows.length, hasFilters: Boolean(filtersActive), truncated })}
+              </p>
               <Card title="Incidents" count={filtered.length}>
-                <ul className="space-y-2">{filtered.map((r) => <IncidentRow key={r.id} incident={r} />)}</ul>
+                <ul className="space-y-2">{shown.map((r) => <IncidentRow key={r.id} incident={r} />)}</ul>
+                {remaining > 0 && (
+                  <div className="mt-4 flex justify-center">
+                    <button
+                      onClick={() => setVisible((v) => v + PAGE_SIZE)}
+                      className="cursor-pointer rounded-lg border border-line px-4 py-2 text-sm transition hover:bg-white/5"
+                    >
+                      Show {Math.min(PAGE_SIZE, remaining)} more
+                    </button>
+                  </div>
+                )}
               </Card>
             </>
           )}
