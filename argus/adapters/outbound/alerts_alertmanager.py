@@ -57,7 +57,8 @@ class AlertmanagerSource:
             if starts is None or not it.get("fingerprint"):
                 continue
             out.append(AlertNotification(fingerprint=str(it["fingerprint"]), status="firing", starts_at=starts,
-                                         ends_at=_ts(it.get("endsAt")), labels=labels,
+                                         ends_at=_ts(it.get("endsAt")), updated_at=_ts(it.get("updatedAt")),
+                                         labels=labels,
                                          annotations={str(k): str(v)
                                                       for k, v in (it.get("annotations") or {}).items()}))
         return out

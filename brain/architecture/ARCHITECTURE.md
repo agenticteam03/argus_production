@@ -1,7 +1,7 @@
 # Argus — Production Architecture Specification
 
 **Document type:** consolidated target architecture and implementation blueprint ·
-**Version:** 1.8.7 (2026-10-12, ACR-0008; 1.8.6 2026-10-11, ACR-0007; 1.8.5 2026-10-09, ACR-0005; 1.8.4 2026-10-09, ACR-0004; 1.8.3 2026-10-08, ACR-0003; 1.8.2 2026-10-09, ACR-0002; 1.8.1 2026-10-06, ACR-0001; base 1.8.0 of 30 September 2026, sanitized for the shared repository 2026-10-02) · **Audience:** engineers and AI coding agents implementing
+**Version:** 1.8.8 (2026-10-12, ACR-0009; 1.8.7 2026-10-12, ACR-0008; 1.8.6 2026-10-11, ACR-0007; 1.8.5 2026-10-09, ACR-0005; 1.8.4 2026-10-09, ACR-0004; 1.8.3 2026-10-08, ACR-0003; 1.8.2 2026-10-09, ACR-0002; 1.8.1 2026-10-06, ACR-0001; base 1.8.0 of 30 September 2026, sanitized for the shared repository 2026-10-02) · **Audience:** engineers and AI coding agents implementing
 Argus from an empty repository.
 
 
@@ -1161,6 +1161,9 @@ resolves nothing. When the last occurrence of an incident resolves: a **queued**
 `resolved_externally` and no run; a **running** one finishes its diagnosis (in a read-only release no write or
 verification is ever in flight); a **concluded** one is not changed. Each resolution is audited
 (`incident.alert_resolved`, `incident.alerts_all_resolved`) (ACR-0005).
+A host whose monitoring heartbeat is **not fresh** (§7.3, ACR-0009: lost, or not yet seen) resolves nothing: while
+its heartbeat is not fresh, the absence of its alerts is unknown, not a resolution. Its occurrences stay `firing` until
+the monitoring has recovered and a later read shows them absent.
 
 ### 6.5 Scheduling policy (`application/scheduling_policy.py`)
 
@@ -1269,6 +1272,10 @@ schedules:
 reconcile_firing_alerts:
   enabled: true                  # pull profiles (§3.2); false = push only
   every_s: 60
+  monitoring_heartbeat:          # ACR-0009; on once every host's Prometheus has the heartbeat rule
+    enabled: true
+    stale_after_s: 180           # at least two ticks
+    grace_s: 300
 ```
 
 On each tick the scheduler submits `RunInvestigation(trigger_kind="scheduled", schedule_id,
@@ -1284,6 +1291,41 @@ never reassigned. In a **pull** profile (§3.2) it is the primary trigger and is
 profile it is the backup for alerts missed during an Argus outage (ACR-0003). After a host's firing alerts it reads
 that host's active alerts (`AlertSourcePort.active_alerts(host)`, silenced and inhibited included) and resolves the
 host's occurrences that are absent (§6.4 "Resolution", ACR-0005).
+
+**Monitoring heartbeat (ACR-0009, `application/monitoring.py`).** Every host's Prometheus fires
+`ArgusMonitoringHeartbeat` (`count by (argus_host) (up{argus_host!=""}) > 0`, `deploy/monitoring/alerts.yml`) while it
+evaluates rules. On every reconcile tick, for each host, Argus looks for it in the active alerts it already reads
+(silenced and inhibited included, so a silence never hides a loss). The heartbeat is **fresh** when it is listed with
+its own `argus_host`, its `endsAt` is in the future and its `updatedAt` is no older than `stale_after` (default
+3 minutes; Prometheus re-sends every `resend_delay`, 1 minute by default). An alert that is still listed but no longer
+renewed is **not** fresh: reading a kept copy again is not a new heartbeat.
+
+- **Lost:** no fresh heartbeat for `stale_after` (from the last renewal seen), or none within the startup grace
+  (default 5 minutes; leaving it needs two consecutive fresh ticks, so one late renewal after a scheduler restart does
+  not end it). Argus opens **one incident per host and loss episode** on the host target (`host/host:host`), class
+  `monitoring_blind_spot`, RB-014, finding *"Host monitoring unavailable"*, with a cause from what it observed (table
+  below), stored already `escalated` with outcome `undiagnosable`: **no worker run, no model call, no read of the
+  host**. Its idempotency key is `monitoring:<host>:<episode start>`; the state per host is stored (migration 006),
+  so a scheduler restart neither opens a second incident for an episode nor forgets one. Audited `monitoring.lost`.
+- **Recovered:** two consecutive ticks with a fresh heartbeat. Audited `monitoring.recovered` on the episode's
+  incident. This confirms the monitoring is back, not that the host's applications are healthy.
+- **Not fresh:** on any tick without a fresh heartbeat (lost or not yet), the host resolves nothing (§6.4).
+- **Bounded Prometheus check:** when the heartbeat is lost, one bounded read of the host's own Prometheus
+  (`GET /-/ready`, 3 s, read-only) refines the cause; it never restarts anything.
+- **Maintenance (explicit):** `argus monitoring maintenance <host> --minutes N --as <who>` (N at most 240, audited
+  `monitoring.maintenance`). During it a loss is audited (`monitoring.lost_in_maintenance`) but opens no incident;
+  the resolution rule still applies. A loss still present after it ends opens its incident.
+
+| Observation | What Argus records |
+|---|---|
+| Alertmanager answers, heartbeat fresh | monitoring alive (no record per tick; transitions only) |
+| Alertmanager answers, heartbeat missing or stale | heartbeat lost: check the host's Prometheus rule evaluation and alert delivery |
+| Alertmanager does not answer | monitoring cannot be read: check the host's Alertmanager and the transport |
+| and Prometheus does not answer the bounded check | Prometheus not reachable from Argus: cause to be confirmed |
+
+The heartbeat alert never reaches intake (`HandleAlertNotification` ignores it by its `alertname`) and never opens an
+investigation. The check is configuration (`monitoring_heartbeat.enabled`), off until every host's Prometheus has the
+rule. Not covered: Argus itself runs on one host; if that host is down as a whole, nothing reports it.
 
 ### 7.4 Peer-agent adapter (`adapters/inbound/agent`, reserved)
 
@@ -2874,3 +2916,4 @@ erDiagram
 | 1.8.4 | 2026-10-09 | correlation: an alert that started before the latest concluded incident of its target and class closed is attached to it (same episode), without a new run (§6.4) | [ACR-0004](changes/ACR-0004-correlation-same-episode.md) |
 | 1.8.6 | 2026-10-11 | `confirm_then_reason`: a rule-planned confirmation round (a suspect's logs and resources) before the model concludes; `disk_pressure` uses it (§3, §10.3) | [ACR-0007](changes/ACR-0007-confirm-then-reason.md) |
 | 1.8.7 | 2026-10-12 | `confirm_then_reason`: an exited writer of the full filesystem is a suspect too (its logs are read; its data stays on the mount) (§10.3) | [ACR-0008](changes/ACR-0008-stopped-writer-suspect.md) |
+| 1.8.8 | 2026-10-12 | a monitoring heartbeat per host: a lost heartbeat opens one escalated "Host monitoring unavailable" incident per episode (no run, no model), and a host without a fresh heartbeat resolves nothing; explicit maintenance (§6.4, §7.3, `alerts.yml`) | [ACR-0009](changes/ACR-0009-monitoring-heartbeat.md) |

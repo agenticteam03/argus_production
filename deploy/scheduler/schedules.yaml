@@ -18,3 +18,10 @@ schedules:
 reconcile_firing_alerts:
   enabled: true
   every_s: 60
+  # T-0035 (ACR-0009): the monitoring heartbeat per host. Off until both hosts' Prometheus run the
+  # ArgusMonitoringHeartbeat rule (deploy/monitoring/alerts.yml): turned on, a host without a fresh heartbeat resolves
+  # no alert and, after grace_s, opens a "Host monitoring unavailable" incident. stale_after_s: at least two ticks.
+  monitoring_heartbeat:
+    enabled: false
+    stale_after_s: 180
+    grace_s: 300
