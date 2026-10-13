@@ -1373,3 +1373,250 @@ Consequences: Phase 13's token rotation is covered for `docker_read`, `host_prob
 also needs its Prometheus scrape token and stays manual.
 References: [`../tasks/completed/T-0033-token-rotation.md`](../tasks/completed/T-0033-token-rotation.md),
 [evidence](../execution/history/T-0033/step-02/evidence.md).
+
+## 2026-10-12 — EVAL-3 step 2: the model escalates the unexplained SIGKILL 5/5; 0.96 on the 55 cases (EVAL-3)
+
+Type: test result
+Who: conantkd (+ agent)
+Context: EVAL-3 step 1 (#93) relabelled `restart-sigkill-01` `no_action_escalated` (RB-008). Step 2 runs the configured
+model on the 55 cases, the first model run on `main` after OP-012 and T-0033.
+Decision / result: vm-095, `ops/eval-run.sh` with its defaults (the deployed image and checkout, `main` `244453b`), 5
+trials: 0.96 (core 0.99), abstention 0.98, `restart-sigkill-01` 5/5, restart loop 1.00, disk 1.00, hard 0 0 0.
+`health_check_failed` 0.72 (8 of the 10 misses with `ambiguous-health-no-cause`), nginx 0.92. NO INTERFERENCE.
+Consequences: EVAL-3 is done. The health class is the weakest: the "health check" wording question has numbers now.
+References: [`../tasks/completed/EVAL-3-sigkill-label.md`](../tasks/completed/EVAL-3-sigkill-label.md),
+[evidence](../execution/history/EVAL-3/step-02/evidence.md).
+
+## 2026-10-12 — T-0019 batch 3a: the inspection policy (§4.7) before any file, journal or process read (T-0019)
+
+Type: feature
+Who: conantkd (+ agent)
+Context: T-0019 batch 3 adds host-probe verbs that read files, service configuration, the journal and process details.
+§4.7 says a per-target inspection policy decides what they may touch; none existed. Batch 3 is split in three PRs
+(3a policy, 3b host verbs, 3c network verbs) so the policy is reviewed on its own.
+Decision / result: `config/policy.yaml` gains `inspection:` (`files` empty everywhere; nginx's `default.conf` as
+`service_config`; journal `docker.service`/`containerd.service` 200 lines; `processes` on both hosts; deny list;
+`arbitrary_exec: false`). `argus/policy/inspection.py` decides each read (deny wins, a built-in deny floor, paths
+refused unless already normal); the engine applies it as rule `inspection`; `build()` refuses entries outside the
+inventory or the host's declared mounts; each probe's rendered config carries its host's part. `journal` will read
+`/var/log/syslog` (rsyslog) filtered by unit, as `kern.log` in batch 2. No ACR (§4.7, §12.2).
+Consequences: nothing reads the policy until 3b's verbs exist; no deploy for 3a alone. Touches what Argus may read: a
+teammate's approval is required.
+References: [`../tasks/current/T-0019-db-probe.md`](../tasks/current/T-0019-db-probe.md).
+
+## 2026-10-12 — T-0033 follow-up: rotate-token.sh keeps the mode on a rollback and reports a failed recreate (T-0033)
+
+Type: fix
+Who: conantkd (+ agent)
+Context: the review of #94 found two gaps in `ops/rotate-token.sh`, both on the error paths: `--rollback` left the live
+token with `.prev`'s mode 0400, and a failed `docker compose` recreate was hidden and still reported "recreated".
+Decision / result: the rollback writes `.prev`'s content into a new file with the live file's owner and mode; the
+recreate's exit status is checked: on failure the script prints the error, says the service still holds the previous
+token and how to roll back, and exits 1. The script takes `ARGUS_DEPLOY_HOME`, `ARGUS_DOCKER`, `ARGUS_HOSTNAME` for tests.
+Consequences: no deploy needed (the script runs from the checkout; it reaches the VMs with the next `deploy.sh main`).
+References: [`../tasks/completed/T-0033-token-rotation.md`](../tasks/completed/T-0033-token-rotation.md).
+
+## 2026-10-12 — E2E-8 planned: close Phase 12 (five runs of every scenario) for juanbetancurm (E2E-8)
+
+Type: decision
+Who: conantkd (+ agent)
+Context: Phase 12 is at 80 %: SC-01 … SC-08 are 5/5; H-1, H-2, SC-09, SC-11 ran once; SC-10, SC-12 and the identity
+proof are not in the runner catalogue (they stop Argus's own services, or need two incidents at once).
+Decision / result: task file `E2E-8-phase12-close.md` written for `juanbetancurm`: prerequisites (the merge order of
+#97–#103 and an AFTER-MERGE of both VMs to `main`), the catalogue entries for SC-10, SC-12 and the identity proof
+(tests first; the identity proof needs a small runner change), and five runs of each.
+Consequences: Phase 12 reaches 100 % when every line is 5/5. `conantkd` released both leases after T-0019 step 08.
+References: [`../tasks/current/E2E-8-phase12-close.md`](../tasks/current/E2E-8-phase12-close.md).
+
+## 2026-10-12 — EVAL-4: health diagnoses may name the failing check in other words; strict accuracy 0.96 → 0.99 (EVAL-4)
+
+Type: fix
+Who: conantkd (+ agent)
+Context: EVAL-3 step 2 (#99): `health_check_failed` 0.72 strict, 0.99 core overall; 6 of the 8 health misses had the
+right root cause and class but wrote "health probe" or "unhealthy" instead of "health check".
+Decision / result: the five health cases accept `health check`, `healthcheck`, `health probe`, `unhealthy` (relabelled
+after seeing the answers, disclosed). New `argus.evaluation.regrade` grades a stored results file again without a model
+call. EVAL-3 step 2's 275 runs: 265 → 271 passed, 0.96 → 0.99 (core 0.99), health 0.72 → 0.96; the old labels
+reproduce the run's own summary exactly.
+Consequences: the health wording question is closed. Real misses left: one health escalation with the cause in the
+logs, one abstain miss, two nginx runs without the upstream as root cause.
+References: [`../tasks/completed/EVAL-4-health-wording.md`](../tasks/completed/EVAL-4-health-wording.md).
+
+## 2026-10-12 — EVAL-5: the model sees which URL and port each target allows (EVAL-5)
+
+Type: fix
+Who: conantkd (+ agent)
+Context: EVAL-3 step 2 and T-0019 batch 3c: `check_http_endpoint` was called 11 times on `argus-lab-slow`, which has
+no HTTP endpoint in the inventory (TCP 8080 only); every call failed as `invalid_args`, and the three nginx misses
+escalated or named no root cause after it ("the direct probe was invalid").
+Decision / result: `InvestigationView.allowed_values` carries, per target in scope, the inventory's `http_endpoints`
+(`url`) and `tcp_ports` (`port`), filled by both runners. In the tool definitions, a probe with such an argument is
+offered only on targets with allowed values, the argument gets an enum, and the description lists them ("Allowed:
+vm-166/container:argus-lab-nginx: http://argus-lab-nginx:8080/"). A probe with no allowed target is not offered.
+Consequences: the model can no longer ask a URL or port the probe would refuse. Not yet measured with the model (both
+leases were released; the next evaluation batch on vm-095 measures it, nginx cases first).
+References: `argus/tooling/model_harness.py`, `argus/orchestration/runner.py`.
+
+## 2026-10-12 — T-0034: combined capabilities (§12.7) and the first one, the diagnostic snapshot (T-0034)
+
+Type: feature
+Who: conantkd (+ agent)
+Context: §12.7's combined capabilities had no mechanism (T-0019 3c chose not to build it for one network verb).
+Decision / result: `CapabilitySpec.max_subcalls`; `InvokeCapability` runs a combined capability with a read-only
+sub-invoker: each sub-read goes back through `InvokeCapability` (caller `capability:<name>`, shared budget, policy,
+audit, evidence); past `max_subcalls` or nested = refused and audited; the result references its sub-reads, and both
+runners keep them as citable evidence (`refs_of`). First use `analysis.diagnostic_snapshot` (Level 3, 6 sub-reads),
+offered to no class until an evaluation batch measures it. No ACR (§12.7 as written).
+Consequences: Phase 4's open item (combined capabilities) has its mechanism; `analysis.timeline` and
+`analysis.trace_request_path` can follow on it.
+References: [`../tasks/completed/T-0034-combined-capabilities.md`](../tasks/completed/T-0034-combined-capabilities.md).
+
+## 2026-10-12 — T-0019 batch 3b: file, configuration, journal and process reads under §4.7; phase 3 complete (T-0019)
+
+Type: feature
+Who: conantkd (+ agent)
+Context: batch 3a (#98) put the §4.7 inspection policy in `config/policy.yaml`; batch 3b adds the host-probe verbs
+that use it. EVAL-3 step 2 and 3c: nginx misses where the model could not see the configured timeout.
+Decision / result: four Level 3 capabilities (`host.read_file`, `host.service_config`, `host.journal`,
+`host.process_details`); the probe re-checks the policy from its rendered copy (same rules, a parity test), refuses
+symbolic links and non-regular files, bounds lines and bytes; the journal is rsyslog's text by program; process details
+never read `cmdline` or `environ`. Only `host.service_config` is offered (to `nginx_upstream_failure`). The six nginx
+cases answer it with the lab's `default.conf`. Every `host-probe` verb of §4.6 now exists: phase 3 is complete.
+Consequences: verified on both VMs before the merge; the PR is stacked on #98.
+References: [`../tasks/current/T-0019-db-probe.md`](../tasks/current/T-0019-db-probe.md).
+
+## 2026-10-12 — T-0019 batch 3c: why two containers cannot reach each other, and repeated TCP (T-0019)
+
+Type: feature
+Who: conantkd (+ agent)
+Context: batch 3 split in 3a (inspection policy, #98), 3b (host verbs) and 3c (network verbs). SC-07 (T-0018): the
+model sees a failing DNS/TCP from the app network, and has to infer from two statuses that the backend sits on
+another network.
+Decision / result: `network.connectivity` (Level 2, read gateway `GET /connectivity`): both sides' networks and the
+shared ones, names only; offered to `dependency_unavailable` only. `network.tcp_connect` takes `attempts` (1-5) with
+each attempt's latency. Option A2 (decided by `conantkd`); the §12.7 combined capability was not built for one use.
+`listening_ports` is left out (it needs a container's network namespace: two executors). The 6 dependency evaluation
+cases answer the new route from their own status fixtures.
+Verified on both VMs (`030690a`, both leases): the routes from the host, the agent's code path, and the model on the
+55 cases × 5: 0.96 (core 0.99), hard 0 0 0; `check_connectivity` used in 25 runs; SC-07's case read in 2 reads with
+the cause stated (4.16 → 3.40 reads per dependency run). LAB BASELINE OK, NO INTERFERENCE.
+Consequences: both VMs run the branch until it merges (then AFTER-MERGE to `main`).
+References: [`../tasks/current/T-0019-db-probe.md`](../tasks/current/T-0019-db-probe.md).
+
+## 2026-10-12 — The redactor masks secrets, not file paths (REDACT-paths)
+
+Type: fix
+Who: conantkd (+ agent)
+Context: T-0019 batch 3b step 08: `inspect_service_config` on vm-095 showed nginx's configuration path as
+`/[REDACTED HIGH-ENTROPY].conf`; the high-entropy rule (40+ characters of `[A-Za-z0-9+/_=-]`) took
+`opt/argus-v18/app/deploy/lab/nginx/default` for a token.
+Decision / result: a high-entropy match that is a run of lower-case path segments (at most 32 characters each, no `+`
+or `=`, optionally after `key=`) is left as is; everything else is masked as before. On all 853 fixture strings of the
+55 evaluation cases the new redactor gives exactly the old output; tokens (mixed case, base64, long hex) stay masked.
+Consequences: paths in observations (configuration files, mounts, logs) reach the model readable.
+References: `argus/capabilities/redaction.py`, `tests/test_redaction_paths.py`.
+
+## 2026-10-12 — ACR-0009 proposed: a monitoring heartbeat per host (ACR-0009)
+
+Type: decision
+Who: conantkd (+ agent)
+Context: Phase 13's last item (T-0032's "not covered"): when a host's Prometheus stops, nothing tells anyone, and the
+host's application alerts expire after about 4 minutes, so `resolve_absent` (ACR-0005) records resolutions that never
+happened and closes queued incidents `resolved_externally`.
+Decision / result: ACR-0009 proposed (document only). An always-firing `ArgusMonitoringHeartbeat` alert per host,
+checked on every reconcile tick by renewal (`updatedAt`, `endsAt`), not presence, silences included; a lost heartbeat
+opens one incident per host and episode (`monitoring_blind_spot`, RB-014, "Host monitoring unavailable"), escalated at
+once with no run and no model call; no resolution of that host's alerts while lost; recovery after two fresh ticks;
+explicit, time-bounded maintenance by CLI; state in Postgres; a bounded readiness read of the host's Prometheus to
+refine the cause. Alternatives (cross-host watching, direct Prometheus polling, relying on investigations, a new class)
+recorded in the ACR.
+Consequences: implementation T-0035 after acceptance, in its own PR (it applies the ACR to `ARCHITECTURE.md`, 1.8.8),
+then a VM proof with both leases.
+References: [`../architecture/changes/ACR-0009-monitoring-heartbeat.md`](../architecture/changes/ACR-0009-monitoring-heartbeat.md).
+
+## 2026-10-12 — brain.py lint lets a task branch merge main after a roll-up (LINT-merge-base)
+
+Type: fix
+Who: conantkd (+ agent)
+Context: merging `main` into #101 and #103 (after the roll-up #97) was refused by the pre-commit lint: "a task branch
+does not edit the shared summaries" for `logbook.md`, `CURRENT_TEST_STATE.md` and `NEXT_STEP.md`. While `git merge`
+is in progress HEAD is still the branch's old tip, so `merge-base(HEAD, origin/main)` is the old base and the
+summaries changed by main's roll-up looked like the branch's own edits. Any task branch merging `main` after a
+roll-up hits it.
+Decision / result: `summary_edits` judges from `MERGE_HEAD` when a commit of `main` is being merged: only what the
+branch changes on top of it counts. A summary edited by the branch during the merge is still refused. Not skipped with
+`--no-verify`: the merges of #101 and #103 wait for this fix.
+Consequences: touches the enforcement (`brain.py`): needs a teammate's approval. After the merge, `main` is merged into
+#103 and #101.
+References: `brain/tools/brain.py` (`summary_edits`), `tests/brain/test_brain.py`.
+
+## 2026-10-12 — Local CI: the checks of ci.yml on a laptop when GitHub Actions does not run (LOCAL-CI)
+
+Type: process
+Who: juanbetancurm (+ agent)
+Context: the runs on `main` after #103, #101 and #107 did not start (GitHub Actions jobs "not started"). The merges
+had been checked on a laptop (full suite, lint, render, `verify-main` on `5b01397`), but nothing in the protocol said
+how, or what counts as the merge check then.
+Decision / result: `ops/local_ci.py` runs the steps of `.github/workflows/ci.yml` on an exact commit (a PR's last push
+in a clean temporary worktree, `origin/main` with `verify-main`, or a clean HEAD) and prints one `LOCAL CI PASS|FAIL
+<commit>` block; `--post` comments it on the PR. A missing tool is `skipped`, never a pass; a test that fails in the
+full run and passes alone is `flaky`; a test on the `KNOWN_LOCAL` list (failing only on a laptop, today the MCP timing benchmark) is `known-local`, named. `REVIEW_PROTOCOL.md` ("When CI does not run"): the reviewer's `LOCAL CI PASS`
+comment on the approved commit replaces the green CI in the merge check; after merging, `--main` replaces
+`main-guard`. `TDD.md` stages 5-6 and `AGENT_PROTOCOL.md` point to it.
+Consequences: every developer and agent follows the same steps while Actions does not run; when it runs again, its CI
+is the merge check again.
+References: `ops/local_ci.py`, `tests/test_local_ci.py`, `brain/agents/REVIEW_PROTOCOL.md`.
+
+## 2026-10-12 — AFTER-MERGE: both VMs on main d34f0cb (#97–#111)
+
+Type: deployment
+Who: conantkd (+ agent; the agent ran the blocks over ssh)
+Context: the VMs ran `task/T-0019-batch3b-host-verbs` `9ac49ec` (3a + 3b) while #97–#111 were merged. `juanbetancurm`
+asked in #110 not to deploy `main` before #110 (redactor: only declared paths readable) and #109 (`/tcp` 8 s budget).
+Both merged; #111 (local CI) adds only `ops/local_ci.py` and docs.
+Decision / result: both VMs on `main` `d34f0cb`: target services rebuilt on both; on vm-095 one backup, then agent,
+worker and scheduler recreated together on one image. Checks: 20/20 database, 55/55 phase 3, write gate closed,
+LAB BASELINE OK and NO INTERFERENCE on both; the 3c routes and the agent's 3c reads answer; the snapshot is in the
+catalogue; the redactor keeps the declared nginx path and masks a URL-path secret.
+Consequences: the deployment matches `main` again. Next on the VMs: measure EVAL-5 and the snapshot (model calls).
+References: [evidence](../execution/history/AFTER-MERGE-main/step-01/evidence.md), session `4f8a9d4f8dc1`.
+
+## 2026-10-13 — The redactor keeps only the paths Argus declared readable (REDACT-declared-paths)
+
+Type: fix
+Who: juanbetancurm (+ agent)
+Context: #107 (REDACT-paths) left every run of lower-case path segments unmasked, so the nginx configuration path of
+T-0019 3b reached the model readable. The review of #107 found that it also let lower-case secrets in URL paths
+through (an API key in `/api/v1/keys/<32 hex>`, a webhook URL, a presigned download path), which `main` before #107
+masked. #107 was merged on the condition that this is fixed before `main` is deployed to the VMs.
+Decision / result: `Redactor(declared=...)` sets aside only the paths Argus itself declared before the high-entropy
+rule and puts them back after it: the inspection policy's `service_config` and `files` entries and the inventory's
+mounts (as directories; `/` declares nothing), from `wiring.declared_paths`, in both places the redactor is built
+(`build`, `tools_dispatcher`). Every other path is masked as before #107. On the 899 fixture strings of the
+evaluation cases, the new redactor differs from the one before #107 only on the 6 strings that are the declared nginx
+`default.conf` path.
+Consequences: the nginx configuration path stays readable for the model; a secret in any undeclared path is masked
+again. Declaring a new `files` entry in the policy also makes its path readable.
+References: `argus/capabilities/redaction.py`, `argus/infrastructure/wiring.py`, `tests/test_redaction_paths.py`.
+
+## 2026-10-13 — Task files brought up to date with the merged pull requests
+
+Type: process
+Who: conantkd (+ agent)
+Context: many files in `tasks/current/` still said `in progress`, `in review` or "waits for review" after their pull
+requests had merged (checked against GitHub's merged list, #7-#112); two ACRs applied to the architecture still said
+`proposed`.
+Decision / result:
+- 31 finished tasks moved to `tasks/completed/` with their final status and PR numbers (the rule in
+  `tasks/completed/README.md`); every link to them rewritten (`lint` clean).
+- 5 stay in `tasks/current/`: E2E-8 (planned, `juanbetancurm`), OP-004 and OP-008 (the first `--apply` waits for a
+  teammate's review of the dry run), T-0016 (Playwright, the network guard and the contract check still open,
+  `juanes6554`), T-0019 (its deny-floor follow-up #114 is in review). OP-004's status said "VM dry run pending": it
+  was done 2026-10-10.
+- T-0023 step 3 is done through E2E-1 to E2E-6 (SC-01 to SC-08 at 5/5); E2E-4's step 2 was E2E-3 step 2's SC-08 5/5.
+- ACR-0003 `accepted` (`juanbetancurm`'s approval of #45, 2026-10-09) and ACR-0008 `accepted` (approval of #89,
+  2026-10-12): both were already applied (architecture 1.8.3 and 1.8.7).
+- The class-registry question of T-0025 and EVAL-2 is now an open decision of its own: D-003 in `OPEN_PROBLEMS.md`.
+  OP-001 there: PR #44 merged.
+Consequences: Brain only, no code. Done on the roll-up branch because `NEXT_STEP.md` links to some of the moved files.
+References: `brain/tasks/completed/`, `brain/OPEN_PROBLEMS.md` (D-003).

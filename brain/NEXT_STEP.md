@@ -1,5 +1,59 @@
 # Next step
 
+**Now (2026-10-13, roll-up, `conantkd`).** Both VMs run `main` `d34f0cb` (#97-#111, AFTER-MERGE #112, from its
+evidence; not observed again at this roll-up); `main` after it is Brain only. The task files are up to date:
+`tasks/current/` holds only E2E-8, OP-004, OP-008, T-0016 and T-0019.
+
+1. **Review queue (17 PRs, #113-#129, all by `conantkd`):** suggested order #113 (`main-guard` green again), #114 (the
+   inspection deny floor), #115, #117, then the rest by number; #120 is stacked on #119. New work by `conantkd` should
+   avoid `catalog.py`, `config/policy.yaml`, `executors.py` and `wiring.py` until the capability PRs (#119-#125) merge.
+2. **After the merges:** AFTER-MERGE of both VMs to `main` (target services for #114 and #122; agent, worker and
+   scheduler together).
+3. **Waiting for a teammate:** OP-004 and OP-008's first `--apply` (review of the dry-run counts); ACR-0009 (#116) and
+   ACR-0010 (#124).
+4. **Team decisions:** the class registry ([D-003](OPEN_PROBLEMS.md)); which class, if any, is offered the tools that
+   are offered to no class yet (`get_socket_summary`, the snapshot, T-0036 to T-0040).
+5. **E2E-8** (`juanbetancurm`): SC-09 to SC-12 and the identity proof, five runs each. **Open problems:** OP-002
+   triage, the OP-003 proposal.
+
+The paragraphs below, down to "**Now (2026-10-12**", are the "Next step" sections this roll-up folded in (newest
+first); most are done, and the summary above supersedes them.
+
+AFTER-MERGE of both VMs to `main` once this and #109 are merged.
+
+Measure EVAL-5 and the diagnostic snapshot on vm-095 (needs the lease). Open findings for later tasks: #110 review
+(a declared directory matched without a left boundary) and #111 review (`PASS` with every step skipped; gitleaks
+scans ignored files without `--pr`).
+
+Use it for the open PRs while GitHub Actions does not run.
+
+After approval and merge: merge `main` into #103 (3b), then #101 (3c; also resolves `T-0019-db-probe.md`, both sections
+kept).
+
+A teammate accepts or rejects ACR-0009 in its PR; then T-0035 (implementation, tests first), then its VM proof.
+
+None.
+
+After the merge: AFTER-MERGE of both VMs to `main` (same services). Then batch 3b (host verbs under the 3a policy,
+#98). [Evidence](execution/history/T-0019/step-07/evidence.md).
+
+Batch 3b on the VMs (both leases), then the PR; after #98, #101 and this PR merge: AFTER-MERGE of both VMs to `main`.
+
+Offer the snapshot to a class after an evaluation batch; verify on vm-095 with the next AFTER-MERGE.
+
+Measure with the model in the next evaluation batch (nginx: 0.92–0.96 before).
+
+The nginx misses (the upstream not named as root cause) with the next evaluation batch.
+
+`juanbetancurm`: review #97–#103, AFTER-MERGE to `main`, then E2E-8.
+
+None for T-0033.
+
+After 3a is approved and merged: batch 3b (the four host-probe verbs under the policy), then 3c (network verbs).
+
+Read the 8 `health_check_failed` misses run by run (`eval-20261012-182757.jsonl` on vm-095) and decide the wording
+question; T-0019 batch 3 (3a in review, 3b, 3c).
+
 **Now (2026-10-12, roll-up, `conantkd`).** Both VMs run `main` `244453b` (#91-#95; observed with `deploy.sh status`
 at this roll-up); `main` is `817d88f` (+ #96, Brain only), so the deployment is current. `main-guard` is green again
 (#95, the retroactive lines for #91 and #92) and `verify-main` is clean.
