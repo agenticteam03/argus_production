@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import hashlib
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -59,6 +59,13 @@ class RunbookArgs(_Args):
 class PriorArgs(_Args):
     incident_class: str = Field(..., pattern=r"^[a-z_]{3,64}$", description="the incident class to look up")
     k: int = Field(3, ge=1, le=5, description="how many, newest first")
+
+
+class CompareArgs(_Args):
+    metric: Literal["memory", "cpu", "restarts", "disk", "network"] = Field(
+        ..., description="memory, cpu or restarts of a container; memory, cpu, disk or network of a host")
+    minutes: int = Field(30, ge=5, le=240, description="window in minutes")
+    earlier: Literal["1h", "24h", "3d"] = Field("24h", description="the same window this long before (within the 7-day retention)")
 
 
 class HistoryArgs(_Args):
@@ -529,22 +536,123 @@ def diagnostic_snapshot(args: NoArgs, target: TargetRef, info, invoker) -> Capab
     return CapabilityResult(values={"statuses": statuses}, model_text=head + "\n" + "\n".join(rows),
                             partial=bool(failed))
 
+MAX_TRACED_DEPENDENCIES = 3
+
+
+def trace_request_path(args: NoArgs, target: TargetRef, info, invoker) -> CapabilityResult:
+    """T-0040: for each declared dependency of this container on the same host (at most 3): is it running, do both
+    share a Docker network, does its name resolve. A dependency on another host, or a host, is listed, never read."""
+    deps = list(getattr(info, "depends_on", None) or [])
+    if not deps:
+        return CapabilityResult(values={"hops": []}, model_text=f"request path of {target}: no declared dependency "
+                                                                f"in the inventory")
+    traced = [d for d in deps if d.kind == "container" and d.host == target.host]
+    skipped = [d for d in deps if d not in traced]
+    extra = traced[MAX_TRACED_DEPENDENCIES:]
+    hops, lines, failed = [], [], []
+    for dep in traced[:MAX_TRACED_DEPENDENCIES]:
+        reads = (("container.status", dep, {}), ("network.connectivity", target, {"to": dep.name}),
+                 ("network.resolve_dns", dep, {}))
+        hop = {"dependency": str(dep), "reads": {}}
+        lines.append(f"{target.name} -> {dep.name}:")
+        for name, t, a in reads:
+            obs, ref = invoker.read(name, t, a)
+            hop["reads"][name] = obs.status
+            if obs.status != "ok":
+                failed.append(f"{name} ({dep.name})")
+            lines.append(f"  [{ref.evidence_id if ref else 'no evidence'}] {obs.model_text[:300]}")
+        hops.append(hop)
+    for d in skipped:
+        lines.append(f"{d}: not traced (another host or not a container; read it on its own)")
+    if extra:
+        lines.append(f"{len(extra)} more not traced (at most {MAX_TRACED_DEPENDENCIES}): "
+                     f"{', '.join(d.name for d in extra)}")
+    head = f"request path of {target}: {len(hops)} dependency hop(s) traced"
+    head += f"; not ok: {', '.join(failed)}" if failed else ""
+    return CapabilityResult(values={"hops": hops, "not_traced": [str(d) for d in skipped + extra]},
+                            model_text=head + "\n" + "\n".join(lines), partial=bool(failed))
+
+
 # --- prometheus ----------------------------------------------------------------------------------
-def _history(signal: str, label: str):
+def _history(signal: str, label: str, by_kind: dict[str, tuple[str, str]] | None = None, mounts: bool = False):
+    """A history over one named signal; `by_kind`: another signal and label per target kind (T-0036: a host's CPU);
+    `mounts`: the signal reads the target's declared mounts (none declared = NO DATA, unknown)."""
     def impl(args: HistoryArgs, target: TargetRef, info, client) -> CapabilityResult:
-        series = client.range(signal, target, args.minutes, step_s=max(15, args.minutes * 60 // 60))
+        sig, lab = (by_kind or {}).get(target.kind, (signal, label))
+        step = max(15, args.minutes * 60 // 60)
+        if mounts:
+            declared = "|".join(info.mounts) if info is not None and info.mounts else ""
+            if not declared:
+                return CapabilityResult(values={"points": []}, status="error", error_category="not_found",
+                                        model_text=f"{lab} for {target}: NO DATA, no declared mounts (unknown, not "
+                                                   f"zero)", coverage="no declared mounts")
+            series = client.range(sig, target, args.minutes, step_s=step, mounts=declared)
+        else:
+            series = client.range(sig, target, args.minutes, step_s=step)
         if not series:
             return CapabilityResult(values={"points": []}, status="error", error_category="not_found",
-                                    model_text=f"{label} for {target}: NO DATA in {args.minutes} min (unknown, not zero)",
+                                    model_text=f"{lab} for {target}: NO DATA in {args.minutes} min (unknown, not zero)",
                                     coverage="no samples")
         vals = [v for _, v in series]
         first, last = vals[0], vals[-1]
-        text = (f"{label} for {target} over {args.minutes} min: {len(vals)} samples, first={first:g} "
+        text = (f"{lab} for {target} over {args.minutes} min: {len(vals)} samples, first={first:g} "
                 f"last={last:g} min={min(vals):g} max={max(vals):g}")
         return CapabilityResult(values={"points": [[t, v] for t, v in series][-60:]}, model_text=text,
                                 source_time=datetime.fromtimestamp(series[-1][0], timezone.utc),
                                 coverage=f"{len(vals)} samples", partial=len(vals) < 3)
     return impl
+
+
+# T-0038: metric -> (signal, label) per target kind; a pair that is absent is refused, never guessed
+_BASELINE = {"container": {"memory": ("container_memory_bytes", "memory bytes"),
+                           "cpu": ("container_cpu_cores", "CPU cores in use"),
+                           "restarts": ("container_restart_count", "restart count")},
+             "host": {"memory": ("host_memory_available_ratio", "memory available share"),
+                      "cpu": ("host_cpu_busy_ratio", "CPU busy share"),
+                      "disk": ("host_disk_used_ratio_mounts", "fullest declared filesystem used share"),
+                      "network": ("host_network_bytes_per_s", "host network bytes/s (received + sent)")}}
+_EARLIER_S = {"1h": 3600, "24h": 86400, "3d": 3 * 86400}   # Prometheus keeps 7 days: 7d would fall at its edge
+
+
+def _summary(series) -> dict | None:
+    if not series:
+        return None
+    vals = [v for _, v in series]
+    return {"samples": len(vals), "mean": round(sum(vals) / len(vals), 6), "max": max(vals), "min": min(vals)}
+
+
+def compare_baseline(args: CompareArgs, target: TargetRef, info, client) -> CapabilityResult:
+    pair = _BASELINE.get(target.kind, {}).get(args.metric)
+    if pair is None:
+        return CapabilityResult(values={}, status="error", error_category="invalid_args",
+                                model_text=f"{args.metric} is not compared for a {target.kind} (choose one of "
+                                           f"{', '.join(sorted(_BASELINE.get(target.kind, {})))})")
+    signal, label = pair
+    params = {}
+    if signal == "host_disk_used_ratio_mounts":
+        declared = "|".join(info.mounts) if info is not None and info.mounts else ""
+        if not declared:
+            return CapabilityResult(values={}, status="error", error_category="not_found",
+                                    model_text=f"{label} for {target}: NO DATA, no declared mounts (unknown, not zero)")
+        params["mounts"] = declared
+    step = max(15, args.minutes * 60 // 60)
+    now_s = _summary(client.range(signal, target, args.minutes, step, **params))
+    off = _EARLIER_S[args.earlier]
+    old_s = _summary(client.range(signal, target, args.minutes, step, end_offset_s=off, **params))
+    if now_s is None and old_s is None:
+        return CapabilityResult(values={"now": None, "earlier": None}, status="error", error_category="not_found",
+                                model_text=f"{label} for {target}: NO DATA in either window (unknown, not zero)")
+
+    def part(name, s):
+        return f"{name}: NO DATA (unknown, not zero)" if s is None else f"{name} mean={s['mean']:g} max={s['max']:g}"
+    text = f"{label} for {target}: {part(f'last {args.minutes} min', now_s)}; {part(f'{args.earlier} earlier', old_s)}"
+    if now_s and old_s:
+        text += (f"; mean x{now_s['mean'] / old_s['mean']:.3g}" if old_s["mean"] else
+                 f"; mean +{now_s['mean'] - old_s['mean']:g} (earlier mean 0)")
+    return CapabilityResult(values={"metric": args.metric, "signal": signal, "earlier": old_s, "now": now_s,
+                                    "minutes": args.minutes, "offset": args.earlier},
+                            model_text=text, partial=now_s is None or old_s is None,
+                            coverage=f"{args.minutes} min now and {args.earlier} earlier")
 
 
 def build_catalog() -> list[CapabilitySpec]:
@@ -653,11 +761,39 @@ def build_catalog() -> list[CapabilitySpec]:
         CapabilitySpec("metrics.restart_history", "get_restart_history", "Container restart count over a time window.",
                        "is it a restart loop and since when", HistoryArgs, C, 2, "READ_ONLY_SAFE",
                        frozenset({"stability"}), "prometheus", _history("container_restart_count", "restart count")),
+        # T-0036: the other Level 2 histories of §12, offered to no class until an evaluation batch measures them
+        CapabilitySpec("metrics.cpu_history", "get_cpu_history",
+                       "CPU over a time window: a container's cores in use, or a host's busy share.",
+                       "sustained CPU vs a short spike; since when", HistoryArgs, C | H, 2, "READ_ONLY_SAFE",
+                       frozenset({"cpu_history"}), "prometheus",
+                       _history("container_cpu_cores", "CPU cores in use",
+                                by_kind={"host": ("host_cpu_busy_ratio", "CPU busy share")})),
+        CapabilitySpec("metrics.disk_history", "get_disk_history",
+                       "The used share of the host's fullest declared filesystem over a time window.",
+                       "is a filesystem filling, how fast, since when", HistoryArgs, H, 2, "READ_ONLY_SAFE",
+                       frozenset({"disk_history"}), "prometheus",
+                       _history("host_disk_used_ratio_mounts", "fullest declared filesystem used share", mounts=True)),
+        CapabilitySpec("metrics.network_history", "get_network_history",
+                       "A host's network traffic on its real interfaces (received + sent bytes per second) over a "
+                       "time window.", "did the host's traffic stop, drop or surge, and when", HistoryArgs, H, 2,
+                       "READ_ONLY_SAFE", frozenset({"network_history"}), "prometheus",
+                       _history("host_network_bytes_per_s", "host network bytes/s (received + sent)")),
+        CapabilitySpec("metrics.compare_baseline", "compare_incident_baseline",
+                       "One metric now against the same window earlier (1h, 24h or 3d ago): mean and max of each and "
+                       "the change. No stored baseline.", "is this level unusual for this target, or normal for it",
+                       CompareArgs, C | H, 3, "READ_ONLY_SAFE", frozenset({"baseline"}), "prometheus",
+                       compare_baseline),   # T-0038, offered to no class yet
         CapabilitySpec("analysis.diagnostic_snapshot", "capture_diagnostic_snapshot",
                        "A container's status, resources and recent logs, and its host's memory and CPU, in one call "
                        "(each part stored as its own evidence).", "a first broad look at a container and its host",
                        NoArgs, C, 3, "READ_ONLY_SAFE", frozenset({"snapshot"}), "argus_internal", diagnostic_snapshot,
                        runs_in="worker", max_output_bytes=16384, max_subcalls=6),
+        CapabilitySpec("analysis.trace_request_path", "trace_request_path",
+                       "Follows the container's declared dependencies (same host, at most 3): for each, is it running, "
+                       "do both share a Docker network, does its name resolve (each part stored as its own evidence).",
+                       "a container fails because of something it depends on: which hop of its path is broken",
+                       NoArgs, C, 3, "READ_ONLY_SAFE", frozenset({"request_path"}), "argus_internal",
+                       trace_request_path, runs_in="worker", max_output_bytes=16384, max_subcalls=9),   # T-0040
         CapabilitySpec("knowledge.runbook", "query_runbook",
                        "Read sections of a runbook of the library (id, version, status, section).",
                        "the evidence points to a cause another runbook covers (e.g. a branch runbook of the class)",

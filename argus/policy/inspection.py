@@ -14,9 +14,12 @@ from dataclasses import dataclass, field
 
 from argus.domain.model import TargetRef
 
-# Always denied, even if the data's deny list leaves them out (credentials, including Argus's own tokens).
-BUILTIN_DENY = ("environment_variables", "/run/secrets/", "/opt/argus-v18/secrets/", "/root/", "/etc/shadow",
-                "*.key", "*.pem", ".env", "*password*")
+# Always denied, even if the data's deny list leaves them out (credentials, including Argus's own tokens, and kernel
+# or Docker state that holds them). A pattern without `/` matches any component of the path, directories included
+# (#98 review: `/srv/tokens/x`, `~/.ssh/config`). The probe carries the same tuple (services/target/service.py).
+BUILTIN_DENY = ("environment_variables", "/run/secrets/", "/opt/argus-v18/secrets/", "/root/", "/proc/",
+                "/var/lib/docker/", "/etc/shadow", "/etc/shadow-", "/etc/gshadow", "/etc/gshadow-", "/etc/sudoers",
+                "/etc/sudoers.d/", ".ssh", "id_*", "*.key", "*.pem", ".env", "*.env", "*password*", "*token*")
 KEYWORDS = {"environment_variables"}                 # deny entries that name a kind of data, not a path
 
 # capability -> (kind of entry, argument that names what is read)
@@ -46,7 +49,7 @@ def _normal(path: object, *, directory_ok: bool) -> str | None:
 
 
 def _denied(path: str, deny: tuple[str, ...]) -> str | None:
-    name = posixpath.basename(path)
+    parts = [p.lower() for p in path.split("/") if p]
     for d in deny:
         if d in KEYWORDS:
             continue
@@ -56,7 +59,7 @@ def _denied(path: str, deny: tuple[str, ...]) -> str | None:
         elif d.startswith("/"):
             if path == d or fnmatch.fnmatchcase(path, d):
                 return d
-        elif fnmatch.fnmatch(name.lower(), d.lower()):  # a file-name pattern, anywhere, any case
+        elif any(fnmatch.fnmatchcase(p, d.lower()) for p in parts):   # a name pattern: any component, any case
             return d
     return None
 

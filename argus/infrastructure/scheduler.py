@@ -8,6 +8,8 @@ runs what it submits. Missed slots (scheduler down) are not replayed; only the l
 
 T-0022 (ACR-0003): in a pull transport profile it also runs `ReconcileFiringAlerts` every `every_s` seconds
 (`reconcile_firing_alerts` in the same file): the firing alerts of each host's Alertmanager become incidents.
+T-0035 (ACR-0009): `reconcile_firing_alerts.monitoring_heartbeat` turns on the heartbeat check per host (off until
+every host's Prometheus has the `ArgusMonitoringHeartbeat` rule: without it, no host would ever resolve an alert).
 """
 from __future__ import annotations
 
@@ -25,7 +27,8 @@ from argus.domain.model import AuditRecord, Incident, RequestKind, TargetRef, Tr
 
 log = logging.getLogger("argus.scheduler")
 FIELDS = {"id", "cron", "target", "reason", "enabled"}
-RECONCILE_FIELDS = {"enabled", "every_s"}
+RECONCILE_FIELDS = {"enabled", "every_s", "monitoring_heartbeat"}
+HEARTBEAT_FIELDS = {"enabled", "stale_after_s", "grace_s"}
 RECONCILE_MIN_EVERY_S = 30
 
 
@@ -33,6 +36,9 @@ RECONCILE_MIN_EVERY_S = 30
 class ReconcileConfig:
     enabled: bool = False
     every_s: int = 60
+    heartbeat: bool = False          # ACR-0009: the monitoring heartbeat check (MonitoringWatch)
+    stale_after_s: int = 180
+    grace_s: int = 300
 
 
 def load_reconcile(text: str) -> ReconcileConfig:
@@ -46,7 +52,15 @@ def load_reconcile(text: str) -> ReconcileConfig:
     every = int(item.get("every_s", 60))
     if every < RECONCILE_MIN_EVERY_S:
         raise ValueError(f"reconcile_firing_alerts: every_s {every} is below the minimum of {RECONCILE_MIN_EVERY_S}")
-    return ReconcileConfig(enabled=bool(item.get("enabled", False)), every_s=every)
+    hb = item.get("monitoring_heartbeat") or {}
+    if set(hb) - HEARTBEAT_FIELDS:
+        raise ValueError(f"reconcile_firing_alerts.monitoring_heartbeat: unknown field {sorted(set(hb) - HEARTBEAT_FIELDS)}")
+    stale, grace = int(hb.get("stale_after_s", 180)), int(hb.get("grace_s", 300))
+    if stale < 2 * every or grace < stale:
+        raise ValueError(f"reconcile_firing_alerts.monitoring_heartbeat: stale_after_s {stale} must be at least two "
+                         f"ticks ({2 * every} s) and grace_s {grace} at least stale_after_s")
+    return ReconcileConfig(enabled=bool(item.get("enabled", False)), every_s=every,
+                           heartbeat=bool(hb.get("enabled", False)), stale_after_s=stale, grace_s=grace)
 
 
 @dataclass(frozen=True)

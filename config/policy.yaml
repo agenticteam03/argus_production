@@ -31,8 +31,13 @@ capabilities:
   network.connectivity:    {max_per_incident: 3}   # T-0019 batch 3c, Level 2: read gateway; two allowlisted containers, network names only
   metrics.memory_history:  {max_per_incident: 4}
   metrics.restart_history: {max_per_incident: 4}
+  metrics.cpu_history:     {max_per_incident: 4}   # T-0036: offered to no class yet
+  metrics.disk_history:    {max_per_incident: 4}
+  metrics.network_history: {max_per_incident: 4}
+  metrics.compare_baseline: {max_per_incident: 2}  # T-0038, Level 3: offered to no class yet
   analysis.diagnostic_snapshot: {max_per_incident: 1}   # T-0034, Level 3, §12.7: combined; offered to no class yet
   knowledge.prior_incidents: {max_per_incident: 2}   # T-0039, Level 3, in-worker: offered to no class yet
+  analysis.trace_request_path: {max_per_incident: 1}   # T-0040, Level 3, combined: offered to no class yet
   knowledge.runbook:       {max_per_incident: 3}   # in-worker: reads the runbook library (branch runbooks)
   database.health:         {max_per_incident: 3}   # T-0019, Level 3: db-probe; allowlisted databases only (inventory
                                                    # `database`), monitoring role, no rows, no SQL text

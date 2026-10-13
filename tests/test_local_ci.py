@@ -116,3 +116,29 @@ def test_a_known_laptop_failure_is_named_and_does_not_fail_the_run(tmp_path):
     other = _ci(tmp_path, {"--tb=short": [(1, "2 failed")],
                            "pytest": [(1, f"FAILED {bench} - x\nFAILED tests/test_y.py::test_z - y\n2 failed")]})
     assert other.tests(postgres=False).status == "fail"            # anything else still fails
+
+
+def test_every_mode_checks_a_clean_worktree_of_the_commit_never_this_checkout(tmp_path, monkeypatch):
+    """#111 review: without --pr/--main the checks ran in this checkout, so gitleaks also scanned its ignored files
+    (.venv, node_modules, output.bash). Every mode now checks a temporary worktree of the commit."""
+    calls, seen = [], {}
+
+    def git(*args, cwd=None):
+        calls.append(args)
+        return "" if args[0] == "status" else SHA
+    monkeypatch.setattr(lci, "_git", git)
+    monkeypatch.setattr(lci, "run", lambda *a, **k: (0, ""))
+
+    class Probe:
+        def __init__(self, src):
+            seen["src"] = Path(src)
+
+        def all(self, main=False):
+            return [lci.Result("audit", "pass")]
+    monkeypatch.setattr(lci, "LocalCI", Probe)
+    for argv in ([], ["--main"]):
+        calls.clear()
+        assert lci.main(argv) == 0
+        add = [c for c in calls if c[0] == "worktree"]
+        assert add and add[0][-1] == SHA, argv
+        assert seen["src"] != lci.REPO and "argus-localci-" in str(seen["src"]), argv

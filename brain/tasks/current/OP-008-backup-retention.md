@@ -1,6 +1,6 @@
 # OP-008 — Snapshot-consistent backup and retention
 
-**Owner:** `conantkd` · **Branch:** `task/OP-008-backup-retention` · **Status:** offline implementation and VM dry run
+**Owner:** `conantkd` · **Branch:** `task/OP-008-backup-retention` · **PR:** #51 (merged 2026-10-10) · **Status:** offline implementation and VM dry run
 verified; the first `--apply` waits for a teammate's review.
 
 ## Goal

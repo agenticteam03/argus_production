@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | `in progress` — steps 1–2 merged (PR #24); **step 3 started 2026-10-09** (read-only API wiring, `task/T-0016-step3-screens`) |
+| Status | `in progress` — steps 1–2 merged (PR #24); step 3 (read-only API wiring) merged 2026-10-10 (PR #56); still open: Playwright acceptance tests, the read-only network guard, the `contracts/ui-api.json` check |
 | Phase | 10 — output modes |
 | Architecture | ACR-0001 (from T-0015) |
 | Branch | `task/T-0016-frontend` (one PR per step is fine) |
@@ -14,7 +14,7 @@
 `juanes6554` tells his agent **"I want to implement the frontend"**. The agent follows
 [`../../agents/AGENT_PROTOCOL.md`](../../agents/AGENT_PROTOCOL.md) §1 (onboarding with
 [`../../../START_HERE.md`](../../../START_HERE.md) first if `brain/developers/juanes6554.md` does not exist), reads
-this file and [`T-0015-ui-read-access.md`](T-0015-ui-read-access.md), explains the rules below, and asks for the
+this file and [`T-0015-ui-read-access.md`](../completed/T-0015-ui-read-access.md), explains the rules below, and asks for the
 guidelines (step 1).
 
 ## How the work is split

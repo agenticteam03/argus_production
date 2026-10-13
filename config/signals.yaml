@@ -34,6 +34,16 @@ host_disk_used_ratio_5m: 'max(min_over_time((1 - node_filesystem_avail_bytes{arg
 host_disk_hours_to_full: 'min(node_filesystem_avail_bytes{argus_host="$host",mountpoint=~"$mounts"} / (-deriv(node_filesystem_avail_bytes{argus_host="$host",mountpoint=~"$mounts"}[15m]) > 0)) / 3600'
 # T-0027 (RB-014): how many of the host's scrape targets are down (`up == 0`); 0 when all are up. A target down leaves
 # the signals it feeds empty: the class monitoring_blind_spot, never a healthy host.
-scrape_targets_down:   'count(up{argus_host="$host"} == 0) or vector(0)'
+# T-0043: plus the expected jobs every host scrapes (exporter, node-exporter, cAdvisor) that have no `up` series at all.
+scrape_targets_down:   '(count(up{argus_host="$host"} == 0) or vector(0)) + (3 - (count(up{argus_host="$host",job=~"argus-v18-(exporter|node-exporter|cadvisor)"}) or vector(0)))'
 # Freshness gate (not a detector signal): the host's exporter scrape must be up, otherwise detection is undiagnosable.
 _scrape_up:            'up{argus_host="$host",job="argus-v18-exporter"}'
+# T-0036 (metric histories, ARCHITECTURE §12 Level 2): read only by the metrics.* capabilities, never by a detector.
+# A container's CPU cores in use (cAdvisor; 3m rate: its samples are 35-53 s apart).
+container_cpu_cores:   'rate(container_cpu_usage_seconds_total{argus_host="$host",name="$name"}[3m])'
+# The fullest of the host's DECLARED mounts ($mounts from the inventory, as detection reads them).
+host_disk_used_ratio_mounts: 'max(1 - node_filesystem_avail_bytes{argus_host="$host",mountpoint=~"$mounts"} / node_filesystem_size_bytes{argus_host="$host",mountpoint=~"$mounts"})'
+# The host's received + sent bytes per second on its real interfaces (node-exporter; not lo, veth, docker, br-).
+# cAdvisor runs with its network metrics disabled (memory, deploy/monitoring/compose.monitoring.yml): no per-container
+# traffic until that is decided (T-0036 step 2).
+host_network_bytes_per_s: 'sum(rate(node_network_receive_bytes_total{argus_host="$host",device!~"lo|veth.*|docker.*|br-.*"}[3m]) + rate(node_network_transmit_bytes_total{argus_host="$host",device!~"lo|veth.*|docker.*|br-.*"}[3m]))'

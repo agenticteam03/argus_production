@@ -1,4 +1,5 @@
-global: {scrape_interval: 15s, evaluation_interval: 15s}
+global: {scrape_interval: 15s, evaluation_interval: 15s,
+         external_labels: {argus_host: vm-166}}   # T-0043: an alert without the label (absent()) is still this host's
 rule_files: ["/etc/prometheus/alerts.yml"]
 alerting:                                 # T-0022: the host's own Argus-owned Alertmanager
   alertmanagers:

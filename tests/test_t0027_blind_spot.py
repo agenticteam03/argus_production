@@ -56,7 +56,7 @@ def test_the_class_is_registered_for_hosts_before_disk_pressure():
 
 def test_the_signal_counts_the_hosts_scrape_targets_that_are_down():
     sig = _yaml("config", "signals.yaml")["scrape_targets_down"]
-    assert sig == 'count(up{argus_host="$host"} == 0) or vector(0)'
+    assert sig.startswith('(count(up{argus_host="$host"} == 0) or vector(0))')        # T-0043 adds the missing jobs
 
 
 # --- the investigation ----------------------------------------------------------------------------------------------

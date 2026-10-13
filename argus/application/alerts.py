@@ -11,7 +11,8 @@ finishes its diagnosis (in this read-only release no write or verification is ev
 changed. Each step is audited.
 `ReconcileFiringAlerts` reads each host's Alertmanager through `AlertSourcePort` and submits every firing alert; then
 it resolves the host's occurrences whose alert is no longer active (silenced and inhibited alerts still are). A host
-that cannot be read is reported, resolves nothing, and the others go on.
+that cannot be read is reported, resolves nothing, and the others go on. The monitoring heartbeat (ACR-0009) never
+reaches intake; while a host's heartbeat is lost (`MonitoringWatch`), that host resolves nothing either.
 """
 from __future__ import annotations
 
@@ -22,6 +23,7 @@ from datetime import datetime, timedelta
 from typing import Callable, Literal
 
 from argus.application.correlation import CORRELATION_WINDOW, Correlator
+from argus.application.monitoring import HEARTBEAT
 from argus.domain.model import (AlertNotification, AuditRecord, Incident, IncidentOutcome, IncidentStatus, RequestKind,
                                 TargetRef, TriggerKind, utcnow)
 from argus.ports.ports import AlertSourcePort, AlertsUnavailable
@@ -106,6 +108,8 @@ class HandleAlertNotification:
         return n
 
     def __call__(self, a: AlertNotification, source: str) -> IntakeResult:
+        if a.labels.get("alertname") == HEARTBEAT:          # ACR-0009: watched by MonitoringWatch, never an incident
+            return IntakeResult("ignored", detail="monitoring heartbeat")
         if a.status == "resolved":
             return self.resolve(alert_identity(a), a.ends_at or self.now(), source, via="notification")
         target = self._target(a)
@@ -149,8 +153,9 @@ class HandleAlertNotification:
 class ReconcileFiringAlerts:
     """§7.3: the primary trigger in a pull profile (ACR-0003), the outage backup in a push profile."""
 
-    def __init__(self, source: AlertSourcePort, handle: HandleAlertNotification, hosts: list[str]):
-        self.source, self.handle, self.hosts = source, handle, hosts
+    def __init__(self, source: AlertSourcePort, handle: HandleAlertNotification, hosts: list[str], watch=None):
+        """`watch`: a `MonitoringWatch` (ACR-0009), or None (no heartbeat check)."""
+        self.source, self.handle, self.hosts, self.watch = source, handle, hosts, watch
 
     def run_once(self) -> dict[str, dict[str, int | str] | str]:
         out: dict[str, dict[str, int | str] | str] = {}
@@ -160,6 +165,8 @@ class ReconcileFiringAlerts:
             except AlertsUnavailable as e:
                 log.warning("alerts of %s not read: %s", host, e)
                 out[host] = "unavailable"
+                if self.watch is not None:
+                    self.watch.observe(host, None)
                 continue
             counts: dict[str, int | str] = {}
             for a in alerts:
@@ -173,9 +180,15 @@ class ReconcileFiringAlerts:
             except AlertsUnavailable as e:
                 log.warning("active alerts of %s not read, nothing resolved: %s", host, e)
                 counts["resolve"] = "unavailable"
+                if self.watch is not None:
+                    self.watch.observe(host, None)
             else:
-                if resolved := self.handle.resolve_absent(host, active, source=f"alertmanager@{host}",
-                                                          read_at=read_at):
+                if self.watch is not None and self.watch.observe(host, active):
+                    # ACR-0009: without a fresh heartbeat the absence of an alert is unknown, not a resolution
+                    lost = self.watch.state(host).get("state") == "lost"
+                    counts["resolve"] = "monitoring lost" if lost else "heartbeat not fresh"
+                elif resolved := self.handle.resolve_absent(host, active, source=f"alertmanager@{host}",
+                                                            read_at=read_at):
                     counts["resolved"] = resolved
             out[host] = counts
         return out

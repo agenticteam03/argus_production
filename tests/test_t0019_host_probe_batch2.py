@@ -291,13 +291,17 @@ def _oom(t: datetime, pid: int, comm: str, cid: str | None = CID, rss_kb: int = 
             f"total-vm:76704kB, anon-rss:{rss_kb}kB, file-rss:5376kB, shmem-rss:0kB, UID:0 pgtables:196kB oom_score_adj:0"]
 
 
-NOW = datetime.now(timezone.utc).replace(microsecond=0)
+@pytest.fixture
+def now():
+    """Taken when each test starts, never when the module loads: the probe compares the records with its own clock,
+    and a suite of ~10 minutes moved the 50-minute-old record out of the 60-minute window (#103 review)."""
+    return datetime.now(timezone.utc).replace(microsecond=0)
 
 
-def test_kernel_oom_records_in_the_window_with_their_container(host, monkeypatch):
-    host.kern_log(_oom(NOW - timedelta(minutes=120), 100, "old") + ["x kernel: noise"]
-                  + _oom(NOW - timedelta(minutes=10), 2560725, "python")
-                  + _oom(NOW - timedelta(minutes=5), 31, "java", cid=None, rss_kb=2097152))
+def test_kernel_oom_records_in_the_window_with_their_container(host, monkeypatch, now):
+    host.kern_log(_oom(now - timedelta(minutes=120), 100, "old") + ["x kernel: noise"]
+                  + _oom(now - timedelta(minutes=10), 2560725, "python")
+                  + _oom(now - timedelta(minutes=5), 31, "java", cid=None, rss_kb=2097152))
     d = _probe(host, monkeypatch).host_probe(["oom"], {"minutes": ["60"]})
     assert d["source"] == "kern.log" and d["complete"] is True and d["records_total"] == 2
     latest, first = d["records"][-1], d["records"][0]
@@ -308,18 +312,18 @@ def test_kernel_oom_records_in_the_window_with_their_container(host, monkeypatch
     assert d["oom_kill_since_boot"] == 18567 and d["window_minutes"] == 60
 
 
-def test_kernel_oom_records_read_the_rotated_file_when_the_current_one_starts_later(host, monkeypatch):
-    host.kern_log(_oom(NOW - timedelta(minutes=50), 7, "rotated"), name="kern.log.1")
-    host.kern_log([f"{_syslog_ts(NOW - timedelta(minutes=20))} argus-vm166 kernel: [1.0] eth0: link up"]
-                  + _oom(NOW - timedelta(minutes=2), 8, "current"))
+def test_kernel_oom_records_read_the_rotated_file_when_the_current_one_starts_later(host, monkeypatch, now):
+    host.kern_log(_oom(now - timedelta(minutes=50), 7, "rotated"), name="kern.log.1")
+    host.kern_log([f"{_syslog_ts(now - timedelta(minutes=20))} argus-vm166 kernel: [1.0] eth0: link up"]
+                  + _oom(now - timedelta(minutes=2), 8, "current"))
     d = _probe(host, monkeypatch).host_probe(["oom"], {"minutes": ["60"]})
     assert [r["command"] for r in d["records"]] == ["rotated", "current"] and d["complete"] is True
 
 
-def test_kernel_oom_records_read_a_bounded_tail_and_say_when_it_is_partial(host, monkeypatch):
+def test_kernel_oom_records_read_a_bounded_tail_and_say_when_it_is_partial(host, monkeypatch, now):
     lines = []
     for i in range(40):
-        lines += _oom(NOW - timedelta(minutes=40 - i), 1000 + i, "leaky")
+        lines += _oom(now - timedelta(minutes=40 - i), 1000 + i, "leaky")
     host.kern_log(lines)
     svc = _probe(host, monkeypatch)
     monkeypatch.setattr(svc, "OOM_MAX_BYTES", 2048)
@@ -328,12 +332,12 @@ def test_kernel_oom_records_read_a_bounded_tail_and_say_when_it_is_partial(host,
     assert len(d["records"]) <= svc.OOM_MAX_RECORDS == 10
 
 
-def test_kernel_oom_records_stream_the_log_instead_of_holding_it(host, monkeypatch):
+def test_kernel_oom_records_stream_the_log_instead_of_holding_it(host, monkeypatch, now):
     """Step 03 on vm-166: the 64 MiB probe was OOM-killed while answering; `/oom?minutes=1440` alone added 16 MiB
     (4 MiB of log held as text and parsed lines). The tail is now read line by line, keeping only OOM lines."""
     import tracemalloc
-    noise = f"{_syslog_ts(NOW - timedelta(minutes=30))} argus-vm166 kernel: [1.0] " + "x" * 180
-    host.kern_log([noise] * 20000 + _oom(NOW - timedelta(minutes=1), 9, "python"))     # ~4 MiB
+    noise = f"{_syslog_ts(now - timedelta(minutes=30))} argus-vm166 kernel: [1.0] " + "x" * 180
+    host.kern_log([noise] * 20000 + _oom(now - timedelta(minutes=1), 9, "python"))     # ~4 MiB
     svc = _probe(host, monkeypatch)
     tracemalloc.start()
     try:

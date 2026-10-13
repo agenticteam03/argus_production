@@ -81,3 +81,31 @@ def test_the_declared_paths_come_from_the_policy_and_the_inventory():
 def test_marker_characters_in_the_input_change_nothing():
     out, _ = R.text(f"7 {NGINX}")
     assert NGINX in out and "" not in out
+
+
+# --- #110 review (conantkd): a declared path counts only where a path starts, and a token under a directory is masked
+
+SECRET = bytes(range(20)).hex()          # 40 lower-case hex, a single path segment
+
+
+@pytest.mark.parametrize("text", [
+    f"https://hooks.example.com/srv/argus-lab-fill/{SECRET}",   # the declared directory inside a URL
+    f"/evil/srv/argus-lab-fill/{SECRET}",                        # after another path
+])
+def test_a_declared_path_inside_another_path_or_url_covers_nothing(text):
+    out, n = R.text(text)
+    assert SECRET not in out and n >= 1
+
+
+def test_a_high_entropy_name_under_a_declared_directory_is_masked():
+    out, n = R.text(f"/srv/argus-lab-fill/data/{SECRET}.bin")
+    assert SECRET not in out and out.startswith("/srv/argus-lab-fill/data/") and n == 1
+
+
+@pytest.mark.parametrize("text", [
+    "/srv/argus-lab-fill/fill-0001.bin", "path=/srv/argus-lab-fill/a/b/c.log", f"'{NGINX}'", f"({NGINX})",
+    "file /var/log/myapp/app-2026-10-12.log rotated",
+])
+def test_declared_paths_at_a_path_start_stay_readable(text):
+    out, n = R.text(text)
+    assert out == text and n == 0

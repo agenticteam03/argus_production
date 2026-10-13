@@ -21,7 +21,7 @@ from argus.evaluation.score import grade
 
 CASES = Path(__file__).resolve().parent / "eval" / "cases"
 HEALTH = ["health-api-vm095-01", "health-api-vm095-02", "health-api-vm166-01", "health-api-vm166-02", "health-db-vm166-01"]
-WORDS = ["health check", "healthcheck", "health probe", "unhealthy"]
+WORDS = ["health check", "healthcheck", "health probe", "health endpoint", "health handler", "unhealthy"]   # + EVAL-6
 
 # Diagnoses the model wrote in EVAL-3 step 2 (eval-20261012-182757.jsonl), each with the right outcome and root cause.
 SEEN = {
@@ -84,3 +84,15 @@ def test_regrade_grades_a_stored_results_file_without_a_model(tmp_path, capsys):
     assert main([str(f)]) == 0
     out = capsys.readouterr().out
     assert "cases 2  passed 1" in out and "health_check_failed" in out
+
+
+def test_eval6_the_endpoint_or_handler_named_counts_and_silence_still_fails():
+    """EVAL-6 (after EVAL-main, 2026-10-13): two right diagnoses of health-api-vm166-01 named the failing check as the
+    health endpoint / handler; they pass now. A diagnosis that names no check at all still fails."""
+    case = _cases()["health-api-vm166-01"]
+    for text in ("Root cause is vm-166/container:argus-lab-api failing its health handler because settings.load() "
+                 "raises KeyError: 'FEATURE_FLAGS', producing HTTP 500 responses.",
+                 "The API container is the failed service and root cause: its health endpoint returns HTTP 500 "
+                 "because settings.load() raises KeyError: 'FEATURE_FLAGS'."):
+        assert grade(case, _run(case, text)) == [], text
+    assert grade(case, _run(case, "The API container returns HTTP 500 because settings.load() raises KeyError.")) != []

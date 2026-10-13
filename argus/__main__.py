@@ -77,13 +77,54 @@ def scheduler() -> None:
     reconcile = None
     if cfg.enabled:                     # ACR-0003: the pull transport profile
         hosts = {h.name: h.alertmanager for h in inventory.hosts() if h.alertmanager}
-        reconcile = ReconcileFiringAlerts(AlertmanagerSource(hosts),
+        source = AlertmanagerSource(hosts)
+        watch = None
+        if cfg.heartbeat:               # ACR-0009 / T-0035: the monitoring heartbeat per host
+            from datetime import timedelta
+            from argus.application.monitoring import MonitoringConfig, MonitoringWatch
+            watch = MonitoringWatch(store, MonitoringConfig(stale_after=timedelta(seconds=cfg.stale_after_s),
+                                                            grace=timedelta(seconds=cfg.grace_s)),
+                                    prometheus_ready=_prometheus_ready(inventory))
+            log.info("monitoring heartbeat: stale after %d s, grace %d s", cfg.stale_after_s, cfg.grace_s)
+        reconcile = ReconcileFiringAlerts(source,
                                           HandleAlertNotification(store, inventory, make_metrics(s, inventory)),
-                                          sorted(hosts))
+                                          sorted(hosts), watch=watch)
     stop = threading.Event()
     signal.signal(signal.SIGTERM, lambda *_: stop.set())
     signal.signal(signal.SIGINT, lambda *_: stop.set())
     Scheduler(store, schedules, reconcile, cfg.every_s).run_forever(stop)
+
+
+def _prometheus_ready(inventory):
+    """ACR-0009: one bounded readiness read of a host's own Prometheus (`GET /-/ready`, 3 s, read-only) to refine the
+    cause of a lost heartbeat. True / False, or None when the host has no Prometheus in the inventory."""
+    import httpx
+
+    def ready(host: str) -> bool | None:
+        info = next((h for h in inventory.hosts() if h.name == host), None)
+        url = info.executors.get("prometheus") if info else None
+        if not url:
+            return None
+        try:
+            return httpx.get(f"{url.rstrip('/')}/-/ready", timeout=3.0).status_code == 200
+        except httpx.HTTPError:
+            return False
+    return ready
+
+
+def monitoring(args) -> None:
+    """ACR-0009: declare a planned stop of a host's monitoring (no incident for a loss during it; audited)."""
+    from argus.adapters.outbound.config_adapters import YamlInventory
+    from argus.application.monitoring import MonitoringWatch
+    s = Settings()
+    inventory = YamlInventory((s.config_dir / "inventory.yaml").read_text(encoding="utf-8"))
+    if args.host not in {h.name for h in inventory.hosts()}:
+        raise SystemExit(f"{args.host} is not a host of the inventory")
+    try:
+        until = MonitoringWatch(make_store(s)).maintenance(args.host, args.minutes, args.who)
+    except ValueError as e:
+        raise SystemExit(str(e)) from None
+    print(f"monitoring maintenance of {args.host} until {until.isoformat()} (declared by {args.who})")
 
 
 def serve() -> None:
@@ -165,6 +206,11 @@ def build_parser() -> argparse.ArgumentParser:
     d.add_argument("path", nargs="?", default="/data/argus.db")
     d.add_argument("--days", type=int, default=int(os.getenv("ARGUS_CHECKPOINT_RETENTION_DAYS", "30")))
     d.add_argument("--apply", action="store_true", help="delete eligible checkpoints; default is a read-only preview")
+    m = sub.add_parser("monitoring", help="ACR-0009: declare a planned stop of a host's monitoring")
+    m.add_argument("action", choices=["maintenance"])
+    m.add_argument("host")
+    m.add_argument("--minutes", type=int, required=True, help="1..240")
+    m.add_argument("--as", dest="who", required=True, help="who declares it (audited)")
     from argus.adapters.inbound.cli.main import add_parsers
     add_parsers(sub)
     return p
@@ -185,6 +231,8 @@ def main() -> None:
         user(a)
     elif a.cmd == "db":
         db(a)
+    elif a.cmd == "monitoring":
+        monitoring(a)
     else:
         from argus.adapters.inbound.cli.main import run
         raise SystemExit(run(a))

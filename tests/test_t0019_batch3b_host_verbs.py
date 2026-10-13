@@ -249,3 +249,82 @@ def test_the_nginx_cases_answer_service_config_with_the_lab_file():
         assert ans["files"][0]["path"] == CONF and ans["files"][0]["text"] == NGINX_CONF_TEXT, p.name
         seen += 1
     assert seen == 6
+
+
+# --- the deny floor (#98 / #103 review, `juanbetancurm`): closed before any path is added to `files` ----------------
+
+FLOOR_DENIED = ["/proc/1/environ", "/proc/self/mem", "/var/lib/docker/containers/c0ffee/config.v2.json",
+                "/home/ubuntu/.ssh/config", "/home/ubuntu/.ssh/authorized_keys", "/root/.ssh/known_hosts",
+                "/home/ubuntu/keys/id_ed25519", "/home/ubuntu/id_rsa.pub", "/srv/app/prod.env", "/srv/app/.env",
+                "/srv/app/.ENV", "/srv/tokens/readme.txt", "/srv/Passwords/list.txt", "/srv/app/db_password",
+                "/srv/app/api_token.txt", "/etc/shadow", "/etc/shadow-", "/etc/gshadow", "/etc/gshadow-",
+                "/etc/sudoers", "/etc/sudoers.d/90-cloud-init-users", "/run/secrets/db", "/srv/k.PEM"]
+FLOOR_ALLOWED = ["/var/log/syslog", "/etc/hostname", "/etc/nginx/nginx.conf", "/srv/app/environment.md",
+                 "/srv/app/app.log"]
+
+
+def _allow_everything(probe):
+    """A policy whose allowlist is the whole filesystem and whose data denies nothing: only the floor is left."""
+    data = {"targets": {HOST: {"files": ["/"]}}, "deny": [], "limits": {"max_lines": 500, "max_bytes": 65536},
+            "arbitrary_exec": False}
+    pol = InspectionPolicy.from_data(data)
+    probe.CONFIG["inspection"] = pol.for_host("vm-166")
+    return pol
+
+
+@pytest.mark.parametrize("path", FLOOR_DENIED)
+def test_the_deny_floor_refuses_credentials_and_kernel_state_whatever_the_allowlist(probe, path):
+    pol = _allow_everything(probe)
+    assert pol.allows(TargetRef.parse(HOST), "host.read_file", {"path": path}).allowed is False, path
+    assert probe.inspection_allows(HOST, "files", path) is False, path
+
+
+@pytest.mark.parametrize("path", FLOOR_ALLOWED)
+def test_the_deny_floor_leaves_ordinary_files_alone(probe, path):
+    pol = _allow_everything(probe)
+    assert pol.allows(TargetRef.parse(HOST), "host.read_file", {"path": path}).allowed is True, path
+    assert probe.inspection_allows(HOST, "files", path) is True, path
+
+
+def test_a_name_pattern_matches_every_component_of_the_path_not_only_the_file_name():
+    from argus.policy.inspection import _denied
+    assert _denied("/srv/tokens/readme.txt", ("*token*",)) == "*token*"          # a directory, not the file
+    assert _denied("/home/u/.ssh/config", (".ssh",)) == ".ssh"
+    assert _denied("/srv/app/readme.txt", ("*token*", ".ssh")) is None
+
+
+@pytest.mark.skipif(os.name == "nt", reason="symlinks need privileges on Windows")
+def test_a_symlink_swapped_in_after_the_walk_is_not_followed(probe, monkeypatch):
+    """#103 review: the walk checks each component, then the file is opened with O_NOFOLLOW, so a link put in its
+    place between the check and the open is refused (ELOOP), never read."""
+    log = probe.ROOTFS_DIR / "var" / "log" / "myapp" / "swap.log"
+    os.symlink("/etc/passwd", log)
+    monkeypatch.setattr(probe.os.path, "islink", lambda p: False)       # the walk saw a regular file
+    monkeypatch.setattr(probe.os, "lstat", lambda p: os.stat(probe.ROOTFS_DIR / "var" / "log" / "myapp" / "app.log"))
+    with pytest.raises(probe.Err) as e:
+        probe.host_probe(["read_file"], q(target=HOST, path="/var/log/myapp/swap.log", lines=10))
+    assert e.value.code == 403
+
+
+def test_the_file_is_opened_without_following_links_and_checked_on_the_open_descriptor(probe, monkeypatch):
+    flags = []
+    real_open = probe.os.open
+
+    def spy(path, flag, *a, **kw):
+        flags.append(flag)
+        return real_open(path, flag, *a, **kw)
+    monkeypatch.setattr(probe.os, "open", spy)
+    d = probe.host_probe(["read_file"], q(target=HOST, path="/var/log/myapp/app.log", lines=2))
+    assert d["lines"] == ["line 299", "line 300"]
+    assert flags and all(f & probe.O_NOFOLLOW == probe.O_NOFOLLOW for f in flags)
+    assert probe.O_NOFOLLOW == getattr(os, "O_NOFOLLOW", 0)
+    d = probe.host_probe(["service_config"], q(target=NGINX))
+    assert "proxy_read_timeout" in d["files"][0]["text"] and len(flags) == 2
+
+
+def test_the_probe_applies_the_same_floor_even_if_its_rendered_copy_leaves_it_out(probe):
+    from argus.policy.inspection import BUILTIN_DENY
+    assert probe.INSPECT_FLOOR == BUILTIN_DENY
+    probe.CONFIG["inspection"] = {"targets": {HOST: {"files": ["/"]}}, "deny": [], "limits": {}}   # a stale copy
+    assert probe.inspection_allows(HOST, "files", "/home/ubuntu/.ssh/id_ed25519") is False
+    assert probe.inspection_allows(HOST, "files", "/var/log/syslog") is True
