@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | `in progress` — step 1 (the catalogue entry, offline) done 2026-10-11; step 2 (5 runs on vm-166) next |
+| Status | `done` — step 1 (the catalogue entry, offline) 2026-10-11 (#77); step 2 (SC-08 × 5 on vm-166) 5/5 2026-10-11, run in E2E-3 step 2 (#78) |
 | Phase | 12 (end-to-end tests) — [`../../IMPLEMENTATION_PLAN.md`](../../IMPLEMENTATION_PLAN.md) |
 | Architecture | no change (no ACR) |
 | Branch | `task/E2E-4-catalogue-sc08` (from `main`) |

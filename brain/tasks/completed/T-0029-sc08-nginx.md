@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | `done` 2026-10-10 (step 2: SC-08 DIAGNOSED on vm-166, root cause the slow upstream, no side alert) |
+| Status | `done` 2026-10-10 (step 2: SC-08 DIAGNOSED on vm-166, root cause the slow upstream, no side alert); PR #60 merged |
 | Phase | 11 — synthetic incidents ([`../../IMPLEMENTATION_PLAN.md`](../../IMPLEMENTATION_PLAN.md) §7: SC-08 "nginx → slow upstream with 502s") |
 | Architecture | no change (no ACR): §3 class table (`nginx_upstream_failure` · RB-015 · branches RB-002, RB-003 · `plan_then_reason`); the probe is a function of `argus-exporter`, which already runs the dependency probes |
 | Branch | `task/T-0029-sc08-nginx`, from `main`; the VM proof runs on a branch that merges it with what the VMs run |

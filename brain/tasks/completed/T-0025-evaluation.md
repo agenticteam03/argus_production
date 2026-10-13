@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | `in progress` — steps 1-3 done 2026-10-09 (harness, 30 cases, the baseline, the configured model × 5 trials on vm-095); the class-registry decision waits for the team (PR) |
+| Status | `done` — steps 1-3 2026-10-09 (harness, 30 cases, the baseline, the configured model × 5 trials on vm-095); PR #50 merged. EVAL-2 took it to 55 cases; the class-registry decision is the team's: [D-003](../../OPEN_PROBLEMS.md) |
 | Phase | 6 (recall-quality checks) and 12 (quality claims) — [`../../IMPLEMENTATION_PLAN.md`](../../IMPLEMENTATION_PLAN.md) |
 | Architecture | no change (no ACR): implements §21.2 (dataset, baseline, metrics, thresholds) and the §3 "Enablement" rule |
 | Branch | `task/T-0025-evaluation` (from `main`) |

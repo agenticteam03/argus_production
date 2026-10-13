@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | `done` 2026-10-12 — E.1-E.4 on vm-095; the class-registry decision is the team's (below) |
+| Status | `done` 2026-10-12 — E.1-E.4 on vm-095; PR #89 merged (ACR-0008 accepted); the class-registry decision is the team's: [D-003](../../OPEN_PROBLEMS.md) |
 | Phase | 6 / 12 — the §21.2 evaluation ([T-0025](T-0025-evaluation.md) step 3, again) |
 | Architecture | [ACR-0008](../../architecture/changes/ACR-0008-stopped-writer-suspect.md) (1.8.7): a stopped writer is a `confirm_then_reason` suspect |
 | Branch | `task/EVAL-2-model-trials` (from `main` `48a895b`) |

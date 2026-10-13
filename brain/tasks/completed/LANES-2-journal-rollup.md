@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | `done` offline (2026-10-10); in use after its pull request merges |
+| Status | `done` 2026-10-10 — PR #68 merged (+ #76, the roll-up order); in use |
 | Policy | [`../../policies/PARALLEL_LANES.md`](../../policies/PARALLEL_LANES.md), change 2 (accepted in PR #52) |
 | Architecture | no change (no ACR): the developer workflow, not Argus |
 | Branch | `task/LANES-2-journal-rollup` (from `main`) |

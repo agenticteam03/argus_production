@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | `done` — step 1 (the runner fix) 2026-10-11; step 2 (SC-02 × 5 on vm-095) 5/5 PASS 2026-10-11 |
+| Status | `done` — step 1 (the runner fix) 2026-10-11 (#81); step 2 (SC-02 × 5 on vm-095) 5/5 PASS 2026-10-11 (#84) |
 | Phase | 12 (end-to-end tests) — [`../../IMPLEMENTATION_PLAN.md`](../../IMPLEMENTATION_PLAN.md) |
 | Found by | the first SC-02 batch through the runner (2026-10-11, `juanbetancurm`): 5 × ERROR in the pre-gate |
 | Architecture | no change (no ACR): the test runner only, nothing deployed |

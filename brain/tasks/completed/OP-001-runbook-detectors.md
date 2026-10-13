@@ -1,6 +1,6 @@
 # OP-001 — Runbook detector metadata alignment
 
-**Owner:** `conantkd` · **Branch:** `task/OP-001-runbook-detectors` · **PR:** #44 · **Status:** code complete; fast-track review.
+**Owner:** `conantkd` · **Branch:** `task/OP-001-runbook-detectors` · **PR:** #44 (merged 2026-10-09) · **Status:** done.
 
 ## Goal
 

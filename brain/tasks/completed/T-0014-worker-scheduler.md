@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | `done` (2026-10-08): steps 1-5 done, step 5 verified on vm-095; waits for review and merge (PR #33) |
+| Status | `done` 2026-10-08 — steps 1-5, step 5 verified on vm-095; PR #33 merged (+ #37, its fast-track record) |
 | Phase | 9 — agent workflow ([`../../IMPLEMENTATION_PLAN.md`](../../IMPLEMENTATION_PLAN.md)): "a real worker and scheduler" |
 | Architecture | no change (no ACR): implements ARCHITECTURE §6.2 (intake claim + lease recovery), §6.5 (skip-if-active, maximum queued age), §6.6 (scheduled identity), §7.3 (scheduler), §3 containers `argus-api` / `argus-worker` / `argus-scheduler` |
 | Branch | `task/T-0014-worker-scheduler` |

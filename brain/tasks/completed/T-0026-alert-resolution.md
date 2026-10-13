@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | `done` 2026-10-09 (step 2: SC-03's two occurrences resolved on vm-166 after the cache came back) |
+| Status | `done` 2026-10-09 (step 2: SC-03's two occurrences resolved on vm-166 after the cache came back); PR #54 merged |
 | Phase | 7 — alerting ([`../../IMPLEMENTATION_PLAN.md`](../../IMPLEMENTATION_PLAN.md)); follows OP-011 (correlation) |
 | Architecture | [ACR-0005](../../architecture/changes/ACR-0005-pull-alert-resolution.md) (1.8.4 → 1.8.5): §6.4 "Resolution", §7.3, §8.1 |
 | Branch | `task/T-0026-alert-resolution`, on top of `task/OP-011-correlation` (uses its `alert_occurrence` table) |

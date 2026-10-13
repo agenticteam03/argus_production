@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | `done` 2026-10-10 — step 1 (code and tests, offline); step 2 (vm-095's agent rebuilt, re-run: SC-07 5/5, SC-05 4/5 with the miss read) |
+| Status | `done` 2026-10-10 — step 1 (code and tests, offline); step 2 (vm-095's agent rebuilt, re-run: SC-07 5/5, SC-05 4/5 with the miss read) · PRs #70, #71, #74 merged |
 | Phase | 12 (end-to-end tests) — [`../../IMPLEMENTATION_PLAN.md`](../../IMPLEMENTATION_PLAN.md) |
 | Found by | [E2E-1 step 3](E2E-1-catalogue-sc04-06.md): SC-05 6/10, SC-07 6/10 over two batches |
 | Architecture | no change (no ACR): a capability's default and one inventory field; read-only, no new access |

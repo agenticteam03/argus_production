@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | `in progress` — steps 1-2 `verified` 2026-10-09 (SC-01 and SC-03 5/5 each on the VMs); step 3 `planned` |
+| Status | `done` — steps 1-2 `verified` 2026-10-09 (SC-01 and SC-03 5/5 each on the VMs; PR #40); step 3 done through E2E-1 to E2E-6: SC-01 to SC-08 all 5/5 by 2026-10-12. The remaining scenarios (SC-09 to SC-12, five runs each) are [E2E-8](../current/E2E-8-phase12-close.md) |
 | Phase | 12 — end-to-end tests ([`../../IMPLEMENTATION_PLAN.md`](../../IMPLEMENTATION_PLAN.md): "scripted e2e suite; ≥ 5 runs per scenario") |
 | Architecture | no change (no ACR): a client of the HTTP API (§7.1) and of the lab; feeds the §21.2 evaluation later |
 | Branch | `task/T-0023-e2e-runner` (from `main`) |

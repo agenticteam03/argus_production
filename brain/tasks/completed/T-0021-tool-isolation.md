@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | `done` (2026-10-08): steps 1-5 done, verified on vm-095 (worker in `mcp` mode). Review of PR #36 (`conantkd`, changes requested): fixed 2026-10-09, waits for re-review and the ACR's second approval |
+| Status | `done` (2026-10-08): steps 1-5 done, verified on vm-095 (worker in `mcp` mode). PR #36 and its review fixes (#39) merged 2026-10-09; ACR-0002 accepted (architecture 1.8.2) |
 | Phase | 4 — tools and guarded execution ([`../../IMPLEMENTATION_PLAN.md`](../../IMPLEMENTATION_PLAN.md)): "MCP tools child, UID `argus-tools`, credential-isolation test" |
 | Architecture | implements §12.5 (`ToolCatalogue`, `McpChildProvider`, `InWorkerProvider`, `TOOL_CATALOGUE=mcp\|direct`), §12.6 (process identity), §25 OD-3 (benchmark). **[ACR-0002](../../architecture/changes/ACR-0002-tools-uid-sudo-launcher.md)** (proposed, safety principle: secrets): the UID switch is a fixed sudo launcher instead of `setpriv`/`gosu`; OD-3 decided (keep MCP). Architecture 1.8.2 |
 | Branch | `task/T-0021-tool-isolation` (steps 1-3 from `main`; `main` with T-0014 merged in before step 4) |

@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | `done` 2026-10-09 (steps 1-4: SC-05 DIAGNOSED on vm-166 from the pulled alert) |
+| Status | `done` 2026-10-09 (steps 1-4: SC-05 DIAGNOSED on vm-166 from the pulled alert); PR #47 merged |
 | Phase | 11 — synthetic incidents ([`../../IMPLEMENTATION_PLAN.md`](../../IMPLEMENTATION_PLAN.md) §7: SC-05); uses phase 7's node-exporter (T-0022) |
 | Architecture | no change (no ACR): §3 class table (`disk_pressure` · RB-005 · branch RB-019 · `model_loop`), §4.1 signal templates with a mount parameter, node-exporter (§3.5) |
 | Branch | `task/T-0024-sc05-disk`, on top of `task/OP-010-reserved-slot` (vm-166 runs it; T-0022's node-exporter is needed) |

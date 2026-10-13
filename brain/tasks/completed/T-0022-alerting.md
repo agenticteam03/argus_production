@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | `done` 2026-10-09 (steps 1-6 verified on both VMs; PR open, ACR-0003 waits for the second approval) |
+| Status | `done` 2026-10-09 (steps 1-6 verified on both VMs); PR #45 merged 2026-10-09 with `juanbetancurm`'s approval, ACR-0003's second approval (architecture 1.8.3) |
 | Phase | 7 — monitoring & detection ([`../../IMPLEMENTATION_PLAN.md`](../../IMPLEMENTATION_PLAN.md): "Alertmanager, node-exporter, cAdvisor; pull firing alerts") |
 | Architecture | **ACR-0003** (transport profiles; alert delivery by profile; closes D-001) → 1.8.3. Touches host isolation: second approval required |
 | Branch | `task/T-0022-alerting`, **on top of `task/T-0020-sc04-pg-connections`** (#38): the monitoring files build on T-0020's. Its PR opens after #38 merges |

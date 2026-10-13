@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | `done` 2026-10-11 — step 1 (offline, #75); step 2 (both VMs on `main` `e3286df`; SC-05 3/5 with the misses read, SC-08 5/5); follow-up [E2E-5](E2E-5-confirm-writer.md) |
+| Status | `done` 2026-10-11 — step 1 (offline, #75); step 2 (both VMs on `main` `e3286df`; SC-05 3/5 with the misses read, SC-08 5/5; #78); follow-up [E2E-5](E2E-5-confirm-writer.md) |
 | Phase | 12 (end-to-end tests) — [`../../IMPLEMENTATION_PLAN.md`](../../IMPLEMENTATION_PLAN.md) |
 | Found by | [E2E-2 step 2](E2E-2-evidence-gaps.md): SC-05 4/5, the miss `inc_de65a12688bc` ([evidence](../../execution/history/E2E-2/step-02/evidence.md)) |
 | Architecture | no change expected (no ACR): one more field from the container inspect the read-gateway already does; read-only, no new access |

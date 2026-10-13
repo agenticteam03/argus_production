@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | `in review` — done offline 2026-10-12 (re-graded EVAL-3 step 2's 275 runs, no model call) |
+| Status | `done` 2026-10-12 — offline (re-graded EVAL-3 step 2's 275 runs, no model call); PR #100 merged. Follow-up: EVAL-6 (#129, in review) |
 | Phase | evaluation (§21.2) — [`../../IMPLEMENTATION_PLAN.md`](../../IMPLEMENTATION_PLAN.md) |
 | Found by | EVAL-3 step 2 (#99, `conantkd`): `health_check_failed` 0.72 strict; 6 of its 8 misses were the wording check only |
 | Architecture | no change (no ACR): five evaluation labels and an offline grading tool |

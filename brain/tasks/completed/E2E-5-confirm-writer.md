@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | `done` — proposed 2026-10-11 by `conantkd`; step 1 (offline) done 2026-10-11 and step 2 (SC-05 × 5) 5/5 PASS 2026-10-12, by `juanbetancurm` |
+| Status | `done` — proposed 2026-10-11 by `conantkd`; step 1 (offline) done 2026-10-11 (#80) and step 2 (SC-05 × 5) 5/5 PASS 2026-10-12, by `juanbetancurm` (#91) |
 | Phase | 12 (end-to-end tests) — [`../../IMPLEMENTATION_PLAN.md`](../../IMPLEMENTATION_PLAN.md) |
 | Found by | [E2E-3 step 2](E2E-3-container-mounts.md): SC-05 3/5, misses `inc_047b8eece8a3`, `inc_81698a6c8fa9` ([evidence](../../execution/history/E2E-3/step-02/evidence.md)) |
 | Architecture | [ACR-0007](../../architecture/changes/ACR-0007-confirm-then-reason.md) (1.8.6): a new registered strategy, no new hook, no skeleton change; read-only, no new access |

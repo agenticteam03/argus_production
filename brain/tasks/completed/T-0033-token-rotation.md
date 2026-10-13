@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | `done` — step 1 (offline) 2026-10-12; step 2 (one rotation on the VMs, no worker restart) 2026-10-12 |
+| Status | `done` — step 1 (offline) 2026-10-12 (#94); step 2 (one rotation on the VMs, no worker restart) 2026-10-12 (#96); `rotate-token.sh` fixes #102 |
 | Phase | 13 — failure and recovery ([`../../IMPLEMENTATION_PLAN.md`](../../IMPLEMENTATION_PLAN.md): "token rotation") |
 | Architecture | no change (no ACR): secrets are still read only through `Settings` (§17.2); a rejected token is re-read from the same file |
 | Branch | `task/T-0033-token-rotation`, from `main` |

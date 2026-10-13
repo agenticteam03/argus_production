@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | `done` 2026-10-10 (a restart mid-run and a 30 s outage on vm-095: no Argus container restarted) |
+| Status | `done` 2026-10-10 (a restart mid-run and a 30 s outage on vm-095: no Argus container restarted); PR #62 merged |
 | Phase | 13 — failure and recovery ([`../../IMPLEMENTATION_PLAN.md`](../../IMPLEMENTATION_PLAN.md): "Postgres restart"; failures are escalations, never crashes) |
 | Architecture | no change (§6.2: the worker's lease, resume from the checkpoint) |
 | Branch | `task/T-0030-pg-restart`, from `main`; the VM proof ran on `task/T-0030-vm-proof` |

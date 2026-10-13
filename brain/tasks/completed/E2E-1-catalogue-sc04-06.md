@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | `in progress` — steps 1-3 done 2026-10-10 (catalogue; batch 1 17/20; misses read and batch 2: SC-07 6/10, SC-05 6/10, two evidence gaps); the fixes are E2E-2, then a re-run |
+| Status | `done` — steps 1-3 2026-10-10 (#63, #66, #69); the two evidence gaps it found were closed by [E2E-2](E2E-2-evidence-gaps.md) (SC-07 5/5) and E2E-3 / E2E-5 (SC-05 5/5 2026-10-12) |
 | Phase | 12 (end-to-end tests) — [`../../IMPLEMENTATION_PLAN.md`](../../IMPLEMENTATION_PLAN.md) |
 | Architecture | no change (no ACR) |
 | Branch | `task/E2E-1-catalogue-sc04-06` (from `main`) |

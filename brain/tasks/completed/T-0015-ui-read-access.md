@@ -2,13 +2,13 @@
 
 | Field | Value |
 |---|---|
-| Status | `done` 2026-10-07 (steps 1-5 merged in PR #22, ACR-0001 accepted; step 6 proved on vm-095) |
+| Status | `done` 2026-10-07 (steps 1-5 merged in PR #22, ACR-0001 accepted; step 6 proved on vm-095, PR #35) |
 | Phase | 10 — output modes ([`../../IMPLEMENTATION_PLAN.md`](../../IMPLEMENTATION_PLAN.md)) |
 | Architecture | §7.1 (HTTP API), §17.3 (authentication), §25 OD-10 ("dedicated UI: not needed for this release") → ACR first |
 | Branch | `task/T-0015-ui-read-access` |
 | Owner | `juanbetancurm` (+ agent) |
 | Needs the VM lease | only for step 6 |
-| Unblocks | [`T-0016-frontend.md`](T-0016-frontend.md) (`juanes6554`'s frontend) |
+| Unblocks | [`T-0016-frontend.md`](../current/T-0016-frontend.md) (`juanes6554`'s frontend) |
 
 ## Goal (plain language)
 

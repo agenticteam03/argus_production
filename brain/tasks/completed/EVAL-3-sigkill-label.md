@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | `done` — step 1 (label + baseline, offline) 2026-10-12; step 2 (the model, 55 cases × 5) 2026-10-12: `restart-sigkill-01` 5/5 |
+| Status | `done` — step 1 (label + baseline, offline) 2026-10-12 (#93); step 2 (the model, 55 cases × 5) 2026-10-12: `restart-sigkill-01` 5/5 (#99) |
 | Phase | evaluation (§21.2) — [`../../IMPLEMENTATION_PLAN.md`](../../IMPLEMENTATION_PLAN.md) |
 | Found by | EVAL-2 (#89, `conantkd`): `restart-sigkill-01` escalated 5/5 by the model; listed as "a RB-008 question" |
 | Architecture | no change (no ACR): an evaluation label and the §21.2 baseline's rule, aligned with RB-008 |

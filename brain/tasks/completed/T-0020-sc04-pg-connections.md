@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | `done` 2026-10-08 (verified on vm-166 2026-10-07; PR open, waits for review) |
+| Status | `done` 2026-10-08 (verified on vm-166 2026-10-07); PR #38 merged 2026-10-09 |
 | Phase | 11 — synthetic incidents ([`../../IMPLEMENTATION_PLAN.md`](../../IMPLEMENTATION_PLAN.md) §7: SC-04) |
 | Architecture | no change (no ACR): §3 class table (`postgresql_connection_exhaustion` · RB-004 · branch RB-013 · `model_loop`), §3.x "Argus queries only Prometheus for metrics", §4.6 `db-probe` |
 | Branch | `task/T-0020-sc04-pg-connections` (started on top of `task/T-0019-db-probe`; PR #32 merged 2026-10-07; `main` merged in 2026-10-08) |

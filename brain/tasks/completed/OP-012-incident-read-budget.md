@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | `in progress` — step 1 (the fix, offline) done 2026-10-12; step 2 (vm-095's agent on `main`) after the merge |
+| Status | `done` — step 1 (the fix, offline) 2026-10-12, PR #92 merged; step 2: vm-095's agent, worker and scheduler on `main` `244453b` 2026-10-12 (T-0033 step 2's deploy, `CURRENT_STATE.md`) |
 | Phase | 9 (LangGraph skeleton) / 4 (policy) — [`../../IMPLEMENTATION_PLAN.md`](../../IMPLEMENTATION_PLAN.md) |
 | Found by | the SC-05 code review (2026-10-11, `juanbetancurm` + agent): `GraphRunner._ctx` builds a new `InvocationContext` per act node |
 | Architecture | no change (no ACR): the code now does what §12.4 step 3 (budget) and `config/policy.yaml` already say |

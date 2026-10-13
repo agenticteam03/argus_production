@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | `done` offline (2026-10-10); in use after its pull request merges |
+| Status | `done` 2026-10-10 — PR #61 merged; in use |
 | Policy | [`../../policies/PARALLEL_LANES.md`](../../policies/PARALLEL_LANES.md), change 1 (accepted in PR #52) |
 | Architecture | no change (no ACR): the developer workflow, not Argus |
 | Branch | `task/LANES-1-lease-per-vm` (from `main`) |

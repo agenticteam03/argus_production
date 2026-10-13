@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | `done` 2026-10-10 (vm-095's Prometheus stopped about 2 min: vm-095 UNDIAGNOSABLE, vm-166 HEALTHY, no restart) |
+| Status | `done` 2026-10-10 (vm-095's Prometheus stopped about 2 min: vm-095 UNDIAGNOSABLE, vm-166 HEALTHY, no restart); PR #67 merged |
 | Phase | 13 — failure and recovery ([`../../IMPLEMENTATION_PLAN.md`](../../IMPLEMENTATION_PLAN.md): "partition ⇒ escalation for one host only") |
 | Architecture | no change (G-007: unknown is never healthy; each host is read through its own Prometheus) |
 | Branch | `task/T-0032-prometheus-down`, from `main` |

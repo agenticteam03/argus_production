@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | `done` 2026-10-09 (step 2: node-exporter stopped on vm-166 → `monitoring_blind_spot` escalated, no model call) |
+| Status | `done` 2026-10-09 (step 2: node-exporter stopped on vm-166 → `monitoring_blind_spot` escalated, no model call); PR #55 merged |
 | Phase | 7 — monitoring and detection ([`../../IMPLEMENTATION_PLAN.md`](../../IMPLEMENTATION_PLAN.md): detectors restart loop, health, dependency, **blind spot**) |
 | Architecture | no change (no ACR): §3 class table (`monitoring_blind_spot` · RB-014 · `evidence_pack`), §9 (unknown is never healthy, G-007) |
 | Branch | `task/T-0027-blind-spot`, on top of `task/T-0026-alert-resolution` (the VMs run it) |

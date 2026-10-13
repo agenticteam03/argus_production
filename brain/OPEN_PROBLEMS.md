@@ -7,7 +7,8 @@ When a problem is fixed, set its status to `fixed` with the date, and add a jour
 |---|---|---|---|
 | **D-001** | Cross-host path and alert direction: architecture text vs the running system | **decided** 2026-10-08 (`conantkd`): option B as transport profiles, [ACR-0003](architecture/changes/ACR-0003-transport-profiles.md); second approval in the T-0022 PR | 2026-10-02 |
 | **D-002** | Move the runbook library into this repository (the architecture expects it there) | **decided and done** 2026-10-02 | 2026-10-02 |
-| OP-001 | Runbook `detector` metadata uses old or empty class names | fixed 2026-10-09 on `task/OP-001-runbook-detectors` (review pending) | 2026-09-30 |
+| **D-003** | The class registry: keep the model or switch a class to the deterministic baseline (§21.2 rule) | **pending** (team) | 2026-10-09 |
+| OP-001 | Runbook `detector` metadata uses old or empty class names | fixed 2026-10-09 (PR #44 merged) | 2026-09-30 |
 | OP-002 | P0 safety gaps of the runbook library not yet reconciled with architecture v1.8 | open | 2026-09-30 |
 | OP-003 | Runbook safety classes not mapped to `CapabilitySpec.risk` | open | 2026-09-30 |
 | OP-004 | LangGraph checkpoints grow forever; checkpoints of failed runs are orphaned | in progress — offline tests pass; VM dry run and approved apply pending | 2026-10-05 |
@@ -75,7 +76,7 @@ deployment no longer mounts `/opt/argus-runbooks`) and the journal records it.
 
 ## OP-001 — Runbook `detector` metadata uses old or empty class names
 
-**Status:** fixed 2026-10-09 on `task/OP-001-runbook-detectors` (review pending) · **Opened:** 2026-09-30
+**Status:** fixed 2026-10-09 (`task/OP-001-runbook-detectors`, PR #44 merged) · **Opened:** 2026-09-30
 
 **Problem.** Each runbook in the library (`argus/runbooks/RB-*.md`) has a `detector:` field. The original corpus used
 v1.7 names or left the field empty: RB-001 had `oom_restart_loop` (v1.8: `container_restart_loop`, shared with RB-008),
@@ -113,6 +114,26 @@ Each must be settled in the architecture (ACR) before the related implementation
 | G-008 Corpus/dispatcher separation | runbook IDs from metadata, bounded passages, tools never from runbook text | covered by §15.3 | verify that writes are offered only for registered classes |
 
 **Done when.** Each gap is covered, changed through an ACR, or dropped with a reason.
+
+---
+
+## D-003 — The class registry: model or baseline per class
+
+**Status:** pending (team decision) · **Opened:** 2026-10-09 (T-0025), measured again in EVAL-2 (2026-10-12)
+
+**The question.** §21.2's rule: a class keeps the model only if it matches or beats the deterministic baseline on
+the evaluation cases. Switching a class to `baseline` is a data change in the class registry, so it is the team's.
+EVAL-2's table ([`tasks/completed/EVAL-2-model-trials.md`](tasks/completed/EVAL-2-model-trials.md), 5 trials, 55
+cases): the model matches or beats the baseline for `cpu_saturation`, `monitoring_blind_spot`,
+`postgresql_connection_exhaustion` and `disk_pressure`; `nginx_upstream_failure`, `dependency_unavailable`,
+`container_restart_loop` and `health_check_failed` sit 0.04-0.20 under it, mostly by a safe escalation or a word.
+Hard counts are 0 in every run. The baseline's rules were written with these cases, so the comparison favours it.
+
+**Since then.** EVAL-3 (#93, #99) relabelled `restart-sigkill-01` (RB-008: escalate); EVAL-4 (#100) re-grades the
+health wording offline. In review: EVAL-6 (#129, health 0.88 → 0.96) and the evaluation of `main` `d34f0cb` (#118).
+
+**Done when.** Each of the four classes under the baseline is decided (keep the model, or `baseline`), recorded in
+the journal, and any registry change made in its own pull request.
 
 ---
 

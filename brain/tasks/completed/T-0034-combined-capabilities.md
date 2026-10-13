@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | `in review` — done offline 2026-10-12 (tests); on the VMs with the next AFTER-MERGE |
+| Status | `done` — offline 2026-10-12, PR #106 merged; on both VMs with `main` `d34f0cb` (AFTER-MERGE #112) |
 | Phase | 4 — tools and guarded execution ([`../../IMPLEMENTATION_PLAN.md`](../../IMPLEMENTATION_PLAN.md)) |
 | Architecture | no change (no ACR): implements §12.7 as written |
 | Branch | `task/T-0034-combined-capabilities` (from `main`) |

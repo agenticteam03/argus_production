@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | `done` 2026-10-10 (standing test in every build; `WRITE GATE CLOSED` on vm-095 and, host-only, on vm-166) |
+| Status | `done` 2026-10-10 (standing test in every build; `WRITE GATE CLOSED` on vm-095 and, host-only, on vm-166); PR #65 merged |
 | Phase | 8 — policies ([`../../IMPLEMENTATION_PLAN.md`](../../IMPLEMENTATION_PLAN.md): "standing write-gate test on the VMs") |
 | Architecture | no change (§22.2 standing test, §13.3 write gate, §13.4 required behaviours) |
 | Branch | `task/T-0031-write-gate-standing`, from `main` |
