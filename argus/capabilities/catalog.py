@@ -56,6 +56,20 @@ class RunbookArgs(_Args):
     query: str = Field(..., min_length=1, max_length=200, description="what to look for in that runbook")
 
 
+SEARCH_PATTERNS = ("error", "timeout", "refused", "oom", "disk_full", "auth", "restart")   # T-0037: gateway's names
+
+
+class WindowLogsArgs(_Args):
+    minutes: int = Field(30, ge=1, le=120, description="window in minutes")
+    stream: Literal["both", "stdout", "stderr"] = Field("both", description="which output stream")
+
+
+class SearchLogsArgs(_Args):
+    pattern: Literal["error", "timeout", "refused", "oom", "disk_full", "auth", "restart"] = Field(
+        ..., description="a named pattern (never free text): error, timeout, refused, oom, disk_full, auth, restart")
+    minutes: int = Field(30, ge=1, le=120, description="window in minutes")
+
+
 class CompareArgs(_Args):
     metric: Literal["memory", "cpu", "restarts", "disk", "network"] = Field(
         ..., description="memory, cpu or restarts of a container; memory, cpu, disk or network of a host")
@@ -149,6 +163,42 @@ def container_events(args: EventsArgs, target: TargetRef, info, client) -> Capab
     text = f"{target}: {len(ev)} events in {args.minutes} min: " + ", ".join(f"{k}×{v}" for k, v in sorted(counts.items()))
     return CapabilityResult(values=d, model_text=text, source_time=_ts(d.get("collected_at")),
                             coverage=f"{args.minutes} minutes", partial=bool(d.get("truncated")))
+
+
+def container_processes(args: NoArgs, target: TargetRef, info, client) -> CapabilityResult:
+    d = client.get(f"/containers/{target.name}/top")
+    procs = d.get("processes") or []
+    names = sorted({p.get("command") or "?" for p in procs})
+    text = f"{target}: {_fmt(d.get('count'))} processes: {', '.join(names)[:300]}"
+    return CapabilityResult(values=d, model_text=text, source_time=_ts(d.get("collected_at")),
+                            partial=(d.get("count") or 0) > len(procs))
+
+
+def docker_disk_usage(args: NoArgs, target: TargetRef, info, client) -> CapabilityResult:
+    d = client.get("/docker/df")
+    i, c, v = d.get("images") or {}, d.get("containers") or {}, d.get("volumes") or {}
+    text = (f"{target.host} Docker: images {_fmt(i.get('count'))} ({_fmt(i.get('bytes'))} bytes, "
+            f"{_fmt(i.get('unused_count'))} unused = {_fmt(i.get('unused_bytes'))} bytes); containers "
+            f"{_fmt(c.get('count'))} ({_fmt(c.get('stopped_count'))} stopped, writable {_fmt(c.get('writable_bytes'))} "
+            f"bytes); volumes {_fmt(v.get('count'))} ({_fmt(v.get('bytes'))} bytes, {_fmt(v.get('unused_count'))} "
+            f"unused = {_fmt(v.get('unused_bytes'))} bytes); build cache {_fmt(d.get('build_cache_bytes'))} bytes")
+    return CapabilityResult(values=d, model_text=text, source_time=_ts(d.get("collected_at")))
+
+
+def container_detailed_logs(args: WindowLogsArgs, target: TargetRef, info, client) -> CapabilityResult:
+    d = client.get(f"/containers/{target.name}/logs_window", {"minutes": args.minutes, "stream": args.stream})
+    lines = d.get("lines", [])
+    stream = "" if args.stream == "both" else f"{args.stream} "
+    return CapabilityResult(values=d, model_text=f"{target}: {len(lines)} {stream}log lines in {args.minutes} min",
+                            source_time=_ts(d.get("collected_at")), partial=bool(d.get("truncated")),
+                            coverage=f"{args.minutes} minutes, at most 500 lines")
+
+
+def container_search_logs(args: SearchLogsArgs, target: TargetRef, info, client) -> CapabilityResult:
+    d = client.get(f"/containers/{target.name}/search", {"pattern": args.pattern, "minutes": args.minutes})
+    text = f"{target}: {_fmt(d.get('matched'))} lines matched {args.pattern!r} in {args.minutes} min"
+    return CapabilityResult(values=d, model_text=text, source_time=_ts(d.get("collected_at")),
+                            partial=bool(d.get("truncated")), coverage=f"{args.minutes} minutes, at most 500 lines")
 
 
 # --- host_probe ----------------------------------------------------------------------------------
@@ -654,6 +704,24 @@ def build_catalog() -> list[CapabilitySpec]:
         CapabilitySpec("container.health", "check_container_health", "Docker health-check status and recent probe results.",
                        "a container is reported unhealthy", NoArgs, C, 1, "READ_ONLY_SAFE",
                        frozenset({"container", "availability"}), "docker_read", container_health),
+        # T-0037: the other Level 2 docker_read verbs of §12, offered to no class until an evaluation batch measures them
+        CapabilitySpec("container.processes", "get_container_processes",
+                       "The processes inside a container: PID, parent PID and command name (never its arguments).",
+                       "what runs inside the container, and whether an expected process is missing", NoArgs, C, 2,
+                       "READ_ONLY_SAFE", frozenset({"processes"}), "docker_read", container_processes),
+        CapabilitySpec("docker.disk_usage", "get_docker_disk_usage",
+                       "Docker's disk use on the host in totals: images, containers, volumes, build cache, and how much "
+                       "of it is unused.", "a filesystem fills and Docker's own data may be the cause", NoArgs, H, 2,
+                       "READ_ONLY_SAFE", frozenset({"docker_disk"}), "docker_read", docker_disk_usage),
+        CapabilitySpec("container.detailed_logs", "get_detailed_logs",
+                       "A container's redacted log lines of a time window (1-120 min, up to 500), stdout, stderr or "
+                       "both.", "the recent tail is not enough: what happened in a given window", WindowLogsArgs, C, 2,
+                       "READ_ONLY_SAFE", frozenset({"detailed_logs"}), "docker_read", container_detailed_logs),
+        CapabilitySpec("container.search_logs", "search_logs",
+                       "How many of a container's log lines in a window match a named pattern (error, timeout, refused, "
+                       "oom, disk_full, auth, restart), and up to 50 of them.",
+                       "is a known kind of failure present in the logs, and how often", SearchLogsArgs, C, 2,
+                       "READ_ONLY_SAFE", frozenset({"search_logs"}), "docker_read", container_search_logs),
         CapabilitySpec("container.events", "get_container_events", "Docker lifecycle events (start/die/oom/kill/restart) of a container.",
                        "what happened just before a failure", EventsArgs, C, 2, "READ_ONLY_SAFE",
                        frozenset({"container", "stability"}), "docker_read", container_events),
