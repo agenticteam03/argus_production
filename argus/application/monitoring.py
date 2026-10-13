@@ -53,10 +53,11 @@ def _dt(s: str | None) -> datetime | None:
 class MonitoringWatch:
     def __init__(self, store, config: MonitoringConfig = MonitoringConfig(),
                  now: Callable[[], datetime] = utcnow,
-                 prometheus_ready: Callable[[str], bool | None] = lambda host: None):
+                 prometheus_ready: Callable[[str], bool | None] = lambda host: None,
+                 route: str = "channel:operators"):
         """`prometheus_ready(host)`: one bounded readiness read of the host's Prometheus (True / False / None =
         not checked); it only refines the recorded cause."""
-        self.store, self.config, self.now, self.ready = store, config, now, prometheus_ready
+        self.store, self.config, self.now, self.ready, self.route = store, config, now, prometheus_ready, route
         self._this_process: set[str] = set()
 
     # --- state ------------------------------------------------------------------------------------------------------
@@ -159,6 +160,11 @@ class MonitoringWatch:
             opened_at=now, closed_at=now)
         inc, duplicate = self.store.create_incident(inc, key)
         st["incident_id"] = inc.id
+        # §15.2: every escalation enqueues its notification (the outbox; the key makes a repeat a no-op). The route is
+        # the default until routing.yaml (T-0042) is merged: then the `platform` family's route.
+        self.store.notify(f"{inc.id}:escalation", {"incident_id": inc.id, "target": str(inc.target),
+                                                    "outcome": str(inc.outcome), "diagnosis": inc.diagnosis,
+                                                    "route": self.route})
         if not duplicate:
             self._audit(inc.id, "monitoring.lost", "scheduler",
                         {"host": host, "episode_start": st["episode_start"], "cause": cause})

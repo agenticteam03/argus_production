@@ -33,6 +33,9 @@ model), and while a host has no fresh heartbeat Argus resolves nothing on it.
   `ReconcileFiringAlerts` then skips `resolve_absent` (`"heartbeat not fresh"` / `"monitoring lost"` in its counts).
   The ACR says "while its heartbeat is not fresh"; a first version that only stopped once lost resolved an
   application incident in the minutes before the loss was declared (caught by note 3's test).
+- **The loss is notified** like every escalation (§15.2): `<incident>:escalation` in the outbox, route
+  `channel:operators` (the `platform` family's route once `routing.yaml`, T-0042, is merged). Found missing on
+  2026-10-13 while building T-0042; the step-2 deployment (`800a9df`) does not have it yet.
 - **The heartbeat never reaches intake** (`HandleAlertNotification` ignores it by `alertname`: push and pull).
 - **State per host** in the store (`monitoring_state`, migration 006, both stores): a restart keeps a lost episode
   (no second incident) and starts a new grace otherwise.
@@ -51,7 +54,7 @@ model), and while a host has no fresh heartbeat Argus resolves nothing on it.
 
 ## Tests
 
-`tests/test_t0035_monitoring_heartbeat.py`, 21 tests (red seen: no `argus.application.monitoring`): fresh / kept but
+`tests/test_t0035_monitoring_heartbeat.py`, 22 tests (red seen: no `argus.application.monitoring`; and, added 2026-10-13, no escalation notification for a loss): fresh / kept but
 not renewed / expired / another host's; a loss opens one escalated incident with no run and the observed cause;
 Alertmanager unreachable; one incident per episode across a scheduler restart; two fresh ticks to recover and a later
 loss is a new episode; one late fresh tick does not end the grace; never seen after the grace; a queued application

@@ -357,3 +357,21 @@ def test_the_maintenance_command_is_bounded_and_needs_a_known_host():
     assert (a.host, a.minutes, a.who) == ("vm-166", 30, "conantkd")
     with pytest.raises(SystemExit):
         build_parser().parse_args(["monitoring", "maintenance", "vm-166", "--minutes", "30"])   # --as is required
+
+
+def test_a_loss_is_notified_like_any_escalation(make_app):
+    """§15.2: every escalation enqueues a notification (`<incident>:escalation`); the loss incident is stored already
+    escalated, so the watch enqueues it itself — once per episode, also across a restart."""
+    app, clock = make_app(), Clock(T0)
+    w = _watch(app, clock)
+    _alive(w, clock)
+    for _ in range(6):
+        w.observe(HOST, [])
+        clock.tick()
+    _watch(app, clock).observe(HOST, [])                                 # a restarted scheduler
+    inc = _monitoring_incidents(app)[0]
+    notes = [n for n in app.store.notifications() if n["key"] == f"{inc.id}:escalation"]
+    assert len(notes) == 1
+    p = notes[0]["payload"]
+    assert p["incident_id"] == inc.id and p["outcome"] == "undiagnosable" and p["route"] == "channel:operators"
+    assert "Host monitoring unavailable" in p["diagnosis"]
