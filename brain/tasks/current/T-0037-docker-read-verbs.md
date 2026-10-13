@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | `in progress` — step 1 (code, offline) done 2026-10-13; step 2 (the routes read on vm-166) next |
+| Status | `in review` — step 1 (code) and step 2 (the routes on vm-166, [evidence](../../execution/history/T-0037/step-02/evidence.md)) done 2026-10-13; step 3 after the merge |
 | Phase | 4 / 9 — tools; Level 2 capabilities ([`../../IMPLEMENTATION_PLAN.md`](../../IMPLEMENTATION_PLAN.md)) |
 | Architecture | no change (no ACR): implements four rows of the §12 Level 2 table as written |
 | Branch | `task/T-0037-docker-read-verbs` (from `main`) |
