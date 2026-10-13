@@ -187,3 +187,28 @@ def test_the_dependency_cases_answer_connectivity_from_their_own_statuses():
     assert seen >= 6
     wrong = yaml.safe_load((ROOT / "tests" / "eval" / "cases" / "dep-backend-wrong-network.yaml").read_text(encoding="utf-8"))
     assert any(v["shared"] == [] for k, v in wrong["fixtures"]["docker_read"].items() if k.startswith("/connectivity?"))
+
+
+def test_attempts_to_a_port_that_never_answers_stay_under_the_clients_timeout(tmp_path, monkeypatch):
+    """#101 review: 5 attempts x 3 s + 4 gaps would be 17 s, past the agent's 10 s client timeout (the read would end
+    `timeout` and mark the network probe down for the whole incident). A shared 8 s budget stops the attempts."""
+    svc = _service(tmp_path, monkeypatch, "network_probe")
+    clock = {"t": 1000.0}
+    waits = []
+
+    def never(host, port, timeout=3):
+        waits.append(timeout)
+        clock["t"] += timeout                                  # a SYN nobody answers: the whole timeout
+        return {"ok": False, "error": "TimeoutError: timed out", "duration_ms": timeout * 1000}
+    monkeypatch.setattr(svc, "tcp", never)
+    monkeypatch.setattr(svc.time, "monotonic", lambda: clock["t"])
+    monkeypatch.setattr(svc.time, "sleep", lambda s: clock.__setitem__("t", clock["t"] + s))
+    d = svc.network_probe(["tcp"], {"host": ["argus-lab-backend"], "port": ["8080"], "attempts": ["5"]})
+    assert clock["t"] - 1000.0 <= svc.TCP_BUDGET_S < 10                 # under the client's 10 s
+    assert d["budget_exhausted"] is True and d["requested"] == 5 and len(d["attempts"]) < 5
+    assert d["ok"] is False and d["succeeded"] == 0 and all(w <= 3 for w in waits)
+    s = SPECS["network.tcp_connect"]
+    info = type("I", (), {"tcp_ports": [8080]})()
+    r = s.impl(s.args_model(port=8080, attempts=5), TargetRef.parse("vm-166/container:argus-lab-backend"), info,
+               _Client(d))
+    assert "time budget was spent" in r.model_text and "0/" in r.model_text

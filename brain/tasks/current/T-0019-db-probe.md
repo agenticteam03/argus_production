@@ -245,6 +245,14 @@ Branch `task/T-0019-batch3c-network-verbs`, from `main`; independent of 3a (no ย
   attempt's result and latency, `succeeded`, and `ok` only when every attempt connected. One attempt sends the old
   request and gets the old answer (plus `attempts`). ยง12.2 names a separate `network.tcp_connection`; its model name
   is already this capability's, so the existing one is extended instead.
+- **Review of #101 (`juanbetancurm`):** the attempts share a **time budget of 8 s** (under the agent's 10 s client
+  timeout): each attempt waits `min(3 s, what is left)`, and when the budget is spent the probe stops and answers
+  `budget_exhausted: true` with the attempts made. Before, 5 attempts to a port that never answers (a paused
+  container) could take 17 s, the read would end `timeout`, and the runners would mark the network probe down for the
+  rest of the incident. Test: `test_attempts_to_a_port_that_never_answers_stay_under_the_clients_timeout`.
+- **Scope of `to`:** the gateway checks that the destination is an allowlisted container of the same host, not that it
+  is in the incident's scope. A read can therefore name the networks (names only) of a container of the host outside
+  the scope. Accepted (no address, no content, same host); noted here per the review.
 - **`network.listening_ports`: not in 3c.** What really listens inside a container needs its network namespace (a pid
   from Docker, `/proc/<pid>/net/tcp` from the host probe): two executors. Proposed later, with the host verbs.
 - **Evaluation cases:** the 6 `dependency_unavailable` cases answer `/connectivity?from=<target>&to=<each declared
