@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | `in progress` — step 1 (code, offline) done 2026-10-13; step 2 (read on the VMs) next |
+| Status | `in review` — step 1 (code) and step 2 (both hosts, [evidence](../../execution/history/T-0038/step-02/evidence.md)) done 2026-10-13; step 3 later |
 | Phase | 4 / 9 — Level 3 capabilities ([`../../IMPLEMENTATION_PLAN.md`](../../IMPLEMENTATION_PLAN.md)) |
 | Architecture | no change (no ACR): the §12 Level 3 row `metrics.compare_baseline` ("same signals over an earlier healthy window; no stored baseline") |
 | Branch | `task/T-0038-compare-baseline`, **on top of `task/T-0036-metric-histories`** (it uses T-0036's signals and the client's `mounts`): merge #119 first |
@@ -12,13 +12,13 @@
 ## Goal (plain language)
 
 "Is this level unusual for this target, or is it normal for it?" The model names a metric and how far back to look;
-Argus reads the same named signal for the current window and for the same window 1 hour, 24 hours or 7 days earlier,
+Argus reads the same named signal for the current window and for the same window 1 hour, 24 hours or 3 days earlier,
 and answers the mean and maximum of each and the change. Nothing is stored. Offered to no class until measured.
 
 ## Design
 
 - **Args:** `metric` ∈ memory, cpu, restarts, disk, network (never a signal name or PromQL); `minutes` 5–240;
-  `earlier` ∈ 1h, 24h, 7d.
+  `earlier` ∈ 1h, 24h, 3d (Prometheus keeps 7 days: step 2 found a 7-day offset at the edge, NO DATA).
 - **Metric → signal by target kind:** container: memory `container_memory_bytes`, cpu `container_cpu_cores`, restarts
   `container_restart_count`; host: memory `host_memory_available_ratio`, cpu `host_cpu_busy_ratio`, disk
   `host_disk_used_ratio_mounts` (the declared mounts), network `host_network_bytes_per_s`. A pair that does not

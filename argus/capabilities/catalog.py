@@ -60,7 +60,7 @@ class CompareArgs(_Args):
     metric: Literal["memory", "cpu", "restarts", "disk", "network"] = Field(
         ..., description="memory, cpu or restarts of a container; memory, cpu, disk or network of a host")
     minutes: int = Field(30, ge=5, le=240, description="window in minutes")
-    earlier: Literal["1h", "24h", "7d"] = Field("24h", description="the same window this long before")
+    earlier: Literal["1h", "24h", "3d"] = Field("24h", description="the same window this long before (within the 7-day retention)")
 
 
 class HistoryArgs(_Args):
@@ -549,7 +549,7 @@ _BASELINE = {"container": {"memory": ("container_memory_bytes", "memory bytes"),
                       "cpu": ("host_cpu_busy_ratio", "CPU busy share"),
                       "disk": ("host_disk_used_ratio_mounts", "fullest declared filesystem used share"),
                       "network": ("host_network_bytes_per_s", "host network bytes/s (received + sent)")}}
-_EARLIER_S = {"1h": 3600, "24h": 86400, "7d": 7 * 86400}
+_EARLIER_S = {"1h": 3600, "24h": 86400, "3d": 3 * 86400}   # Prometheus keeps 7 days: 7d would fall at its edge
 
 
 def _summary(series) -> dict | None:
@@ -717,7 +717,7 @@ def build_catalog() -> list[CapabilitySpec]:
                        "READ_ONLY_SAFE", frozenset({"network_history"}), "prometheus",
                        _history("host_network_bytes_per_s", "host network bytes/s (received + sent)")),
         CapabilitySpec("metrics.compare_baseline", "compare_incident_baseline",
-                       "One metric now against the same window earlier (1h, 24h or 7d ago): mean and max of each and "
+                       "One metric now against the same window earlier (1h, 24h or 3d ago): mean and max of each and "
                        "the change. No stored baseline.", "is this level unusual for this target, or normal for it",
                        CompareArgs, C | H, 3, "READ_ONLY_SAFE", frozenset({"baseline"}), "prometheus",
                        compare_baseline),   # T-0038, offered to no class yet

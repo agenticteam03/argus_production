@@ -1,5 +1,5 @@
 """T-0038: `compare_incident_baseline` (`metrics.compare_baseline`, ARCHITECTURE §12 Level 3, executor `prometheus`):
-the same named signal over the current window and over the same window earlier (1 h, 24 h or 7 days ago), "no
+the same named signal over the current window and over the same window earlier (1 h, 24 h or 3 days ago; Prometheus keeps 7 days), "no
 stored baseline". The model names a METRIC (memory, cpu, restarts, disk, network), never a signal or PromQL; which
 signal is read depends on the target kind. A window without samples is unknown, never zero, and is said so.
 Offered to no class until measured.
@@ -69,11 +69,12 @@ def test_the_signal_depends_on_the_metric_and_the_target_kind(target, metric, si
 
 
 def test_disk_compares_the_declared_mounts():
+    """Step 2: a 7-day offset fell at the edge of the 7-day retention (NO DATA on vm-095): 3 days is the longest."""
     c = Client(pts(0.5, 0.6), pts(0.3, 0.3))
     info = TargetInfo(ref=HOST, mounts=["/", "/srv/argus-lab-fill"])
-    _call(HOST, c, info=info, metric="disk", earlier="7d")
+    _call(HOST, c, info=info, metric="disk", earlier="3d")
     assert c.asked[0] == ("host_disk_used_ratio_mounts", 30, 0, {"mounts": "/|/srv/argus-lab-fill"})
-    assert c.asked[1][2] == 7 * 86400
+    assert c.asked[1][2] == 3 * 86400
 
 
 @pytest.mark.parametrize("target,metric", [(API, "disk"), (API, "network"), (HOST, "restarts")])
