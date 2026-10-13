@@ -48,7 +48,7 @@ class SkeletonRunner:
                  metrics: MetricsPort, knowledge: KnowledgePort, notifier: NotificationPort,
                  invoke: InvokeCapability, strategies: dict[str, Any], offered_specs: list[Any],
                  redactor: Any, policy_version: str, max_tool_level: int, max_reads_per_step: int = 1,
-                 max_steps_cap: int = 10, events: Any = None):
+                 max_steps_cap: int = 10, events: Any = None, routing: Any = None):
         self.memory, self.audit, self.inventory = memory, audit, inventory
         self.metrics, self.knowledge, self.notifier = metrics, knowledge, notifier
         self.invoke, self.strategies = invoke, strategies
@@ -57,6 +57,7 @@ class SkeletonRunner:
         self.max_tool_level = max_tool_level
         self.max_reads_per_step, self.max_steps_cap = max_reads_per_step, max_steps_cap
         self.events = events                     # RunEventSink (telemetry); None = disabled
+        self.routing = routing                   # T-0042 (§15.2): where an escalation goes; None = the default
         self._spec_names = {s.name: s.model_name for s in offered_specs}
 
     def _ev(self, inc: Incident, node: str, phase: str, **data) -> None:
@@ -328,8 +329,23 @@ class SkeletonRunner:
                             "root_cause_target": inc.root_cause_target})
         if status == IncidentStatus.escalated:
             self.notifier.notify(f"{inc.id}:escalation", {"incident_id": inc.id, "target": str(inc.target),
-                                                           "outcome": outcome, "diagnosis": inc.diagnosis})
+                                                           "outcome": outcome, "diagnosis": inc.diagnosis,
+                                                           "route": self._route(inc)})
         return inc
+
+    def _route(self, inc) -> str:
+        """§15.2 (T-0042): the escalation's route: its first alert's name, then its class family, else the default."""
+        from argus.detectors.classes import CLASSES
+        from argus.policy.routing import Routing
+        routing = self.routing or Routing()
+        family = next((c.family for c in CLASSES if c.name == getattr(inc, "incident_class", None)), None)
+        alertname = None
+        try:
+            occ = self.memory.alert_occurrences(inc.id)
+            alertname = occ[0]["alertname"] if occ else None
+        except (AttributeError, KeyError, TypeError):
+            pass
+        return routing.target(family, alertname)
 
 
 def _decision_summary(d) -> dict:

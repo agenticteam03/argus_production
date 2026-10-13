@@ -191,6 +191,14 @@ def build(settings: Settings | None = None, llm=None, metrics=None, executors: E
 
     # --- startup validation: every reference must resolve, or Argus refuses to start ----------------
     errors = []
+    routing = None                                   # T-0042 (§15.2): escalation routing, validated like the rest
+    rpath = s.config_dir / "routing.yaml"
+    try:
+        from argus.policy.routing import Routing
+        routing = (Routing.from_data(yaml.safe_load(rpath.read_text(encoding="utf-8")), {c.family for c in CLASSES})
+                   if rpath.exists() else Routing())
+    except ValueError as e:
+        errors.append(str(e))
     for spec in specs:
         if not policy.capability_known(spec.name):
             continue  # not allowed ⇒ refused at call time (fail closed); not an error
@@ -258,7 +266,7 @@ def build(settings: Settings | None = None, llm=None, metrics=None, executors: E
                             strategies=strategies, offered_specs=[sp for sp in specs if policy.capability_known(sp.name)],
                             redactor=redactor, policy_version=policy.version,
                             max_tool_level=policy.max_tool_level, max_reads_per_step=s.max_reads_per_step,
-                            max_steps_cap=s.max_steps)
+                            max_steps_cap=s.max_steps, routing=routing)
     jwt_key = s.secret("jwt_signing_key") or os.getenv("ARGUS_JWT_KEY") or ""
     if len(jwt_key) < 32:
         raise SystemExit("jwt_signing_key missing or shorter than 32 characters")

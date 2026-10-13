@@ -1,0 +1,7 @@
+# Escalation routing (ARCHITECTURE §15.2, T-0042): where an escalation's notification goes (the outbox, key
+# `<incident>:escalation`). Order: by_alertname (an unsupported alert's name), then by_family (the incident class's
+# family: availability, database, dependency, platform, saturation, stability), else default.
+# A target is channel:<name> (a human channel) or peer:<name> (a peer agent, §23). Validated at startup.
+default: channel:operators
+by_family: {}
+by_alertname: {}
