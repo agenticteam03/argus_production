@@ -37,3 +37,10 @@ host_disk_hours_to_full: 'min(node_filesystem_avail_bytes{argus_host="$host",mou
 scrape_targets_down:   'count(up{argus_host="$host"} == 0) or vector(0)'
 # Freshness gate (not a detector signal): the host's exporter scrape must be up, otherwise detection is undiagnosable.
 _scrape_up:            'up{argus_host="$host",job="argus-v18-exporter"}'
+# T-0036 (metric histories, ARCHITECTURE §12 Level 2): read only by the metrics.* capabilities, never by a detector.
+# A container's CPU cores in use (cAdvisor; 3m rate: its samples are 35-53 s apart).
+container_cpu_cores:   'rate(container_cpu_usage_seconds_total{argus_host="$host",name="$name"}[3m])'
+# The fullest of the host's DECLARED mounts ($mounts from the inventory, as detection reads them).
+host_disk_used_ratio_mounts: 'max(1 - node_filesystem_avail_bytes{argus_host="$host",mountpoint=~"$mounts"} / node_filesystem_size_bytes{argus_host="$host",mountpoint=~"$mounts"})'
+# A container's received + sent bytes per second, all its interfaces (cAdvisor).
+container_network_bytes_per_s: 'sum(rate(container_network_receive_bytes_total{argus_host="$host",name="$name"}[3m]) + rate(container_network_transmit_bytes_total{argus_host="$host",name="$name"}[3m]))'

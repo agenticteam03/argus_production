@@ -59,7 +59,7 @@ class FixtureExecutor:
             raise ExecutorError(str(answer["error"]), f"{path}: {answer['error']}")
         return answer
 
-    def range(self, signal: str, target: TargetRef, minutes: int, step_s: int) -> list[tuple[float, float]]:
+    def range(self, signal: str, target: TargetRef, minutes: int, step_s: int, **params) -> list[tuple[float, float]]:
         """Metric history (the prometheus executor): `fixtures.prometheus.range.<signal>` as [seconds before now,
         value] pairs, cut to the window asked; none = no samples (the capability answers NO DATA, unknown)."""
         now = time.time()
