@@ -55,12 +55,12 @@ interrupted investigation resumes instead of starting over. The remaining work: 
 api / worker / scheduler (with recovery of interrupted runs), the MCP tools child, the missing scenarios, alerting
 and repeated end-to-end runs.
 
-## 2. What runs (OBSERVED 2026-10-06)
+## 2. What runs (OBSERVED 2026-10-06; code updated 2026-10-12)
 
 | VM | Argus containers | Published ports | Code (`deploy.sh status`) |
 |---|---|---|---|
-| vm-095 | `argus-v18-agent` (LangGraph runner), `argus-v18-postgres` (healthy), `argus-v18-tunnel`, `argus-v18-read-gateway`, `-host-probe`, `-network-probe`, `-exporter`, `-prometheus`, `argus-lab-api` | `127.0.0.1:18000` only | `task/T-0019-db-probe` `78afa31` (agent rebuilt from it: `database.health`, `knowledge.runbook` Level 3); back to `main` after its PR merges (checkout only) |
-| vm-166 | `argus-v18-read-gateway`, `-host-probe`, `-network-probe`, `-db-probe`, `-exporter`, `-prometheus`, `argus-lab-api` (healthy), `argus-lab-cache`, `argus-lab-db` (healthy, testing only) | `127.0.0.1:18701-18704`, `127.0.0.1:18090` | `task/T-0019-db-probe` `78afa31` (target services rebuilt, OP-007 included); back to `main` after its PR merges (checkout only) |
+| vm-095 | `argus-v18-agent` (LangGraph runner), `argus-v18-postgres` (healthy), `argus-v18-tunnel`, `argus-v18-read-gateway`, `-host-probe`, `-network-probe`, `-exporter`, `-prometheus`, `argus-lab-api` | `127.0.0.1:18000` only | `main` `d34f0cb` (2026-10-12, AFTER-MERGE of #97-#111: target services rebuilt; agent, worker and scheduler on one image built from it) |
+| vm-166 | `argus-v18-read-gateway`, `-host-probe`, `-network-probe`, `-db-probe`, `-exporter`, `-prometheus`, `argus-lab-api` (healthy), `argus-lab-cache`, `argus-lab-db` (healthy, testing only) | `127.0.0.1:18701-18704`, `127.0.0.1:18090` | `main` `d34f0cb` (2026-10-12, target services rebuilt) |
 
 - `/opt/argus-v18/app` is a **git checkout** on both VMs (read-only deploy key per VM); the old tarball folder is kept
   as `/opt/argus-v18/app.pre-git-<time>`. Only the agent on vm-095 was rebuilt; the other containers still run the
@@ -124,6 +124,10 @@ and repeated end-to-end runs.
 - **Earlier (OBSERVED 2026-10-07, T-0018 step 7):** vm-095 runs `task/T-0018-sc07-network` `68d4963`: the agent has
   `knowledge.runbook` (`query_runbook`, in-worker); SC-07 run 2 `inc_21f900ee6139` DIAGNOSED with RB-009 read during
   the investigation; vm-166 stays on `df267ce` (its services did not change). NO INTERFERENCE on both.
+- **AFTER-MERGE to main (OBSERVED 2026-10-12):** both VMs `commit=d34f0cb…`, `ref=main` (#97–#111: T-0019 3a/3b/3c,
+  the snapshot, EVAL-4/5, the redactor of #110); vm-095 backup, agent/worker/scheduler on one image, 20/20 db checks,
+  55/55, WRITE GATE CLOSED; LAB BASELINE OK and NO INTERFERENCE on both. Evidence:
+  [`execution/history/AFTER-MERGE-main/step-01/evidence.md`](execution/history/AFTER-MERGE-main/step-01/evidence.md).
 - **T-0018 steps 1–5 (OBSERVED 2026-10-07):** both VMs run the checkout of `task/T-0018-sc07-network` (`df267ce`):
   vm-166's 4 target services rebuilt (the container status now carries `networks`; a dependency is probed only
   while its owner runs), vm-095's agent rebuilt from it (the image also carries T-0015 from `main`). H-1 on vm-166
