@@ -1,4 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import escalations from "../../../contracts/samples/escalations.json";
+import evidence from "../../../contracts/samples/evidence.json";
 import events from "../../../contracts/samples/events.json";
 import incident from "../../../contracts/samples/incident.json";
 import incidents from "../../../contracts/samples/incidents.json";
@@ -43,13 +45,27 @@ describe("httpArgusAdapter", () => {
     expect(Array.isArray(batch)).toBe(true);
   });
 
-  it("builds the dashboard overview from the incident list; approvals and health have no route", async () => {
-    fetch.mockResolvedValueOnce(response(200, incidents));
+  it("reads one evidence record and lists escalations", async () => {
+    fetch.mockResolvedValueOnce(response(200, evidence)).mockResolvedValueOnce(response(200, escalations));
+
+    const one = await httpArgusAdapter.getEvidence("ev_f5de798421654c48");
+    const raised = await httpArgusAdapter.listEscalations();
+
+    expect(fetch.mock.calls[0][0]).toBe("/api/v1/evidence/ev_f5de798421654c48");
+    expect(fetch.mock.calls[1][0]).toBe("/api/v1/escalations");
+    expect(one.evidence_id).toBe("ev_f5de798421654c48");
+    expect(raised).toEqual(escalations);
+  });
+
+  it("builds the dashboard overview from the incident list and the escalations route; approvals and health have no route", async () => {
+    fetch.mockResolvedValueOnce(response(200, incidents)).mockResolvedValueOnce(response(200, escalations));
 
     const overview = await httpArgusAdapter.getOverview();
 
     expect(fetch.mock.calls[0][0]).toBe("/api/v1/incidents?limit=5");
+    expect(fetch.mock.calls[1][0]).toBe("/api/v1/escalations");
     expect(overview.incidents).toEqual(incidents);
+    expect(overview.escalations).toEqual(escalations);
     expect(overview.approvals).toEqual([]);
     expect(overview.health).toBeNull();
   });

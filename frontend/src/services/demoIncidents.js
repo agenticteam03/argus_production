@@ -91,3 +91,17 @@ export const demoList = () =>
     id: i.id, target: i.target, status: i.status, outcome: i.outcome, class: i.incident_class, strategy: i.strategy,
     opened_at: i.opened_at, root_cause_target: i.root_cause_target,
   }));
+
+// The notifications the agent raises when it cannot conclude on its own, shaped exactly like
+// GET /api/v1/escalations: { key, at, payload: { incident_id, target, outcome, route, diagnosis } }.
+const escalation = (i) => ({
+  key: `${i.id}:escalation`, at: i.closed_at ?? i.opened_at,
+  payload: { incident_id: i.id, target: i.target, outcome: i.outcome, route: "channel:operators",
+             diagnosis: i.diagnosis ?? "evidence pack collected; no diagnosis is claimed" },
+});
+export const demoEscalations = () =>
+  ORDER.map((id) => demoIncident(id)).filter((i) => i.status === "escalated").map(escalation);
+
+// One evidence record by id, shaped exactly like GET /api/v1/evidence/{id}.
+export const demoEvidence = (evidence_id) =>
+  ORDER.map((id) => demoIncident(id)).flatMap((i) => i.evidence ?? []).find((e) => e.evidence_id === evidence_id) ?? null;

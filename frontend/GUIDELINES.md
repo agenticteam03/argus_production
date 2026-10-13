@@ -26,6 +26,8 @@ rendering. Unit tests with Vitest; Playwright acceptance tests come next (T-0016
      as a message (placeholder reply until the API exists);
    - **recent incidents**: empty state today; later the newest 5 with status badge, trigger and time;
    - **agent status**: WireGuard / Prometheus / LLM tokens / resolved-today rows with a data-or-"No data" dot;
+   - **escalations**: the incidents Argus could not conclude on its own and raised to a human — target (opens the
+     incident), outcome, route and the recorded diagnosis, newest first;
    - **pending approvals**: empty state today; later a countdown per approval, Approve/Reject only when
      `/api/v1/me` lists the approve action (level 3 — the real buttons follow `/me`; a read token never has it).
 3. **Runbooks** — searchable cards (ID, title, version, status, risk badge, detector, scope, key tools, count of

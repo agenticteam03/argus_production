@@ -43,7 +43,7 @@ Argus handle and the team password; the token has `scope=read` and cannot write.
 | `src/components/` | Header, AgentChat, IncidentRow, RunTimeline, EvidenceAudit, RunbookCard, RunbookDrawer, `ui.jsx` primitives |
 | `src/context/AuthContext.jsx` | Session in memory only — never `localStorage`, cookies or the URL |
 | `src/services/index.js` | **The single swap point**: mock adapters by default, HTTP adapters with `VITE_ARGUS_MOCK=0` |
-| `src/services/http*.js` | The real API adapters (`auth`, incidents/events/overview) and `session.js` (the in-memory bearer token) |
+| `src/services/http*.js` | The real API adapters (`auth`/`me`, incidents, events, evidence, escalations, overview) and `session.js` (the in-memory bearer token) |
 | `src/hooks/` | `useLiveOverview` (5 s poll), `useIncidentList`, `useIncident` + `usePoll`, `useRunbooks` (10 s poll) |
 | `src/utils/parseRunbook.js` | Runbook Markdown → the data shown on cards |
 | `../../../argus/runbooks/` | The **real** runbook library (21 runbooks), read by `fileRunbooksAdapter.js`; there is no runbook API route yet |

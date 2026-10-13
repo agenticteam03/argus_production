@@ -2,10 +2,11 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import AgentChat from "../components/AgentChat.jsx";
 import IncidentRow from "../components/IncidentRow.jsx";
-import { Arrow, Card, Empty, Inbox, Shield } from "../components/ui.jsx";
+import { Arrow, Bell, Card, Empty, Inbox, OutcomeBadge, Shield } from "../components/ui.jsx";
 import { useAuth } from "../context/AuthContext.jsx";
 import { useLiveOverview } from "../hooks/useLiveOverview.js";
 import { argus } from "../services/index.js";
+import { dateTime, timeAgo } from "../utils/format.js";
 
 function IncidentsCard({ incidents, className }) {
   return (
@@ -77,9 +78,37 @@ function ApprovalItem({ approval, canDecide, onDecide }) {
   );
 }
 
+function EscalationsCard({ escalations }) {
+  return (
+    <Card title="Escalations" count={escalations.length}>
+      {escalations.length === 0 ? (
+        <Empty icon={Bell} title="No escalations" text="Incidents Argus cannot conclude on its own are raised to a human here." />
+      ) : (
+        <ul className="space-y-2">
+          {escalations.slice(0, 5).map((e) => (
+            <li key={e.key} className="rounded-xl bg-field p-3">
+              <div className="flex items-start justify-between gap-2">
+                <Link to={`/incidents/${e.payload.incident_id}`} className="min-w-0 truncate text-sm font-medium text-accent-hover hover:underline">
+                  {e.payload.target}
+                </Link>
+                <time dateTime={e.at} title={dateTime(e.at)} className="shrink-0 text-xs text-muted">{timeAgo(e.at)}</time>
+              </div>
+              <div className="mt-1.5 flex items-center gap-2">
+                <OutcomeBadge outcome={e.payload.outcome} />
+                <span className="truncate font-mono text-xs text-muted">{e.payload.route}</span>
+              </div>
+              {e.payload.diagnosis && <p className="mt-1.5 line-clamp-2 text-[13px] text-muted">{e.payload.diagnosis}</p>}
+            </li>
+          ))}
+        </ul>
+      )}
+    </Card>
+  );
+}
+
 export default function Dashboard() {
   const { user } = useAuth();
-  const { incidents, approvals, health, live, refresh } = useLiveOverview();
+  const { incidents, approvals, escalations, health, live, refresh } = useLiveOverview();
   // A read token never lists `approve`, so the buttons stay hidden (ACR-0001); the UI never decides who may act.
   const canDecide = user.actions?.includes("approve") ?? false;
   // The server derives the actor from the token; an expired/conflicting decision just triggers a refresh.
@@ -104,6 +133,7 @@ export default function Dashboard() {
         <IncidentsCard incidents={incidents} className="lg:col-span-2" />
         <div className="space-y-4">
           <HealthCard health={health} />
+          <EscalationsCard escalations={escalations} />
           <Card title="Pending approvals" count={approvals.length}>
             {approvals.length === 0 ? (
               <Empty icon={Shield} title="No pending approvals" text="Remediations that need a human decision will appear here." />

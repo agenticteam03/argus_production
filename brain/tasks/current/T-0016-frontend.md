@@ -111,3 +111,17 @@ a screen or a button in `frontend/`.
     `.github/workflows/` or `contracts/` change); merged up to date with `main` (`afe84a6`). CI: `frontend` green;
     the `test` job first failed on a Docker Hub unauthenticated pull-rate limit while pulling `postgres:16-alpine`
     (infrastructure, before any test ran) and was re-run.
+
+- **2026-10-13 — connect the two remaining documented read routes (branch `task/T-0016-step3-screens`):**
+  - every read route in `docs/API-FOR-UI.md` is now wired: `GET /api/v1/evidence/{id}` (`getEvidence`) and
+    `GET /api/v1/escalations` (`listEscalations`) were the only two missing, so they join the HTTP adapter and the
+    mock adapter (parity), and `getOverview` now carries real escalations; the Dashboard gains an **Escalations**
+    card (target → incident, outcome badge, route, clamped diagnosis). Writes stay mock-only: there is still no
+    approve/deny route and `POST /api/v1/investigations` needs a full token (level 1 ACR).
+  - **not connected on purpose:** `GET /healthz` (not in the UI contract — the UI must not call undocumented
+    routes) and `POST /api/v1/investigations` (a write a `scope=read` token never gets).
+  - **tests written (Vitest run deferred):** extended `httpArgusAdapter.test.js` (evidence + escalations + overview
+    now asserts two GETs) and added `mockArgusAdapter.test.js` (escalation shape, overview, viewer 403 on evidence).
+    `juanes6554` asked to skip the test run this turn to save time, so the red/green is **pending** a `npm test`
+    (frontend only) — the record here will be completed before any merge.
+  - **green (build only):** `vite build` → 348 modules, no errors (verifies the new imports/JSX compile).
