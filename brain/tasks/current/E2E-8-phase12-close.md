@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | `planned` — written 2026-10-12 by `conantkd` for `juanbetancurm` |
+| Status | `in progress` — written 2026-10-12 by `conantkd` for `juanbetancurm`; step 1 (catalogue, offline) done 2026-10-13 by `conantkd` (`task/E2E-8-catalogue`); step 2 (the runs) next |
 | Phase | 12 (end-to-end tests) — [`../../IMPLEMENTATION_PLAN.md`](../../IMPLEMENTATION_PLAN.md) |
 | Architecture | no change expected (no ACR): runner catalogue entries and VM runs |
 | Branch | `task/E2E-8-phase12-close` (this file); the work on its own branches from `main` |
@@ -48,9 +48,32 @@ Phase 12 is done when each line is 5/5 (or every miss is read and explained), as
      across hosts. The runner runs one scenario at a time today: this needs a small runner change (a `together:` list,
      or a scenario with two requests), with tests.
 2. **Runs (both leases):** `ops/e2e/run.py H-1 H-2 SC-09 SC-11 --runs 5` (no failure is induced: minutes), then
-   `SC-10 --runs 5`, `SC-12 --runs 5` and the identity proof × 5. Read every miss.
+   `ops/e2e/run.py SC-10 SC-12 ID-1 --runs 5`. Read every miss.
 3. **Record:** evidence per step, the task file, a journal entry; Phase 12's row of `IMPLEMENTATION_PLAN.md` (in the
    next roll-up) to 100 % when every line is 5/5.
+
+## Step 1 — done 2026-10-13 (`conantkd` + agent, offline)
+
+- **Runner** (`ops/e2e/run.py`): a command may run on another host (`{host: vm-095, run: ...}`; not `on:`, which
+  YAML 1.1 reads as `true`); a gate may name its `host`, and `pre_gate` / `gate` may be lists; `investigations` (a
+  list of `{request, expect}`) are all sent before the first is polled, each is graded, and the run passes only when
+  all pass (a problem names its target). Every host a command, gate or request touches must be in `hosts` (session
+  marker, NO INTERFERENCE), checked when the catalogue loads. Results keep one line per investigation.
+- **Catalogue** (`ops/e2e/scenarios.yaml`):
+  - **SC-10** stops vm-095's **`argus-v18-node-exporter`**, not the gate exporter `argus-v18-exporter` of the LGS run:
+    since T-0027 a host that lost a scrape target is the class `monitoring_blind_spot` (`no_action_escalated`,
+    RB-014, no model), while the gate exporter down still ends `undiagnosable` before any class (that path stays
+    covered by its unit tests and the LGS run). Gate `up{job="argus-v18-node-exporter"} == 0` on vm-095; a check of
+    `vm-095/host:vm-095` plus a check of vm-166's api (`no_incident`, reads on vm-166 only).
+  - **SC-12**: SC-01's OOM loop on vm-166, then `argus-v18-read-gateway` stopped (gate: the restarts on Prometheus, which
+    the exporter counts with its own Docker socket, and the gateway not running); the report on the worker must end
+    `no_action_escalated` or `undiagnosable`, never `diagnosed`; a check of vm-095's api in the same run.
+  - **ID-1** (identity proof): SC-01 and SC-02 together, with their own commands, gates and expectations (YAML anchors,
+    so they cannot drift from SC-01 / SC-02).
+  - The reset of SC-10 and SC-12 **starts the stopped Argus service first** (`docker start` also succeeds when it is
+    running); a test holds every scenario that stops an `argus-v18-*` service to that.
+- **Tests:** `tests/test_e2e8_catalogue.py` (11; red seen: `investigations` an unknown key, no SC-10 / SC-12 / ID-1, no
+  host check); the 39 tests of `tests/test_e2e_runner.py` unchanged and green.
 
 ## Not in this task
 
