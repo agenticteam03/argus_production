@@ -27,6 +27,6 @@ without evidence". Option (a), agreed with `conantkd`.
 
 ## Tests
 
-`tests/test_e2e9_sc12_host_probe.py`, 11 (red seen: SC-12 without `diagnosed`, no `if_diagnosed`): run 1's reads pass;
+`tests/test_e2e9_sc12_host_probe.py`, 10 (red seen: SC-12 without `diagnosed`, no `if_diagnosed`): run 1's reads pass;
 an escalation passes; a successful `docker_read` fails; no successful read fails; a wrong root cause fails; the key's
 shape; the catalogue entry. `tests/test_e2e8_catalogue.py`: SC-12's assertion follows the new rule.
