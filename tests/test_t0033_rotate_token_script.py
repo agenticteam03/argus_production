@@ -86,6 +86,50 @@ def test_a_failed_recreate_is_a_failure_not_recreated(home, tmp_path):
 
 def test_arguments_are_still_guarded(home, tmp_path):
     docker, log = _docker(tmp_path)
-    assert run(home, docker, "db_probe", "--as", "alice").returncode == 2
+    assert run(home, docker, "bogus_probe", "--as", "alice").returncode == 2
     assert run(home, docker, "host_probe").returncode == 2
     assert not log.exists()
+
+
+# --- T-0041: db_probe, whose token this host's Prometheus also sends (its scrape `credentials_file`) ----------------
+def _db_home(home, with_prometheus_copy=True):
+    (home / "secrets" / "db_probe_token").write_text(OLD, encoding="utf-8")
+    if with_prometheus_copy:
+        (home / "secrets" / "prometheus").mkdir()
+        (home / "secrets" / "prometheus" / "db_probe_token").write_text(OLD, encoding="utf-8")
+        if POSIX_MODES:
+            (home / "secrets" / "prometheus" / "db_probe_token").chmod(0o400)
+    return home
+
+
+def test_db_probe_rotation_writes_the_service_and_the_prometheus_copy(home, tmp_path):
+    _db_home(home)
+    docker, log = _docker(tmp_path)
+    r = run(home, docker, "db_probe", "--as", "alice")
+    assert r.returncode == 0, r.stdout + r.stderr
+    new = (home / "secrets" / "db_probe_token").read_text(encoding="utf-8")
+    assert len(new) == 43 and new != OLD
+    assert (home / "secrets" / "prometheus" / "db_probe_token").read_text(encoding="utf-8") == new
+    assert (home / "secrets" / "db_probe_token.prev").read_text(encoding="utf-8") == OLD
+    if POSIX_MODES:
+        assert stat.S_IMODE((home / "secrets" / "prometheus" / "db_probe_token").stat().st_mode) == 0o400
+    assert "--force-recreate --no-deps argus-v18-db-probe" in log.read_text(encoding="utf-8")
+    assert "Prometheus reads it at its next scrape" in r.stdout and new not in r.stdout + r.stderr
+
+
+def test_db_probe_without_the_prometheus_copy_changes_nothing(home, tmp_path):
+    _db_home(home, with_prometheus_copy=False)
+    docker, log = _docker(tmp_path)
+    r = run(home, docker, "db_probe", "--as", "alice")
+    assert r.returncode == 1 and "prometheus" in r.stdout
+    assert (home / "secrets" / "db_probe_token").read_text(encoding="utf-8") == OLD and not log.exists()
+
+
+def test_db_probe_rollback_restores_both_copies(home, tmp_path):
+    _db_home(home)
+    docker, _ = _docker(tmp_path)
+    assert run(home, docker, "db_probe", "--as", "alice").returncode == 0
+    r = run(home, docker, "db_probe", "--rollback", "--as", "alice")
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert (home / "secrets" / "db_probe_token").read_text(encoding="utf-8") == OLD
+    assert (home / "secrets" / "prometheus" / "db_probe_token").read_text(encoding="utf-8") == OLD
