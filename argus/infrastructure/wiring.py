@@ -120,6 +120,18 @@ def _credentials(s: Settings, inventory: YamlInventory, require: bool, errors: l
     return creds
 
 
+def declared_paths(policy: dict | None, inventory: dict | None) -> list[str]:
+    """The paths Argus itself declared, which the redactor leaves readable (#107 review): the inspection policy's
+    `service_config` and `files` entries and the inventory's mounts (as directories; `/` is not one)."""
+    out: set[str] = set()
+    for entry in (((policy or {}).get("inspection") or {}).get("targets") or {}).values():
+        for kind in ("service_config", "files"):
+            out.update(p for p in (entry or {}).get(kind) or [] if isinstance(p, str))
+    for t in (inventory or {}).get("targets") or []:
+        out.update(m.rstrip("/") + "/" for m in t.get("mounts") or [] if isinstance(m, str) and m.rstrip("/"))
+    return sorted(out)
+
+
 def _target_executors(signals: dict) -> ExecutorRegistry:
     executors = ExecutorRegistry()
     for kind in ("docker_read", "host_probe", "network_probe", "db_probe"):
@@ -131,13 +143,16 @@ def _target_executors(signals: dict) -> ExecutorRegistry:
 def tools_dispatcher(s: Settings):
     """What the MCP tools process needs, and nothing more (§12.6): the catalogue, the inventory and a dispatcher
     holding the executor tokens. No database, no model key, no runbooks."""
-    inventory = YamlInventory((s.config_dir / "inventory.yaml").read_text(encoding="utf-8"))
+    inv_text = (s.config_dir / "inventory.yaml").read_text(encoding="utf-8")
+    inventory = YamlInventory(inv_text)
     signals = yaml.safe_load((s.config_dir / "signals.yaml").read_text(encoding="utf-8"))
+    policy = yaml.safe_load((s.config_dir / "policy.yaml").read_text(encoding="utf-8"))
     errors: list[str] = []
     creds = _credentials(s, inventory, True, errors)
     if errors:
         raise SystemExit("tools process: startup validation failed:\n  " + "\n  ".join(errors))
-    return build_catalog(), Dispatcher(inventory, _target_executors(signals), creds, Redactor(),
+    redactor = Redactor(declared_paths(policy, yaml.safe_load(inv_text)))
+    return build_catalog(), Dispatcher(inventory, _target_executors(signals), creds, redactor,
                                        reload=lambda host, ex: s.secret(f"{host}/{ex}_token")), inventory
 
 
@@ -196,7 +211,7 @@ def build(settings: Settings | None = None, llm=None, metrics=None, executors: E
     if errors:
         raise SystemExit("startup validation failed:\n  " + "\n  ".join(errors))
 
-    redactor = Redactor()
+    redactor = Redactor(declared_paths(yaml.safe_load(pol_text), yaml.safe_load(inv_text)))   # #107 review
     if executors is None:
         executors = _target_executors(signals)
     knowledge = TfidfRunbooks(str(s.runbooks_dir), s.runbooks_commit and f"commit {s.runbooks_commit}")

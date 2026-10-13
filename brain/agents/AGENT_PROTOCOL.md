@@ -55,7 +55,8 @@ explain the goal (STEP_TEMPLATE)
 → update the Brain on the branch: the task file, and the journal entry file
    brain/journal/entries/<YYYY-MM-DD>-<task>.md (its optional sections "### Test state" and "### Next step"
    carry what used to go into CURRENT_TEST_STATE and NEXT_STEP; brain.py rollup folds them in after the merge)
-→ commit (checkpoint) → push the branch (CI runs) → brain.py renew
+→ commit (checkpoint) → push the branch (CI runs; if it does not, `python ops/local_ci.py`:
+   REVIEW_PROTOCOL.md, "When CI does not run") → brain.py renew
 ```
 
 - Every step you propose uses [`STEP_TEMPLATE.md`](STEP_TEMPLATE.md).

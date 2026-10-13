@@ -30,7 +30,8 @@ B's session, with B's AI agent. Reviewing comes before new work, because new wor
 
 GitHub cannot block a merge for us, so the rule is enforced by the team and checked by tools:
 - **before merging** (the reviewer checks it in the PR page): the PR has an **Approve** from someone other than its
-  author, given **after the last push**; CI is green; the branch is up to date with `main` ("Update branch" if not);
+  author, given **after the last push**; CI is green (or, when CI does not run, a `LOCAL CI PASS` comment for that
+  push: see below); the branch is up to date with `main` ("Update branch" if not);
 - **on your laptop:** the pre-push hook refuses `git push` to `main`;
 - **after merging:** `brain.py verify-main` checks every commit on `main` came from a PR approved on its last push by
   someone other than its author — CI runs it on every push to `main` (job `main-guard`, red = rule broken) and
@@ -40,6 +41,32 @@ GitHub cannot block a merge for us, so the rule is enforced by the team and chec
 If `main-guard` is red: stop and tell the team; the fix is a follow-up PR that gets the missing review (never a
 force push). Nobody merges their own pull request (except under the temporary fast-track below). If A works again
 before anyone reviewed, A continues on the same branch.
+
+## When CI does not run (local CI)
+
+Sometimes GitHub Actions does not run the jobs: the run shows them "not started" (an annotation says why), or Actions
+is turned off. The checks do not go away; they move to a laptop. `ops/local_ci.py` runs the steps of
+`.github/workflows/ci.yml` (Brain audit and lint, the secret scan, the full pytest suite with a throwaway Postgres,
+the PromQL cases, the frontend's tests and build) on an exact commit and prints one result block that starts with
+`LOCAL CI PASS <commit>` or `LOCAL CI FAIL <commit>`. It needs the repository's virtual environment, Docker Desktop,
+Node/npm and `gh`; a missing tool makes its step `skipped`, and the result says so.
+
+- **The author**, before asking for a review: `python ops/local_ci.py` on the pushed commit (a clean working tree),
+  and says in the PR body that it passed.
+- **The reviewer** runs it again on the PR's last push, in a clean temporary copy:
+  `python ops/local_ci.py --pr <n> --post`. The posted comment replaces the green CI in the merge check above: it must
+  be `LOCAL CI PASS`, for the **same commit** the approval is on (a new push needs a new run), with no step `fail`. A
+  `flaky` test (failed in the full run, passed alone) is allowed once; name it in the review so it gets fixed. A
+  `known-local` test fails only for a reason of the laptop and passes on CI's runner (the `KNOWN_LOCAL` list in the
+  script, each line with its reason; adding one needs a reviewer's approval, like any change). A
+  `skipped` step is allowed only when the PR does not touch what it checks (for example `frontend` for a PR without
+  `frontend/` changes); persistence changes need the Postgres tests.
+- **After merging**, the reviewer runs `python ops/local_ci.py --main`: the same steps on `origin/main` plus
+  `brain.py verify-main` (the `main-guard` job). A `FAIL` there is handled like a red `main-guard`.
+- **The agent** runs these commands for its developer when asked to review or merge, reports the result block as it
+  is, and never presents a local run as a GitHub CI result.
+
+When GitHub Actions runs again, its CI is the merge check again; nothing needs re-running for what was merged.
 
 ## Temporary fast-track (until 2026-10-12, then it expires by itself)
 
