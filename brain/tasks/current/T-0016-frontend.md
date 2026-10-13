@@ -171,3 +171,28 @@ a screen or a button in `frontend/`.
     and JWT-`exp` expiry), `httpAuthAdapter.test.js` (restore puts the token back; signOut clears both), and
     `httpArgusAdapter.test.js` (401 clears the persisted session; the stale `restore()` case removed), plus the new
     `paging.test.js` for `incidentsSummary`.
+
+- **2026-10-13 — the incident page reads again, the status colours breathe, and the deferred Vitest run closes (this PR):**
+  - **first the crash, found by `juanes6554`:** on the real API an audit entry's `detail` is a JSON object
+    (`AuditRecord.detail: dict[str, JsonValue]`, `argus/domain/model.py`) but a string in the demo fixtures, so
+    rendering it directly threw "Objects are not valid as a React child" and, with no error boundary, unmounted the
+    whole app — only the page gradient remained. `utils/format.js` now normalises it (`auditDetail` → `text`/`json`/
+    `empty`), the audit `detail` renders as text/JSON, and a new per-route `ErrorBoundary`
+    (`components/ErrorBoundary.jsx`, keyed on the pathname) keeps a future render error from blanking the app. The
+    demo fixtures had hidden the bug; a real-shape sample is used in the tests. (`ae0d595`)
+  - **colours (owner: "a little more vibrant, not too much"):** the status shades had been muted a turn earlier to the
+    point of looking grey; their chroma is raised (~1.6–1.8×) in the `@theme` block of `frontend/src/index.css` —
+    same hues and lightness, still below Tailwind's defaults, so every existing `text-emerald-300` / `bg-amber-400/10`
+    / … class is unchanged. (`bdadd25` muted them, `bc21ab2` brings them partway back.)
+  - **incident page (owner: "easier to read, without changing too much, match the other pages"):** fact values no
+    longer truncate (targets, trigger/policy ids were cut off — `break-words`, `break-all` for the incident id); a
+    little more vertical rhythm and hairline dividers inside the Diagnosis card; and each audit entry's JSON `detail`
+    now sits behind the same **Details** toggle the evidence list already uses, so the audit trail stays scannable.
+    Same cards, tokens and spacing as the other pages; the only new interaction is that toggle. (`bc21ab2`)
+  - **red seen:** `npm test` → 1 failed file: `sessionStore.test.js` could not load — `tokenExpiry` was module-private
+    in `sessionStore.js` while the test imported it (`TypeError: tokenExpiry is not a function`).
+  - **green:** after exporting the helper → `npm test` **12 files / 70 tests passed**, `vite build` → **351 modules**.
+    This closes the four earlier 2026-10-13 bullets whose red/green was deliberately deferred to this run.
+  - **committed:** `bdadd25`, `ae0d595`, `bc21ab2` (UI), `1c6b7da` (the test fix); `origin/main` merged into the branch
+    before pushing. Still open: the Playwright acceptance tests, the read-only network guard, the
+    `contracts/ui-api.json` check, and the incident-list `offset`/total contract ask.
