@@ -653,10 +653,10 @@ def build_catalog() -> list[CapabilitySpec]:
                        frozenset({"disk_history"}), "prometheus",
                        _history("host_disk_used_ratio_mounts", "fullest declared filesystem used share", mounts=True)),
         CapabilitySpec("metrics.network_history", "get_network_history",
-                       "A container's network traffic (received + sent bytes per second) over a time window.",
-                       "did traffic stop, drop or surge, and when", HistoryArgs, C, 2, "READ_ONLY_SAFE",
-                       frozenset({"network_history"}), "prometheus",
-                       _history("container_network_bytes_per_s", "network bytes/s (received + sent)")),
+                       "A host's network traffic on its real interfaces (received + sent bytes per second) over a "
+                       "time window.", "did the host's traffic stop, drop or surge, and when", HistoryArgs, H, 2,
+                       "READ_ONLY_SAFE", frozenset({"network_history"}), "prometheus",
+                       _history("host_network_bytes_per_s", "host network bytes/s (received + sent)")),
         CapabilitySpec("analysis.diagnostic_snapshot", "capture_diagnostic_snapshot",
                        "A container's status, resources and recent logs, and its host's memory and CPU, in one call "
                        "(each part stored as its own evidence).", "a first broad look at a container and its host",

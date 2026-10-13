@@ -42,5 +42,7 @@ _scrape_up:            'up{argus_host="$host",job="argus-v18-exporter"}'
 container_cpu_cores:   'rate(container_cpu_usage_seconds_total{argus_host="$host",name="$name"}[3m])'
 # The fullest of the host's DECLARED mounts ($mounts from the inventory, as detection reads them).
 host_disk_used_ratio_mounts: 'max(1 - node_filesystem_avail_bytes{argus_host="$host",mountpoint=~"$mounts"} / node_filesystem_size_bytes{argus_host="$host",mountpoint=~"$mounts"})'
-# A container's received + sent bytes per second, all its interfaces (cAdvisor).
-container_network_bytes_per_s: 'sum(rate(container_network_receive_bytes_total{argus_host="$host",name="$name"}[3m]) + rate(container_network_transmit_bytes_total{argus_host="$host",name="$name"}[3m]))'
+# The host's received + sent bytes per second on its real interfaces (node-exporter; not lo, veth, docker, br-).
+# cAdvisor runs with its network metrics disabled (memory, deploy/monitoring/compose.monitoring.yml): no per-container
+# traffic until that is decided (T-0036 step 2).
+host_network_bytes_per_s: 'sum(rate(node_network_receive_bytes_total{argus_host="$host",device!~"lo|veth.*|docker.*|br-.*"}[3m]) + rate(node_network_transmit_bytes_total{argus_host="$host",device!~"lo|veth.*|docker.*|br-.*"}[3m]))'

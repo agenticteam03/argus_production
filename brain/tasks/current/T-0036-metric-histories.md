@@ -18,13 +18,16 @@ are offered to no class until an evaluation batch measures them (as the snapshot
 ## Design
 
 - **Signals** (`config/signals.yaml`, read only by these capabilities): `container_cpu_cores` (cAdvisor, 3m rate),
-  `host_disk_used_ratio_mounts` (the fullest of the host's declared mounts), `container_network_bytes_per_s`
-  (received + sent, all interfaces). The host CPU uses the existing `host_cpu_busy_ratio`.
+  `host_disk_used_ratio_mounts` (the fullest of the host's declared mounts), `host_network_bytes_per_s`
+  (node-exporter, received + sent on the real interfaces: not `lo`, `veth*`, `docker*`, `br-*`). The host CPU uses
+  the existing `host_cpu_busy_ratio`.
 - **Capabilities** (Level 2, `READ_ONLY_SAFE`, executor `prometheus`, `max_per_incident` 4):
   - `metrics.cpu_history` / `get_cpu_history`: a container's cores in use, or a host's busy share;
   - `metrics.disk_history` / `get_disk_history`: host only; the declared mounts come from the inventory (as
     detection's `$mounts`); none declared = NO DATA (unknown), never a guess of `/`;
-  - `metrics.network_history` / `get_network_history`: a container's bytes per second.
+  - `metrics.network_history` / `get_network_history`: a **host's** bytes per second. Step 2 found that cAdvisor
+    runs with `--disable_metrics=…,network` (memory): there is no per-container traffic series. Per-container
+    traffic needs that decision (enable cAdvisor's network metrics and measure its memory) — not taken here.
 - **`PrometheusClient.expr/range(..., mounts=)`**: fills `$mounts`, plain absolute paths only (the inventory's own
   check); anything else is refused. The evaluation replay accepts the parameter.
 - Tags `cpu_history`, `disk_history`, `network_history`: no class has them yet.
