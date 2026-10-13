@@ -64,8 +64,9 @@ class PrometheusClient:
         return Template(self.signals[signal]).substitute(host=target.host, name=target.name, mounts=mounts)
 
     def range(self, signal: str, target: TargetRef, minutes: int, step_s: int,
-              mounts: str = "") -> list[tuple[float, float]]:
-        end = time.time()
+              mounts: str = "", end_offset_s: int = 0) -> list[tuple[float, float]]:
+        """`end_offset_s` (T-0038): the window ends that many seconds ago (an earlier window, same length)."""
+        end = time.time() - max(0, int(end_offset_s))
         try:
             r = httpx.get(f"{self.base_url}/api/v1/query_range",
                           params={"query": self.expr(signal, target, mounts), "start": end - minutes * 60, "end": end,
