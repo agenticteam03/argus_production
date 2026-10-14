@@ -113,6 +113,13 @@ def edge(tmp_path_factory):
     conf = tmp_path_factory.mktemp("conf")
     (conf / "default.conf").write_text((NGINX_DIR / "loopback.conf.template").read_text(encoding="utf-8"),
                                        encoding="utf-8")
+    # pytest's temporary directories are 0700 for the runner's user; Nginx runs as uid 101 in the container and must
+    # read the mounted files (on Linux CI an unreadable conf.d means no server block and nothing on 8080)
+    for d in (site, site / "html", site / "runbooks", conf):
+        d.chmod(0o755)
+        for f in d.iterdir():
+            if f.is_file():
+                f.chmod(0o644)
     run = lambda *a: subprocess.run(["docker", *a], capture_output=True, text=True, timeout=300)
     run("network", "create", net)
     api_c = f"{api}-{tag}"
