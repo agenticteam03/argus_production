@@ -68,7 +68,7 @@ Node/npm and `gh`; a missing tool makes its step `skipped`, and the result says 
 
 When GitHub Actions runs again, its CI is the merge check again; nothing needs re-running for what was merged.
 
-## Temporary fast-track (windows: 2026-10-05 – 2026-10-12, and 2026-10-14 – 2026-10-20; each expires by itself)
+## Temporary fast-track (windows: 2026-10-05 – 2026-10-12, and 2026-10-14 – 2026-10-16; each expires by itself)
 
 **Why:** the course presentation came earlier than planned; waiting for a review on every pull request would block
 the work. Decided by `juanbetancurm` on 2026-10-05 (journal). Teammates may object in any PR; an objection ends it.
@@ -77,7 +77,7 @@ the work. Decided by `juanbetancurm` on 2026-10-05 (journal). Teammates may obje
 2026-10-06 for the frontend, T-0016, once his onboarding is done; approved by `conantkd`). **Until:** 2026-10-12
 inclusive (first window).
 
-**Second window, 2026-10-14 to 2026-10-20 inclusive:**
+**Second window, 2026-10-14 to 2026-10-16 inclusive:**
 - Proposed by `conantkd` on 2026-10-14 in the pull request that adds this paragraph. It exists only if a teammate
   approves that pull request, which is not itself fast-tracked because it changes this rule.
 - **Why:** after the first window, small changes (records, one-line fixes with their tests) waited a day or more for

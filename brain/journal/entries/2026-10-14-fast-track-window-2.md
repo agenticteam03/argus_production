@@ -1,10 +1,12 @@
-## 2026-10-14 — A second fast-track window proposed (2026-10-14 to 2026-10-20)
+## 2026-10-14 — A second fast-track window proposed (2026-10-14 to 2026-10-16)
 
 Type: process proposal
 Who: conantkd (+ agent)
 Context: the fast-track of `REVIEW_PROTOCOL.md` expired on 2026-10-12. Since then, small changes (records, a
 one-line gateway fix with its tests: #138, #141) wait a day or more for a review.
-Decision / result: proposed a second window, 2026-10-14 to 2026-10-20 inclusive, with the same people and conditions.
+Decision / result: proposed a second window, 2026-10-14 to 2026-10-16 inclusive, with the same people and conditions.
+Review correction (PR #142): juanbetancurm requested an end date of 2026-10-16 inclusive, the delivery date.
+All seven files now use that date; the people, conditions and approval requirement are unchanged.
 The conditions:
 - a task branch;
 - CI green and up to date;
@@ -21,7 +23,8 @@ References: [`REVIEW_PROTOCOL.md`](../../agents/REVIEW_PROTOCOL.md).
 
 ### Test state
 
-No code change.
+No code change. Review correction: brain.py lint and audit clean; git diff --check clean.
+The full pytest suite is being checked before the review is requested again.
 
 ### Next step
 

@@ -5,7 +5,7 @@
 pr 1  2026-10-02  juanbetancurm  bootstrap: soft review rules, D-002 runbook import, developer guide (free plan, before any teammate had a clone)
 pr 4  2026-10-04  juanbetancurm  retroactive: onboarding docs only (START_HERE.md); content reviewed in chat, GitHub approval never recorded
 # Temporary fast-track (REVIEW_PROTOCOL.md, "Temporary fast-track"): each self-merged PR adds its own line below,
-# in the PR itself, before the merge. Format: pr <n>  <date>  <who merged>  fast-track: <what>. Windows: 2026-10-05 to 2026-10-12, 2026-10-14 to 2026-10-20.
+# in the PR itself, before the merge. Format: pr <n>  <date>  <who merged>  fast-track: <what>. Windows: 2026-10-05 to 2026-10-12, 2026-10-14 to 2026-10-16.
 pr 9  2026-10-05  juanbetancurm  fast-track: this rule itself (first fast-track merge; PR #4 exception)
 pr 10  2026-10-05  juanbetancurm  fast-track: archive the SC-03 class demo (documentation only)
 pr 11  2026-10-05  juanbetancurm  fast-track: OP-006 recursion limit from the budgets (agreed in the T-0013 review)
