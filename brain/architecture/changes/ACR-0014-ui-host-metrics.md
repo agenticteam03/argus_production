@@ -2,11 +2,11 @@
 
 | Field | Value |
 |---|---|
-| Status | `proposed` — request review in PR #151 before merge |
+| Status | `accepted` (`juanbetancurm`, review of PR #151, 2026-10-14); applied as ARCHITECTURE 1.8.12 in PR #151 |
 | Proposed by | conantkd (+ agent) · 2026-10-14 |
-| Accepted by | pending |
-| Second approval (public edge / host isolation) | pending independent team review in PR #151 |
-| Architecture version | 1.8.11 → next free version when accepted |
+| Accepted by | `juanbetancurm` · PR #151 (2026-10-14) |
+| Second approval (public edge / host isolation) | `juanbetancurm`'s approval of PR #151 (the same review as ACR-0012's, by the team's decision for this week's testing) |
+| Architecture version | 1.8.11 → 1.8.12 |
 | Task / PR | T-0016 · PR #151 |
 
 ## 1. Detect and explain
@@ -69,11 +69,13 @@ for the next free version. Do not change the private `/metrics` route or the `Me
 
 ## 5. Decision
 
-Pending: review and acceptance in PR #151. The implementation is included for concrete review, but the architecture
-specification must not be edited or the PR merged until the ACR is accepted.
+Accepted by `juanbetancurm` in the review of PR #151 (2026-10-14): a GET of three named host ratios, the hosts
+chosen by the API from the inventory, no request parameter, no PromQL, unknown stays `null`, one host's outage does
+not hide the other, a 20 s shared cache; the private `/metrics` route and the write gate unchanged.
 
 ## 6. Applied
 
-- [ ] ACR accepted and `ARCHITECTURE.md` updated with a version/changelog entry.
+- [x] ACR accepted and `ARCHITECTURE.md` updated with a version/changelog entry (1.8.12: §7.1 row and public-edge
+  paragraph, changelog, version line).
 - [x] Implementation and contract in PR #151 for review.
 - [x] Task and journal entry in the same PR.

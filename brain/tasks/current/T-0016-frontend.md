@@ -321,8 +321,9 @@ a screen or a button in `frontend/`.
     - the old dashboard test matched the new `<option>` instead of the incident row.
 
 - **2026-10-14 — PR #151 follow-up, host metrics and bounded chat (`conantkd` + agent):**
-  - **Architecture request:** proposed ACR-0014 is in PR #151 for independent review. It widens the authenticated
-    public read surface; `ARCHITECTURE.md` remains at 1.8.11 until the ACR is accepted.
+  - **Architecture:** ACR-0014 (it widens the authenticated public read surface) was accepted by `juanbetancurm`
+    in the review of PR #151 and applied in the same PR as `ARCHITECTURE.md` 1.8.12 (§7.1 row, public-edge
+    paragraph, changelog).
   - **API/contract:** `GET /api/v1/host-metrics` reads only the existing named host CPU, memory and root-disk
     signals through MetricsPort, preserves missing values as null, and returns a separate availability per host.
     The exact edge allowlist, UI contract and sample are updated together.
