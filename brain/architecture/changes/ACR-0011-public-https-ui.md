@@ -6,10 +6,10 @@ key), so it needs **a second approval** in its pull request.
 
 | Field | Value |
 |---|---|
-| Status | `proposed` — implemented and applied in PR #144 (ARCHITECTURE 1.8.10, T-0016 step 4a–4c); accepted only when #144 has a teammate's approval **and** the second approval (one approval so far: `juanes6554`, on #140) |
+| Status | `accepted`, `applied`, deployed — the first approval by `juanes6554` (#140, 2026-10-14 00:37 UTC); the second approval by `juanbetancurm`, who approved and merged the implementation PR #144 (2026-10-14 04:35 UTC). Deployed public on vm-095 at 04:06 UTC, before the second approval, by the team's decision (§10) |
 | Proposed by | conantkd (+ agent) · 2026-10-13 |
-| Accepted by | — |
-| Second approval (safety principle only) | required: least privilege and secrets (§4) |
+| Accepted by | `juanes6554` (#140) · `juanbetancurm` (#144) · 2026-10-14 |
+| Second approval (safety principle only) | `juanbetancurm`, approving #144 (least privilege and secrets, §4) |
 | Architecture version | from `1.8.8` → `1.8.10` (1.8.9 is reserved by ACR-0010), or the next free number when applied |
 | Task / PR | T-0016 step 4 (rewritten by this ACR, §7) · proposal #140, implementation #144 |
 
@@ -207,3 +207,24 @@ the loopback step only after acceptance.
   edge's ports in `DOCKER-USER`.
 - **Row 10:** `nonint-check` already leaves out Docker's chains, so it needs no firewall exclusion. What it learns
   instead is to leave out the ports `argus-v18-ui` publishes while it runs.
+
+## 10. Deployed (2026-10-14, T-0016 4d–4e)
+
+[4d](../../execution/history/T-0016/step-04d/evidence.md) (loopback),
+[4e](../../execution/history/T-0016/step-04e/evidence.md) (public).
+
+- **Team decisions (`conantkd`):**
+  - deploy with one approval, the second pending (it came 29 minutes later: `juanbetancurm`, #144);
+  - a Let's Encrypt certificate for the IP address (no domain): `shortlived`, about 6 days, certbot 5.8.0
+    `--ip-address`, renewed at 3 days or less by a timer twice a day;
+  - **the three shared `operator` accounts stay for now, an accepted risk** against §3.1 row 6 "one account per
+    person". Mitigated by read tokens only, the per-username lockout, the per-address limits and the audit.
+- **§8, answered:**
+  - 1: no domain, the IP address is used;
+  - 2: the address is known, kept out of Git;
+  - 3: the OCI rule for 443/80 was opened by the team;
+  - 4: nothing else on 443/80;
+  - 5: Let's Encrypt;
+  - 6: shared accounts for now.
+- **Verified from the Internet:** a trusted certificate, HTTP→HTTPS, the headers, the route allowlist, and the real
+  client address in the audit (Docker keeps the source on the public path).
