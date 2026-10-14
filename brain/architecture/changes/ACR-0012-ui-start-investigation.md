@@ -6,10 +6,10 @@ second approval** in its pull request.
 
 | Field | Value |
 |---|---|
-| Status | `proposed` — implemented on the local branch `task/ACR-0012-impl` (2026-10-14, not pushed, no PR yet): ARCHITECTURE 1.8.11 applied there; accepted only with a teammate's approval and the second approval of its implementation PR |
+| Status | `accepted` (`juanbetancurm`, by merging #147, 2026-10-14 04:50 UTC); implemented in the PR that applies ARCHITECTURE 1.8.11 |
 | Proposed by | conantkd (+ agent) · 2026-10-14 |
-| Accepted by | — |
-| Second approval (safety principle only) | required: least privilege (a public token that can start work on the hosts) |
+| Accepted by | `juanbetancurm` · merged #147 (2026-10-14) |
+| Second approval (safety principle only) | by `conantkd`'s decision (2026-10-14), `juanbetancurm`'s approval of the implementation PR is taken as the second approval: the same person twice, a conscious deviation from `SECURITY.md`'s "second approval", recorded here |
 | Architecture version | from `1.8.10` → `1.8.11` (1.8.9 is reserved by ACR-0010), or the next free number when applied |
 | Task / PR | T-0016 "Level 1 Investigate" (`tasks/current/T-0016-frontend.md`, "Later: from reading to acting") · PR #… |
 

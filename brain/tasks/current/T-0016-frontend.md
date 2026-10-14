@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | `in progress` — steps 1–4 done (the read-only UI public on vm-095, ACR-0011); **Level 1 Investigate (ACR-0012) implemented on `task/ACR-0012-impl` (local, 2026-10-14), not deployed, no PR yet**; next: deploy it after its review, a person's browser login |
+| Status | `in progress` — steps 1–4 done (the read-only UI public on vm-095, ACR-0011); **Level 1 Investigate (ACR-0012, accepted by `juanbetancurm`) in its implementation PR**; next: its approval and AFTER-MERGE, a person's browser login |
 | Phase | 10 — output modes |
 | Architecture | ACR-0001 (from T-0015) |
 | Branch | `task/T-0016-frontend` (one PR per step is fine) |
