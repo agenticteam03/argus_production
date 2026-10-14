@@ -47,6 +47,16 @@ Host A (agent VM)
   Argus API / audit / checkpoint store ---> Argus PostgreSQL (unchanged)
 ```
 
+| Source | Destination | Purpose and protocol | Credential / exposure |
+|---|---|---|---|
+| Argus worker | Langfuse web/API | `POST /api/public/otel/v1/traces` over private OTLP/HTTP; v4 ingestion header | dedicated Langfuse project key pair; internal only |
+| Langfuse web and worker | Langfuse PostgreSQL | application state and migrations | dedicated Langfuse DB login; internal only |
+| Langfuse web and worker | ClickHouse | trace storage/query | dedicated ClickHouse login; internal only |
+| Langfuse web and worker | Redis/Valkey | queue/cache | dedicated credential; internal only |
+| Langfuse web and worker | MinIO | S3-compatible event/media objects | dedicated access key; internal only |
+| Operator | Langfuse web UI | investigation of telemetry | own login, initially Host-A loopback only |
+| Argus API, scheduler, frontend and Host T | Langfuse | no integration connection | no Langfuse credential |
+
 Six Langfuse services run on Host A: web/API, worker, PostgreSQL, ClickHouse, Redis/Valkey and S3-compatible MinIO. Use pinned, Host-A-compatible images, persistent named volumes for stateful services, explicit CPU/memory limits, startup health checks, retention and backup/restore procedures. The web/API receives OTLP on a private Docker network; no Langfuse port is exposed publicly or proxied through the Argus public UI by this ACR. An operator-only Langfuse UI may initially bind to Host-A loopback with its own authentication; any public access requires a separate reviewed edge design. No Host-T component connects to Langfuse.
 
 Only the Argus **worker** receives the Langfuse project keys and internal OTLP endpoint. The frontend, target tools process, scheduler and API do not receive these credentials. Langfuse-to-Argus API, Argus database and audit-sink connections are absent. Argus does not read Langfuse to diagnose an incident; its evidence and audit remain in Argus storage. The exporter is asynchronous and bounded so the graph never waits indefinitely for Langfuse. Network failure, queue saturation or Langfuse downtime drop telemetry and increment a local failure metric; they do not fail an investigation or bypass the mandatory audit write.
@@ -67,7 +77,7 @@ If a quiet, bounded acceptance run shows that this additional PostgreSQL process
 
 ### 3.4 Acceptance and operation
 
-A quiet-VM acceptance run must prove: all six services healthy; 60 synthetic traces / 120 observations accepted through native OTLP and retrievable through Observations API v2; no Argus container recreation, OOM or failed `/healthz` sample; at least 900 MiB available throughout; and `NO INTERFERENCE`. It must include representative Argus investigation activity in a later integration test, telemetry-disabled and telemetry-unavailable cases, and a check that audit/evidence still persist while export fails. Set retention, backup/restore, secret rotation, disk/queue alerts and Langfuse health monitoring before a permanent deployment. The isolated LF-1 run has not satisfied this gate.
+A quiet-VM acceptance run must prove: all selected dependencies healthy (six services with dedicated PostgreSQL, or five Langfuse containers plus the existing PostgreSQL server in fallback mode); 60 synthetic traces / 120 observations accepted through native OTLP and retrievable through Observations API v2; no Argus container recreation, OOM or failed `/healthz` sample; at least 900 MiB available throughout; and `NO INTERFERENCE`. It must include representative Argus investigation activity in a later integration test, telemetry-disabled and telemetry-unavailable cases, and a check that audit/evidence still persist while export fails. Set retention, backup/restore, secret rotation, disk/queue alerts and Langfuse health monitoring before a permanent deployment. The isolated LF-1 run has not satisfied this gate.
 
 **Alternatives considered:**
 
