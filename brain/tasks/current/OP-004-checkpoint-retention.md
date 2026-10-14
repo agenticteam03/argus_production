@@ -1,6 +1,6 @@
 # OP-004 — Checkpoint retention
 
-**Owner:** `conantkd` · **Branch:** `task/OP-004-checkpoint-cleanup` · **PR:** #42 (merged 2026-10-10) · **Status:** offline implementation merged; VM dry run done 2026-10-10; the first `--apply` and the timer wait for a teammate's review of the dry-run counts.
+**Owner:** `conantkd` · **Branch:** `task/OP-004-checkpoint-cleanup` · **PR:** #42 (merged 2026-10-10) · **Status:** offline implementation merged; the approved first `--apply` ran on vm-095 on 2026-10-14 (nothing old enough yet); the daily timer stays a team decision.
 
 ## Goal
 
@@ -32,8 +32,11 @@ rows for incidents that became final more than 30 days ago. Keep incidents, evid
 2. **VM dry run, done 2026-10-10** ([evidence](../../execution/history/OP-004/step-02/evidence.md)): the first run
    showed the owner secret is uid 70, so the wrapper now runs as the secret's owner instead of root. Then 30 days:
    `threads=0`; 1-day preview: `threads=88 checkpoints=783 blobs=1825 writes=3900`. No row deleted, NO INTERFERENCE.
-3. **Apply and timer, pending teammate decision:** review the dry-run counts and backup evidence with a teammate before
-   any deletion. Then run one bounded `--apply`, verify rows and audit, and install/enable the daily timer if accepted.
+3. **Apply, done 2026-10-14** ([evidence](../../execution/history/OP-004/step-04/evidence.md)): approved by
+   juanbetancurm in PR #138. After a fresh `VERIFY OK` backup, dry run and apply at 30 days both
+   `threads=0 checkpoints=0 blobs=0 writes=0` (the first incidents become eligible around 2026-11-05). NO
+   INTERFERENCE. Run without a Brain lease (the VM marker was stale): a deviation recorded in the journal.
+4. **Timer, pending team decision:** install/enable the daily timer only if accepted (see the `--scheduled` note above).
 
 ## Acceptance
 
