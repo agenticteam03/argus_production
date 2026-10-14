@@ -47,6 +47,14 @@ class Settings:
     pg_db: str = field(default_factory=lambda: os.getenv("ARGUS_PG_DB", "argus"))
     pg_user: str = field(default_factory=lambda: os.getenv("ARGUS_PG_USER", "argus_runtime"))
     llm_model: str = field(default_factory=lambda: os.getenv("ARGUS_LLM_MODEL", "gpt-5.6-luna"))
+    # ACR-0013: optional, filtered OTLP tracing to a self-hosted Langfuse; off by default. The project keys are the
+    # secret files langfuse_public_key / langfuse_secret_key, mounted into the worker only.
+    tracing_enabled: bool = field(default_factory=lambda: os.getenv("ARGUS_TRACING_ENABLED", "0") == "1")
+    tracing_endpoint: str = field(default_factory=lambda: os.getenv(
+        "ARGUS_TRACING_ENDPOINT", "http://argus-v18-langfuse-web:3000/api/public/otel/v1/traces"))
+    # ACR-0013 C: the operator-facing Langfuse UI (loopback / tunnel; never public). Unset: the incident view has no link.
+    langfuse_ui_url: str = field(default_factory=lambda: os.getenv("ARGUS_LANGFUSE_UI_URL", "").rstrip("/"))
+    langfuse_project_id: str = field(default_factory=lambda: os.getenv("ARGUS_LANGFUSE_PROJECT_ID", ""))
     llm_base_url: str | None = field(default_factory=lambda: os.getenv("ARGUS_LLM_BASE_URL") or None)
     llm_timeout_s: float = field(default_factory=lambda: float(os.getenv("ARGUS_LLM_TIMEOUT", "120")))
     llm_temperature: str | None = field(default_factory=lambda: os.getenv("ARGUS_LLM_TEMPERATURE") or None)
@@ -140,6 +148,16 @@ def load_routing(config_dir: Path):
     if not path.exists():
         return Routing()
     return Routing.from_data(yaml.safe_load(path.read_text(encoding="utf-8")), {c.family for c in CLASSES})
+
+
+def tracing_sink(s: Settings, store):
+    """ACR-0013: the runner's event sink. The store, unless tracing is enabled AND this process holds the Langfuse
+    project keys (only the worker does): then the store plus filtered OTLP spans. Telemetry: never required."""
+    pk, sk = s.secret("langfuse_public_key"), s.secret("langfuse_secret_key")
+    if not (s.tracing_enabled and pk and sk):
+        return store
+    from argus.observability.tracing import OtlpExporter, TracingEventSink
+    return TracingEventSink(store, OtlpExporter(s.tracing_endpoint, pk, sk))
 
 
 def declared_paths(policy: dict | None, inventory: dict | None) -> list[str]:
@@ -261,6 +279,10 @@ def build(settings: Settings | None = None, llm=None, metrics=None, executors: E
     if llm is None:
         llm = make_llm(s)
     llm_configured = llm is not None
+    events = tracing_sink(s, store)
+    if llm is not None and hasattr(events, "model_span"):      # ACR-0013: model requests become spans too
+        from argus.observability.tracing import TracingLLM
+        llm = TracingLLM(llm, events)
     harness = ModelHarness(llm) if llm is not None else None
     strategies = {"evidence_pack": EvidencePackStrategy(), "model_loop": ModelLoopStrategy(harness),
                   "plan_then_reason": PlanThenReasonStrategy(harness),
@@ -281,7 +303,7 @@ def build(settings: Settings | None = None, llm=None, metrics=None, executors: E
         extra["checkpointer"] = store.checkpointer()
     metrics = metrics or PrometheusMetrics(inventory, signals, s.metrics_max_staleness_s)
     runner = runners[s.runner](**extra, memory=store, audit=store, inventory=inventory, metrics=metrics,
-                            knowledge=knowledge, notifier=store, invoke=invoke, events=store,
+                            knowledge=knowledge, notifier=store, invoke=invoke, events=events,
                             strategies=strategies, offered_specs=[sp for sp in specs if policy.capability_known(sp.name)],
                             redactor=redactor, policy_version=policy.version,
                             max_tool_level=policy.max_tool_level, max_reads_per_step=s.max_reads_per_step,

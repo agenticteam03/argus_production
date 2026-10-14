@@ -98,6 +98,12 @@ class SkeletonRunner:
             return self._execute(incident_id)
         finally:
             _CANCEL.reset(token)
+            end = getattr(self.events, "end_attempt", None)          # ACR-0013: a trace never outlives its run
+            if end is not None:
+                try:
+                    end(incident_id)
+                except Exception:
+                    log.warning("tracing: the attempt of %s could not be closed", incident_id)
 
     def _guard(self) -> None:
         """OP-009: called between nodes and before every read; raises when the worker's claim was lost."""

@@ -92,6 +92,11 @@ export default function IncidentDetail() {
           <Fact label="Principal">{inc.principal}</Fact>
           <Fact label="Trigger ID">{inc.trigger_id}</Fact>
           <Fact label="Opened">{dateTime(inc.opened_at)}</Fact>
+          {inc.trace_url && (
+            <Fact label="Agent trace">
+              <a href={inc.trace_url} target="_blank" rel="noopener noreferrer" className="text-accent-hover hover:underline">Open in Langfuse</a>
+            </Fact>
+          )}
           <Fact label="Closed">{inc.closed_at ? `${dateTime(inc.closed_at)} (took ${duration(inc.opened_at, inc.closed_at)})` : "Still open"}</Fact>
         </dl>
         {/* ACR-0012: a new investigation of the same target (shown only when /me allows it) */}

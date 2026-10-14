@@ -2,6 +2,7 @@ import { BrowserRouter, Navigate, Outlet, Route, Routes, useLocation } from "rea
 import ErrorBoundary from "./components/ErrorBoundary.jsx";
 import Header from "./components/Header.jsx";
 import { AuthProvider, useAuth } from "./context/AuthContext.jsx";
+import Agent from "./pages/Agent.jsx";
 import Dashboard from "./pages/Dashboard.jsx";
 import IncidentDetail from "./pages/IncidentDetail.jsx";
 import Incidents from "./pages/Incidents.jsx";
@@ -16,7 +17,7 @@ const Placeholder = ({ title }) => (
   </div>
 );
 
-const pages = { "/incidents": Incidents, "/incidents/:id": IncidentDetail, "/tools/runbooks": Runbooks };
+const pages = { "/agent": Agent, "/incidents": Incidents, "/incidents/:id": IncidentDetail, "/tools/runbooks": Runbooks };
 
 // Keyed on the path so an error on one page does not stick when the user navigates elsewhere.
 const Shell = () => {
