@@ -1,0 +1,5 @@
+# T-0016 step 4d: the edge on vm-095's loopback only (no public port): ssh -L 18010:127.0.0.1:18010 argus-vm095
+services:
+  argus-v18-ui:
+    environment: {ARGUS_UI_MODE: loopback}
+    ports: ["127.0.0.1:18010:8080"]

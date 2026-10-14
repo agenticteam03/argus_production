@@ -1,0 +1,12 @@
+# ACR-0011, T-0016 step 4e: the edge on a public address: the ONLY Argus exception to "loopback only"
+# (infrastructure/environment.md §3). Needs ARGUS_UI_DOMAIN in vm-095.env, the certificate (ops/ui-cert.sh) and the
+# cloud rule for tcp/443 and tcp/80; ops/ui-firewall.sh adds the per-address connection limit.
+services:
+  argus-v18-ui:
+    environment:
+      ARGUS_UI_MODE: public
+      ARGUS_UI_DOMAIN: ${ARGUS_UI_DOMAIN:?set ARGUS_UI_DOMAIN in deploy/ui/vm-095.env}
+    ports: ["0.0.0.0:443:8443", "0.0.0.0:80:8080"]
+    volumes:
+      - /opt/argus-v18/secrets/tls:/etc/argus-tls:ro       # fullchain.pem, privkey.pem (ops/ui-cert.sh)
+      - /opt/argus-v18/acme:/var/www/acme:ro               # the HTTP-01 challenge files written by certbot

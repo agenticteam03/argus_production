@@ -6,12 +6,12 @@ key), so it needs **a second approval** in its pull request.
 
 | Field | Value |
 |---|---|
-| Status | `proposed` |
+| Status | `proposed` — implemented and applied in PR #144 (ARCHITECTURE 1.8.10, T-0016 step 4a–4c); accepted only when #144 has a teammate's approval **and** the second approval (one approval so far: `juanes6554`, on #140) |
 | Proposed by | conantkd (+ agent) · 2026-10-13 |
 | Accepted by | — |
 | Second approval (safety principle only) | required: least privilege and secrets (§4) |
 | Architecture version | from `1.8.8` → `1.8.10` (1.8.9 is reserved by ACR-0010), or the next free number when applied |
-| Task / PR | T-0016 step 4 (rewritten by this ACR, §7) · PR #… |
+| Task / PR | T-0016 step 4 (rewritten by this ACR, §7) · proposal #140, implementation #144 |
 
 **How to read the facts below.** **(O)** observed with a command on 2026-10-13 (read-only), **(D)** documented in the
 repository, **(S)** assumed: to be confirmed before implementation. The team confirmed that HTTPS to the VM *can* be
@@ -181,7 +181,10 @@ the loopback step only after acceptance.
 1. **The domain** and who administers its DNS: can they create `argus.<domain>`, and is there an API token for
    DNS-01?
 2. **The public address that reaches vm-095** and that the provider maps it to the VM (O: no public address on its
-   interfaces).
+   interfaces). **Known since 2026-10-14** (`conantkd`; kept out of Git, rule 4): from the
+   Internet tcp/22 answers, and tcp/80 and tcp/443 time out (O, from a laptop). A timeout is the cloud network
+   dropping them; the host's `INPUT` would refuse at once. A certificate needs a **name** (`argus.<domain>` with an
+   `A` record to it): Let's Encrypt's IP certificates are a 6-day profile that needs a newer ACME client.
 3. **Who opens tcp/443 (and tcp/80)** in the cloud network rules (D: "the team cannot change" them today), and
    whether :80 may be opened for HTTP-01.
 4. **Existing services on 443:** none listens on vm-095 (O). Confirm that the provider, or another workload behind
@@ -189,3 +192,18 @@ the loopback step only after acceptance.
 5. **Certificates:** Let's Encrypt is acceptable? (the alternative is a certificate the organization already has,
    with its renewal owner).
 6. **The users:** who gets an account, and with which role (`viewer` or `operator`).
+
+## 9. Applied (PR #144, waiting for the approvals)
+
+- [x] `ARCHITECTURE.md` 1.8.10: §3.3, §3.5, §3.6, §7.1, §17.1 (layer 7, new layer 14), §17.3, §20.1, OD-10, changelog
+- [x] `environment.md`, `SECURITY.md`, `docs/API-FOR-UI.md` (§6 of this ACR)
+- [x] T-0016 4a (API), 4b (frontend), 4c (the edge image, its scripts and tests). Not done: 4d on vm-095 (loopback,
+      needs the lease) and 4e (public, needs the data of §8)
+- [x] journal entry
+
+**Two differences from §3.1, found while building:**
+- **Row 2:** Docker already forwards a published port only to its container, so an "accept only toward
+  argus-v18-ui" rule would add nothing. `ops/ui-firewall.sh` instead puts a per-address connection limit (50) on the
+  edge's ports in `DOCKER-USER`.
+- **Row 10:** `nonint-check` already leaves out Docker's chains, so it needs no firewall exclusion. What it learns
+  instead is to leave out the ports `argus-v18-ui` publishes while it runs.

@@ -1,0 +1,11 @@
+[Unit]
+Description=Argus v1.8 UI edge certificate renewal, twice a day (renews at 3 days or less; ops/ui-cert.sh)
+
+[Timer]
+OnCalendar=*-*-* 03,15:00:00
+RandomizedDelaySec=1h
+Persistent=true
+Unit=argus-v18-certbot.service
+
+[Install]
+WantedBy=timers.target

@@ -21,7 +21,10 @@ OUT="$D/$LABEL.txt"
     case "$v $proj" in argus-v18*|*" argus-v18"*|*" argus-lab"*) ;; *) echo "$v";; esac
   done | sort
   echo "## listening TCP/UDP (excluding Argus ports)"
-  ss -tulnH | awk '{print $1, $5}' | grep -vE ':(18000|1870[0-9]|18090)$' | sort -u
+  # ACR-0011: the ports argus-v18-ui publishes right now (18010, or 443 and 80); none when it is not running, and
+  # while it runs no other process can hold them
+  ui=$(docker port argus-v18-ui 2>/dev/null | sed -n 's/.*:\([0-9][0-9]*\)$/\1/p' | sort -u | paste -sd'|' -)
+  ss -tulnH | awk '{print $1, $5}' | grep -vE ":(18000|1870[0-9]|18090${ui:+|$ui})\$" | sort -u
   echo "## iptables (outside Docker-managed chains)"
   iptables -S | grep -vE '^-[AN] DOCKER' | sort
   echo "## interfaces (excluding veth/bridges)"

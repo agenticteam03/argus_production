@@ -12,6 +12,8 @@
 | The team's shared Argus password | each developer's password manager; stored only as an argon2 hash in Postgres | anywhere written |
 | Deploy keys (read-only, one per VM) | `/opt/argus-v18/secrets/deploy/` on each VM | anywhere else |
 | VM addresses | `~/.ssh/config` on laptops; `/opt/argus-v18/hosts.env` on the VMs | Git, the Brain |
+| The UI's TLS key and Let's Encrypt account (ACR-0011) | `/opt/argus-v18/secrets/tls/` on vm-095 (`privkey.pem` 0400, readable by the edge's uid 101 only; `letsencrypt/` 0700 root) | anywhere else |
+| The UI's public domain (ACR-0011) | `/opt/argus-v18/app/deploy/ui/vm-095.env` on vm-095 (gitignored) | Git, the Brain |
 
 ## Rules
 
@@ -30,7 +32,8 @@
 - **Read-only:** no write capability is released; the write gate in `config/policy.yaml` stays empty.
 - **Host isolation:** an executor is resolved for the target's own host only, never another host.
 - **Evidence integrity:** evidence and audit are insert-only; the runtime database role cannot UPDATE or DELETE them.
-- **Least privilege:** gateways expose exact GET routes; probes expose typed verbs; tokens per service.
+- **Least privilege:** gateways expose exact GET routes; probes expose typed verbs; tokens per service. The only
+  public listener is the UI edge (ACR-0011): the UI contract's routes only, read tokens only, one account per person.
 - **Secrets** as above.
 
 ## Everyone has sudo — the rails

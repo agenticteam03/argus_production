@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | `in progress` — steps 1–2 merged (PR #24); step 3 (read-only API wiring) merged 2026-10-10 (PR #56); still open: Playwright acceptance tests, the read-only network guard, the `contracts/ui-api.json` check |
+| Status | `in progress` — steps 1–3 merged (#24, #56, #137); acceptance tests, guard, contract check, linter, and step 4a–4c of ACR-0011 (API, frontend, the edge image) in #144 (2026-10-14), waiting for its approvals; next: 4d on vm-095 (loopback, the lease), then 4e (public: the data of ACR-0011 §8) |
 | Phase | 10 — output modes |
 | Architecture | ACR-0001 (from T-0015) |
 | Branch | `task/T-0016-frontend` (one PR per step is fine) |
@@ -212,3 +212,80 @@ a screen or a button in `frontend/`.
   - **committed:** `bdadd25`, `ae0d595`, `bc21ab2` (UI), `1c6b7da` (the test fix); `origin/main` merged into the branch
     before pushing. Still open: the Playwright acceptance tests, the read-only network guard, the
     `contracts/ui-api.json` check, and the incident-list `offset`/total contract ask.
+- **2026-10-14 — step 4b, the parts that do not wait for ACR-0011's second approval (`conantkd` + agent):**
+  - **No mock code in a real build.** `frontend/package.json` `"sideEffects": ["**/*.css"]`, so with
+    `VITE_ARGUS_MOCK=0` the build drops the mock adapters: no demo password, no `VITE_ARGUS_USERS`, no demo
+    incidents. A demo build keeps them.
+    - Test: `src/build.test.js` builds in real mode and greps the bundle.
+    - Red seen without the `sideEffects` line (`argus-demo` found); green with it.
+  - **Polling budget** (ACR-0011 §3.1 row 8): the dashboard and the incident list every 30 s instead of 5 s.
+    - The dashboard now uses `usePoll`, so it pauses while the tab is hidden, as the list already did.
+    - The list asks for at most 200 incidents instead of 1000.
+    - The intervals are in `src/utils/polling.js`; a running incident still refreshes every 2–3 s.
+    - Test: `src/utils/polling.test.js`, red seen (no module), then green.
+  - **Not here:** the runbooks still ship in the bundle. Moving them behind the login needs Nginx's checked
+    `/runbooks/` (ACR-0011, after its second approval).
+  - `npm test`: 14 files, 74 tests.
+- **2026-10-14 — the acceptance tests, the read-only guard, the contract check and the linter (`conantkd` + agent):**
+  - **Playwright** (`e2e/`, `npm run e2e`, `@playwright/test` 1.64.0): the real-mode build served by `vite preview`,
+    with the API faked in the browser from `contracts/samples/`. Nine tests:
+    - a wrong password stays on the login page;
+    - a login asks for `scope=read` and opens the dashboard;
+    - the dashboard shows the incidents and escalations;
+    - the list opens an incident with its diagnosis and timeline;
+    - an operator sees the evidence and a viewer sees the restricted notice;
+    - an unknown incident shows "Incident not found";
+    - logging out (and reloading) stays logged out;
+    - a 401 returns to the login page;
+    - the guard flags a write and another origin.
+  - **Read-only guard** (`e2e/fixtures.js`): every test fails if the page sent anything to the API except a `GET`
+    or the login `POST`, or anything to another origin.
+  - **Contract check** (`src/services/contract.test.js`): the real adapters run with a recorded `fetch`. Every call
+    must be a route, method and query parameter of `contracts/ui-api.json`. A second test proves an undeclared
+    route, method or parameter is flagged. The response fields are not checked; the API's contract test guards them.
+  - **ESLint** (`npm run lint`): recommended rules plus React hooks; 0 errors, 14 warnings (fast refresh only).
+  - **CI job `frontend`:** lint → Vitest → build → Playwright (report uploaded on failure).
+  - **Found and fixed:** the restricted-evidence notice said "operators and admins"; Argus has no admin role, so it
+    now says "operators and approvers".
+  - Stable: three runs in a row, 9/9. `npm test`: 15 files, 76 tests.
+- **2026-10-14 — ACR-0011 step 4a–4c, built as if accepted (`conantkd` + agent; in #144, not merged before its approvals):**
+  - **4a, API** (`argus/adapters/inbound/http.py`):
+    - a login carrying the edge's `X-Argus-Edge` must ask for `scope=read` (else 400);
+    - failed logins are audited (`access.login_failed`, never the password) and limited per username (5) and per
+      address (20) in 15 min, answering 429 with `Retry-After` (`access.login_locked`);
+    - `limit` is capped at 200.
+    - `tests/test_acr0011_edge_login.py`: 10 tests (8 red seen).
+  - **4b, frontend:** the runbooks left the real bundle. `httpRunbooksAdapter` loads `/runbooks/` with the token and
+    loads it once, without polling; `vite dev` and `vite preview` serve the same paths locally.
+    - Tests: `build.test.js` (no runbook text; red seen), `httpRunbooksAdapter.test.js` (4, red seen), and a
+      Playwright test (the runbooks page loads after login with the token).
+    - Totals: `npm test` 80, `npm run e2e` 10.
+  - **4c, the edge** (`deploy/ui/`):
+    - a multi-stage image (real-mode build, `nginx-unprivileged`, uid 101, read-only, no capabilities);
+    - `loopback` and `public` modes;
+    - the contract allowlist with methods, `limit_req` / `limit_conn`, CSP/HSTS/no framing, `/runbooks/` behind an
+      `auth_request` to `/api/v1/me`, JSON logs without `Authorization`;
+    - `ops/ui-cert.sh` (certbot, HTTP-01, renewal timer), `ops/ui-firewall.sh` (`DOCKER-USER` connection limit) and
+      `nonint-check` leaving out the ports the edge publishes;
+    - `tests/test_acr0011_ui_edge.py`: 24 tests, the static ones plus a curl matrix against the real Nginx image with
+      a fake API (skipped without Docker).
+  - **The built image, run locally, read-only and without capabilities:**
+    - loopback: the app and its routes 200, `/docs` 404, runbooks 401 without a token and 200 with one, no mock in the
+      bundle, uid 101;
+    - public with a self-signed certificate: HTTP 301 to HTTPS, HTTPS 200 with HSTS;
+    - a wrong mode stops with its message.
+  - **Not done:** 4d (deploy on vm-095's loopback, the lease) and 4e (public: domain, address, the cloud rule, the
+    certificate, one account per person).
+- **2026-10-14 — step 4d on vm-095's loopback (`conantkd` + agent, both leases;
+  [evidence](../../execution/history/T-0016/step-04d/evidence.md)):**
+  - vm-095 on `task/T-0016-playwright` `d5d992c`: the agent with 4a, and `argus-v18-ui` healthy on `127.0.0.1:18010`
+    only (uid 101, read-only). No public port; NO INTERFERENCE on both VMs.
+  - Through `ssh -L`, against the real API:
+    - routes: the app 200; `/docs` and `/openapi.json` 404; the API without a token 401; `POST /investigations` 404;
+    - runbooks: 401 without or with a bad token;
+    - security headers present; no demo password and no runbook text in the served bundle;
+    - logins: Nginx's `limit_req` stopped the 6th login in a burst; 15 s later the API's lockout answered 429 with
+      `Retry-After`; the audit shows `login_failed` × 5 and `login_locked` × 1, all `via: edge`.
+  - **Found:** the audited client is Docker's bridge gateway (`172.30.0.1`), not the browser. To check on the public
+    port before 4e (Docker's userland proxy).
+  - **Left:** a real login in the browser (a person's password), then 4e.

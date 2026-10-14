@@ -28,3 +28,8 @@ hosts.env
 # Frontend (Node) — dependencies and build output are never committed
 node_modules/
 frontend/dist/
+frontend/dist-e2e/
+frontend/test-results/
+frontend/playwright-report/
+# ACR-0011: the public domain of the UI edge (template: deploy/ui/vm-095.env.example)
+deploy/ui/vm-095.env

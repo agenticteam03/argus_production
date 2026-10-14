@@ -1,0 +1,10 @@
+# argus-v18-ui, ARGUS_UI_MODE=loopback (T-0016 step 4d): plain HTTP on 8080, published only on 127.0.0.1:18010 and
+# reached through `ssh -L 18010:127.0.0.1:18010 argus-vm095`. The same routes and limits as the public mode.
+include /etc/nginx/argus/http.conf;
+
+server {
+    listen 8080;
+    server_name _;
+    root /usr/share/nginx/html;
+    include /etc/nginx/argus/locations.conf;
+}

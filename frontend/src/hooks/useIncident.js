@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useAuth } from "../context/AuthContext.jsx";
 import { argus } from "../services/index.js";
 import { isActive } from "../utils/format.js";
+import { POLL_MS } from "../utils/polling.js";
 import { usePoll } from "./usePoll.js";
 
 const merge = (prev, batch) => {
@@ -70,8 +71,8 @@ export function useIncident(id) {
 
   const status = incident?.status;
   const running = !!status && isActive(status);
-  usePoll(loadIncident, 3000, running);
-  usePoll(loadEvents, 2000, running);
+  usePoll(loadIncident, POLL_MS.runningIncident, running);
+  usePoll(loadEvents, POLL_MS.runningEvents, running);
 
   useEffect(() => {
     if (!status) return;

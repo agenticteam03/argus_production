@@ -142,3 +142,19 @@ def test_every_mode_checks_a_clean_worktree_of_the_commit_never_this_checkout(tm
         add = [c for c in calls if c[0] == "worktree"]
         assert add and add[0][-1] == SHA, argv
         assert seen["src"] != lci.REPO and "argus-localci-" in str(seen["src"]), argv
+
+
+def test_the_frontend_step_runs_what_ci_runs_in_the_same_order(tmp_path):
+    """T-0016: CI's job `frontend` is lint, unit tests, build, the Playwright browser, the acceptance tests."""
+    runner = FakeRunner({})
+    ci = lci.LocalCI(tmp_path, runner=runner, which=lambda t: t if t in ("npm", "npx") else None)
+    r = ci.frontend()
+    steps = [" ".join(c[1:]) for c in runner.calls]
+    assert steps == ["ci", "run lint", "test", "run build", "playwright install chromium", "run e2e"]
+    assert r.status == "pass" and r.detail == "npm ci, lint, test, build, e2e"
+
+
+def test_a_failed_acceptance_test_fails_the_frontend_step(tmp_path):
+    ci = _ci(tmp_path, {"run e2e": [(1, "1 failed\n8 passed")]}, tools=("npm", "npx"))
+    r = ci.frontend()
+    assert r.status == "fail" and "npm run e2e" in r.detail

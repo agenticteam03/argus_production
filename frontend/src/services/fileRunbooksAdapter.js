@@ -1,10 +1,10 @@
-// Reads the real runbook library in the repository (`argus/runbooks/`, 21 runbooks). There is no API route
-// for runbooks in the UI contract yet, so the app reads the Markdown that ships with the code.
-// A future HTTP adapter must expose the same method: listRunbooks() -> [{ file, markdown }].
-// The dev server needs `server.fs.allow: [".."]` (vite.config.js) to serve files outside `frontend/`.
+// Mock mode only: the runbook library of the repository (`argus/runbooks/`, 21 runbooks) compiled into the demo
+// bundle. A real build drops this module (package.json "sideEffects"); httpRunbooksAdapter.js loads the library
+// from the edge after login (ACR-0011). Same method: listRunbooks() -> [{ file, markdown }].
 const files = import.meta.glob("../../../argus/runbooks/RB-*.md", { query: "?raw", import: "default", eager: true });
 
 export const fileRunbooksAdapter = {
+  pollMs: 10_000,                       // a .md edited during `npm run dev` shows up on its own
   async listRunbooks() {
     return Object.entries(files).map(([path, markdown]) => ({ file: path.split("/").pop(), markdown }));
   },

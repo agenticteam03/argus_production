@@ -1,7 +1,7 @@
 # Argus — Production Architecture Specification
 
 **Document type:** consolidated target architecture and implementation blueprint ·
-**Version:** 1.8.8 (2026-10-12, ACR-0009; 1.8.7 2026-10-12, ACR-0008; 1.8.6 2026-10-11, ACR-0007; 1.8.5 2026-10-09, ACR-0005; 1.8.4 2026-10-09, ACR-0004; 1.8.3 2026-10-08, ACR-0003; 1.8.2 2026-10-09, ACR-0002; 1.8.1 2026-10-06, ACR-0001; base 1.8.0 of 30 September 2026, sanitized for the shared repository 2026-10-02) · **Audience:** engineers and AI coding agents implementing
+**Version:** 1.8.10 (2026-10-14, ACR-0011; 1.8.8 2026-10-12, ACR-0009; 1.8.7 2026-10-12, ACR-0008; 1.8.6 2026-10-11, ACR-0007; 1.8.5 2026-10-09, ACR-0005; 1.8.4 2026-10-09, ACR-0004; 1.8.3 2026-10-08, ACR-0003; 1.8.2 2026-10-09, ACR-0002; 1.8.1 2026-10-06, ACR-0001; base 1.8.0 of 30 September 2026, sanitized for the shared repository 2026-10-02) · **Audience:** engineers and AI coding agents implementing
 Argus from an empty repository.
 
 
@@ -503,7 +503,8 @@ The cross-host path **MUST** satisfy all of the following, in every profile:
 | argus-worker | model endpoint | HTTPS egress | reasoning | provider API key |
 | argus-worker | Slack/email | HTTPS/SMTP egress | notifications | provider credentials |
 | argus-scheduler | argus-api (or application directly) | internal HTTP or in-process | scheduled triggers | internal service identity |
-| Human | Argus API | HTTP(S) over a loopback-bound SSH tunnel or VPN | manual trigger, approval, incident view | human login ⇒ short-lived JWT (§17.3) |
+| Human | Argus API | the CLI and Swagger: HTTP(S) over a loopback-bound SSH tunnel or VPN | manual trigger, approval, incident view | human login ⇒ short-lived JWT (§17.3) |
+| Human (browser) | `argus-v18-ui` (Host A) → Argus API | **public HTTPS** (443; 80 only for ACME and the redirect), ACR-0011 | the read-only UI: incident list and view, timeline, evidence, escalations, runbooks | Argus login through the edge ⇒ a **read** JWT only (§17.3); the edge proxies only the UI contract's routes (§7.1) |
 | Peer agent (reserved) | Argus peer adapter | authenticated HTTP(S) over the private path | investigations, findings, evidence, holds | agent client credentials ⇒ JWT (§23) |
 | worker ↔ MCP tools server | stdio pipes | MCP | read-only tool discovery/invocation | process identity (§12.6) |
 | Monitored workloads | Argus API, Postgres, gateways | — | — | **forbidden** |
@@ -574,6 +575,7 @@ flowchart TB
 | `argus-worker` | A | Argus image, `worker` command | claims intake; runs graphs, resume, expiry and outbox loops; spawns the MCP tools server as a child |
 | `argus-scheduler` | A | Argus image, `scheduler` command | cron-style; submits triggers only |
 | `postgres` | A | PostgreSQL 16, named volume | all Argus durable state |
+| `argus-v18-ui` | A | `deploy/ui/Dockerfile` (Nginx, no root) | the read-only UI edge (ACR-0011): the built frontend, the runbooks after login, a proxy of the UI contract's routes to the API; TLS on 443 (public) or `127.0.0.1:18010` (loopback); the only Argus listener on a public address |
 | `prometheus`, `alertmanager` | T | upstream images | **Argus-owned** instances with Argus alert rules; they may scrape exporters that already exist on the host, and never modify another team's monitoring |
 | `node-exporter`, `cadvisor` | T | upstream images | host and container resource metrics; **Argus-owned** instances (ACR-0003). Exporters of another deployment are reused only when its owners agree, recorded in `brain/infrastructure/environment.md`. `cadvisor`'s read-only host mounts: §4.3 |
 | `argus-exporter` | T | custom | `oom_killed`, `last_exit_code` and lifecycle facts cAdvisor does not publish |
@@ -598,7 +600,7 @@ These values are configuration (inventory, settings, `deploy/`), recorded here f
 | Architecture | ARM64, 1 vCPU, 5.8 GiB RAM, no swap | same |
 | Transport profile | **`restricted-ssh`** (only port 22 is open between the VMs; ACR-0003) | same |
 | Alert delivery | pull (`ReconcileFiringAlerts` enabled) | Argus-owned Alertmanager on `127.0.0.1` |
-| API exposure | `127.0.0.1:8000` for humans (SSH tunnel); no private-address listener (no webhook from Host T in this profile) | — |
+| API exposure | `127.0.0.1:8000` for humans (SSH tunnel); no private-address listener (no webhook from Host T in this profile); the read-only UI through the public edge `argus-v18-ui` (ACR-0011) | — |
 | Pre-existing monitoring | — | a shared Prometheus on `:9090`, node-exporter, cAdvisor (not Argus's; left untouched and never scraped) |
 
 `MAX_ACTIVE_INVESTIGATIONS` stays at its default of 2 or lower on this hardware.
@@ -1246,6 +1248,11 @@ HTTP or the application in-process.
 - **Listeners:** humans and Swagger use a loopback listener reached over an SSH tunnel or VPN. The
   Alertmanager webhook and `/metrics` use a listener on the private address, source-restricted to the
   monitoring host. The peer adapter (§23) gets its own listener.
+- **The public UI edge (ACR-0011):** `argus-v18-ui` proxies only the routes of `contracts/ui-api.json`, each with
+  its method; everything else under `/api/`, `/docs` and `/openapi.json` is 404 there, and Swagger stays on the
+  loopback listener. It always sets `X-Argus-Edge` and `X-Real-IP` (replacing a client's own): a login carrying the
+  header issues only a **read** token, and the limits of §17.3 count the edge's client address.
+  `GET /api/v1/incidents` caps `limit` server-side (`ARGUS_INCIDENTS_LIMIT_CAP`, 200).
 
 ### 7.2 CLI (`adapters/inbound/cli`)
 
@@ -2312,13 +2319,14 @@ client secrets.
 | 4 | Model and strategy boundary | Pydantic validation; per-step limits; hard budgets; redaction; evidence as data; strategies return decisions only |
 | 5 | Tool boundary | stdio-only MCP; read-only published set; static scope checks; separate UID and credentials; no database credential in the child |
 | 6 | Host access | exact-route Docker gateways; inspect redaction; target-side probe verbs; inspection policy; no Docker socket |
-| 7 | Cross-host path | the selected transport profile (§3.2); binding only where the profile says; per-service credentials; no public exposure; no cross-host executor fallback; encrypted when leaving the private network |
+| 7 | Cross-host path | the selected transport profile (§3.2); binding only where the profile says; per-service credentials; no public exposure except the UI edge of layer 14; no cross-host executor fallback; encrypted when leaving the private network |
 | 8 | Human approval | authenticated **human** approver; scoped; digest-bound; atomic transition with resume intent |
 | 9 | Pre-dispatch re-authorization | proposal digest, incident status, current policy, holds, target identity, inventory version, evidence version, expiry |
 | 10 | Action ledger | `indeterminate` ⇒ escalate, never an automatic retry |
 | 11 | Write gate | per `(capability, target)` release in policy **and** in the action-gateway configuration |
 | 12 | Peer boundary | peers authenticate as agent principals; no write authority; scoped reads; quotas; loop protection (§23) |
 | 13 | Audit integrity | DB permissions enforce append-only |
+| 14 | Public edge (ACR-0011) | `argus-v18-ui` only: TLS (Let's Encrypt, renewed daily); the UI contract's routes and methods only; edge logins read-only; request and connection limits per address; security headers (CSP, HSTS, no framing); runbooks only after login; no Argus secret in the edge |
 
 ### 17.2 Identities and credentials
 
@@ -2359,7 +2367,13 @@ stored as evidence or sent to the model.
   this release. It is served only on the loopback listener.
 - Users and agent clients are created with `argus user …` from a shell on Host A. There is no
   self-registration and no user-management API.
-- Failed logins are rate-limited and audited (`access.login_failed`).
+- Failed logins are audited (`access.login_failed`: the username and the client, never the password) and limited per
+  username and per client address in a window (`ARGUS_LOGIN_MAX_PER_USER` 5, `ARGUS_LOGIN_MAX_PER_ADDRESS` 20,
+  `ARGUS_LOGIN_WINDOW_S` 900); a locked login is answered 429 with `Retry-After` and audited
+  (`access.login_locked`). A success clears the username's count.
+- **The public edge (ACR-0011):** a login that arrives through `argus-v18-ui` (its `X-Argus-Edge` header) must ask
+  for `scope=read`, otherwise 400; the loopback login is unchanged. Every login reachable from the Internet is one
+  account per person (no shared password).
 - *Future:* replacing local users with a single-sign-on provider (OIDC, RS256 + JWKS) changes only
   token verification in `adapters/inbound/http/auth.py`; the `Principal` contract stays.
 
@@ -2481,7 +2495,7 @@ bound and escalates when the bound is exhausted.
 | Credentials (files/env) | Alertmanager webhook token, JWT signing key, executor credentials per `(host, executor)` (mounted for `argus-tools`), action-gateway credential per host (after a release only), model key, notifier credentials, DB DSNs |
 | Model request | model name, timeout, and optional parameters (temperature, response format) omitted when the model rejects them |
 | Budgets | `MAX_STEPS`, `MAX_TOKENS_PER_INCIDENT`, `MAX_MODEL_COST_PER_DAY`, `MAX_MODEL_COST_PER_PRINCIPAL_PER_DAY`, `MAX_READS_PER_STEP` *(1)* |
-| Authentication | `ACCESS_TOKEN_TTL` *(30 min)*, login rate limit, listener addresses (loopback, private, peer) |
+| Authentication | `ACCESS_TOKEN_TTL` *(30 min)*, login rate limit (`ARGUS_LOGIN_MAX_PER_USER`, `ARGUS_LOGIN_MAX_PER_ADDRESS`, `ARGUS_LOGIN_WINDOW_S`), the edge header (`ARGUS_EDGE_HEADER`), `ARGUS_INCIDENTS_LIMIT_CAP`, listener addresses (loopback, private, peer) |
 | Peers | `MAX_ORIGIN_CHAIN` *(2)*, peer request rate limits |
 | Concurrency | `MAX_ACTIVE_INVESTIGATIONS` *(2)*, worker lease timeout |
 | Correlation | `CORRELATION_WINDOW` *(30 min)* |
@@ -2745,7 +2759,7 @@ The goal of this architecture is that Argus's diagnostic reach grows **without c
 | OD-7 | Numeric values for `MAX_STEPS`, `MAX_TOKENS_PER_INCIDENT`, `MAX_MODEL_COST_PER_DAY`, per-principal quotas, approval expiry, `METRICS_MAX_STALENESS`, `VERIFY_TIMEOUT`, `RESUME_MAX_ATTEMPTS`, evidence retention per kind | set from measurements and the project model budget |
 | OD-8 | Schedule cadence per target | derived from the measured p95 investigation duration (§6.5) |
 | OD-9 | Plain SQL vs SQLAlchemy; migration tooling | adopt SQLAlchemy only if schema complexity justifies it |
-| OD-10 | A dedicated approval/incident UI beyond Swagger, CLI and (later) Slack links | **decided by ACR-0001 (2026-10-06):** user interfaces are allowed as separate clients of the HTTP API, never inside the core; in this release a UI holds only read-only tokens, and any UI write action needs a new ACR; the team's frontend lives in `frontend/` and runs as `argus-v18-ui` (static files + a proxy to the API) on a loopback port of Host A; answering approvals stays in Swagger/CLI in this release |
+| OD-10 | A dedicated approval/incident UI beyond Swagger, CLI and (later) Slack links | **decided by ACR-0001 (2026-10-06):** user interfaces are allowed as separate clients of the HTTP API, never inside the core; in this release a UI holds only read-only tokens, and any UI write action needs a new ACR; the team's frontend lives in `frontend/` and runs as `argus-v18-ui` (static files + a proxy to the API) on a public HTTPS address of Host A (ACR-0011; its loopback port stays for development and recovery); answering approvals stays in Swagger/CLI in this release |
 | OD-11 | Model fine-tuning | explicitly undecided |
 | OD-12 | Consolidating gateways and probes into one target agent per host | revisit at the second monitored host; privilege separation argues for keeping them separate |
 | OD-13 | Automatic merging of related incidents | linked only in this release; decide from operational experience |
@@ -2917,3 +2931,4 @@ erDiagram
 | 1.8.6 | 2026-10-11 | `confirm_then_reason`: a rule-planned confirmation round (a suspect's logs and resources) before the model concludes; `disk_pressure` uses it (§3, §10.3) | [ACR-0007](changes/ACR-0007-confirm-then-reason.md) |
 | 1.8.7 | 2026-10-12 | `confirm_then_reason`: an exited writer of the full filesystem is a suspect too (its logs are read; its data stays on the mount) (§10.3) | [ACR-0008](changes/ACR-0008-stopped-writer-suspect.md) |
 | 1.8.8 | 2026-10-12 | a monitoring heartbeat per host: a lost heartbeat opens one escalated "Host monitoring unavailable" incident per episode (no run, no model), and a host without a fresh heartbeat resolves nothing; explicit maintenance (§6.4, §7.3, `alerts.yml`) | [ACR-0009](changes/ACR-0009-monitoring-heartbeat.md) |
+| 1.8.10 | 2026-10-14 | the read-only UI on a public HTTPS address: `argus-v18-ui` (Nginx) on Host A:443 proxies only the UI contract's routes; edge logins read-only; failed logins audited and limited per username and address; `limit` capped; layer 14 public edge (§3.3, §3.5, §3.6, §7.1, §17.1, §17.3, §20.1, OD-10) | [ACR-0011](changes/ACR-0011-public-https-ui.md) |

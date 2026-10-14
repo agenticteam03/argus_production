@@ -1,0 +1,11 @@
+# Build contexts are the repository root (the agent image, deploy/ui/Dockerfile): never send these
+.git
+.venv
+**/__pycache__
+**/.pytest_cache
+**/node_modules
+frontend/dist
+frontend/dist-e2e
+frontend/test-results
+frontend/playwright-report
+deploy/ui/vm-095.env

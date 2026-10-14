@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "../context/AuthContext.jsx";
 import { argus } from "../services/index.js";
 import { INCIDENTS_CAP } from "../utils/paging.js";
+import { POLL_MS } from "../utils/polling.js";
 import { usePoll } from "./usePoll.js";
 
 export function useIncidentList() {
@@ -22,6 +23,6 @@ export function useIncidentList() {
   }, [logout]);
 
   useEffect(() => { load(); }, [load]);
-  usePoll(load, 5000);
+  usePoll(load, POLL_MS.incidents);
   return { ...state, retry: load };
 }

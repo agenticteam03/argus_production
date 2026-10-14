@@ -1,0 +1,28 @@
+# argus-v18-ui, ARGUS_UI_MODE=public (ACR-0011; T-0016 step 4e): TLS on 8443 (host :443); 8080 (host :80) serves only
+# the ACME challenge and a redirect. ${ARGUS_UI_DOMAIN} comes from deploy/ui/vm-095.env (never in Git).
+include /etc/nginx/argus/http.conf;
+
+server {
+    listen 8080 default_server;
+    server_name _;
+    location /.well-known/acme-challenge/ { root /var/www/acme; default_type text/plain; }
+    location = /healthz { access_log off; default_type text/plain; return 200 "ok\n"; }
+    location / { return 301 https://${ARGUS_UI_DOMAIN}$request_uri; }
+}
+
+server {
+    listen 8443 ssl default_server;
+    http2 on;
+    server_name ${ARGUS_UI_DOMAIN};
+    root /usr/share/nginx/html;
+
+    ssl_certificate     /etc/argus-tls/fullchain.pem;
+    ssl_certificate_key /etc/argus-tls/privkey.pem;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_prefer_server_ciphers off;
+    ssl_session_cache shared:argus_tls:10m;
+    ssl_session_timeout 1d;
+    ssl_session_tickets off;
+
+    include /etc/nginx/argus/locations.conf;
+}
