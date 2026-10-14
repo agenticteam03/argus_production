@@ -1,0 +1,941 @@
+{
+  "kind": "synthetic-capacity-only",
+  "phases": {
+    "cleanup": {
+      "samples": 2,
+      "min_available_mib": 3849,
+      "api_failures": 0,
+      "api_median_ms": 3.7,
+      "api_max_ms": 5.015
+    },
+    "startup": {
+      "samples": 43,
+      "min_available_mib": 3001,
+      "api_failures": 0,
+      "api_median_ms": 2.853,
+      "api_max_ms": 23.186
+    },
+    "image-pull": {
+      "samples": 37,
+      "min_available_mib": 4279,
+      "api_failures": 0,
+      "api_median_ms": 5.09,
+      "api_max_ms": 39.35
+    },
+    "baseline": {
+      "samples": 5,
+      "min_available_mib": 4391,
+      "api_failures": 0,
+      "api_median_ms": 2.548,
+      "api_max_ms": 13.758
+    }
+  },
+  "samples": [
+    {
+      "phase": "baseline",
+      "t_s": 6,
+      "available_mib": 4391,
+      "health": {
+        "status": 200,
+        "ms": 13.758
+      }
+    },
+    {
+      "phase": "baseline",
+      "t_s": 11,
+      "available_mib": 4391,
+      "health": {
+        "status": 200,
+        "ms": 2.336
+      }
+    },
+    {
+      "phase": "baseline",
+      "t_s": 16,
+      "available_mib": 4391,
+      "health": {
+        "status": 200,
+        "ms": 5.915
+      }
+    },
+    {
+      "phase": "baseline",
+      "t_s": 21,
+      "available_mib": 4418,
+      "health": {
+        "status": 200,
+        "ms": 2.548
+      }
+    },
+    {
+      "phase": "baseline",
+      "t_s": 26,
+      "available_mib": 4410,
+      "health": {
+        "status": 200,
+        "ms": 2.168
+      }
+    },
+    {
+      "phase": "image-pull",
+      "t_s": 31,
+      "available_mib": 4398,
+      "health": {
+        "status": 200,
+        "ms": 2.671
+      }
+    },
+    {
+      "phase": "image-pull",
+      "t_s": 36,
+      "available_mib": 4381,
+      "health": {
+        "status": 200,
+        "ms": 5.101
+      }
+    },
+    {
+      "phase": "image-pull",
+      "t_s": 41,
+      "available_mib": 4405,
+      "health": {
+        "status": 200,
+        "ms": 2.3
+      }
+    },
+    {
+      "phase": "image-pull",
+      "t_s": 46,
+      "available_mib": 4387,
+      "health": {
+        "status": 200,
+        "ms": 10.745
+      }
+    },
+    {
+      "phase": "image-pull",
+      "t_s": 51,
+      "available_mib": 4372,
+      "health": {
+        "status": 200,
+        "ms": 4.186
+      }
+    },
+    {
+      "phase": "image-pull",
+      "t_s": 56,
+      "available_mib": 4391,
+      "health": {
+        "status": 200,
+        "ms": 4.67
+      }
+    },
+    {
+      "phase": "image-pull",
+      "t_s": 61,
+      "available_mib": 4367,
+      "health": {
+        "status": 200,
+        "ms": 3.509
+      }
+    },
+    {
+      "phase": "image-pull",
+      "t_s": 66,
+      "available_mib": 4372,
+      "health": {
+        "status": 200,
+        "ms": 5.742
+      }
+    },
+    {
+      "phase": "image-pull",
+      "t_s": 71,
+      "available_mib": 4386,
+      "health": {
+        "status": 200,
+        "ms": 2.625
+      }
+    },
+    {
+      "phase": "image-pull",
+      "t_s": 76,
+      "available_mib": 4389,
+      "health": {
+        "status": 200,
+        "ms": 3.023
+      }
+    },
+    {
+      "phase": "image-pull",
+      "t_s": 81,
+      "available_mib": 4367,
+      "health": {
+        "status": 200,
+        "ms": 4.423
+      }
+    },
+    {
+      "phase": "image-pull",
+      "t_s": 86,
+      "available_mib": 4397,
+      "health": {
+        "status": 200,
+        "ms": 5.954
+      }
+    },
+    {
+      "phase": "image-pull",
+      "t_s": 91,
+      "available_mib": 4391,
+      "health": {
+        "status": 200,
+        "ms": 25.483
+      }
+    },
+    {
+      "phase": "image-pull",
+      "t_s": 96,
+      "available_mib": 4351,
+      "health": {
+        "status": 200,
+        "ms": 3.116
+      }
+    },
+    {
+      "phase": "image-pull",
+      "t_s": 101,
+      "available_mib": 4353,
+      "health": {
+        "status": 200,
+        "ms": 39.35
+      }
+    },
+    {
+      "phase": "image-pull",
+      "t_s": 106,
+      "available_mib": 4362,
+      "health": {
+        "status": 200,
+        "ms": 3.975
+      }
+    },
+    {
+      "phase": "image-pull",
+      "t_s": 111,
+      "available_mib": 4351,
+      "health": {
+        "status": 200,
+        "ms": 4.636
+      }
+    },
+    {
+      "phase": "image-pull",
+      "t_s": 116,
+      "available_mib": 4354,
+      "health": {
+        "status": 200,
+        "ms": 5.42
+      }
+    },
+    {
+      "phase": "image-pull",
+      "t_s": 121,
+      "available_mib": 4348,
+      "health": {
+        "status": 200,
+        "ms": 4.046
+      }
+    },
+    {
+      "phase": "image-pull",
+      "t_s": 126,
+      "available_mib": 4352,
+      "health": {
+        "status": 200,
+        "ms": 5.09
+      }
+    },
+    {
+      "phase": "image-pull",
+      "t_s": 131,
+      "available_mib": 4373,
+      "health": {
+        "status": 200,
+        "ms": 3.711
+      }
+    },
+    {
+      "phase": "image-pull",
+      "t_s": 136,
+      "available_mib": 4358,
+      "health": {
+        "status": 200,
+        "ms": 4.138
+      }
+    },
+    {
+      "phase": "image-pull",
+      "t_s": 141,
+      "available_mib": 4358,
+      "health": {
+        "status": 200,
+        "ms": 14.424
+      }
+    },
+    {
+      "phase": "image-pull",
+      "t_s": 146,
+      "available_mib": 4360,
+      "health": {
+        "status": 200,
+        "ms": 25.725
+      }
+    },
+    {
+      "phase": "image-pull",
+      "t_s": 152,
+      "available_mib": 4371,
+      "health": {
+        "status": 200,
+        "ms": 28.393
+      }
+    },
+    {
+      "phase": "image-pull",
+      "t_s": 157,
+      "available_mib": 4350,
+      "health": {
+        "status": 200,
+        "ms": 2.798
+      }
+    },
+    {
+      "phase": "image-pull",
+      "t_s": 162,
+      "available_mib": 4352,
+      "health": {
+        "status": 200,
+        "ms": 8.636
+      }
+    },
+    {
+      "phase": "image-pull",
+      "t_s": 167,
+      "available_mib": 4322,
+      "health": {
+        "status": 200,
+        "ms": 7.585
+      }
+    },
+    {
+      "phase": "image-pull",
+      "t_s": 172,
+      "available_mib": 4328,
+      "health": {
+        "status": 200,
+        "ms": 9.416
+      }
+    },
+    {
+      "phase": "image-pull",
+      "t_s": 177,
+      "available_mib": 4330,
+      "health": {
+        "status": 200,
+        "ms": 4.537
+      }
+    },
+    {
+      "phase": "image-pull",
+      "t_s": 182,
+      "available_mib": 4311,
+      "health": {
+        "status": 200,
+        "ms": 7.446
+      }
+    },
+    {
+      "phase": "image-pull",
+      "t_s": 187,
+      "available_mib": 4331,
+      "health": {
+        "status": 200,
+        "ms": 5.174
+      }
+    },
+    {
+      "phase": "image-pull",
+      "t_s": 192,
+      "available_mib": 4319,
+      "health": {
+        "status": 200,
+        "ms": 17.018
+      }
+    },
+    {
+      "phase": "image-pull",
+      "t_s": 197,
+      "available_mib": 4308,
+      "health": {
+        "status": 200,
+        "ms": 4.596
+      }
+    },
+    {
+      "phase": "image-pull",
+      "t_s": 202,
+      "available_mib": 4290,
+      "health": {
+        "status": 200,
+        "ms": 5.518
+      }
+    },
+    {
+      "phase": "image-pull",
+      "t_s": 207,
+      "available_mib": 4279,
+      "health": {
+        "status": 200,
+        "ms": 6.875
+      }
+    },
+    {
+      "phase": "image-pull",
+      "t_s": 212,
+      "available_mib": 4297,
+      "health": {
+        "status": 200,
+        "ms": 2.453
+      }
+    },
+    {
+      "phase": "startup",
+      "t_s": 217,
+      "available_mib": 4298,
+      "health": {
+        "status": 200,
+        "ms": 6.493
+      }
+    },
+    {
+      "phase": "startup",
+      "t_s": 222,
+      "available_mib": 4311,
+      "health": {
+        "status": 200,
+        "ms": 5.965
+      }
+    },
+    {
+      "phase": "startup",
+      "t_s": 227,
+      "available_mib": 4314,
+      "health": {
+        "status": 200,
+        "ms": 2.632
+      }
+    },
+    {
+      "phase": "startup",
+      "t_s": 232,
+      "available_mib": 4214,
+      "health": {
+        "status": 200,
+        "ms": 2.188
+      }
+    },
+    {
+      "phase": "startup",
+      "t_s": 237,
+      "available_mib": 3994,
+      "health": {
+        "status": 200,
+        "ms": 2.405
+      }
+    },
+    {
+      "phase": "startup",
+      "t_s": 242,
+      "available_mib": 4251,
+      "health": {
+        "status": 200,
+        "ms": 3.242
+      }
+    },
+    {
+      "phase": "startup",
+      "t_s": 247,
+      "available_mib": 3998,
+      "health": {
+        "status": 200,
+        "ms": 2.397
+      }
+    },
+    {
+      "phase": "startup",
+      "t_s": 252,
+      "available_mib": 3977,
+      "health": {
+        "status": 200,
+        "ms": 5.303
+      }
+    },
+    {
+      "phase": "startup",
+      "t_s": 257,
+      "available_mib": 3899,
+      "health": {
+        "status": 200,
+        "ms": 2.506
+      }
+    },
+    {
+      "phase": "startup",
+      "t_s": 262,
+      "available_mib": 3848,
+      "health": {
+        "status": 200,
+        "ms": 2.653
+      }
+    },
+    {
+      "phase": "startup",
+      "t_s": 267,
+      "available_mib": 3840,
+      "health": {
+        "status": 200,
+        "ms": 3.228
+      }
+    },
+    {
+      "phase": "startup",
+      "t_s": 272,
+      "available_mib": 3793,
+      "health": {
+        "status": 200,
+        "ms": 2.406
+      }
+    },
+    {
+      "phase": "startup",
+      "t_s": 277,
+      "available_mib": 3693,
+      "health": {
+        "status": 200,
+        "ms": 3.373
+      }
+    },
+    {
+      "phase": "startup",
+      "t_s": 282,
+      "available_mib": 3643,
+      "health": {
+        "status": 200,
+        "ms": 2.477
+      }
+    },
+    {
+      "phase": "startup",
+      "t_s": 287,
+      "available_mib": 3631,
+      "health": {
+        "status": 200,
+        "ms": 17.429
+      }
+    },
+    {
+      "phase": "startup",
+      "t_s": 292,
+      "available_mib": 3560,
+      "health": {
+        "status": 200,
+        "ms": 2.48
+      }
+    },
+    {
+      "phase": "startup",
+      "t_s": 297,
+      "available_mib": 3566,
+      "health": {
+        "status": 200,
+        "ms": 2.477
+      }
+    },
+    {
+      "phase": "startup",
+      "t_s": 302,
+      "available_mib": 3537,
+      "health": {
+        "status": 200,
+        "ms": 2.56
+      }
+    },
+    {
+      "phase": "startup",
+      "t_s": 307,
+      "available_mib": 3507,
+      "health": {
+        "status": 200,
+        "ms": 2.522
+      }
+    },
+    {
+      "phase": "startup",
+      "t_s": 312,
+      "available_mib": 3569,
+      "health": {
+        "status": 200,
+        "ms": 5.163
+      }
+    },
+    {
+      "phase": "startup",
+      "t_s": 317,
+      "available_mib": 3538,
+      "health": {
+        "status": 200,
+        "ms": 4.997
+      }
+    },
+    {
+      "phase": "startup",
+      "t_s": 322,
+      "available_mib": 3473,
+      "health": {
+        "status": 200,
+        "ms": 2.588
+      }
+    },
+    {
+      "phase": "startup",
+      "t_s": 327,
+      "available_mib": 3501,
+      "health": {
+        "status": 200,
+        "ms": 2.456
+      }
+    },
+    {
+      "phase": "startup",
+      "t_s": 332,
+      "available_mib": 3395,
+      "health": {
+        "status": 200,
+        "ms": 3.064
+      }
+    },
+    {
+      "phase": "startup",
+      "t_s": 337,
+      "available_mib": 3370,
+      "health": {
+        "status": 200,
+        "ms": 2.511
+      }
+    },
+    {
+      "phase": "startup",
+      "t_s": 342,
+      "available_mib": 3374,
+      "health": {
+        "status": 200,
+        "ms": 3.497
+      }
+    },
+    {
+      "phase": "startup",
+      "t_s": 347,
+      "available_mib": 3276,
+      "health": {
+        "status": 200,
+        "ms": 2.668
+      }
+    },
+    {
+      "phase": "startup",
+      "t_s": 352,
+      "available_mib": 3244,
+      "health": {
+        "status": 200,
+        "ms": 2.82
+      }
+    },
+    {
+      "phase": "startup",
+      "t_s": 357,
+      "available_mib": 3220,
+      "health": {
+        "status": 200,
+        "ms": 2.656
+      }
+    },
+    {
+      "phase": "startup",
+      "t_s": 362,
+      "available_mib": 3210,
+      "health": {
+        "status": 200,
+        "ms": 2.702
+      }
+    },
+    {
+      "phase": "startup",
+      "t_s": 367,
+      "available_mib": 3215,
+      "health": {
+        "status": 200,
+        "ms": 2.706
+      }
+    },
+    {
+      "phase": "startup",
+      "t_s": 372,
+      "available_mib": 3102,
+      "health": {
+        "status": 200,
+        "ms": 5.138
+      }
+    },
+    {
+      "phase": "startup",
+      "t_s": 377,
+      "available_mib": 3066,
+      "health": {
+        "status": 200,
+        "ms": 3.685
+      }
+    },
+    {
+      "phase": "startup",
+      "t_s": 382,
+      "available_mib": 3115,
+      "health": {
+        "status": 200,
+        "ms": 2.581
+      }
+    },
+    {
+      "phase": "startup",
+      "t_s": 387,
+      "available_mib": 3086,
+      "health": {
+        "status": 200,
+        "ms": 4.843
+      }
+    },
+    {
+      "phase": "startup",
+      "t_s": 392,
+      "available_mib": 3045,
+      "health": {
+        "status": 200,
+        "ms": 7.691
+      }
+    },
+    {
+      "phase": "startup",
+      "t_s": 397,
+      "available_mib": 3063,
+      "health": {
+        "status": 200,
+        "ms": 5.428
+      }
+    },
+    {
+      "phase": "startup",
+      "t_s": 402,
+      "available_mib": 3076,
+      "health": {
+        "status": 200,
+        "ms": 5.914
+      }
+    },
+    {
+      "phase": "startup",
+      "t_s": 408,
+      "available_mib": 3022,
+      "health": {
+        "status": 200,
+        "ms": 2.853
+      }
+    },
+    {
+      "phase": "startup",
+      "t_s": 413,
+      "available_mib": 3009,
+      "health": {
+        "status": 200,
+        "ms": 23.186
+      }
+    },
+    {
+      "phase": "startup",
+      "t_s": 418,
+      "available_mib": 3001,
+      "health": {
+        "status": 200,
+        "ms": 5.572
+      }
+    },
+    {
+      "phase": "startup",
+      "t_s": 423,
+      "available_mib": 3009,
+      "health": {
+        "status": 200,
+        "ms": 6.241
+      }
+    },
+    {
+      "phase": "startup",
+      "t_s": 428,
+      "available_mib": 3358,
+      "health": {
+        "status": 200,
+        "ms": 5.852
+      }
+    },
+    {
+      "phase": "cleanup",
+      "t_s": 433,
+      "available_mib": 3849,
+      "health": {
+        "status": 200,
+        "ms": 2.386
+      }
+    },
+    {
+      "phase": "cleanup",
+      "t_s": 438,
+      "available_mib": 4333,
+      "health": {
+        "status": 200,
+        "ms": 5.015
+      }
+    }
+  ],
+  "core_before": {
+    "argus-v18-agent": {
+      "state": "running",
+      "oom": false,
+      "restarts": 0,
+      "started": "2026-10-14T05:00:59.669835578Z"
+    },
+    "argus-v18-worker": {
+      "state": "running",
+      "oom": false,
+      "restarts": 0,
+      "started": "2026-10-14T04:53:54.82485999Z"
+    },
+    "argus-v18-scheduler": {
+      "state": "running",
+      "oom": false,
+      "restarts": 0,
+      "started": "2026-10-14T04:53:54.133365852Z"
+    },
+    "argus-v18-postgres": {
+      "state": "running",
+      "oom": false,
+      "restarts": 0,
+      "started": "2026-10-10T02:37:38.900821995Z"
+    },
+    "argus-v18-ui": {
+      "state": "running",
+      "oom": false,
+      "restarts": 0,
+      "started": "2026-10-14T05:00:27.057887968Z"
+    }
+  },
+  "noninterference_before": "snapshot saved",
+  "image_digests": {
+    "postgres:17": "postgres@sha256:2d2b8998d31037bf721cfdf764d76ba74171b4fab3431b7f72c27c56ddbdf9e3",
+    "redis:7": "redis@sha256:4fa24486b8bcca8eec45ee0eb166edc674795e53a2b53d1a9ef263eecebaac85",
+    "cgr.dev/chainguard/minio:latest": "cgr.dev/chainguard/minio@sha256:2136d593beacf4461187035eca949fe49abd589d5079735025c711ca58fee0c8",
+    "clickhouse/clickhouse-server:25.12": "clickhouse/clickhouse-server@sha256:8a790dd3468db22b1d4e7b18a176f378ff5ff6053b9c48dd4ea1fa71a24c5ba6",
+    "docker.langfuse.com/langfuse/langfuse:4": "docker.langfuse.com/langfuse/langfuse@sha256:b5f4306480d844b2bce43ecd82960cefc0b219e5164ea588ea45ed806a41a4c9",
+    "docker.langfuse.com/langfuse/langfuse-worker:4": "docker.langfuse.com/langfuse/langfuse-worker@sha256:5f0e9e0da70b0c5d91ad9158941ca042c25c936d371524a1454226ebc5f12093"
+  },
+  "trial_failure_states": {
+    "argus-lab-lf1-postgres": {
+      "state": "running",
+      "oom": false,
+      "restarts": 0,
+      "started": "2026-10-14T05:13:18.560202238Z"
+    },
+    "argus-lab-lf1-redis": {
+      "state": "running",
+      "oom": false,
+      "restarts": 0,
+      "started": "2026-10-14T05:13:18.970439528Z"
+    },
+    "argus-lab-lf1-minio": {
+      "state": "running",
+      "oom": false,
+      "restarts": 0,
+      "started": "2026-10-14T05:13:19.467311379Z"
+    },
+    "argus-lab-lf1-clickhouse": {
+      "state": "running",
+      "oom": false,
+      "restarts": 0,
+      "started": "2026-10-14T05:13:19.853314785Z"
+    },
+    "argus-lab-lf1-web": {
+      "state": "running",
+      "oom": false,
+      "restarts": 0,
+      "started": "2026-10-14T05:13:52.036785093Z"
+    },
+    "argus-lab-lf1-worker": {
+      "state": "exited",
+      "oom": false,
+      "restarts": 0,
+      "started": "2026-10-14T05:13:52.3168976Z"
+    }
+  },
+  "failure": "RuntimeError: Langfuse dependency exited or was OOM-killed",
+  "success": false,
+  "cleanup_returncode": 0,
+  "core_after": {
+    "argus-v18-agent": {
+      "state": "running",
+      "oom": false,
+      "restarts": 0,
+      "started": "2026-10-14T05:00:59.669835578Z"
+    },
+    "argus-v18-worker": {
+      "state": "running",
+      "oom": false,
+      "restarts": 0,
+      "started": "2026-10-14T04:53:54.82485999Z"
+    },
+    "argus-v18-scheduler": {
+      "state": "running",
+      "oom": false,
+      "restarts": 0,
+      "started": "2026-10-14T04:53:54.133365852Z"
+    },
+    "argus-v18-postgres": {
+      "state": "running",
+      "oom": false,
+      "restarts": 0,
+      "started": "2026-10-10T02:37:38.900821995Z"
+    },
+    "argus-v18-ui": {
+      "state": "running",
+      "oom": false,
+      "restarts": 0,
+      "started": "2026-10-14T05:00:27.057887968Z"
+    }
+  },
+  "core_unchanged": true,
+  "trial_containers_remaining": [],
+  "trial_volumes_remaining": [],
+  "after_available_mib": 4372,
+  "after_health": {
+    "status": 200,
+    "ms": 2.637
+  },
+  "noninterference": true
+}

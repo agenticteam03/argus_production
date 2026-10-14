@@ -1,0 +1,242 @@
+{
+  "kind": "synthetic-capacity-only",
+  "phases": {
+    "baseline": {
+      "samples": 5,
+      "min_available_mib": 4384,
+      "api_failures": 0,
+      "api_median_ms": 2.39,
+      "api_max_ms": 14.003
+    },
+    "startup": {
+      "samples": 41,
+      "min_available_mib": 2612,
+      "api_failures": 2,
+      "api_median_ms": 2.535,
+      "api_max_ms": 6.602
+    },
+    "image-pull": {
+      "samples": 4,
+      "min_available_mib": 4362,
+      "api_failures": 0,
+      "api_median_ms": 3.769,
+      "api_max_ms": 6.997
+    },
+    "synthetic-ingestion": {
+      "samples": 2,
+      "min_available_mib": 2442,
+      "api_failures": 0,
+      "api_median_ms": 38.575,
+      "api_max_ms": 74.532
+    }
+  },
+  "core_before": {
+    "argus-v18-agent": {
+      "state": "running",
+      "oom": false,
+      "restarts": 0,
+      "started": "2026-10-14T05:00:59.669835578Z"
+    },
+    "argus-v18-worker": {
+      "state": "running",
+      "oom": false,
+      "restarts": 0,
+      "started": "2026-10-14T04:53:54.82485999Z"
+    },
+    "argus-v18-scheduler": {
+      "state": "running",
+      "oom": false,
+      "restarts": 0,
+      "started": "2026-10-14T04:53:54.133365852Z"
+    },
+    "argus-v18-postgres": {
+      "state": "running",
+      "oom": false,
+      "restarts": 0,
+      "started": "2026-10-10T02:37:38.900821995Z"
+    },
+    "argus-v18-ui": {
+      "state": "running",
+      "oom": false,
+      "restarts": 0,
+      "started": "2026-10-14T05:00:27.057887968Z"
+    }
+  },
+  "noninterference_before": "snapshot saved",
+  "image_digests": {
+    "postgres@sha256:2d2b8998d31037bf721cfdf764d76ba74171b4fab3431b7f72c27c56ddbdf9e3": "postgres@sha256:2d2b8998d31037bf721cfdf764d76ba74171b4fab3431b7f72c27c56ddbdf9e3",
+    "redis@sha256:4fa24486b8bcca8eec45ee0eb166edc674795e53a2b53d1a9ef263eecebaac85": "redis@sha256:4fa24486b8bcca8eec45ee0eb166edc674795e53a2b53d1a9ef263eecebaac85",
+    "cgr.dev/chainguard/minio@sha256:2136d593beacf4461187035eca949fe49abd589d5079735025c711ca58fee0c8": "cgr.dev/chainguard/minio@sha256:2136d593beacf4461187035eca949fe49abd589d5079735025c711ca58fee0c8",
+    "clickhouse/clickhouse-server@sha256:8a790dd3468db22b1d4e7b18a176f378ff5ff6053b9c48dd4ea1fa71a24c5ba6": "clickhouse/clickhouse-server@sha256:8a790dd3468db22b1d4e7b18a176f378ff5ff6053b9c48dd4ea1fa71a24c5ba6",
+    "docker.langfuse.com/langfuse/langfuse@sha256:b5f4306480d844b2bce43ecd82960cefc0b219e5164ea588ea45ed806a41a4c9": "docker.langfuse.com/langfuse/langfuse@sha256:b5f4306480d844b2bce43ecd82960cefc0b219e5164ea588ea45ed806a41a4c9",
+    "docker.langfuse.com/langfuse/langfuse-worker@sha256:5f0e9e0da70b0c5d91ad9158941ca042c25c936d371524a1454226ebc5f12093": "docker.langfuse.com/langfuse/langfuse-worker@sha256:5f0e9e0da70b0c5d91ad9158941ca042c25c936d371524a1454226ebc5f12093"
+  },
+  "ready": true,
+  "startup_elapsed_s": 256,
+  "abort": "existing Argus service changed state/restarted",
+  "failure": "RuntimeError: aborted by monitor",
+  "success": false,
+  "diagnostics": {
+    "web": {
+      "exit_code": 0,
+      "oom": false,
+      "log_tail": [
+        "2026-10-14T05:49:43.522Z info \tMCP feature registered: experiments {\"featureName\":\"experiments\",\"toolCount\":2,\"toolNames\":[\"listExperiments\",\"listExperimentItems\"]}",
+        "2026-10-14T05:49:43.522Z info \tMCP feature registered: external-media-storage {\"featureName\":\"external-media-storage\",\"toolCount\":4,\"toolNames\":[\"getExternalMediaStorage\",\"configureExternalMediaStorage\",\"deleteExternalMediaStorage\",\"testExternalMediaStorage\"]}",
+        "2026-10-14T05:49:43.524Z info \tMCP feature registered: alerts {\"featureName\":\"alerts\",\"toolCount\":2,\"toolNames\":[\"listAlerts\",\"getAlert\"]}",
+        "2026-10-14T05:49:43.525Z info \tMCP feature registered: v4Migration {\"featureName\":\"v4Migration\",\"toolCount\":1,\"toolNames\":[\"getV4MigrationData\"]}",
+        "11/u add_blob_storage_file_log (2.09441601s)",
+        "12/u add_session_id_column_scores (2.009434096s)",
+        "13/u drop_scores_trace_id_index (2.090992232s)",
+        "14/u scores_modify_nullable_trace_id_column (2.097176704s)",
+        "15/u add_scores_trace_index (2.011299546s)",
+        "16/u add_scores_session_index (2.011269345s)",
+        "17/u add_run_id_column_scores (2.001359055s)",
+        "18/u add_scores_run_index (2.096588141s)",
+        "19/u analytics_traces (1.894454669s)",
+        "20/u analytics_observations (1.710755971s)",
+        "21/u analytics_scores (1.798248218s)",
+        "22/u dataset_run_items (1.729281666s)",
+        "23/u traces_aggregating_merge_trees (2.497240226s)",
+        "24/u dataset_run_items (2.704485684s)",
+        "25/u add_observations_metadata_indexes (2.917698052s)",
+        "26/u add_trace_id_index (2.998362224s)",
+        "27/u drop_project_environments_mvs (2.909752611s)",
+        "28/u drop_traces_null_mvs (2.808855656s)",
+        "29/u drop_traces_null_and_amt_tables (2.793665858s)",
+        "30/u add_eval_execution_trace_id_to_scores (2.79782288s)",
+        "31/u add_usage_pricing_tier_columns (2.801077017s)",
+        "32/u add_dataset_version_to_dataset_run_items_rmt (2.694165591s)",
+        "33/u add_tool_call_columns (2.772855392s)",
+        "34/u add_long_string_value_to_scores (1.999620806s)",
+        "35/u add_ingestion_attribution_columns (1.707637116s)",
+        "36/u add_ingested_sdks_to_analytics_scores (1.398341097s)",
+        "37/u add_created_at_indexes (1.406951021s)",
+        "38/u create_observations_batch_staging (1.388134445s)",
+        "39/u create_events_full (1.401503113s)",
+        "40/u create_events_core (1.321351184s)",
+        "41/u create_events_core_mv (1.309427643s)",
+        "42/u add_events_ingestion_attribution_columns (2.393869938s)",
+        "43/u add_events_metadata_ngram_index (2.903084538s)",
+        "44/u drop_event_log (2.802645345s)",
+        "45/u drop_project_environments (2.793752859s)",
+        "46/u drop_dataset_run_items (2.78801859s)",
+        "47/u add_eval_execution_columns (4.01851843s)",
+        "48/u enable_block_columns_on_scores_and_dataset_run_items (3.982597167s)",
+        "49/u add_events_name_ngram_indexes (4.406111129s)",
+        "50/u scores_trace_index_granularity (4.493438934s)",
+        "51/u add_topics (4.584433599s)"
+      ]
+    },
+    "worker": {
+      "exit_code": 0,
+      "oom": false,
+      "log_tail": [
+        "2026-10-14T05:48:49.786Z info \totel-ingestion-queue executor started: true",
+        "2026-10-14T05:48:49.788Z info \tsecondary-otel-ingestion-queue executor started: true",
+        "2026-10-14T05:48:49.872Z info \tingestion-queue executor started: true",
+        "2026-10-14T05:48:49.873Z info \tsecondary-ingestion-queue executor started: true",
+        "2026-10-14T05:48:49.874Z info \tmonitor-queue executor started: true",
+        "2026-10-14T05:48:49.875Z info \texperiment-create-queue executor started: true",
+        "2026-10-14T05:48:49.877Z info \tposthog-integration-queue executor started: true",
+        "2026-10-14T05:48:49.877Z info \tposthog-integration-processing-queue executor started: true",
+        "2026-10-14T05:48:49.878Z info \tv4-legacy-api-usage-queue executor started: true",
+        "2026-10-14T05:48:49.880Z info \tmixpanel-integration-queue executor started: true",
+        "2026-10-14T05:48:49.881Z info \tmixpanel-integration-processing-queue executor started: true",
+        "2026-10-14T05:48:49.882Z info \tblobstorage-integration-queue executor started: true",
+        "2026-10-14T05:48:49.883Z info \tblobstorage-integration-processing-queue executor started: true",
+        "2026-10-14T05:48:49.884Z info \tdata-retention-queue executor started: true",
+        "2026-10-14T05:48:49.885Z info \tdata-retention-processing-queue executor started: true",
+        "2026-10-14T05:48:49.885Z info \twebhook-queue executor started: true",
+        "2026-10-14T05:48:49.886Z info \tentity-change-queue executor started: true",
+        "2026-10-14T05:48:49.887Z info \tevent-propagation-queue executor started: true",
+        "2026-10-14T05:48:49.888Z info \tnotification-queue executor started: true",
+        "2026-10-14T05:48:49.888Z info \tStarting TraceDeleteBatchActionRunner {\"intervalMs\":10000,\"lockTtlSeconds\":1800,\"batchSize\":2000,\"maxBatchesPerRun\":5}",
+        "2026-10-14T05:48:50.075Z info \tStarting MonitorRunner(1/1) {\"schedulerId\":0,\"totalSchedulers\":1,\"intervalMs\":30000}",
+        "2026-10-14T05:48:50.375Z info \tListening: http://f9b3a102c68b:3030",
+        "2026-10-14T05:48:55.072Z info \t[Background Migration] Found background migrations 20250102_backfill_billing_cycle_anchors to run {\"trace_id\":\"9f25c1a843e8dc805ea2cd0409815429\",\"span_id\":\"365fc2c21162c85d\",\"trace_flags\":\"01\"}",
+        "2026-10-14T05:48:55.078Z info \tMonitorRunner(1/1): published 0 events {\"trace_id\":\"3a7b933421bdadb848fca6a60e20b4ce\",\"span_id\":\"67f23acfc7ff211e\",\"trace_flags\":\"01\"}",
+        "2026-10-14T05:48:56.987Z info \t[Background Migration] Acquired lock for background migration 20250102_backfill_billing_cycle_anchors {\"trace_id\":\"9f25c1a843e8dc805ea2cd0409815429\",\"span_id\":\"365fc2c21162c85d\",\"trace_flags\":\"01\"}",
+        "2026-10-14T05:48:57.987Z error \tError running background migrations Transaction API error: Transaction already closed: A commit cannot be executed on an expired transaction. The timeout for this transaction was 5000 ms, however 6992 ms passed since the start of the transaction. Consider increasing the interactive transaction timeout or doing less work in the transaction. {\"code\":\"P2028\",\"meta\":{\"error\":\"Transaction already closed: A commit cannot be executed on an expired transaction. The timeout for this transaction was 5000 ms, however 6992 ms passed since the start of the transaction. Consider increasing the interactive transaction timeout or doing less work in the transaction.\"},\"clientVersion\":\"6.19.3\",\"name\":\"PrismaClientKnownRequestError\"}",
+        "PrismaClientKnownRequestError: Transaction API error: Transaction already closed: A commit cannot be executed on an expired transaction. The timeout for this transaction was 5000 ms, however 6992 ms passed since the start of the transaction. Consider increasing the interactive transaction timeout or doing less work in the transaction.",
+        "    at Qr.transaction (/app/worker/node_modules/.pnpm/@prisma+client@6.19.3_@typescript+typescript6@6.0.2_prisma@6.19.3_@typescript+typescript6@6.0.2_magicast@0.5.2_/node_modules/@prisma/client/runtime/library.js:111:11521)",
+        "    at async Proxy._transactionWithCallback (/app/worker/node_modules/.pnpm/@prisma+client@6.19.3_@typescript+typescript6@6.0.2_prisma@6.19.3_@typescript+typescript6@6.0.2_magicast@0.5.2_/node_modules/@prisma/client/runtime/library.js:130:8154)",
+        "    at async /app/worker/dist/backgroundMigrations/backgroundMigrationManager.js:45:17",
+        "    at async /app/worker/node_modules/.pnpm/@langfuse+shared@file++++app+packages+shared/node_modules/@langfuse/shared/dist/src/server/instrumentation/index.js:65:28",
+        "    at async BackgroundMigrationManager.run (/app/worker/dist/backgroundMigrations/backgroundMigrationManager.js:31:9)",
+        "2026-10-14T05:49:00.185Z info \tExecuting Event Propagation Job {\"trace_id\":\"976af72558040d7eb9f214ed34d197aa\",\"span_id\":\"75faca1b704f6d06\",\"trace_flags\":\"01\"}",
+        "2026-10-14T05:49:00.187Z info \t[DUAL WRITE] Last processed partition: none {\"trace_id\":\"976af72558040d7eb9f214ed34d197aa\",\"span_id\":\"75faca1b704f6d06\",\"trace_flags\":\"01\"}",
+        "2026-10-14T05:49:00.276Z info \t[Connection] Log level is set to INFO {\"trace_id\":\"976af72558040d7eb9f214ed34d197aa\",\"span_id\":\"4e4d36424ee9f69a\",\"trace_flags\":\"01\"}",
+        "2026-10-14T05:49:00.377Z info \t[DUAL WRITE] No partitions available for processing (last processed: none) {\"trace_id\":\"976af72558040d7eb9f214ed34d197aa\",\"span_id\":\"75faca1b704f6d06\",\"trace_flags\":\"01\"}",
+        "2026-10-14T05:49:00.377Z info \t[EXPERIMENT BACKFILL] Checking if backfill should run {\"trace_id\":\"976af72558040d7eb9f214ed34d197aa\",\"span_id\":\"75faca1b704f6d06\",\"trace_flags\":\"01\"}",
+        "2026-10-14T05:49:00.380Z info \t[EXPERIMENT BACKFILL] Initialized cutoff timestamp to 2026-10-14T05:49:00.378Z (first run) {\"trace_id\":\"976af72558040d7eb9f214ed34d197aa\",\"span_id\":\"75faca1b704f6d06\",\"trace_flags\":\"01\"}",
+        "2026-10-14T05:49:26.885Z info \tMonitorRunner(1/1): published 0 events {\"trace_id\":\"5be83df961b1e2a7ffec938b8736fe32\",\"span_id\":\"ceeedf1169f8ca8c\",\"trace_flags\":\"01\"}",
+        "2026-10-14T05:49:56.896Z info \tMonitorRunner(1/1): published 0 events {\"trace_id\":\"e7e64610da51c9ff42b4e8fec5118ebb\",\"span_id\":\"2d836cb9c270c2c2\",\"trace_flags\":\"01\"}",
+        "2026-10-14T05:50:00.274Z info \tExecuting Event Propagation Job {\"trace_id\":\"2109c28388009ef31e1ca96ebc3c4654\",\"span_id\":\"b024918cd0e98fc9\",\"trace_flags\":\"01\"}",
+        "2026-10-14T05:50:00.276Z info \t[DUAL WRITE] Last processed partition: none {\"trace_id\":\"2109c28388009ef31e1ca96ebc3c4654\",\"span_id\":\"b024918cd0e98fc9\",\"trace_flags\":\"01\"}",
+        "2026-10-14T05:50:00.401Z info \t[DUAL WRITE] No partitions available for processing (last processed: none) {\"trace_id\":\"2109c28388009ef31e1ca96ebc3c4654\",\"span_id\":\"b024918cd0e98fc9\",\"trace_flags\":\"01\"}",
+        "2026-10-14T05:50:00.401Z info \t[EXPERIMENT BACKFILL] Checking if backfill should run {\"trace_id\":\"2109c28388009ef31e1ca96ebc3c4654\",\"span_id\":\"b024918cd0e98fc9\",\"trace_flags\":\"01\"}",
+        "2026-10-14T05:50:04.815Z info \tStarting ClickhouseWriter. Max interval: 1000 ms, Max batch size: 1000 {\"format\":\"json\",\"trace_id\":\"1cc19ba6854d536712b39116662391e3\",\"span_id\":\"fef70c098a4cac15\",\"trace_flags\":\"01\"}"
+      ]
+    },
+    "clickhouse": {
+      "exit_code": 0,
+      "oom": false,
+      "log_tail": [
+        "/entrypoint.sh: create new user 'langfuse' instead 'default'",
+        "",
+        "/entrypoint.sh: create database 'default'",
+        "Processing configuration file '/etc/clickhouse-server/config.xml'.",
+        "Merging configuration file '/etc/clickhouse-server/config.d/docker_related_config.xml'.",
+        "Logging trace to /var/log/clickhouse-server/clickhouse-server.log",
+        "Logging errors to /var/log/clickhouse-server/clickhouse-server.err.log",
+        "Processing configuration file '/etc/clickhouse-server/config.xml'.",
+        "Merging configuration file '/etc/clickhouse-server/config.d/docker_related_config.xml'.",
+        "Logging trace to /var/log/clickhouse-server/clickhouse-server.log",
+        "Logging errors to /var/log/clickhouse-server/clickhouse-server.err.log"
+      ]
+    }
+  },
+  "cleanup_returncode": 0,
+  "core_after": {
+    "argus-v18-agent": {
+      "state": "running",
+      "oom": false,
+      "restarts": 0,
+      "started": "2026-10-14T05:49:43.045484157Z"
+    },
+    "argus-v18-worker": {
+      "state": "running",
+      "oom": false,
+      "restarts": 0,
+      "started": "2026-10-14T05:49:42.699448911Z"
+    },
+    "argus-v18-scheduler": {
+      "state": "running",
+      "oom": false,
+      "restarts": 0,
+      "started": "2026-10-14T04:53:54.133365852Z"
+    },
+    "argus-v18-postgres": {
+      "state": "running",
+      "oom": false,
+      "restarts": 0,
+      "started": "2026-10-10T02:37:38.900821995Z"
+    },
+    "argus-v18-ui": {
+      "state": "running",
+      "oom": false,
+      "restarts": 0,
+      "started": "2026-10-14T05:00:27.057887968Z"
+    }
+  },
+  "core_unchanged": false,
+  "trial_containers_remaining": [],
+  "trial_volumes_remaining": [],
+  "after_available_mib": 4339,
+  "after_health": {
+    "status": 200,
+    "ms": 2.484
+  },
+  "noninterference": true
+}

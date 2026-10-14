@@ -1,0 +1,277 @@
+{
+  "kind": "synthetic-capacity-only",
+  "phases": {
+    "image-pull": {
+      "samples": 2,
+      "min_available_mib": 4369,
+      "api_failures": 0,
+      "api_median_ms": 3.943,
+      "api_max_ms": 5.261
+    },
+    "baseline": {
+      "samples": 5,
+      "min_available_mib": 4372,
+      "api_failures": 0,
+      "api_median_ms": 2.369,
+      "api_max_ms": 15.043
+    },
+    "cleanup": {
+      "samples": 1,
+      "min_available_mib": 3893,
+      "api_failures": 0,
+      "api_median_ms": 2.259,
+      "api_max_ms": 2.259
+    },
+    "startup": {
+      "samples": 39,
+      "min_available_mib": 3014,
+      "api_failures": 0,
+      "api_median_ms": 2.834,
+      "api_max_ms": 15.858
+    }
+  },
+  "core_before": {
+    "argus-v18-agent": {
+      "state": "running",
+      "oom": false,
+      "restarts": 0,
+      "started": "2026-10-14T05:00:59.669835578Z"
+    },
+    "argus-v18-worker": {
+      "state": "running",
+      "oom": false,
+      "restarts": 0,
+      "started": "2026-10-14T04:53:54.82485999Z"
+    },
+    "argus-v18-scheduler": {
+      "state": "running",
+      "oom": false,
+      "restarts": 0,
+      "started": "2026-10-14T04:53:54.133365852Z"
+    },
+    "argus-v18-postgres": {
+      "state": "running",
+      "oom": false,
+      "restarts": 0,
+      "started": "2026-10-10T02:37:38.900821995Z"
+    },
+    "argus-v18-ui": {
+      "state": "running",
+      "oom": false,
+      "restarts": 0,
+      "started": "2026-10-14T05:00:27.057887968Z"
+    }
+  },
+  "noninterference_before": "snapshot saved",
+  "image_digests": {
+    "postgres:17": "postgres@sha256:2d2b8998d31037bf721cfdf764d76ba74171b4fab3431b7f72c27c56ddbdf9e3",
+    "redis:7": "redis@sha256:4fa24486b8bcca8eec45ee0eb166edc674795e53a2b53d1a9ef263eecebaac85",
+    "cgr.dev/chainguard/minio:latest": "cgr.dev/chainguard/minio@sha256:2136d593beacf4461187035eca949fe49abd589d5079735025c711ca58fee0c8",
+    "clickhouse/clickhouse-server:25.12": "clickhouse/clickhouse-server@sha256:8a790dd3468db22b1d4e7b18a176f378ff5ff6053b9c48dd4ea1fa71a24c5ba6",
+    "docker.langfuse.com/langfuse/langfuse:4": "docker.langfuse.com/langfuse/langfuse@sha256:b5f4306480d844b2bce43ecd82960cefc0b219e5164ea588ea45ed806a41a4c9",
+    "docker.langfuse.com/langfuse/langfuse-worker:4": "docker.langfuse.com/langfuse/langfuse-worker@sha256:5f0e9e0da70b0c5d91ad9158941ca042c25c936d371524a1454226ebc5f12093"
+  },
+  "trial_failure_states": {
+    "argus-lab-lf1-postgres": {
+      "state": "running",
+      "oom": false,
+      "restarts": 0,
+      "started": "2026-10-14T05:19:30.780568623Z"
+    },
+    "argus-lab-lf1-redis": {
+      "state": "running",
+      "oom": false,
+      "restarts": 0,
+      "started": "2026-10-14T05:19:31.262751483Z"
+    },
+    "argus-lab-lf1-minio": {
+      "state": "running",
+      "oom": false,
+      "restarts": 0,
+      "started": "2026-10-14T05:19:30.321834563Z"
+    },
+    "argus-lab-lf1-clickhouse": {
+      "state": "running",
+      "oom": false,
+      "restarts": 0,
+      "started": "2026-10-14T05:19:30.572769603Z"
+    },
+    "argus-lab-lf1-web": {
+      "state": "running",
+      "oom": false,
+      "restarts": 0,
+      "started": "2026-10-14T05:20:02.707822776Z"
+    },
+    "argus-lab-lf1-worker": {
+      "state": "exited",
+      "oom": false,
+      "restarts": 0,
+      "started": "2026-10-14T05:20:02.492877879Z"
+    }
+  },
+  "failure": "RuntimeError: Langfuse dependency exited or was OOM-killed",
+  "success": false,
+  "diagnostics": {
+    "web": {
+      "exit_code": 0,
+      "oom": false,
+      "log_tail": [
+        "7/u add_event_log (576.30486ms)",
+        "8/u add_environments_column (688.444232ms)",
+        "9/u add_project_environments (869.798517ms)",
+        "10/u add_metadata_column_on_scores (886.682563ms)",
+        "11/u add_blob_storage_file_log (993.77683ms)",
+        "12/u add_session_id_column_scores (1.009354629s)",
+        "13/u drop_scores_trace_id_index (1.0860307s)",
+        "14/u scores_modify_nullable_trace_id_column (1.090564723s)",
+        "15/u add_scores_trace_index (1.077756898s)",
+        "16/u add_scores_session_index (1.097979441s)",
+        "17/u add_run_id_column_scores (1.085507817s)",
+        "18/u add_scores_run_index (1.1956193s)",
+        "19/u analytics_traces (1.193703249s)",
+        "20/u analytics_observations (1.117414781s)",
+        "21/u analytics_scores (1.289176297s)",
+        "22/u dataset_run_items (1.291539709s)",
+        "23/u traces_aggregating_merge_trees (1.902623426s)",
+        "24/u dataset_run_items (1.908608696s)",
+        "25/u add_observations_metadata_indexes (1.993470409s)",
+        "26/u add_trace_id_index (1.99543218s)",
+        "27/u drop_project_environments_mvs (1.900218413s)",
+        "28/u drop_traces_null_mvs (1.901027658s)",
+        "29/u drop_traces_null_and_amt_tables (1.79773013s)",
+        "30/u add_eval_execution_trace_id_to_scores (1.708640596s)",
+        "31/u add_usage_pricing_tier_columns (1.788543204s)",
+        "32/u add_dataset_version_to_dataset_run_items_rmt (1.615695322s)",
+        "33/u add_tool_call_columns (1.70736219s)",
+        "34/u add_long_string_value_to_scores (1.101718181s)",
+        "35/u add_ingestion_attribution_columns (1.193766729s)",
+        "36/u add_ingested_sdks_to_analytics_scores (1.10766065s)",
+        "37/u add_created_at_indexes (1.609095049s)",
+        "38/u create_observations_batch_staging (1.698876747s)",
+        "39/u create_events_full (1.714459787s)",
+        "40/u create_events_core (1.798566415s)",
+        "41/u create_events_core_mv (1.881274757s)",
+        "42/u add_events_ingestion_attribution_columns (2.600635667s)",
+        "43/u add_events_metadata_ngram_index (2.882525145s)",
+        "44/u drop_event_log (2.698499406s)",
+        "45/u drop_project_environments (2.683962812s)",
+        "46/u drop_dataset_run_items (2.503668532s)",
+        "47/u add_eval_execution_columns (3.811587604s)",
+        "48/u enable_block_columns_on_scores_and_dataset_run_items (3.313079741s)",
+        "49/u add_events_name_ngram_indexes (3.894259186s)",
+        "50/u scores_trace_index_granularity (3.902337827s)",
+        "51/u add_topics (3.919019032s)"
+      ]
+    },
+    "worker": {
+      "exit_code": 134,
+      "oom": false,
+      "log_tail": [
+        "2026-10-14T05:21:42.907Z error \tError upserting default model gpt-5.5-2026-04-23 (0a8ec527-44e0-4ee3-8005-a1865d712ec6): Transaction API error: Unable to start a transaction in the given time. {\"error\":{\"code\":\"P2028\",\"meta\":{\"error\":\"Unable to start a transaction in the given time.\"},\"clientVersion\":\"6.19.3\",\"name\":\"PrismaClientKnownRequestError\",\"message\":\"Transaction API error: Unable to start a transaction in the given time.\",\"stack\":\"PrismaClientKnownRequestError: Transaction API error: Unable to start a transaction in the given time.\\n    at Qr.transaction (/app/worker/node_modules/.pnpm/@prisma+client@6.19.3_@typescript+typescript6@6.0.2_prisma@6.19.3_@typescript+typescript6@6.0.2_magicast@0.5.2_/node_modules/@prisma/client/runtime/library.js:111:11521)\\n    at async Proxy._transactionWithCallback (/app/worker/node_modules/.pnpm/@prisma+client@6.19.3_@typescript+typescript6@6.0.2_prisma@6.19.3_@typescript+typescript6@6.0.2_magicast@0.5.2_/node_modules/@prisma/client/runtime/library.js:130:8044)\\n    at async upsertModelWithTiers (/app/worker/dist/scripts/upsertDefaultModelPrices.js:161:5)\\n    at async Promise.all (index 9)\\n    at async upsertDefaultModelPrices (/app/worker/dist/scripts/upsertDefaultModelPrices.js:142:13)\\n    at async Promise.all (index 0)\\n    at async initializeWorker (/app/worker/dist/initialize.js:11:5)\\n    at async startWorker (/app/worker/dist/index.js:11:5)\"}}",
+        "2026-10-14T05:21:42.909Z error \tError upserting default model gpt-5.4-nano (2d83d130-d0f1-4b5d-be1c-7caf70b8e444): Transaction API error: Unable to start a transaction in the given time. {\"error\":{\"code\":\"P2028\",\"meta\":{\"error\":\"Unable to start a transaction in the given time.\"},\"clientVersion\":\"6.19.3\",\"name\":\"PrismaClientKnownRequestError\",\"message\":\"Transaction API error: Unable to start a transaction in the given time.\",\"stack\":\"PrismaClientKnownRequestError: Transaction API error: Unable to start a transaction in the given time.\\n    at Qr.transaction (/app/worker/node_modules/.pnpm/@prisma+client@6.19.3_@typescript+typescript6@6.0.2_prisma@6.19.3_@typescript+typescript6@6.0.2_magicast@0.5.2_/node_modules/@prisma/client/runtime/library.js:111:11521)\\n    at async Proxy._transactionWithCallback (/app/worker/node_modules/.pnpm/@prisma+client@6.19.3_@typescript+typescript6@6.0.2_prisma@6.19.3_@typescript+typescript6@6.0.2_magicast@0.5.2_/node_modules/@prisma/client/runtime/library.js:130:8044)\\n    at async upsertModelWithTiers (/app/worker/dist/scripts/upsertDefaultModelPrices.js:161:5)\\n    at async Promise.all (index 7)\\n    at async upsertDefaultModelPrices (/app/worker/dist/scripts/upsertDefaultModelPrices.js:142:13)\\n    at async Promise.all (index 0)\\n    at async initializeWorker (/app/worker/dist/initialize.js:11:5)\\n    at async startWorker (/app/worker/dist/index.js:11:5)\"}}",
+        "2026-10-14T05:21:42.910Z error \tError upserting default model gpt-5.4-nano-2026-03-17 (33c7321b-c56e-45e9-9640-33ba3f5cb4fa): Transaction API error: Unable to start a transaction in the given time. {\"error\":{\"code\":\"P2028\",\"meta\":{\"error\":\"Unable to start a transaction in the given time.\"},\"clientVersion\":\"6.19.3\",\"name\":\"PrismaClientKnownRequestError\",\"message\":\"Transaction API error: Unable to start a transaction in the given time.\",\"stack\":\"PrismaClientKnownRequestError: Transaction API error: Unable to start a transaction in the given time.\\n    at Qr.transaction (/app/worker/node_modules/.pnpm/@prisma+client@6.19.3_@typescript+typescript6@6.0.2_prisma@6.19.3_@typescript+typescript6@6.0.2_magicast@0.5.2_/node_modules/@prisma/client/runtime/library.js:111:11521)\\n    at async Proxy._transactionWithCallback (/app/worker/node_modules/.pnpm/@prisma+client@6.19.3_@typescript+typescript6@6.0.2_prisma@6.19.3_@typescript+typescript6@6.0.2_magicast@0.5.2_/node_modules/@prisma/client/runtime/library.js:130:8044)\\n    at async upsertModelWithTiers (/app/worker/dist/scripts/upsertDefaultModelPrices.js:161:5)\\n    at async Promise.all (index 8)\\n    at async upsertDefaultModelPrices (/app/worker/dist/scripts/upsertDefaultModelPrices.js:142:13)\\n    at async Promise.all (index 0)\\n    at async initializeWorker (/app/worker/dist/initialize.js:11:5)\\n    at async startWorker (/app/worker/dist/index.js:11:5)\"}}",
+        "2026-10-14T05:21:43.209Z info \tUpserted default model gpt-5.4-2026-03-05 (22dfc7e1-1fe1-4286-b1af-928635e7ecb9) with 5 tiers {\"trace_id\":\"a5d5bc9a431e3396ecdad414e55a5e95\",\"span_id\":\"c57233802db701d8\",\"trace_flags\":\"01\"}",
+        "2026-10-14T05:21:43.396Z info \tUpserted default model gpt-5.4-mini (4bf01a9f-663f-4302-a05c-b2b42c5348e3) with 3 tiers {\"trace_id\":\"9c0ad32e47dc326fdfade208f1d19ed3\",\"span_id\":\"e743c9caec105335\",\"trace_flags\":\"01\"}",
+        "2026-10-14T05:21:43.953Z info \tUpserted default model gpt-5.5-pro-2026-04-23 (913d4e67-7472-49d1-97de-0a707ca3e31e) with 3 tiers {\"trace_id\":\"d5e81199951bd0173b5acaf71869cd6c\",\"span_id\":\"523776434b34cfa7\",\"trace_flags\":\"01\"}",
+        "2026-10-14T05:21:44.904Z info \tUpserted default model gpt-5.6-terra (8a4e3f2b-5c6d-4e7f-9a0b-1c2d3e4f5a6b) with 6 tiers {\"trace_id\":\"2027803166b5d2526b27ac5b0eecd206\",\"span_id\":\"571f420f6ff60129\",\"trace_flags\":\"01\"}",
+        "2026-10-14T05:21:45.123Z info \tUpserted default model gpt-5.6-sol (7f3d2e1a-4b5c-4d6e-8f9a-0b1c2d3e4f5a) with 6 tiers {\"trace_id\":\"86b128e9f6449ce1fc9399eaac429b4d\",\"span_id\":\"a65bc50a546129d4\",\"trace_flags\":\"01\"}",
+        "2026-10-14T05:21:45.423Z error \tError upserting default model gpt-6.1-sol (ee39f703-e13e-43bc-b366-78596786cd06): Transaction API error: Unable to start a transaction in the given time. {\"error\":{\"code\":\"P2028\",\"meta\":{\"error\":\"Unable to start a transaction in the given time.\"},\"clientVersion\":\"6.19.3\",\"name\":\"PrismaClientKnownRequestError\",\"message\":\"Transaction API error: Unable to start a transaction in the given time.\",\"stack\":\"PrismaClientKnownRequestError: Transaction API error: Unable to start a transaction in the given time.\\n    at Qr.transaction (/app/worker/node_modules/.pnpm/@prisma+client@6.19.3_@typescript+typescript6@6.0.2_prisma@6.19.3_@typescript+typescript6@6.0.2_magicast@0.5.2_/node_modules/@prisma/client/runtime/library.js:111:11521)\\n    at async Proxy._transactionWithCallback (/app/worker/node_modules/.pnpm/@prisma+client@6.19.3_@typescript+typescript6@6.0.2_prisma@6.19.3_@typescript+typescript6@6.0.2_magicast@0.5.2_/node_modules/@prisma/client/runtime/library.js:130:8044)\\n    at async upsertModelWithTiers (/app/worker/dist/scripts/upsertDefaultModelPrices.js:161:5)\\n    at async Promise.all (index 6)\\n    at async upsertDefaultModelPrices (/app/worker/dist/scripts/upsertDefaultModelPrices.js:142:13)\\n    at async Promise.all (index 0)\\n    at async initializeWorker (/app/worker/dist/initialize.js:11:5)\\n    at async startWorker (/app/worker/dist/index.js:11:5)\"}}",
+        "2026-10-14T05:21:45.423Z error \tError upserting default model gpt-6-luna (8edc337e-ba50-4811-bc51-e9ad4253826c): Transaction API error: Unable to start a transaction in the given time. {\"error\":{\"code\":\"P2028\",\"meta\":{\"error\":\"Unable to start a transaction in the given time.\"},\"clientVersion\":\"6.19.3\",\"name\":\"PrismaClientKnownRequestError\",\"message\":\"Transaction API error: Unable to start a transaction in the given time.\",\"stack\":\"PrismaClientKnownRequestError: Transaction API error: Unable to start a transaction in the given time.\\n    at Qr.transaction (/app/worker/node_modules/.pnpm/@prisma+client@6.19.3_@typescript+typescript6@6.0.2_prisma@6.19.3_@typescript+typescript6@6.0.2_magicast@0.5.2_/node_modules/@prisma/client/runtime/library.js:111:11521)\\n    at async Proxy._transactionWithCallback (/app/worker/node_modules/.pnpm/@prisma+client@6.19.3_@typescript+typescript6@6.0.2_prisma@6.19.3_@typescript+typescript6@6.0.2_magicast@0.5.2_/node_modules/@prisma/client/runtime/library.js:130:8044)\\n    at async upsertModelWithTiers (/app/worker/dist/scripts/upsertDefaultModelPrices.js:161:5)\\n    at async Promise.all (index 7)\\n    at async upsertDefaultModelPrices (/app/worker/dist/scripts/upsertDefaultModelPrices.js:142:13)\\n    at async Promise.all (index 0)\\n    at async initializeWorker (/app/worker/dist/initialize.js:11:5)\\n    at async startWorker (/app/worker/dist/index.js:11:5)\"}}",
+        "2026-10-14T05:21:45.425Z error \tError upserting default model gemini-3-flash-preview (cmjfoeykl000004l8ffzra8c7): Transaction API error: Unable to start a transaction in the given time. {\"error\":{\"code\":\"P2028\",\"meta\":{\"error\":\"Unable to start a transaction in the given time.\"},\"clientVersion\":\"6.19.3\",\"name\":\"PrismaClientKnownRequestError\",\"message\":\"Transaction API error: Unable to start a transaction in the given time.\",\"stack\":\"PrismaClientKnownRequestError: Transaction API error: Unable to start a transaction in the given time.\\n    at Qr.transaction (/app/worker/node_modules/.pnpm/@prisma+client@6.19.3_@typescript+typescript6@6.0.2_prisma@6.19.3_@typescript+typescript6@6.0.2_magicast@0.5.2_/node_modules/@prisma/client/runtime/library.js:111:11521)\\n    at async Proxy._transactionWithCallback (/app/worker/node_modules/.pnpm/@prisma+client@6.19.3_@typescript+typescript6@6.0.2_prisma@6.19.3_@typescript+typescript6@6.0.2_magicast@0.5.2_/node_modules/@prisma/client/runtime/library.js:130:8044)\\n    at async upsertModelWithTiers (/app/worker/dist/scripts/upsertDefaultModelPrices.js:161:5)\\n    at async Promise.all (index 9)\\n    at async upsertDefaultModelPrices (/app/worker/dist/scripts/upsertDefaultModelPrices.js:142:13)\\n    at async Promise.all (index 0)\\n    at async initializeWorker (/app/worker/dist/initialize.js:11:5)\\n    at async startWorker (/app/worker/dist/index.js:11:5)\"}}",
+        "2026-10-14T05:21:45.451Z error \tError upserting default model gemini-3.5-flash (6ed696e7-5f3a-4113-a233-019155fb3ff0): Transaction API error: Unable to start a transaction in the given time. {\"error\":{\"code\":\"P2028\",\"meta\":{\"error\":\"Unable to start a transaction in the given time.\"},\"clientVersion\":\"6.19.3\",\"name\":\"PrismaClientKnownRequestError\",\"message\":\"Transaction API error: Unable to start a transaction in the given time.\",\"stack\":\"PrismaClientKnownRequestError: Transaction API error: Unable to start a transaction in the given time.\\n    at Qr.transaction (/app/worker/node_modules/.pnpm/@prisma+client@6.19.3_@typescript+typescript6@6.0.2_prisma@6.19.3_@typescript+typescript6@6.0.2_magicast@0.5.2_/node_modules/@prisma/client/runtime/library.js:111:11521)\\n    at async Proxy._transactionWithCallback (/app/worker/node_modules/.pnpm/@prisma+client@6.19.3_@typescript+typescript6@6.0.2_prisma@6.19.3_@typescript+typescript6@6.0.2_magicast@0.5.2_/node_modules/@prisma/client/runtime/library.js:130:8044)\\n    at async upsertModelWithTiers (/app/worker/dist/scripts/upsertDefaultModelPrices.js:161:5)\\n    at async Promise.all (index 8)\\n    at async upsertDefaultModelPrices (/app/worker/dist/scripts/upsertDefaultModelPrices.js:142:13)\\n    at async Promise.all (index 0)\\n    at async initializeWorker (/app/worker/dist/initialize.js:11:5)\\n    at async startWorker (/app/worker/dist/index.js:11:5)\"}}",
+        "2026-10-14T05:21:46.000Z info \tUpserted default model gpt-5.6-luna (9b5f4a3c-6d7e-4f8a-ab1c-2d3e4f5a6b7c) with 6 tiers {\"trace_id\":\"ed0052ca84d612a5bba32da4a4499f36\",\"span_id\":\"b311cfad3b49cd0d\",\"trace_flags\":\"01\"}",
+        "2026-10-14T05:21:46.603Z info \tUpserted default model gpt-6-sol (2a17ca9a-5cfd-47ca-b4b5-b04978ff77bb) with 6 tiers {\"trace_id\":\"39220084779e21a771e5787e5c027cb4\",\"span_id\":\"e672ac039d09ba66\",\"trace_flags\":\"01\"}",
+        "2026-10-14T05:21:46.701Z info \tUpserted default model gpt-6-astra (92f817ff-d8a1-479b-87eb-405f9c7b4a18) with 8 tiers {\"trace_id\":\"667f0bf0709ab493afdf7d7248331d2e\",\"span_id\":\"c15c3bbd5f38a474\",\"trace_flags\":\"01\"}",
+        "2026-10-14T05:21:46.897Z info \tUpserted default model gemini-live-2.5-flash-native-audio (029e6695-ff24-47f0-b37b-7285fb2e5785) with 1 tiers {\"trace_id\":\"b6fd84f07c4604c4fd799c6f96f9fe2f\",\"span_id\":\"662a48a7a8ebe147\",\"trace_flags\":\"01\"}",
+        "2026-10-14T05:21:47.202Z info \tUpserted default model gemini-3.1-flash-lite-preview (0707bef8-10c8-46e2-a871-0436f05f0b92) with 1 tiers {\"trace_id\":\"4dc72a5b6576d6be58a1e2e06d0b9ca1\",\"span_id\":\"17a9021177ec8930\",\"trace_flags\":\"01\"}",
+        "2026-10-14T05:21:47.710Z info \tUpserted default model gemini-3.1-flash-lite (79f4d62c-22fb-4ec3-82e1-6e56cdd5e23c) with 2 tiers {\"trace_id\":\"0b304c1cada4aa96e764f683f866bb65\",\"span_id\":\"e8d57793edad994a\",\"trace_flags\":\"01\"}",
+        "2026-10-14T05:21:47.905Z info \tUpserted default model gemini-3.6-flash (a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d) with 2 tiers {\"trace_id\":\"1f9614b73a63f62e8f7e8955596865d8\",\"span_id\":\"76c69e3a3280e9a5\",\"trace_flags\":\"01\"}",
+        "2026-10-14T05:21:48.400Z info \tUpserted default model gemini-3.7-flash (b91d332c-a2fd-b85c-f6e6-971796f3f111) with 2 tiers {\"trace_id\":\"8038f738fbf5b80c120bc0d3cffbc04c\",\"span_id\":\"c46d562472a8d5df\",\"trace_flags\":\"01\"}",
+        "2026-10-14T05:21:48.654Z info \tUpserted default model jev (7f3c9a2e-5b1d-4e8f-9a6c-2d4b8e1f0a3c) with 1 tiers {\"trace_id\":\"a5789527f60eb55e3bbbe0d16184e358\",\"span_id\":\"cacdc2d7fc041f1b\",\"trace_flags\":\"01\"}",
+        "2026-10-14T05:21:48.802Z info \tUpserted default model gemini-3.8-flash (c3a9f9a6-b79a-4e42-8835-9f0f8204a709) with 2 tiers {\"trace_id\":\"54a31972b3a460b73f5983b0f5a4ccf2\",\"span_id\":\"512f3d19bc94c044\",\"trace_flags\":\"01\"}",
+        "2026-10-14T05:21:48.895Z info \tUpserted default model gemini-3.5-flash-lite (b2c3d4e5-f6a7-4b8c-9d0e-1f2a3b4c5d6e) with 2 tiers {\"trace_id\":\"5c7c42012236c06d1a2802c8bb791d06\",\"span_id\":\"142413bd488e1f52\",\"trace_flags\":\"01\"}",
+        "2026-10-14T05:21:48.905Z info \tClearing full model cache...",
+        "2026-10-14T05:21:48.910Z info \tNo keys found for match pattern 'model-price-tiers*'",
+        "2026-10-14T05:21:48.911Z info \tFinished upserting default model prices in 29954ms",
+        "",
+        "<--- Last few GCs --->",
+        "",
+        "[7:0xe733901e0000]   140310 ms: Mark-Compact 250.0 (257.7) -> 248.9 (257.7) MB, pooled: 1 MB, 3208.36 / 0.00 ms  (average mu = 0.102, current mu = 0.057) allocation failure; scavenge might not succeed",
+        "[7:0xe733901e0000]   143409 ms: Mark-Compact 250.2 (257.7) -> 249.5 (258.2) MB, pooled: 0 MB, 2904.27 / 0.00 ms  (average mu = 0.084, current mu = 0.063) allocation failure; scavenge might not succeed",
+        "",
+        "FATAL ERROR: Ineffective mark-compacts near heap limit Allocation failed - JavaScript heap out of memory",
+        "----- Native stack trace -----",
+        "",
+        " 1: 0xe73394d82b30  [/lib64/libnode.so.137]",
+        " 2: 0xe73394bbb474 node::OOMErrorHandler(char const*, v8::OOMDetails const&) [/lib64/libnode.so.137]",
+        " 3: 0xe733958f06ec  [/lib64/libnode.so.137]",
+        " 4: 0xe733958f07c8  [/lib64/libnode.so.137]",
+        " 5: 0xe73395b7631c  [/lib64/libnode.so.137]",
+        " 6: 0xe73395b76350  [/lib64/libnode.so.137]",
+        " 7: 0xe73395b766ac  [/lib64/libnode.so.137]",
+        " 8: 0xe73395b855a0  [/lib64/libnode.so.137]",
+        " 9: 0xe73395b89294  [/lib64/libnode.so.137]",
+        "10: 0xe73396605ee4  [/lib64/libnode.so.137]"
+      ]
+    },
+    "clickhouse": {
+      "exit_code": 0,
+      "oom": false,
+      "log_tail": [
+        "/entrypoint.sh: create new user 'langfuse' instead 'default'",
+        "",
+        "/entrypoint.sh: create database 'default'",
+        "Processing configuration file '/etc/clickhouse-server/config.xml'.",
+        "Merging configuration file '/etc/clickhouse-server/config.d/docker_related_config.xml'.",
+        "Logging trace to /var/log/clickhouse-server/clickhouse-server.log",
+        "Logging errors to /var/log/clickhouse-server/clickhouse-server.err.log",
+        "Processing configuration file '/etc/clickhouse-server/config.xml'.",
+        "Merging configuration file '/etc/clickhouse-server/config.d/docker_related_config.xml'.",
+        "Logging trace to /var/log/clickhouse-server/clickhouse-server.log",
+        "Logging errors to /var/log/clickhouse-server/clickhouse-server.err.log"
+      ]
+    }
+  },
+  "cleanup_returncode": 0,
+  "core_after": {
+    "argus-v18-agent": {
+      "state": "running",
+      "oom": false,
+      "restarts": 0,
+      "started": "2026-10-14T05:00:59.669835578Z"
+    },
+    "argus-v18-worker": {
+      "state": "running",
+      "oom": false,
+      "restarts": 0,
+      "started": "2026-10-14T04:53:54.82485999Z"
+    },
+    "argus-v18-scheduler": {
+      "state": "running",
+      "oom": false,
+      "restarts": 0,
+      "started": "2026-10-14T04:53:54.133365852Z"
+    },
+    "argus-v18-postgres": {
+      "state": "running",
+      "oom": false,
+      "restarts": 0,
+      "started": "2026-10-10T02:37:38.900821995Z"
+    },
+    "argus-v18-ui": {
+      "state": "running",
+      "oom": false,
+      "restarts": 0,
+      "started": "2026-10-14T05:00:27.057887968Z"
+    }
+  },
+  "core_unchanged": true,
+  "trial_containers_remaining": [],
+  "trial_volumes_remaining": [],
+  "after_available_mib": 4394,
+  "after_health": {
+    "status": 200,
+    "ms": 2.275
+  },
+  "noninterference": true
+}

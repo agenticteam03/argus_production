@@ -2,6 +2,7 @@
 import base64
 import json
 import os
+import re
 from pathlib import Path
 import secrets
 import statistics
@@ -9,6 +10,7 @@ import subprocess
 import threading
 import time
 import urllib.request
+import urllib.parse
 import uuid
 from datetime import datetime, timezone
 
@@ -77,11 +79,11 @@ def lf_url():
     return "http://" + ip + ":3000"
 
 def api(path, payload=None, auth=False):
-    headers = {"Content-Type": "application/json"}
+    headers = {"Content-Type": "application/json", "x-langfuse-ingestion-version": "4"}
     if auth:
         headers["Authorization"] = "Basic " + base64.b64encode((values["PUBLIC_KEY"] + ":" + values["SECRET_KEY"]).encode()).decode()
     req = urllib.request.Request(lf_url() + path, data=json.dumps(payload).encode() if payload is not None else None, headers=headers)
-    with urllib.request.urlopen(req, timeout=10) as r:
+    with urllib.request.urlopen(req, timeout=60) as r:
         return r.status, json.loads(r.read())
 
 def summarize():
@@ -94,12 +96,16 @@ def summarize():
 
 begun = time.monotonic()
 created = False
+env_created = False
+watchdog_created = False
 # Reject ownership mismatches before any setup or cleanup side effect.
-if os.geteuid() != 0 or "holder=conantkd session=850fe4d2aaf2" not in Path("/opt/argus-v18/SESSION").read_text():
+if os.geteuid() != 0 or "holder=conantkd session=dc432c3ff537" not in Path("/opt/argus-v18/SESSION").read_text():
     raise SystemExit("STOP: wrong session or not root; no trial changes made")
 try:
-    if available() < 3800:
-        raise RuntimeError("insufficient initial memory: need at least 3800 MiB available")
+    if ENV.exists():
+        raise RuntimeError("trial credential file already exists; do not overwrite")
+    if available() < 4000:
+        raise RuntimeError("insufficient initial memory: need at least 4000 MiB available")
     existing = set(docker("ps", "-a", "--format", "{{.Names}}").stdout.decode().splitlines())
     existing_vols = set(docker("volume", "ls", "-q").stdout.decode().splitlines())
     if existing.intersection(NAMES) or existing_vols.intersection(VOLUMES):
@@ -112,6 +118,7 @@ try:
     values["PUBLIC_KEY"] = "pk-lf-" + secrets.token_hex(16)
     values["SECRET_KEY"] = "sk-lf-" + secrets.token_hex(24)
     ENV.write_bytes(("\n".join(k + "=" + v for k, v in values.items()) + "\n").encode())
+    env_created = True
     ENV.chmod(0o600)
     dc("config", "--quiet")
     thread = threading.Thread(target=monitor, daemon=True)
@@ -134,10 +141,20 @@ try:
     run(["systemd-run", "--quiet", "--unit=argus-lab-lf1-watchdog", "--on-active=25m",
          "/usr/bin/docker", "compose", "--project-name", PROJECT, "--env-file", str(ENV),
          "-f", str(COMPOSE), "down", "--volumes", "--remove-orphans"])
+    watchdog_created = True
     phase = "startup"
     created = True
     dc("up", "-d", "postgres", "redis", "minio", "clickhouse", timeout=90)
-    time.sleep(20)
+    dep_deadline = time.monotonic() + 150
+    while time.monotonic() < dep_deadline and not stop.is_set():
+        pg = docker("exec", PROJECT + "-postgres", "pg_isready", "-U", "langfuse", check=False)
+        ch = docker("exec", PROJECT + "-clickhouse", "wget", "-qO-", "http://localhost:8123/ping", check=False)
+        if pg.returncode == 0 and ch.returncode == 0:
+            break
+        time.sleep(5)
+    else:
+        report["trial_failure_states"] = inspect(NAMES[:4])
+        raise RuntimeError("dependency readiness timeout")
     dc("up", "-d", "web", "worker", timeout=90)
     deadline = time.monotonic() + 420
     ready = False
@@ -159,32 +176,49 @@ try:
     print("READY", ready, "elapsed_s", report["startup_elapsed_s"], flush=True)
     if not ready:
         raise RuntimeError("not ready within bounded startup window")
+    print("PHASE synthetic-ingestion", flush=True)
     phase = "synthetic-ingestion"
     accepted = 0
+    trace_ids = set()
+    window_start = datetime.now(timezone.utc).isoformat()
     for batch in range(6):
         if stop.is_set():
             raise RuntimeError("aborted by monitor")
-        events = []
-        ts = datetime.now(timezone.utc).isoformat()
+        spans = []
         for i in range(10):
             trace = uuid.uuid4().hex
-            events.append({"id": str(uuid.uuid4()), "type": "trace-create", "timestamp": ts,
-                "body": {"id": trace, "name": "argus-synthetic-capacity", "timestamp": ts, "metadata": {"synthetic": True}}})
-            events.append({"id": str(uuid.uuid4()), "type": "span-create", "timestamp": ts,
-                "body": {"id": uuid.uuid4().hex[:16], "traceId": trace, "name": "synthetic-tool", "startTime": ts, "endTime": ts}})
-        status, response = api("/api/public/ingestion", {"batch": events}, auth=True)
-        if status not in (200, 201, 202, 207) or response.get("errors"):
-            raise RuntimeError("synthetic ingestion rejected")
+            trace_ids.add(trace)
+            root_id = secrets.token_hex(8)
+            now = time.time_ns()
+            common = {"traceId": trace, "kind": 1, "startTimeUnixNano": str(now),
+                      "endTimeUnixNano": str(now + 1000000),
+                      "attributes": [{"key": "langfuse.observation.type", "value": {"stringValue": "span"}}]}
+            spans.append({**common, "spanId": root_id, "name": "argus-synthetic-capacity"})
+            spans.append({**common, "spanId": secrets.token_hex(8), "parentSpanId": root_id, "name": "synthetic-tool"})
+        payload = {"resourceSpans": [{"resource": {"attributes": [{"key": "service.name", "value": {"stringValue": "argus-capacity-trial"}}]},
+                   "scopeSpans": [{"scope": {"name": "argus-capacity-trial"}, "spans": spans}]}]}
+        status, response = api("/api/public/otel/v1/traces", payload, auth=True)
+        if status != 200 or int(response.get("partialSuccess", {}).get("rejectedSpans", 0)):
+            raise RuntimeError("synthetic OTLP ingestion rejected")
         accepted += 10
+        print("SUBMITTED synthetic traces", accepted, flush=True)
         time.sleep(10)
     report["synthetic_traces_submitted"] = accepted
-    deadline = time.monotonic() + 90
+    deadline = time.monotonic() + 120
     retrieved = 0
     while time.monotonic() < deadline and not stop.is_set():
         try:
-            _, rows = api("/api/public/traces?limit=100", auth=True)
-            retrieved = len(rows.get("data", []))
-            if retrieved >= accepted:
+            params = {"limit": 100, "fromStartTime": window_start,
+                      "toStartTime": datetime.now(timezone.utc).isoformat()}
+            _, rows = api("/api/public/v2/observations?" + urllib.parse.urlencode(params), auth=True)
+            observations = rows.get("data", [])
+            cursor = rows.get("meta", {}).get("cursor")
+            if cursor:
+                _, more = api("/api/public/v2/observations?" + urllib.parse.urlencode({**params, "cursor": cursor}), auth=True)
+                observations += more.get("data", [])
+            retrieved = len({o.get("traceId") for o in observations}.intersection(trace_ids))
+            report["synthetic_observations_retrieved"] = len(observations)
+            if retrieved == accepted and len(observations) == accepted * 2:
                 break
         except Exception:
             pass
@@ -194,10 +228,21 @@ try:
     time.sleep(45)
     report["stats"] = docker("stats", "--no-stream", "--format", "{{.Name}} cpu={{.CPUPerc}} memory={{.MemUsage}}", *NAMES, *CORE).stdout.decode().splitlines()
     report["trial_before_cleanup"] = inspect(NAMES)
-    report["success"] = retrieved == accepted and not stop.is_set()
+    report["success"] = retrieved == accepted and report.get("synthetic_observations_retrieved") == accepted * 2 and not stop.is_set() and all(v["state"] == "running" and not v["oom"] for v in report["trial_before_cleanup"].values())
 except Exception as e:
     report["failure"] = type(e).__name__ + ": " + (str(e) if isinstance(e, RuntimeError) else "details suppressed")
     report["success"] = False
+    if created:
+        report["diagnostics"] = {}
+        for service in ("web", "worker", "clickhouse"):
+            p = docker("logs", "--tail", "70", PROJECT + "-" + service, check=False)
+            text = (p.stdout + p.stderr).decode(errors="replace")
+            for value in values.values():
+                text = text.replace(value, "[redacted]")
+            text = re.sub(r"\b(?:\d{1,3}\.){3}\d{1,3}\b", "[address]", text)
+            rows = json.loads(docker("inspect", PROJECT + "-" + service).stdout)
+            report["diagnostics"][service] = {"exit_code": rows[0]["State"]["ExitCode"],
+                "oom": rows[0]["State"]["OOMKilled"], "log_tail": text.splitlines()[-45:]}
 finally:
     phase = "cleanup"
     if created:
@@ -217,7 +262,10 @@ finally:
     report["noninterference"] = "NO INTERFERENCE" in nonint.stdout.decode()
     report["success"] = bool(report.get("success")) and report["core_unchanged"] and report["noninterference"] and not report["trial_containers_remaining"] and not report["trial_volumes_remaining"] and report["after_health"]["status"] == 200
     summarize()
-    run(["systemctl", "stop", "argus-lab-lf1-watchdog.timer"], check=False)
-    ENV.unlink(missing_ok=True)
+    if watchdog_created:
+        run(["systemctl", "stop", "argus-lab-lf1-watchdog.timer"], check=False)
+    if env_created:
+        ENV.unlink(missing_ok=True)
     (ROOT / "report.json").write_bytes(json.dumps(report, indent=2).encode())
-    print(json.dumps(report, indent=2), flush=True)
+    print(json.dumps({k: v for k, v in report.items() if k != "samples"}, indent=2), flush=True)
+raise SystemExit(0 if report["success"] else 1)

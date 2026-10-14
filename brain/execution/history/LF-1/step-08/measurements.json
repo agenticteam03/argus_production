@@ -1,0 +1,248 @@
+{
+  "kind": "synthetic-capacity-only",
+  "phases": {
+    "startup": {
+      "samples": 41,
+      "min_available_mib": 2539,
+      "api_failures": 0,
+      "api_median_ms": 3.35,
+      "api_max_ms": 20.372
+    },
+    "cleanup": {
+      "samples": 2,
+      "min_available_mib": 3409,
+      "api_failures": 0,
+      "api_median_ms": 4.106,
+      "api_max_ms": 5.775
+    },
+    "baseline": {
+      "samples": 5,
+      "min_available_mib": 4368,
+      "api_failures": 0,
+      "api_median_ms": 2.273,
+      "api_max_ms": 14.183
+    },
+    "synthetic-ingestion": {
+      "samples": 2,
+      "min_available_mib": 2385,
+      "api_failures": 0,
+      "api_median_ms": 3.817,
+      "api_max_ms": 5.304
+    },
+    "image-pull": {
+      "samples": 2,
+      "min_available_mib": 4373,
+      "api_failures": 0,
+      "api_median_ms": 3.908,
+      "api_max_ms": 5.482
+    }
+  },
+  "core_before": {
+    "argus-v18-agent": {
+      "state": "running",
+      "oom": false,
+      "restarts": 0,
+      "started": "2026-10-14T05:00:59.669835578Z"
+    },
+    "argus-v18-worker": {
+      "state": "running",
+      "oom": false,
+      "restarts": 0,
+      "started": "2026-10-14T04:53:54.82485999Z"
+    },
+    "argus-v18-scheduler": {
+      "state": "running",
+      "oom": false,
+      "restarts": 0,
+      "started": "2026-10-14T04:53:54.133365852Z"
+    },
+    "argus-v18-postgres": {
+      "state": "running",
+      "oom": false,
+      "restarts": 0,
+      "started": "2026-10-10T02:37:38.900821995Z"
+    },
+    "argus-v18-ui": {
+      "state": "running",
+      "oom": false,
+      "restarts": 0,
+      "started": "2026-10-14T05:00:27.057887968Z"
+    }
+  },
+  "noninterference_before": "snapshot saved",
+  "image_digests": {
+    "postgres@sha256:2d2b8998d31037bf721cfdf764d76ba74171b4fab3431b7f72c27c56ddbdf9e3": "postgres@sha256:2d2b8998d31037bf721cfdf764d76ba74171b4fab3431b7f72c27c56ddbdf9e3",
+    "redis@sha256:4fa24486b8bcca8eec45ee0eb166edc674795e53a2b53d1a9ef263eecebaac85": "redis@sha256:4fa24486b8bcca8eec45ee0eb166edc674795e53a2b53d1a9ef263eecebaac85",
+    "cgr.dev/chainguard/minio@sha256:2136d593beacf4461187035eca949fe49abd589d5079735025c711ca58fee0c8": "cgr.dev/chainguard/minio@sha256:2136d593beacf4461187035eca949fe49abd589d5079735025c711ca58fee0c8",
+    "clickhouse/clickhouse-server@sha256:8a790dd3468db22b1d4e7b18a176f378ff5ff6053b9c48dd4ea1fa71a24c5ba6": "clickhouse/clickhouse-server@sha256:8a790dd3468db22b1d4e7b18a176f378ff5ff6053b9c48dd4ea1fa71a24c5ba6",
+    "docker.langfuse.com/langfuse/langfuse@sha256:b5f4306480d844b2bce43ecd82960cefc0b219e5164ea588ea45ed806a41a4c9": "docker.langfuse.com/langfuse/langfuse@sha256:b5f4306480d844b2bce43ecd82960cefc0b219e5164ea588ea45ed806a41a4c9",
+    "docker.langfuse.com/langfuse/langfuse-worker@sha256:5f0e9e0da70b0c5d91ad9158941ca042c25c936d371524a1454226ebc5f12093": "docker.langfuse.com/langfuse/langfuse-worker@sha256:5f0e9e0da70b0c5d91ad9158941ca042c25c936d371524a1454226ebc5f12093"
+  },
+  "ready": true,
+  "startup_elapsed_s": 242,
+  "failure": "TimeoutError: details suppressed",
+  "success": false,
+  "diagnostics": {
+    "web": {
+      "exit_code": 0,
+      "oom": false,
+      "log_tail": [
+        "2026-10-14T05:44:31.936Z info \tMCP feature registered: experiments {\"featureName\":\"experiments\",\"toolCount\":2,\"toolNames\":[\"listExperiments\",\"listExperimentItems\"]}",
+        "2026-10-14T05:44:31.937Z info \tMCP feature registered: external-media-storage {\"featureName\":\"external-media-storage\",\"toolCount\":4,\"toolNames\":[\"getExternalMediaStorage\",\"configureExternalMediaStorage\",\"deleteExternalMediaStorage\",\"testExternalMediaStorage\"]}",
+        "2026-10-14T05:44:31.937Z info \tMCP feature registered: alerts {\"featureName\":\"alerts\",\"toolCount\":2,\"toolNames\":[\"listAlerts\",\"getAlert\"]}",
+        "2026-10-14T05:44:31.937Z info \tMCP feature registered: v4Migration {\"featureName\":\"v4Migration\",\"toolCount\":1,\"toolNames\":[\"getV4MigrationData\"]}",
+        "11/u add_blob_storage_file_log (1.116371058s)",
+        "12/u add_session_id_column_scores (1.179654581s)",
+        "13/u drop_scores_trace_id_index (1.015557464s)",
+        "14/u scores_modify_nullable_trace_id_column (1.003913324s)",
+        "15/u add_scores_trace_index (997.438491ms)",
+        "16/u add_scores_session_index (1.002632917s)",
+        "17/u add_run_id_column_scores (994.305395ms)",
+        "18/u add_scores_run_index (1.006210696s)",
+        "19/u analytics_traces (991.396821ms)",
+        "20/u analytics_observations (820.360027ms)",
+        "21/u analytics_scores (899.631871ms)",
+        "22/u dataset_run_items (895.722332ms)",
+        "23/u traces_aggregating_merge_trees (1.106239167s)",
+        "24/u dataset_run_items (1.181656712s)",
+        "25/u add_observations_metadata_indexes (1.392348267s)",
+        "26/u add_trace_id_index (1.497659405s)",
+        "27/u drop_project_environments_mvs (1.496639639s)",
+        "28/u drop_traces_null_mvs (1.501028781s)",
+        "29/u drop_traces_null_and_amt_tables (1.586358537s)",
+        "30/u add_eval_execution_trace_id_to_scores (1.599662645s)",
+        "31/u add_usage_pricing_tier_columns (1.891461174s)",
+        "32/u add_dataset_version_to_dataset_run_items_rmt (1.991468844s)",
+        "33/u add_tool_call_columns (2.315285537s)",
+        "34/u add_long_string_value_to_scores (2.215344347s)",
+        "35/u add_ingestion_attribution_columns (2.505620949s)",
+        "36/u add_ingested_sdks_to_analytics_scores (2.393438057s)",
+        "37/u add_created_at_indexes (2.602245522s)",
+        "38/u create_observations_batch_staging (2.698969535s)",
+        "39/u create_events_full (2.89377649s)",
+        "40/u create_events_core (2.919841223s)",
+        "41/u create_events_core_mv (3.094327113s)",
+        "42/u add_events_ingestion_attribution_columns (5.698819807s)",
+        "43/u add_events_metadata_ngram_index (5.80315466s)",
+        "44/u drop_event_log (5.475570107s)",
+        "45/u drop_project_environments (5.283861289s)",
+        "46/u drop_dataset_run_items (4.987488776s)",
+        "47/u add_eval_execution_columns (6.096191275s)",
+        "48/u enable_block_columns_on_scores_and_dataset_run_items (5.794081853s)",
+        "49/u add_events_name_ngram_indexes (6.895344434s)",
+        "50/u scores_trace_index_granularity (6.795672005s)",
+        "51/u add_topics (6.784695829s)"
+      ]
+    },
+    "worker": {
+      "exit_code": 0,
+      "oom": false,
+      "log_tail": [
+        "2026-10-14T05:43:37.803Z info \tblobstorage-integration-queue executor started: true",
+        "2026-10-14T05:43:37.805Z info \tblobstorage-integration-processing-queue executor started: true",
+        "2026-10-14T05:43:37.807Z info \tdata-retention-queue executor started: true",
+        "2026-10-14T05:43:37.808Z info \tdata-retention-processing-queue executor started: true",
+        "2026-10-14T05:43:37.809Z info \twebhook-queue executor started: true",
+        "2026-10-14T05:43:37.810Z info \tentity-change-queue executor started: true",
+        "2026-10-14T05:43:37.812Z info \tevent-propagation-queue executor started: true",
+        "2026-10-14T05:43:37.813Z info \tnotification-queue executor started: true",
+        "2026-10-14T05:43:37.814Z info \tStarting TraceDeleteBatchActionRunner {\"intervalMs\":10000,\"lockTtlSeconds\":1800,\"batchSize\":2000,\"maxBatchesPerRun\":5}",
+        "2026-10-14T05:43:37.908Z info \tStarting MonitorRunner(1/1) {\"schedulerId\":0,\"totalSchedulers\":1,\"intervalMs\":30000}",
+        "2026-10-14T05:43:38.209Z info \tListening: http://e2f8ebb232d3:3030",
+        "2026-10-14T05:43:43.209Z info \t[Background Migration] Found background migrations 20250102_backfill_billing_cycle_anchors to run {\"trace_id\":\"7bad5d7e80d5db37c0754a7609c08492\",\"span_id\":\"1917f1a17d5dbadb\",\"trace_flags\":\"01\"}",
+        "2026-10-14T05:43:43.212Z info \tMonitorRunner(1/1): published 0 events {\"trace_id\":\"39e4856ab2647907a099d856b9011f57\",\"span_id\":\"84b2690d085808ec\",\"trace_flags\":\"01\"}",
+        "2026-10-14T05:43:45.002Z error \tprisma:error ",
+        "Invalid `prisma.backgroundMigration.update()` invocation:",
+        "",
+        "",
+        "Transaction API error: Transaction already closed: A query cannot be executed on an expired transaction. The timeout for this transaction was 5000 ms, however 5300 ms passed since the start of the transaction. Consider increasing the interactive transaction timeout or doing less work in the transaction. {\"trace_id\":\"7bad5d7e80d5db37c0754a7609c08492\",\"span_id\":\"b0a3a1f3168fac07\",\"trace_flags\":\"01\"}",
+        "2026-10-14T05:43:45.810Z error \tError running background migrations ",
+        "Invalid `prisma.backgroundMigration.update()` invocation:",
+        "",
+        "",
+        "Transaction API error: Transaction already closed: A query cannot be executed on an expired transaction. The timeout for this transaction was 5000 ms, however 5300 ms passed since the start of the transaction. Consider increasing the interactive transaction timeout or doing less work in the transaction. {\"code\":\"P2028\",\"meta\":{\"modelName\":\"BackgroundMigration\",\"error\":\"Transaction already closed: A query cannot be executed on an expired transaction. The timeout for this transaction was 5000 ms, however 5300 ms passed since the start of the transaction. Consider increasing the interactive transaction timeout or doing less work in the transaction.\"},\"clientVersion\":\"6.19.3\",\"name\":\"PrismaClientKnownRequestError\"}",
+        "PrismaClientKnownRequestError: ",
+        "Invalid `prisma.backgroundMigration.update()` invocation:",
+        "",
+        "",
+        "Transaction API error: Transaction already closed: A query cannot be executed on an expired transaction. The timeout for this transaction was 5000 ms, however 5300 ms passed since the start of the transaction. Consider increasing the interactive transaction timeout or doing less work in the transaction.",
+        "    at ei.handleRequestError (/app/worker/node_modules/.pnpm/@prisma+client@6.19.3_@typescript+typescript6@6.0.2_prisma@6.19.3_@typescript+typescript6@6.0.2_magicast@0.5.2_/node_modules/@prisma/client/runtime/library.js:121:7268)",
+        "    at ei.handleAndLogRequestError (/app/worker/node_modules/.pnpm/@prisma+client@6.19.3_@typescript+typescript6@6.0.2_prisma@6.19.3_@typescript+typescript6@6.0.2_magicast@0.5.2_/node_modules/@prisma/client/runtime/library.js:121:6593)",
+        "    at ei.request (/app/worker/node_modules/.pnpm/@prisma+client@6.19.3_@typescript+typescript6@6.0.2_prisma@6.19.3_@typescript+typescript6@6.0.2_magicast@0.5.2_/node_modules/@prisma/client/runtime/library.js:121:6300)",
+        "    at async a (/app/worker/node_modules/.pnpm/@prisma+client@6.19.3_@typescript+typescript6@6.0.2_prisma@6.19.3_@typescript+typescript6@6.0.2_magicast@0.5.2_/node_modules/@prisma/client/runtime/library.js:130:9551)",
+        "    at async db_1.prisma.$transaction.maxWait (/app/worker/dist/backgroundMigrations/backgroundMigrationManager.js:73:21)",
+        "    at async Proxy._transactionWithCallback (/app/worker/node_modules/.pnpm/@prisma+client@6.19.3_@typescript+typescript6@6.0.2_prisma@6.19.3_@typescript+typescript6@6.0.2_magicast@0.5.2_/node_modules/@prisma/client/runtime/library.js:130:8120)",
+        "    at async /app/worker/dist/backgroundMigrations/backgroundMigrationManager.js:45:17",
+        "    at async /app/worker/node_modules/.pnpm/@langfuse+shared@file++++app+packages+shared/node_modules/@langfuse/shared/dist/src/server/instrumentation/index.js:65:28",
+        "    at async BackgroundMigrationManager.run (/app/worker/dist/backgroundMigrations/backgroundMigrationManager.js:31:9)",
+        "2026-10-14T05:44:00.057Z info \tExecuting Event Propagation Job {\"trace_id\":\"3501dce968ae73679c735f83e13ec62b\",\"span_id\":\"afacfe50ee3c8ce1\",\"trace_flags\":\"01\"}",
+        "2026-10-14T05:44:00.058Z info \t[DUAL WRITE] Last processed partition: none {\"trace_id\":\"3501dce968ae73679c735f83e13ec62b\",\"span_id\":\"afacfe50ee3c8ce1\",\"trace_flags\":\"01\"}",
+        "2026-10-14T05:44:00.100Z info \t[Connection] Log level is set to INFO {\"trace_id\":\"3501dce968ae73679c735f83e13ec62b\",\"span_id\":\"b417edf3f8433c08\",\"trace_flags\":\"01\"}",
+        "2026-10-14T05:44:00.128Z info \t[DUAL WRITE] No partitions available for processing (last processed: none) {\"trace_id\":\"3501dce968ae73679c735f83e13ec62b\",\"span_id\":\"afacfe50ee3c8ce1\",\"trace_flags\":\"01\"}",
+        "2026-10-14T05:44:00.128Z info \t[EXPERIMENT BACKFILL] Checking if backfill should run {\"trace_id\":\"3501dce968ae73679c735f83e13ec62b\",\"span_id\":\"afacfe50ee3c8ce1\",\"trace_flags\":\"01\"}",
+        "2026-10-14T05:44:00.197Z info \t[EXPERIMENT BACKFILL] Initialized cutoff timestamp to 2026-10-14T05:44:00.196Z (first run) {\"trace_id\":\"3501dce968ae73679c735f83e13ec62b\",\"span_id\":\"afacfe50ee3c8ce1\",\"trace_flags\":\"01\"}",
+        "2026-10-14T05:44:14.829Z info \tMonitorRunner(1/1): published 0 events {\"trace_id\":\"4c23ee718ab5d1e7d9234a3ff4998d4e\",\"span_id\":\"41edc42e35620aad\",\"trace_flags\":\"01\"}",
+        "2026-10-14T05:44:44.847Z info \tMonitorRunner(1/1): published 0 events {\"trace_id\":\"46b05917362ac87f0338c4e7c579ffe0\",\"span_id\":\"8253d4c74f7e8d6e\",\"trace_flags\":\"01\"}"
+      ]
+    },
+    "clickhouse": {
+      "exit_code": 0,
+      "oom": false,
+      "log_tail": [
+        "/entrypoint.sh: create new user 'langfuse' instead 'default'",
+        "",
+        "/entrypoint.sh: create database 'default'",
+        "Processing configuration file '/etc/clickhouse-server/config.xml'.",
+        "Merging configuration file '/etc/clickhouse-server/config.d/docker_related_config.xml'.",
+        "Logging trace to /var/log/clickhouse-server/clickhouse-server.log",
+        "Logging errors to /var/log/clickhouse-server/clickhouse-server.err.log",
+        "Processing configuration file '/etc/clickhouse-server/config.xml'.",
+        "Merging configuration file '/etc/clickhouse-server/config.d/docker_related_config.xml'.",
+        "Logging trace to /var/log/clickhouse-server/clickhouse-server.log",
+        "Logging errors to /var/log/clickhouse-server/clickhouse-server.err.log"
+      ]
+    }
+  },
+  "cleanup_returncode": 0,
+  "core_after": {
+    "argus-v18-agent": {
+      "state": "running",
+      "oom": false,
+      "restarts": 0,
+      "started": "2026-10-14T05:00:59.669835578Z"
+    },
+    "argus-v18-worker": {
+      "state": "running",
+      "oom": false,
+      "restarts": 0,
+      "started": "2026-10-14T04:53:54.82485999Z"
+    },
+    "argus-v18-scheduler": {
+      "state": "running",
+      "oom": false,
+      "restarts": 0,
+      "started": "2026-10-14T04:53:54.133365852Z"
+    },
+    "argus-v18-postgres": {
+      "state": "running",
+      "oom": false,
+      "restarts": 0,
+      "started": "2026-10-10T02:37:38.900821995Z"
+    },
+    "argus-v18-ui": {
+      "state": "running",
+      "oom": false,
+      "restarts": 0,
+      "started": "2026-10-14T05:00:27.057887968Z"
+    }
+  },
+  "core_unchanged": true,
+  "trial_containers_remaining": [],
+  "trial_volumes_remaining": [],
+  "after_available_mib": 4378,
+  "after_health": {
+    "status": 200,
+    "ms": 2.372
+  },
+  "noninterference": true
+}
