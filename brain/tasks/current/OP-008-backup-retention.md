@@ -1,7 +1,7 @@
 # OP-008 — Snapshot-consistent backup and retention
 
-**Owner:** `conantkd` · **Branch:** `task/OP-008-backup-retention` · **PR:** #51 (merged 2026-10-10) · **Status:** offline implementation and VM dry run
-verified; the first `--apply` waits for a teammate's review.
+**Owner:** `conantkd` · **Branch:** `task/OP-008-backup-retention` · **PR:** #51 (merged 2026-10-10) · **Status:** the approved first `prune --apply` ran on vm-095
+on 2026-10-14 (12 sets removed, 7 kept); one after-check (`sha256sum -c`) is still to run.
 
 ## Goal
 
@@ -33,8 +33,10 @@ verified restore point.
 2. **VM dry run, done 2026-10-10** ([evidence](../../execution/history/OP-008/step-02/evidence.md)): `VERIFY OK` on
    `argus-20261010T023316Z.dump` (marker written); default `KEEP=7`: 0 sets would be removed; `KEEP=2` preview: the
    two oldest sets, the verified one kept. NO INTERFERENCE.
-3. **Apply, pending teammate review:** backup deletion is a stop condition. Have a teammate review the dry-run list
-   and restorable backup evidence before one bounded `prune --apply`. Verify retained dumps, markers, and
-   `NO INTERFERENCE`. Set OP-008 to fixed only then.
+3. **Apply, done 2026-10-14** ([evidence](../../execution/history/OP-008/step-03/evidence.md)): approved by
+   juanbetancurm in PR #138 (`KEEP=7`). A fresh backup first (`VERIFY OK: 13 tables, 29001 rows`); the dry run and
+   the apply named the same 12 sets (the approved 9 plus 3 that aged out since); 7 sets kept, the newest verified
+   among them; NO INTERFERENCE. Run without a Brain lease (journal). **Open:** `sha256sum -c` on the newest verified
+   dump after the prune, at the next VM session; then set OP-008 to fixed.
 
 Backup/verify scheduling remains a separate team decision; this branch installs no timer and touches no VM.
