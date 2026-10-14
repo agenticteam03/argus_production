@@ -64,6 +64,8 @@ services:
       ARGUS_LLM_MODEL: ${ARGUS_LLM_MODEL:-gpt-5.6-luna}
       ARGUS_MAX_READS_PER_STEP: "2"
       ARGUS_MAX_STEPS: "8"
+      ARGUS_LANGFUSE_UI_URL: ${ARGUS_LANGFUSE_UI_URL:-}        # ACR-0013: operator link only; empty = no link
+      ARGUS_LANGFUSE_PROJECT_ID: ${ARGUS_LANGFUSE_PROJECT_ID:-}
     networks: [argus-v18-core]          # reaches vm-095 executors directly and vm-166 through argus-v18-tunnel
     depends_on:
       argus-v18-tunnel: {condition: service_started}
@@ -90,6 +92,7 @@ services:
       ARGUS_MAX_READS_PER_STEP: "2"
       ARGUS_MAX_STEPS: "8"
       ARGUS_WORKER_LEASE_S: "300"                     # claim renewed every 100 s; a dead worker's run waits <= 300 s
+      ARGUS_TRACING_ENABLED: ${ARGUS_TRACING_ENABLED:-0}   # ACR-0013: off unless "1"; also needs the worker-only Langfuse key files
       ARGUS_SCHEDULE_MAX_QUEUED_AGE_S: "900"          # a scheduled check not started within 15 min is stale_skipped
     networks: [argus-v18-core]          # no host port; reaches vm-095 executors directly and vm-166 through the tunnel
     depends_on:

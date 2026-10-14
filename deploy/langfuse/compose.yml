@@ -1,0 +1,139 @@
+# Dedicated Langfuse v4 stack on vm-095. Only the web UI has a host listener (loopback).
+# Supply secrets with --env-file /opt/argus-v18/secrets/langfuse/runtime.env.
+name: argus-v18-langfuse
+x-langfuse-env: &langfuse-env
+  NEXTAUTH_URL: http://localhost:18300
+  DATABASE_URL: postgresql://langfuse:${LF_POSTGRES_PASSWORD:?}@argus-v18-langfuse-postgres:5432/langfuse
+  SALT: ${LF_SALT:?}
+  ENCRYPTION_KEY: ${LF_ENCRYPTION_KEY:?}
+  CLICKHOUSE_URL: http://argus-v18-langfuse-clickhouse:8123
+  CLICKHOUSE_MIGRATION_URL: clickhouse://argus-v18-langfuse-clickhouse:9000
+  CLICKHOUSE_USER: langfuse
+  CLICKHOUSE_PASSWORD: ${LF_CLICKHOUSE_PASSWORD:?}
+  CLICKHOUSE_CLUSTER_ENABLED: "false"
+  REDIS_HOST: argus-v18-langfuse-redis
+  REDIS_AUTH: ${LF_REDIS_PASSWORD:?}
+  LANGFUSE_S3_EVENT_UPLOAD_BUCKET: langfuse
+  LANGFUSE_S3_EVENT_UPLOAD_REGION: us-east-1
+  LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID: ${LF_MINIO_USER:?}
+  LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY: ${LF_MINIO_PASSWORD:?}
+  LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT: http://argus-v18-langfuse-minio:9000
+  LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE: "true"
+  LANGFUSE_S3_MEDIA_UPLOAD_BUCKET: langfuse
+  LANGFUSE_S3_MEDIA_UPLOAD_REGION: us-east-1
+  LANGFUSE_S3_MEDIA_UPLOAD_ACCESS_KEY_ID: ${LF_MINIO_USER:?}
+  LANGFUSE_S3_MEDIA_UPLOAD_SECRET_ACCESS_KEY: ${LF_MINIO_PASSWORD:?}
+  LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT: http://argus-v18-langfuse-minio:9000
+  LANGFUSE_S3_MEDIA_UPLOAD_INTERNAL_ENDPOINT: http://argus-v18-langfuse-minio:9000
+  LANGFUSE_S3_MEDIA_UPLOAD_FORCE_PATH_STYLE: "true"
+  TELEMETRY_ENABLED: "false"
+  LANGFUSE_IN_APP_AGENT_ENABLED: "false"
+
+services:
+  argus-v18-langfuse-postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: langfuse
+      POSTGRES_DB: langfuse
+      POSTGRES_PASSWORD: ${LF_POSTGRES_PASSWORD:?}
+    volumes: [argus-v18-langfuse-pg:/var/lib/postgresql/data]
+    networks: [langfuse]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U langfuse -d langfuse"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    mem_limit: 256m
+    memswap_limit: 256m
+    cpus: 0.2
+    restart: unless-stopped
+  argus-v18-langfuse-clickhouse:
+    image: clickhouse/clickhouse-server:25.12
+    environment:
+      CLICKHOUSE_DB: default
+      CLICKHOUSE_USER: langfuse
+      CLICKHOUSE_PASSWORD: ${LF_CLICKHOUSE_PASSWORD:?}
+    volumes:
+      - argus-v18-langfuse-clickhouse:/var/lib/clickhouse
+      - argus-v18-langfuse-clickhouse-logs:/var/log/clickhouse-server
+    networks: [langfuse]
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:8123/ping || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    mem_limit: 768m
+    memswap_limit: 768m
+    cpus: 0.2
+    restart: unless-stopped
+  argus-v18-langfuse-redis:
+    image: redis:7
+    command: ["sh", "-c", "exec redis-server --requirepass \"$$REDIS_AUTH\" --maxmemory-policy noeviction"]
+    environment:
+      REDIS_AUTH: ${LF_REDIS_PASSWORD:?}
+    volumes: [argus-v18-langfuse-redis:/data]
+    networks: [langfuse]
+    mem_limit: 128m
+    memswap_limit: 128m
+    cpus: 0.1
+    restart: unless-stopped
+  argus-v18-langfuse-minio:
+    image: cgr.dev/chainguard/minio:latest
+    entrypoint: sh
+    command: -c 'mkdir -p /data/langfuse && minio server --address ":9000" /data'
+    environment:
+      MINIO_ROOT_USER: ${LF_MINIO_USER:?}
+      MINIO_ROOT_PASSWORD: ${LF_MINIO_PASSWORD:?}
+    volumes: [argus-v18-langfuse-minio:/data]
+    networks: [langfuse]
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    mem_limit: 256m
+    memswap_limit: 256m
+    cpus: 0.1
+    restart: unless-stopped
+  argus-v18-langfuse-web:
+    image: docker.langfuse.com/langfuse/langfuse:4
+    environment:
+      <<: *langfuse-env
+      NEXTAUTH_SECRET: ${LF_NEXTAUTH_SECRET:?}
+      NODE_OPTIONS: --max-old-space-size=1024
+    ports: ["127.0.0.1:18300:3000"]
+    networks: [langfuse, argus-v18-core]
+    depends_on:
+      argus-v18-langfuse-postgres: {condition: service_healthy}
+      argus-v18-langfuse-clickhouse: {condition: service_healthy}
+      argus-v18-langfuse-minio: {condition: service_healthy}
+      argus-v18-langfuse-redis: {condition: service_started}
+    mem_limit: 1280m
+    memswap_limit: 1280m
+    cpus: 0.3
+    restart: unless-stopped
+  argus-v18-langfuse-worker:
+    image: docker.langfuse.com/langfuse/langfuse-worker:4
+    environment:
+      <<: *langfuse-env
+      NODE_OPTIONS: --max-old-space-size=512
+    networks: [langfuse]
+    depends_on:
+      argus-v18-langfuse-postgres: {condition: service_healthy}
+      argus-v18-langfuse-clickhouse: {condition: service_healthy}
+      argus-v18-langfuse-minio: {condition: service_healthy}
+      argus-v18-langfuse-redis: {condition: service_started}
+    mem_limit: 768m
+    memswap_limit: 768m
+    cpus: 0.2
+    restart: unless-stopped
+
+networks:
+  langfuse: {internal: true}
+  argus-v18-core: {external: true}
+volumes:
+  argus-v18-langfuse-pg:
+  argus-v18-langfuse-clickhouse:
+  argus-v18-langfuse-clickhouse-logs:
+  argus-v18-langfuse-redis:
+  argus-v18-langfuse-minio:

@@ -3,6 +3,7 @@ on the private listener (v1.8 §7.1, §17.3). The only FastAPI location.
 
 No `from __future__ import annotations` here: FastAPI must resolve the local dependency closures."""
 
+from urllib.parse import quote
 import hmac
 import uuid
 from datetime import timedelta
@@ -158,6 +159,8 @@ def build_api(app_ctx) -> FastAPI:
         actions = ["view_incidents", "view_timeline"]
         if p.role in ("operator", "approver"):
             actions.append("view_evidence")
+            if s.langfuse_ui_url.startswith(("http://", "https://")):
+                actions.append("view_traces")
             if access == "full":
                 actions.append("start_investigation")
         return {"user": p.id, "role": p.role, "access": access, "actions": actions}
@@ -193,6 +196,9 @@ def build_api(app_ctx) -> FastAPI:
                                  "caller": e.caller, "collected_at": e.collected_at, "source_time": e.source_time,
                                  "sha256": e.sha256, "model_text": e.model_text}
                                 for e in app_ctx.store.list_evidence(incident_id)]
+            if s.langfuse_ui_url.startswith(("http://", "https://")):      # ACR-0013 C: a link, never Langfuse data
+                proj = f"/project/{quote(s.langfuse_project_id, safe='')}" if s.langfuse_project_id else ""
+                view["trace_url"] = f"{s.langfuse_ui_url}{proj}/traces?search={quote(incident_id, safe='')}"
             view["audit"] = [{"at": a.at, "event": a.event, "capability": a.capability, "actor": a.actor,
                               "policy_rule": a.policy_rule, "evidence_id": a.evidence_id, "detail": a.detail}
                              for a in app_ctx.store.list_for(incident_id)]

@@ -77,6 +77,9 @@ class Settings:
     tracing_enabled: bool = field(default_factory=lambda: os.getenv("ARGUS_TRACING_ENABLED", "0") == "1")
     tracing_endpoint: str = field(default_factory=lambda: os.getenv(
         "ARGUS_TRACING_ENDPOINT", "http://argus-v18-langfuse-web:3000/api/public/otel/v1/traces"))
+    # ACR-0013 C: the operator-facing Langfuse UI (loopback / tunnel; never public). Unset: the incident view has no link.
+    langfuse_ui_url: str = field(default_factory=lambda: os.getenv("ARGUS_LANGFUSE_UI_URL", "").rstrip("/"))
+    langfuse_project_id: str = field(default_factory=lambda: os.getenv("ARGUS_LANGFUSE_PROJECT_ID", ""))
 
     def secret(self, rel: str) -> str | None:
         return _read(self.secrets_dir / rel)
@@ -271,6 +274,10 @@ def build(settings: Settings | None = None, llm=None, metrics=None, executors: E
     if llm is None:
         llm = make_llm(s)
     llm_configured = llm is not None
+    events = tracing_sink(s, store)
+    if llm is not None and hasattr(events, "model_span"):      # ACR-0013: model requests become spans too
+        from argus.observability.tracing import TracingLLM
+        llm = TracingLLM(llm, events)
     harness = ModelHarness(llm) if llm is not None else None
     strategies = {"evidence_pack": EvidencePackStrategy(), "model_loop": ModelLoopStrategy(harness),
                   "plan_then_reason": PlanThenReasonStrategy(harness),
@@ -291,7 +298,7 @@ def build(settings: Settings | None = None, llm=None, metrics=None, executors: E
         extra["checkpointer"] = store.checkpointer()
     metrics = metrics or PrometheusMetrics(inventory, signals, s.metrics_max_staleness_s)
     runner = runners[s.runner](**extra, memory=store, audit=store, inventory=inventory, metrics=metrics,
-                            knowledge=knowledge, notifier=store, invoke=invoke, events=tracing_sink(s, store),
+                            knowledge=knowledge, notifier=store, invoke=invoke, events=events,
                             strategies=strategies, offered_specs=[sp for sp in specs if policy.capability_known(sp.name)],
                             redactor=redactor, policy_version=policy.version,
                             max_tool_level=policy.max_tool_level, max_reads_per_step=s.max_reads_per_step,

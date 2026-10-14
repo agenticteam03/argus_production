@@ -124,7 +124,8 @@ def test_nothing_sensitive_is_exported(make_app):
         assert secret_or_content not in body, secret_or_content
     allowed = {"argus.incident_id", "argus.incident_class", "argus.strategy", "argus.outcome", "argus.attempt",
                "argus.node", "argus.capability", "argus.status", "argus.error_category", "argus.step",
-               "argus.decided_by", "argus.evidence_id", "argus.host", "argus.target_kind"}
+               "argus.decided_by", "argus.evidence_id", "argus.host", "argus.target_kind", "langfuse.trace.name",
+               "langfuse.observation.type"}
     assert {k for s in cap.spans() for k in attrs(s)} <= allowed
 
 
@@ -199,3 +200,80 @@ def test_only_a_process_with_the_keys_and_the_switch_traces(tmp_path, monkeypatc
     sink.exporter.close(timeout=0.1)
     s.tracing_enabled = False
     assert tracing_sink(s, store) is store                       # keys, but switched off
+
+
+# --- B: model spans -------------------------------------------------------------------------------------------------
+def test_model_call_becomes_a_filtered_child_span():
+    from argus.observability.tracing import OtlpExporter, TracingEventSink
+    from argus.observability.tracing import TracingLLM
+    from argus.ports.ports import ModelReply, Usage
+
+    class FakeLLM:
+        model = "m-1"
+
+        def decide(self, messages, tools):
+            return ModelReply(text="SECRET REPLY", tool_calls=[], finish_reason="stop",
+                              usage=Usage(input_tokens=11, output_tokens=7))
+
+    posted = []
+    ex = OtlpExporter("http://x", "pk", "sk", post=lambda u, h, b, t: posted.append(b), flush_interval=0.05)
+    sink = TracingEventSink(None, ex)
+    llm = TracingLLM(FakeLLM(), sink)
+    sink.append_run_event("inc-1", "investigate", "enter", {})
+    llm.decide([], [])
+    sink.append_run_event("inc-1", "investigate", "exit", {})
+    sink.append_run_event("inc-1", "record", "exit", {})
+    ex.close()
+    body = "".join(posted)
+    assert "llm.decide" in body and "argus.input_tokens" in body and "m-1" in body
+    assert '"generation"' in body and "langfuse.observation.usage_details" in body
+    assert "SECRET REPLY" not in body
+
+
+def test_model_error_propagates_and_is_traced_as_error():
+    from argus.observability.tracing import OtlpExporter, TracingEventSink
+    from argus.observability.tracing import TracingLLM
+
+    class Boom:
+        def decide(self, messages, tools):
+            raise RuntimeError("down")
+
+    ex = OtlpExporter("http://x", "pk", "sk", post=lambda *a: None)
+    sink = TracingEventSink(None, ex)
+    with __import__("pytest").raises(RuntimeError):
+        TracingLLM(Boom(), sink).decide([], [])
+    ex.close()
+
+
+# --- C: the existing UI links to the trace ---------------------------------------------------------------------------
+def test_incident_view_links_to_langfuse_for_operators_only(make_app):
+    from fastapi.testclient import TestClient
+    from pwdlib import PasswordHash
+    from argus.adapters.inbound.http import build_api
+    app = make_app()
+    h = PasswordHash.recommended().hash("a-long-password")
+    app.store.upsert_principal("alice", "human", "operator", ["lab"], h)
+    app.store.upsert_principal("vera", "human", "viewer", ["lab"], h)
+    inc = incident(app, WORKER)
+    api = TestClient(build_api(app))
+
+    def get(user, path):
+        tok = api.post("/api/v1/auth/token", data={"username": user, "password": "a-long-password"}).json()["access_token"]
+        return api.get(path, headers={"Authorization": f"Bearer {tok}"}).json()
+
+    assert "trace_url" not in get("alice", f"/api/v1/incidents/{inc.id}")             # unset: no link
+    app.settings.langfuse_ui_url, app.settings.langfuse_project_id = "http://127.0.0.1:3000", "p1"
+    url = get("alice", f"/api/v1/incidents/{inc.id}")["trace_url"]
+    assert url == f"http://127.0.0.1:3000/project/p1/traces?search={inc.id}"
+    assert "view_traces" in get("alice", "/api/v1/me")["actions"]
+    assert "trace_url" not in get("vera", f"/api/v1/incidents/{inc.id}")
+    assert "view_traces" not in get("vera", "/api/v1/me")["actions"]
+
+
+def test_stored_run_events_carry_the_trace_id(make_app):
+    cap = Capture()
+    app, exporter = traced_app(make_app, cap)
+    inc = app.runner.run(incident(app, WORKER).id)
+    exporter.close(timeout=5)
+    ids = {e["data"].get("trace_id") for e in app.store.list_run_events(inc.id, 0)}
+    assert ids == {s["traceId"] for s in cap.spans()}

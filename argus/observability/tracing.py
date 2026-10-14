@@ -124,14 +124,32 @@ class TracingEventSink:
         self.inner, self.exporter, self.now = inner, exporter, now
         self._attempts: dict[str, dict] = {}
         self._lock = threading.Lock()
+        self._tl = threading.local()                         # the (incident, node) this thread is running
 
     def append_run_event(self, incident_id: str, node: str, phase: str, data: dict[str, Any]) -> None:
-        if self.inner is not None:
-            self.inner.append_run_event(incident_id, node, phase, data)
+        data = data or {}
+        trace_id = None
         try:
-            self._trace(incident_id, node, phase, data or {})
+            trace_id = self._attempt(incident_id)["trace"]
+        except Exception:
+            pass
+        if self.inner is not None:       # the store always gets the event; `trace_id` is only a correlation id added to it
+            self.inner.append_run_event(incident_id, node, phase, {**data, "trace_id": trace_id} if trace_id else data)
+        try:
+            self._trace(incident_id, node, phase, data)
         except Exception:                                    # tracing never fails the run
             log.warning("tracing: an event of %s could not be traced", incident_id)
+
+    def model_span(self, start: int, end: int, attrs: dict, status: str | None) -> None:
+        """A model request made on this thread: a child of the node that is running, if an attempt is open."""
+        cur = getattr(self._tl, "current", None)
+        with self._lock:
+            a = self._attempts.get(cur[0]) if cur else None
+        if a is None:
+            return
+        parent = a["open"].get(cur[1], (a["root"],))[0]
+        self.exporter.submit(self._span(a, "llm.decide", _id(8), parent, start, end, {"argus.node": cur[1], **attrs},
+                                        status))
 
     def end_open_attempts(self, reason: str) -> None:
         """Close every attempt still open (the worker stops): its root span ends with an error status."""
@@ -141,27 +159,37 @@ class TracingEventSink:
             self._end_attempt(incident_id, error=reason)
 
     # --- spans --------------------------------------------------------------------------------------------------------
-    def _trace(self, incident_id: str, node: str, phase: str, data: dict) -> None:
+    def _attempt(self, incident_id: str) -> dict:
         with self._lock:
             a = self._attempts.get(incident_id)
             if a is None:
                 a = self._attempts[incident_id] = {
                     "trace": _id(16), "root": _id(8), "start": self.now(), "open": {},
-                    "attrs": {"argus.incident_id": incident_id, "argus.attempt": uuid.uuid4().hex[:12]}}
+                    "attrs": {"argus.incident_id": incident_id, "argus.attempt": uuid.uuid4().hex[:12],
+                              "langfuse.trace.name": f"argus {incident_id}",     # searchable from the UI link (C)
+                              "langfuse.observation.type": "agent"}}
+            return a
+
+    def _trace(self, incident_id: str, node: str, phase: str, data: dict) -> None:
+        a = self._attempt(incident_id)
+        with self._lock:
             for k, name in ROOT_KEYS.items():
                 if data.get(k):
                     a["attrs"][name] = data[k]
+        self._tl.current = None if (phase == "exit" and node == "record") else (incident_id, node)
         if phase == "enter":
             a["open"][node] = (_id(8), self.now(), self._allowed(data))
         elif phase == "step":
             parent = a["open"].get(node, (a["root"],))[0]
             t = self.now()
             self.exporter.submit(self._span(a, "capability", _id(8), parent, t, t,
-                                            {"argus.node": node, **self._allowed(data)}, data.get("status")))
+                                            {"argus.node": node, "langfuse.observation.type": "tool",
+                                             **self._allowed(data)}, data.get("status")))
         elif phase == "exit":
             span_id, start, attrs = a["open"].pop(node, (_id(8), self.now(), {}))
             self.exporter.submit(self._span(a, node, span_id, a["root"], start, self.now(),
-                                            {"argus.node": node, **attrs, **self._allowed(data)}, None))
+                                            {"argus.node": node, "langfuse.observation.type": "span", **attrs,
+                                             **self._allowed(data)}, None))
             if node == "record":
                 self._end_attempt(incident_id)
 
@@ -191,3 +219,39 @@ class TracingEventSink:
         if status in ("error", "refused", "timeout"):
             span["status"] = {"code": 2}
         return span
+
+
+class TracingLLM:
+    """LLMPort decorator (ACR-0013 §3.2): one span per `decide` with model, finish reason, token counts and duration.
+    Messages, tools and replies are never read for export; an error in tracing never changes the reply."""
+
+    def __init__(self, inner, sink: TracingEventSink, model: str | None = None):
+        self.inner, self.sink = inner, sink
+        self.model = model or getattr(inner, "model", None)
+
+    def decide(self, messages, tools):
+        start, status, reply = self.sink.now(), None, None
+        try:
+            reply = self.inner.decide(messages, tools)
+            return reply
+        except Exception:
+            status = "error"
+            raise
+        finally:
+            try:
+                attrs: dict[str, Any] = {"langfuse.observation.type": "generation"}
+                if self.model:
+                    attrs["argus.model"] = self.model
+                    attrs["langfuse.observation.model.name"] = str(self.model)[:100]
+                if reply is not None:
+                    attrs["argus.finish_reason"] = reply.finish_reason
+                    attrs["argus.input_tokens"] = int(reply.usage.input_tokens)
+                    attrs["argus.output_tokens"] = int(reply.usage.output_tokens)
+                    attrs["langfuse.observation.usage_details"] = json.dumps(
+                        {"input": int(reply.usage.input_tokens), "output": int(reply.usage.output_tokens)})
+                self.sink.model_span(start, self.sink.now(), attrs, status)
+            except Exception:
+                log.warning("tracing: a model call could not be traced")
+
+    def __getattr__(self, name):                             # model name, timeouts etc. of the wrapped adapter
+        return getattr(self.inner, name)
