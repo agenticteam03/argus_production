@@ -7,7 +7,7 @@ When a problem is fixed, set its status to `fixed` with the date, and add a jour
 |---|---|---|---|
 | **D-001** | Cross-host path and alert direction: architecture text vs the running system | **decided** 2026-10-08 (`conantkd`): option B as transport profiles, [ACR-0003](architecture/changes/ACR-0003-transport-profiles.md); second approval in the T-0022 PR | 2026-10-02 |
 | **D-002** | Move the runbook library into this repository (the architecture expects it there) | **decided and done** 2026-10-02 | 2026-10-02 |
-| **D-003** | The class registry: keep the model or switch a class to the deterministic baseline (§21.2 rule) | **pending** (team) | 2026-10-09 |
+| **D-003** | The class registry: keep the model or switch a class to the deterministic baseline (§21.2 rule) | **decided** 2026-10-13 (`juanbetancurm`): `dependency_unavailable` and `nginx_upstream_failure` to `baseline`, the other six keep their strategy; revisited in OP-013 | 2026-10-09 |
 | OP-001 | Runbook `detector` metadata uses old or empty class names | fixed 2026-10-09 (PR #44 merged) | 2026-09-30 |
 | OP-002 | P0 safety gaps of the runbook library not yet reconciled with architecture v1.8 | open | 2026-09-30 |
 | OP-003 | Runbook safety classes not mapped to `CapabilitySpec.risk` | open | 2026-09-30 |
@@ -19,6 +19,7 @@ When a problem is fixed, set its status to `fixed` with the date, and add a jour
 | OP-009 | A worker that loses its lease keeps running the incident; with two workers the same run could execute twice | fixed 2026-10-08 (`task/OP-009-lease-loss`: the renewer retries, a lost claim cancels the run) | 2026-10-08 |
 | OP-010 | The db-probe cannot connect when every usable slot is taken, so `postgresql_connection_exhaustion` cannot fire at 100 % | **fixed** 2026-10-09 — SC-04 at 100 % DIAGNOSED from the pulled alert | 2026-10-08 |
 | **OP-011** | Two alerts on one target open two incidents: §6.4 correlation is not implemented | **fixed** 2026-10-09 — SC-03 on vm-166 gives one incident (ACR-0004) | 2026-10-09 |
+| OP-013 | D-003 was decided on the same cases the baseline's rules were written from: its 1.00 is an upper bound | open | 2026-10-13 |
 
 ---
 
@@ -119,7 +120,7 @@ Each must be settled in the architecture (ACR) before the related implementation
 
 ## D-003 — The class registry: model or baseline per class
 
-**Status:** pending (team decision) · **Opened:** 2026-10-09 (T-0025), measured again in EVAL-2 (2026-10-12)
+**Status:** decided 2026-10-13 by `juanbetancurm` (revisited in OP-013) · **Opened:** 2026-10-09 (T-0025), measured again in EVAL-2 (2026-10-12)
 
 **The question.** §21.2's rule: a class keeps the model only if it matches or beats the deterministic baseline on
 the evaluation cases. Switching a class to `baseline` is a data change in the class registry, so it is the team's.
@@ -134,6 +135,42 @@ health wording offline. In review: EVAL-6 (#129, health 0.88 → 0.96) and the e
 
 **Done when.** Each of the four classes under the baseline is decided (keep the model, or `baseline`), recorded in
 the journal, and any registry change made in its own pull request.
+
+**Decision (2026-10-13).** Follow §21.2 as written, counting **all** of a class's evaluation cases (ambiguous ones
+included), 5 trials: the baseline re-run offline on `main` `f51c2b4`, the model from EVAL-main (`d34f0cb`) re-graded
+by EVAL-6.
+
+| Class | Model | Baseline | Strategy |
+|---|---|---|---|
+| `dependency_unavailable` | 27/30 = 0.90 | 30/30 = 1.00 | **`baseline`** (was `model_loop`) |
+| `nginx_upstream_failure` | 23/25 = 0.92 | 25/25 = 1.00 | **`baseline`** (was `plan_then_reason`) |
+| `health_check_failed` | 29/30 = 0.97 | 25/30 = 0.83 | `model_loop`, kept: the baseline diagnoses `ambiguous-health-no-cause`, where the right answer is to escalate |
+| `container_restart_loop` | 0.97 | 0.83 | `model_loop`, kept |
+| `disk_pressure` | 0.97 | 0.88 | `confirm_then_reason`, kept |
+| `cpu_saturation`, `postgresql_connection_exhaustion` | 1.00 | 1.00 | `model_loop`, kept (matches) |
+| `monitoring_blind_spot` | 1.00 | 1.00 | `evidence_pack`, kept |
+
+The evaluation CLI's per-class table counts only the `class` cases; the ambiguous ones count toward abstention.
+Counted that way, health looked like 0.96 vs 1.00; with its ambiguous case it is the other way round. The new
+capabilities (T-0036 to T-0040, the snapshot) stay offered to no class: offering one needs an evaluation batch first.
+Registry change: `argus/detectors/classes.py`; test `tests/test_d003_class_registry.py`.
+
+---
+
+## OP-013 — D-003 rests on cases the baseline was written from
+
+**Status:** open · **Opened:** 2026-10-13 (D-003)
+
+**Problem.** The baseline's rules were written while looking at the 55 evaluation cases, so its 1.00 on
+`dependency_unavailable` and `nginx_upstream_failure` is an upper bound, not its performance on new incidents. The
+model's misses on those classes are mostly safe escalations (hard counts 0 in every run), and one nginx miss is a
+disputed label (`nginx-slow-check`: nginx's 2 s timeout vs the upstream's 5 s, EVAL-6).
+
+**Fix.** A held-out set: at least 5 new cases per class, written without changing the baseline's rules, then both
+strategies, 5 trials each. Re-decide each class by §21.2 on those results, or propose an ACR if the rule itself should
+change (for example "within 0.10 of the baseline and hard 0").
+
+**Done when.** The held-out results are recorded and each class's strategy is re-decided in its own pull request.
 
 ---
 

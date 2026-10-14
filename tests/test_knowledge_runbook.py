@@ -58,7 +58,11 @@ def test_query_runbook_is_limited_by_policy(make_app):
     assert results[3].status == "refused"                    # max_per_incident: 3 (config/policy.yaml)
 
 
-def test_branch_runbooks_are_offered_and_read_in_a_diagnosis(make_app):
+def test_branch_runbooks_are_offered_and_read_in_a_diagnosis(make_app, monkeypatch):
+    # The mechanism under a model strategy: since D-003 `dependency_unavailable` runs `baseline`, so the test puts its
+    # registry entry back on `model_loop` (the class keeps the branch runbooks this test is about).
+    from argus.detectors.classes import CLASSES
+    monkeypatch.setattr(next(c for c in CLASSES if c.name == "dependency_unavailable"), "strategy", "model_loop")
     seen = {}
 
     def script(ctx: str):

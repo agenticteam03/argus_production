@@ -131,6 +131,10 @@ def cpu_saturation(snap: MetricSnapshot) -> DetectorResult:
 
 
 # Priority order: the first matching class becomes the incident class; others become findings.
+# D-003 (2026-10-13, §21.2): a class keeps a model strategy only if it matches or beats the deterministic baseline on
+# all its evaluation cases (ambiguous ones included). `dependency_unavailable` (model 0.90 vs 1.00) and
+# `nginx_upstream_failure` (0.92 vs 1.00) did not, so they run `baseline`; `health_check_failed` keeps the model (0.97
+# vs 0.83: the baseline diagnoses `ambiguous-health-no-cause`). OP-013 revisits this with held-out cases.
 CLASSES: list[IncidentClassSpec] = [
     IncidentClassSpec(name="container_restart_loop", family="stability", target_kinds={"container"},
                       required_signals={"restarts_10m", "oom_killed", "last_exit_code"},
@@ -138,7 +142,7 @@ CLASSES: list[IncidentClassSpec] = [
                       tool_tags={"stability", "memory", "logs", "container"}, detector=container_restart_loop),
     IncidentClassSpec(name="dependency_unavailable", family="dependency", target_kinds={"container"},
                       required_signals={"dependency_probe_min"}, runbook_ids=["RB-003"],
-                      branch_runbook_ids=["RB-004", "RB-009"], strategy="model_loop",
+                      branch_runbook_ids=["RB-004", "RB-009"], strategy="baseline",   # D-003 (§21.2)
                       tool_tags={"dependency", "network", "logs", "container", "availability", "knowledge", "connectivity"},
                       detector=dependency_unavailable),
     IncidentClassSpec(name="health_check_failed", family="availability", target_kinds={"container"},
@@ -153,7 +157,7 @@ CLASSES: list[IncidentClassSpec] = [
                       detector=postgresql_connection_exhaustion),
     IncidentClassSpec(name="nginx_upstream_failure", family="availability", target_kinds={"container"},
                       required_signals={"http_gateway_error_ratio_5m"}, runbook_ids=["RB-015"],
-                      branch_runbook_ids=["RB-002", "RB-003"], strategy="plan_then_reason",
+                      branch_runbook_ids=["RB-002", "RB-003"], strategy="baseline",   # D-003 (§21.2)
                       tool_tags={"availability", "network", "dependency", "logs", "container", "knowledge", "config"},
                       detector=nginx_upstream_failure),
 

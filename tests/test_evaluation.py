@@ -292,7 +292,10 @@ def test_the_command_line_runs_the_model_and_writes_one_json_line_per_run(ev, tm
     rows = [json.loads(line) for line in out.read_text(encoding="utf-8").splitlines()]
     assert code == 1                                         # a model that never decides fails the class cases
     assert len(rows) == 2 * sum(1 for c in ev.load_cases(CASES) if c.category == "class")
-    no_model = {c.id for c in ev.load_cases(CASES) if c.label.model_calls == 0}   # evidence_pack classes (T-0027)
+    from argus.detectors.classes import CLASSES              # evidence_pack (T-0027) and baseline (D-003) classes
+    no_model_classes = {c.name for c in CLASSES if c.strategy in ("evidence_pack", "baseline")}
+    no_model = {c.id for c in ev.load_cases(CASES)
+                if c.label.model_calls == 0 or c.label.incident_class in no_model_classes}
     assert {r["trial"] for r in rows} == {1, 2}
     assert all(r["model_calls"] >= 1 for r in rows if r["case"] not in no_model)
     assert all(r["model_calls"] == 0 for r in rows if r["case"] in no_model)
