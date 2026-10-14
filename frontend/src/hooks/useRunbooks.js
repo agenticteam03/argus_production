@@ -2,9 +2,9 @@ import { useEffect, useMemo, useState } from "react";
 import { runbooks } from "../services/index.js";
 import { parseRunbook } from "../utils/parseRunbook.js";
 
-// Polls the server and re-parses only when the Markdown actually changed,
-// so cards and the open drawer update on their own when a .md is edited.
-export function useRunbooks(intervalMs = 10000) {
+// Loads the library; re-parses only when the Markdown actually changed. The adapter says whether to poll: the demo
+// library every 10 s (an edited .md shows up), the edge's never (it changes with a deployment; ACR-0011).
+export function useRunbooks(intervalMs = runbooks.pollMs) {
   const [raw, setRaw] = useState(null);
   const [live, setLive] = useState(true);
 
@@ -21,8 +21,8 @@ export function useRunbooks(intervalMs = 10000) {
       }
     };
     load();
-    const id = setInterval(load, intervalMs);
-    return () => { active = false; clearInterval(id); };
+    const id = intervalMs > 0 ? setInterval(load, intervalMs) : null;
+    return () => { active = false; if (id) clearInterval(id); };
   }, [intervalMs]);
 
   const items = useMemo(() => (raw ?? []).map(parseRunbook).sort((a, b) => a.id.localeCompare(b.id)), [raw]);

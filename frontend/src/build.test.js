@@ -18,7 +18,7 @@ const bundle = () =>
 describe("real-mode build", () => {
   afterAll(() => rmSync(out, { recursive: true, force: true }));
 
-  it("contains no mock adapter, demo password or demo incident", async () => {
+  it("contains no mock adapter, demo password, demo incident or runbook", async () => {
     process.env.VITE_ARGUS_MOCK = "0";
     try {
       await build({ logLevel: "silent", build: { outDir: out, emptyOutDir: true } });
@@ -30,5 +30,8 @@ describe("real-mode build", () => {
     for (const mock of ["argus-demo", "VITE_ARGUS_USERS", "Demo logins", "inc_7e49840f50fa"]) {
       expect(js).not.toContain(mock);
     }
+    // ACR-0011: no runbook text either; the edge serves them after login (/runbooks/, httpRunbooksAdapter)
+    expect(js).not.toContain("Container OOM restart loop");
+    expect(js).toContain("/runbooks/index.json");
   }, 120_000);
 });

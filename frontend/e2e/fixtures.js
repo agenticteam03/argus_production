@@ -6,11 +6,13 @@
 // Read-only guard: records every request the page makes. A test fails if the app sends anything to the API except a
 // GET or the login POST, or talks to any other origin. ACR-0001: a read-only UI never starts, approves or changes
 // anything.
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { test as base, expect } from "@playwright/test";
 
 const SAMPLES = fileURLToPath(new URL("../../contracts/samples/", import.meta.url));
+const RUNBOOKS = fileURLToPath(new URL("../../argus/runbooks/", import.meta.url));
+const RUNBOOK_FILES = readdirSync(RUNBOOKS).filter((f) => /^RB-\d+.*\.md$/.test(f)).sort();
 export const sample = (name) => JSON.parse(readFileSync(`${SAMPLES}${name}.json`, "utf8"));
 
 export const PASSWORD = "right-password";
@@ -30,6 +32,15 @@ async function fakeApi(page, { role = "operator", overrides = {} } = {}) {
   const incident = sample("incident");
   if (role === "viewer") { delete incident.evidence; delete incident.audit; }
   const json = (route, body, status = 200) => route.fulfill({ status, contentType: "application/json", body: JSON.stringify(body) });
+
+  // ACR-0011: the edge serves /runbooks/ only to a request with a valid bearer token (auth_request to /api/v1/me).
+  await page.route("**/runbooks/**", async (route, request) => {
+    if (!(request.headers().authorization ?? "").startsWith("Bearer ")) return json(route, { detail: "unauthorized" }, 401);
+    const name = new URL(request.url()).pathname.split("/").pop();
+    if (name === "index.json") return json(route, RUNBOOK_FILES);
+    if (!RUNBOOK_FILES.includes(name)) return json(route, { detail: "not found" }, 404);
+    return route.fulfill({ status: 200, contentType: "text/markdown", body: readFileSync(`${RUNBOOKS}${name}`, "utf8") });
+  });
 
   await page.route("**/api/**", async (route, request) => {
     const url = new URL(request.url());

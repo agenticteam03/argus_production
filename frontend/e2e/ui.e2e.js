@@ -68,6 +68,18 @@ test.describe("incidents", () => {
   });
 });
 
+test.describe("runbooks (guideline 3)", () => {
+  test("load after login, with the token, from the edge (not from the bundle)", async ({ page, api }) => {
+    await api();
+    const asked = page.waitForRequest((r) => r.url().endsWith("/runbooks/index.json"));
+    await logIn(page);
+    await page.goto("/tools/runbooks");
+    expect((await asked).headers().authorization).toMatch(/^Bearer /);
+    await expect(page.getByRole("heading", { name: "Runbooks" })).toBeVisible();
+    await expect(page.getByText("RB-001").first()).toBeVisible();
+  });
+});
+
 test.describe("session", () => {
   test("log out returns to the login page, and a reload keeps it there", async ({ page, api }) => {
     await api();
