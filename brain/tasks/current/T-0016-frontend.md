@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | `in progress` — steps 1–2 merged (PR #24); step 3 (read-only API wiring) merged 2026-10-10 (PR #56); still open: Playwright acceptance tests, the read-only network guard, the `contracts/ui-api.json` check |
+| Status | `in progress` — steps 1–3 merged (#24, #56, #137); the acceptance tests, the read-only guard, the contract check, the linter and step 4b's parts that do not wait for ACR-0011 done 2026-10-14; next: step 4 (ACR-0011, after its second approval) |
 | Phase | 10 — output modes |
 | Architecture | ACR-0001 (from T-0015) |
 | Branch | `task/T-0016-frontend` (one PR per step is fine) |
@@ -226,3 +226,25 @@ a screen or a button in `frontend/`.
   - **Not here:** the runbooks still ship in the bundle. Moving them behind the login needs Nginx's checked
     `/runbooks/` (ACR-0011, after its second approval).
   - `npm test`: 14 files, 74 tests.
+- **2026-10-14 — the acceptance tests, the read-only guard, the contract check and the linter (`conantkd` + agent):**
+  - **Playwright** (`e2e/`, `npm run e2e`, `@playwright/test` 1.64.0): the real-mode build served by `vite preview`,
+    with the API faked in the browser from `contracts/samples/`. Nine tests:
+    - a wrong password stays on the login page;
+    - a login asks for `scope=read` and opens the dashboard;
+    - the dashboard shows the incidents and escalations;
+    - the list opens an incident with its diagnosis and timeline;
+    - an operator sees the evidence and a viewer sees the restricted notice;
+    - an unknown incident shows "Incident not found";
+    - logging out (and reloading) stays logged out;
+    - a 401 returns to the login page;
+    - the guard flags a write and another origin.
+  - **Read-only guard** (`e2e/fixtures.js`): every test fails if the page sent anything to the API except a `GET`
+    or the login `POST`, or anything to another origin.
+  - **Contract check** (`src/services/contract.test.js`): the real adapters run with a recorded `fetch`. Every call
+    must be a route, method and query parameter of `contracts/ui-api.json`. A second test proves an undeclared
+    route, method or parameter is flagged. The response fields are not checked; the API's contract test guards them.
+  - **ESLint** (`npm run lint`): recommended rules plus React hooks; 0 errors, 14 warnings (fast refresh only).
+  - **CI job `frontend`:** lint → Vitest → build → Playwright (report uploaded on failure).
+  - **Found and fixed:** the restricted-evidence notice said "operators and admins"; Argus has no admin role, so it
+    now says "operators and approvers".
+  - Stable: three runs in a row, 9/9. `npm test`: 15 files, 76 tests.

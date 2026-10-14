@@ -28,3 +28,6 @@ hosts.env
 # Frontend (Node) — dependencies and build output are never committed
 node_modules/
 frontend/dist/
+frontend/dist-e2e/
+frontend/test-results/
+frontend/playwright-report/

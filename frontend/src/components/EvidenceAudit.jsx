@@ -6,7 +6,7 @@ import { Card, Lock } from "./ui.jsx";
 // Shown when the server sent no `evidence` / `audit` key at all (viewer). Not an error.
 export const RestrictedNotice = ({ title, label }) => (
   <Card title={title}>
-    <p className="flex items-center gap-2 text-sm text-muted"><Lock width="16" height="16" /> {label} is visible to operators and admins.</p>
+    <p className="flex items-center gap-2 text-sm text-muted"><Lock width="16" height="16" /> {label} is visible to operators and approvers.</p>
   </Card>
 );
 

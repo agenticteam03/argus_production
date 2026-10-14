@@ -7,8 +7,8 @@ run them (a run "not started", or Actions turned off). See brain/agents/REVIEW_P
 
 Steps, as in CI: Brain audit and lint; the secret scan (gitleaks in Docker, the files of the commit; CI also scans
 the history); the full pytest suite against a throwaway Postgres in Docker (as policies/TDD.md); the OP-005 PromQL
-cases (promtool in Docker); the frontend's unit tests and build (npm). A missing tool makes its step SKIPPED, never a
-pass, and the result says so. A pytest failure is run again alone once: passing alone it is reported "flaky", failing
+cases (promtool in Docker); the frontend (npm: lint, unit tests, build, Playwright). A missing tool makes its step
+SKIPPED, never a pass, and the result says so. A pytest failure is run again alone once: passing alone it is reported "flaky", failing
 again it fails. The last line block is the result to paste into the PR (or `--post` comments it with gh), bound to
 the exact commit that was checked. Run it from the repository's virtual environment (`pip install -e ".[test]"`).
 """
@@ -157,11 +157,15 @@ class LocalCI:
         npm = self.which("npm")
         if not npm:
             return Result("frontend", "skipped", "npm not found")
-        for args in (["ci"], ["test"], ["run", "build"]):
-            code, out = self.run([npm, *args], cwd=self.src / "frontend", timeout=1200)
+        npx = self.which("npx") or npm
+        # CI's job `frontend` (T-0016): lint, unit tests, build, the Playwright browser, the acceptance tests
+        steps = [(npm, ["ci"]), (npm, ["run", "lint"]), (npm, ["test"]), (npm, ["run", "build"]),
+                 (npx, ["playwright", "install", "chromium"]), (npm, ["run", "e2e"])]
+        for tool, args in steps:
+            code, out = self.run([tool, *args], cwd=self.src / "frontend", timeout=1200)
             if code != 0:
                 return Result("frontend", "fail", f"npm {' '.join(args)}: {_tail(out, 5)}")
-        return Result("frontend", "pass", "npm ci, test, build")
+        return Result("frontend", "pass", "npm ci, lint, test, build, e2e")
 
     def verify_main(self) -> Result:
         if not self.which("gh"):

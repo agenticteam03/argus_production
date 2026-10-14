@@ -15,8 +15,11 @@ Everything here is self-contained: the core team never edits this folder, and no
 cd frontend
 npm ci            # install dependencies (package-lock.json is authoritative)
 npm run dev       # dev server → http://localhost:5173  (mock data)
-npm test          # unit tests (Vitest)
+npm run lint      # ESLint (recommended + React hooks)
+npm test          # unit tests (Vitest), incl. the contract check and the real-build check
 npm run build     # production build → dist/ (never committed; gitignored)
+npx playwright install chromium   # once
+npm run e2e       # acceptance tests (Playwright) on the real-mode build, API faked from contracts/samples
 ```
 
 Mock logins (no real API): `viewer`, `operator`, `approver` — password `argus-demo`. They live in
@@ -74,8 +77,9 @@ Argus handle and the team password; the token has `scope=read` and cannot write.
 
 ## Known follow-ups
 
-- **Acceptance (Playwright) + contract check**: the API client is checked against `contracts/ui-api.json`, and the
-  read-only network guard fails any non-`GET` request (T-0016 steps 2–3, still to add).
+- **Acceptance tests, the read-only guard and the contract check exist** (`e2e/`, `src/services/contract.test.js`).
+  What they do not check yet: the response *fields* the UI reads (the routes, methods and query parameters are
+  checked); the API's own contract test guards the bodies.
 - **Menu from `/me` actions** instead of `routes.js` roles (ACR-0001 rule), once there is more than one action.
 - **Real agent chat and health need the API, not just permission.** A `scope=read` token is refused by design
   (ACR-0001), and `POST /api/v1/investigations` is not in the contract *and* only **starts** an investigation for
