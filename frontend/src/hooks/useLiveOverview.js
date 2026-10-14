@@ -1,9 +1,12 @@
 import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "../context/AuthContext.jsx";
 import { argus } from "../services/index.js";
+import { POLL_MS } from "../utils/polling.js";
+import { usePoll } from "./usePoll.js";
 
-// Short polling today. When the SSE endpoint exists, subscribe here instead and keep the same return shape.
-export function useLiveOverview(intervalMs = 5000) {
+// Polling every 30 s, paused while the tab is hidden (usePoll). When the SSE endpoint exists, subscribe here instead
+// and keep the same return shape.
+export function useLiveOverview(intervalMs = POLL_MS.overview) {
   const { logout } = useAuth();
   const [data, setData] = useState({ incidents: [], approvals: [], escalations: [], health: null });
   const [live, setLive] = useState(true);
@@ -20,11 +23,8 @@ export function useLiveOverview(intervalMs = 5000) {
     }
   }, [logout]);
 
-  useEffect(() => {
-    refresh();
-    const id = setInterval(refresh, intervalMs);
-    return () => clearInterval(id);
-  }, [refresh, intervalMs]);
+  useEffect(() => { refresh(); }, [refresh]);
+  usePoll(refresh, intervalMs);
 
   return { ...data, live, updatedAt, refresh };
 }

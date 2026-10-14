@@ -212,3 +212,17 @@ a screen or a button in `frontend/`.
   - **committed:** `bdadd25`, `ae0d595`, `bc21ab2` (UI), `1c6b7da` (the test fix); `origin/main` merged into the branch
     before pushing. Still open: the Playwright acceptance tests, the read-only network guard, the
     `contracts/ui-api.json` check, and the incident-list `offset`/total contract ask.
+- **2026-10-14 — step 4b, the parts that do not wait for ACR-0011's second approval (`conantkd` + agent):**
+  - **No mock code in a real build.** `frontend/package.json` `"sideEffects": ["**/*.css"]`, so with
+    `VITE_ARGUS_MOCK=0` the build drops the mock adapters: no demo password, no `VITE_ARGUS_USERS`, no demo
+    incidents. A demo build keeps them.
+    - Test: `src/build.test.js` builds in real mode and greps the bundle.
+    - Red seen without the `sideEffects` line (`argus-demo` found); green with it.
+  - **Polling budget** (ACR-0011 §3.1 row 8): the dashboard and the incident list every 30 s instead of 5 s.
+    - The dashboard now uses `usePoll`, so it pauses while the tab is hidden, as the list already did.
+    - The list asks for at most 200 incidents instead of 1000.
+    - The intervals are in `src/utils/polling.js`; a running incident still refreshes every 2–3 s.
+    - Test: `src/utils/polling.test.js`, red seen (no module), then green.
+  - **Not here:** the runbooks still ship in the bundle. Moving them behind the login needs Nginx's checked
+    `/runbooks/` (ACR-0011, after its second approval).
+  - `npm test`: 14 files, 74 tests.

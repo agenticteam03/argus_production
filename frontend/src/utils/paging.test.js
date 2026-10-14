@@ -18,7 +18,7 @@ describe("incidentsSummary", () => {
   });
 
   it("says when the API cap cut the list short", () => {
-    expect(incidentsSummary({ shown: 30, matched: 1000, total: 1000, hasFilters: false, truncated: true }))
-      .toBe("Showing 30 of 1000 incidents · only the latest 1000 are loaded");
+    expect(incidentsSummary({ shown: 30, matched: 200, total: 200, hasFilters: false, truncated: true }))
+      .toBe("Showing 30 of 200 incidents · only the latest 200 are loaded");
   });
 });

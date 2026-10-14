@@ -55,7 +55,7 @@ Argus handle and the team password; the token has `scope=read` and cannot write.
 | `src/services/index.js` | **The single swap point**: mock adapters by default, HTTP adapters with `VITE_ARGUS_MOCK=0`; also exports `dataSource` (`demo`/`api`) for the pill |
 | `src/services/sessionStore.js` | The session that survives a reload (`sessionStorage`, TTL, bounded by the token's own JWT `exp`); holds the user and, in real mode, the token |
 | `src/services/http*.js` | The real API adapters (`auth`/`me`, incidents, events, evidence, escalations, overview) and `session.js` (the in-memory bearer token) |
-| `src/hooks/` | `useLiveOverview` (5 s poll), `useIncidentList` (5 s poll, up to 1000 rows), `useIncident` + `usePoll`, `useRunbooks` (10 s poll) |
+| `src/hooks/` | `useLiveOverview` (30 s poll), `useIncidentList` (30 s poll, up to 200 rows), `useIncident` + `usePoll` (paused while the tab is hidden), `useRunbooks` (10 s poll); the intervals are in `src/utils/polling.js` |
 | `src/utils/parseRunbook.js` | Runbook Markdown → the data shown on cards |
 | `src/utils/paging.js` | The incidents list pages in the browser (30 at a time) over the one `limit` fetch the API allows |
 | `../../../argus/runbooks/` | The **real** runbook library (21 runbooks), read by `fileRunbooksAdapter.js`; there is no runbook API route yet |
@@ -84,7 +84,7 @@ Argus handle and the team password; the token has `scope=read` and cannot write.
   samples and guard, plus an ACR. The **Live** pill is short polling (5 s); there is no SSE route, so it is fresh,
   not pushed.
 - **Incidents: a real page cursor + total.** `GET /api/v1/incidents` takes only `limit` (the latest N) — no
-  `offset` and no total — so the list fetches up to 1000 rows once and pages in the browser (`src/utils/paging.js`).
+  `offset` and no total — so the list fetches up to 200 rows once and pages in the browser (`src/utils/paging.js`).
   Real server-side paging and an exact total need a contract change (an `offset`/cursor plus a count).
 - **Incident trigger/severity** on cards need a contract change on the API side.
 - **`react-router` 6 → 7**: `npm audit` reports 2 moderate advisories (open redirect via backslash in `<Link>` —

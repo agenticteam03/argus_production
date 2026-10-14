@@ -46,11 +46,11 @@ rendering. Unit tests with Vitest; Playwright acceptance tests come next (T-0016
 - Log out clears the session immediately. A session survives a page reload in the same tab (remembered until
   logout, closing the tab, or a TTL, default 8 h); a real session is additionally bounded by the token's own
   expiry, and a `401` forgets it.
-- The incident list loads the newest rows once (up to 1000) and shows them **30 at a time**: a **Show more** button
+- The incident list loads the newest rows once (up to 200) and shows them **30 at a time**: a **Show more** button
   at the end and a line giving how many are visible and the real total (`src/utils/paging.js`). The API has no
   `offset`, so the paging happens in the browser.
-- The dashboard refreshes every 5 s, the incident list every 5 s and the runbook list every 10 s. The pill by the
-  page title says **Demo data** in mock mode and, against the real API, **Live** with the time of the last
+- The dashboard and the incident list refresh every 30 s and pause while the tab is hidden; a running incident
+  refreshes every 2–3 s while it runs; the runbook list every 10 s (no API call). The pill by the page title says **Demo data** in mock mode and, against the real API, **Live** with the time of the last
   successful refresh (or **Reconnecting…** when a poll fails) — so it is visibly live, not decorative.
 
 ## Constraints I accept (T-0016 rules)
