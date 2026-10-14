@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | `in progress` — steps 1–3 merged (#24, #56, #137); acceptance tests, guard, contract check, linter, and step 4a–4c of ACR-0011 (API, frontend, the edge image) in #144 (2026-10-14), waiting for its approvals; next: 4d on vm-095 (loopback, the lease), then 4e (public: the data of ACR-0011 §8) |
+| Status | `in progress` — steps 1–3 merged (#24, #56, #137); acceptance tests, guard, contract check, linter and ACR-0011 4a–4c merged (#144, approved by `juanbetancurm`: ACR-0011's second approval); **4d and 4e deployed 2026-10-14: the read-only UI is public on vm-095** (HTTPS, Let's Encrypt for the IP address). Next: a person's browser login; the AFTER-MERGE to `main`; "Level 1 Investigate" is ACR-0012 |
 | Phase | 10 — output modes |
 | Architecture | ACR-0001 (from T-0015) |
 | Branch | `task/T-0016-frontend` (one PR per step is fine) |
@@ -289,3 +289,14 @@ a screen or a button in `frontend/`.
   - **Found:** the audited client is Docker's bridge gateway (`172.30.0.1`), not the browser. To check on the public
     port before 4e (Docker's userland proxy).
   - **Left:** a real login in the browser (a person's password), then 4e.
+- **2026-10-14 — step 4e, public on vm-095 (`conantkd` + agent, both leases;
+  [evidence](../../execution/history/T-0016/step-04e/evidence.md)):**
+  - Team decisions: one approval of ACR-0011 assumed; an IP-address certificate; shared `operator` accounts kept for
+    now. The OCI rule for 443/80 was opened by the team.
+  - `ui-cert.sh` now issues for an address: certbot 5.8.0 with `--ip-address` and the `shortlived` profile (about 6
+    days), a self-signed bootstrap so the edge can start in public mode, and renewal at 3 days left by
+    `argus-v18-certbot.timer` (twice a day). A staging dry run passed first.
+  - From the Internet: HTTPS with a trusted chain (Let's Encrypt `YE2`), HTTP→HTTPS, HSTS/CSP/no framing; `/docs`,
+    `/openapi.json` and `POST /investigations` 404; the API and the runbooks 401 without a token.
+  - **The real client address reaches the API's audit** (4d's `172.30.0.1` came only from the tunnel).
+  - NO INTERFERENCE on both VMs.
