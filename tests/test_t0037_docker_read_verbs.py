@@ -144,6 +144,20 @@ def test_a_container_outside_the_allowlist_is_refused(tmp_path, monkeypatch):
         assert e.value.code in (403, 404)
 
 
+@pytest.mark.parametrize("line", ["KeyError: 'FEATURE_FLAGS' in settings.load()", "ValueError: bad port",
+                                  "java.lang.RuntimeException: boom", "3 errors in the last batch", "ERROR db down",
+                                  "Traceback (most recent call last):", "FATAL: the database system is starting up"])
+def test_the_error_pattern_finds_exception_class_names_and_plurals(tmp_path, monkeypatch, line):
+    """EVAL-search-logs: `\\berror\\b` missed `KeyError: …` (no word boundary inside the class name), so a search told
+    the model "0 errors" for a log that had one (`health-api-vm166-01`)."""
+    assert _service(tmp_path, monkeypatch).LOG_PATTERNS["error"].search(line)
+
+
+@pytest.mark.parametrize("line", ["GET /items 200", "service running", "no route configured", "mirror sync done"])
+def test_the_error_pattern_does_not_match_ordinary_lines(tmp_path, monkeypatch, line):
+    assert not _service(tmp_path, monkeypatch).LOG_PATTERNS["error"].search(line)
+
+
 def test_the_gateway_and_the_catalogue_name_the_same_patterns(tmp_path, monkeypatch):
     from argus.capabilities.catalog import SEARCH_PATTERNS
     svc = _service(tmp_path, monkeypatch)
