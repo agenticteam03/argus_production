@@ -157,10 +157,10 @@ def build_api(app_ctx) -> FastAPI:
         action is listed: new features add actions here, never permission logic in the UI."""
         access = request.state.access
         actions = ["view_incidents", "view_timeline"]
+        if p.role in ("operator", "approver") and s.langfuse_ui_url.startswith(("http://", "https://")):
+            actions.append("view_traces")                   # ACR-0013 C: only when the Langfuse UI link is configured
         if p.role in ("operator", "approver"):
             actions.append("view_evidence")
-            if s.langfuse_ui_url.startswith(("http://", "https://")):
-                actions.append("view_traces")
             if access == "full":
                 actions.append("start_investigation")
         return {"user": p.id, "role": p.role, "access": access, "actions": actions}

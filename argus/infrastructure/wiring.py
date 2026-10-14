@@ -47,6 +47,14 @@ class Settings:
     pg_db: str = field(default_factory=lambda: os.getenv("ARGUS_PG_DB", "argus"))
     pg_user: str = field(default_factory=lambda: os.getenv("ARGUS_PG_USER", "argus_runtime"))
     llm_model: str = field(default_factory=lambda: os.getenv("ARGUS_LLM_MODEL", "gpt-5.6-luna"))
+    # ACR-0013: optional, filtered OTLP tracing to a self-hosted Langfuse; off by default. The project keys are the
+    # secret files langfuse_public_key / langfuse_secret_key, mounted into the worker only.
+    tracing_enabled: bool = field(default_factory=lambda: os.getenv("ARGUS_TRACING_ENABLED", "0") == "1")
+    tracing_endpoint: str = field(default_factory=lambda: os.getenv(
+        "ARGUS_TRACING_ENDPOINT", "http://argus-v18-langfuse-web:3000/api/public/otel/v1/traces"))
+    # ACR-0013 C: the operator-facing Langfuse UI (loopback / tunnel; never public). Unset: the incident view has no link.
+    langfuse_ui_url: str = field(default_factory=lambda: os.getenv("ARGUS_LANGFUSE_UI_URL", "").rstrip("/"))
+    langfuse_project_id: str = field(default_factory=lambda: os.getenv("ARGUS_LANGFUSE_PROJECT_ID", ""))
     llm_base_url: str | None = field(default_factory=lambda: os.getenv("ARGUS_LLM_BASE_URL") or None)
     llm_timeout_s: float = field(default_factory=lambda: float(os.getenv("ARGUS_LLM_TIMEOUT", "120")))
     llm_temperature: str | None = field(default_factory=lambda: os.getenv("ARGUS_LLM_TEMPERATURE") or None)
@@ -72,15 +80,6 @@ class Settings:
     login_max_per_address: int = field(default_factory=lambda: int(os.getenv("ARGUS_LOGIN_MAX_PER_ADDRESS", "20")))
     login_window_s: int = field(default_factory=lambda: int(os.getenv("ARGUS_LOGIN_WINDOW_S", "900")))
     incidents_limit_cap: int = field(default_factory=lambda: int(os.getenv("ARGUS_INCIDENTS_LIMIT_CAP", "200")))
-    # ACR-0013: optional, filtered OTLP tracing to a self-hosted Langfuse; off by default. The project keys are the
-    # secret files langfuse_public_key / langfuse_secret_key, mounted into the worker only.
-    tracing_enabled: bool = field(default_factory=lambda: os.getenv("ARGUS_TRACING_ENABLED", "0") == "1")
-    tracing_endpoint: str = field(default_factory=lambda: os.getenv(
-        "ARGUS_TRACING_ENDPOINT", "http://argus-v18-langfuse-web:3000/api/public/otel/v1/traces"))
-    # ACR-0013 C: the operator-facing Langfuse UI (loopback / tunnel; never public). Unset: the incident view has no link.
-    langfuse_ui_url: str = field(default_factory=lambda: os.getenv("ARGUS_LANGFUSE_UI_URL", "").rstrip("/"))
-    langfuse_project_id: str = field(default_factory=lambda: os.getenv("ARGUS_LANGFUSE_PROJECT_ID", ""))
-
     def secret(self, rel: str) -> str | None:
         return _read(self.secrets_dir / rel)
 
