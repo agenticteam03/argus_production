@@ -72,6 +72,11 @@ class Settings:
     login_max_per_address: int = field(default_factory=lambda: int(os.getenv("ARGUS_LOGIN_MAX_PER_ADDRESS", "20")))
     login_window_s: int = field(default_factory=lambda: int(os.getenv("ARGUS_LOGIN_WINDOW_S", "900")))
     incidents_limit_cap: int = field(default_factory=lambda: int(os.getenv("ARGUS_INCIDENTS_LIMIT_CAP", "200")))
+    # ACR-0013: optional, filtered OTLP tracing to a self-hosted Langfuse; off by default. The project keys are the
+    # secret files langfuse_public_key / langfuse_secret_key, mounted into the worker only.
+    tracing_enabled: bool = field(default_factory=lambda: os.getenv("ARGUS_TRACING_ENABLED", "0") == "1")
+    tracing_endpoint: str = field(default_factory=lambda: os.getenv(
+        "ARGUS_TRACING_ENDPOINT", "http://argus-v18-langfuse-web:3000/api/public/otel/v1/traces"))
 
     def secret(self, rel: str) -> str | None:
         return _read(self.secrets_dir / rel)
@@ -135,6 +140,16 @@ def load_routing(config_dir: Path):
     if not path.exists():
         return Routing()
     return Routing.from_data(yaml.safe_load(path.read_text(encoding="utf-8")), {c.family for c in CLASSES})
+
+
+def tracing_sink(s: Settings, store):
+    """ACR-0013: the runner's event sink. The store, unless tracing is enabled AND this process holds the Langfuse
+    project keys (only the worker does): then the store plus filtered OTLP spans. Telemetry: never required."""
+    pk, sk = s.secret("langfuse_public_key"), s.secret("langfuse_secret_key")
+    if not (s.tracing_enabled and pk and sk):
+        return store
+    from argus.observability.tracing import OtlpExporter, TracingEventSink
+    return TracingEventSink(store, OtlpExporter(s.tracing_endpoint, pk, sk))
 
 
 def declared_paths(policy: dict | None, inventory: dict | None) -> list[str]:
@@ -276,7 +291,7 @@ def build(settings: Settings | None = None, llm=None, metrics=None, executors: E
         extra["checkpointer"] = store.checkpointer()
     metrics = metrics or PrometheusMetrics(inventory, signals, s.metrics_max_staleness_s)
     runner = runners[s.runner](**extra, memory=store, audit=store, inventory=inventory, metrics=metrics,
-                            knowledge=knowledge, notifier=store, invoke=invoke, events=store,
+                            knowledge=knowledge, notifier=store, invoke=invoke, events=tracing_sink(s, store),
                             strategies=strategies, offered_specs=[sp for sp in specs if policy.capability_known(sp.name)],
                             redactor=redactor, policy_version=policy.version,
                             max_tool_level=policy.max_tool_level, max_reads_per_step=s.max_reads_per_step,
