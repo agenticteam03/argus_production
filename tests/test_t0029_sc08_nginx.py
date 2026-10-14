@@ -109,7 +109,7 @@ def test_the_class_is_registered_with_rb015_and_its_branches():
     from argus.detectors.classes import classes_for
     spec = next(c for c in classes_for("container") if c.name == "nginx_upstream_failure")
     assert spec.runbook_ids == ["RB-015"] and spec.branch_runbook_ids == ["RB-002", "RB-003"]
-    assert spec.strategy == "plan_then_reason" and spec.family == "availability"
+    assert spec.strategy == "baseline" and spec.family == "availability"      # D-003 (§21.2)
     assert spec.required_signals == {"http_gateway_error_ratio_5m"}
 
 
