@@ -43,7 +43,7 @@ What changed and why, in 1–5 lines. Tests: 34 passed (red seen: test_resume_af
   The organization is on GitHub's free plan, so **nothing on GitHub stops an owner** from doing it: the rule is
   enforced by us, and checked by the pre-push hook, CI job `main-guard` and `brain.py start` (`brain.py verify-main`;
   exceptions only in `main-exceptions.txt`, see `../agents/REVIEW_PROTOCOL.md`, including its temporary fast-track
-  until 2026-10-12);
+  windows: until 2026-10-12, and 2026-10-14 to 2026-10-16);
 - modify another developer's task branch without talking to them (after an expired lease: wait for them, or start a
   fresh branch from `main`);
 - commit secrets, `output*.bash`, `*.db`, `.env`, `hosts.env`, `secrets/` — see [`SECURITY.md`](SECURITY.md).

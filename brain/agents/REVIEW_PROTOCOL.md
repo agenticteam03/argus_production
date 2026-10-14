@@ -68,14 +68,24 @@ Node/npm and `gh`; a missing tool makes its step `skipped`, and the result says 
 
 When GitHub Actions runs again, its CI is the merge check again; nothing needs re-running for what was merged.
 
-## Temporary fast-track (until 2026-10-12, then it expires by itself)
+## Temporary fast-track (windows: 2026-10-05 – 2026-10-12, and 2026-10-14 – 2026-10-16; each expires by itself)
 
 **Why:** the course presentation came earlier than planned; waiting for a review on every pull request would block
 the work. Decided by `juanbetancurm` on 2026-10-05 (journal). Teammates may object in any PR; an objection ends it.
 
 **Who:** `juanbetancurm`, `conantkd` (added 2026-10-06 by PR #16, approved by `juanbetancurm`), `juanes6554` (added
 2026-10-06 for the frontend, T-0016, once his onboarding is done; approved by `conantkd`). **Until:** 2026-10-12
-inclusive. After that date no new fast-track line may be added.
+inclusive (first window).
+
+**Second window, 2026-10-14 to 2026-10-16 inclusive:**
+- Proposed by `conantkd` on 2026-10-14 in the pull request that adds this paragraph. It exists only if a teammate
+  approves that pull request, which is not itself fast-tracked because it changes this rule.
+- **Why:** after the first window, small changes (records, one-line fixes with their tests) waited a day or more for
+  a review while the team was on other work.
+- **Same people and conditions as above, unchanged.** A teammate's objection in any PR ends it, as in the first
+  window.
+
+Outside a window no fast-track line may be added; a line's date must fall inside one.
 
 A fast-track pull request may be merged by its author when **all** of these hold:
 - it is still a pull request from a task branch (no direct push to `main`; the pre-push hook stays);
