@@ -40,3 +40,4 @@ pr 85  2026-10-12  juanbetancurm  retroactive: merged without an approval of its
 pr 91  2026-10-12  juanbetancurm  retroactive: merged without an approval of its last push (03bb2f8: E2E-5 step 2 and the AFTER-MERGE of #88-#90, brain files only); reviewed by conantkd in the PR that adds this line
 pr 92  2026-10-12  juanbetancurm  retroactive: merged without an approval of its last push (d32c3d3: OP-012, max_per_incident under the LangGraph runner); reviewed by conantkd in the PR that adds this line
 pr 112  2026-10-12  conantkd  fast-track: AFTER-MERGE record, both VMs on main d34f0cb (documentation only)
+pr 146  2026-10-14  conantkd  fast-track: T-0016 4e record, the public UI deployment (documentation only)
