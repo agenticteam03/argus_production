@@ -7,7 +7,7 @@
 | Accepted by | pending review |
 | Second approval (safety principle only) | not required: the existing host boundary, secrets rules, read-only rule and audit separation remain unchanged |
 | Architecture version | current `1.8.10` to the next free version when applied (tentatively `1.8.12`; ACR-0012 proposes `1.8.11`) |
-| Task / PR | [LF-2](../../tasks/current/LF-2-langfuse-db-architecture.md) - PR to be assigned |
+| Task / PR | [LF-2](../../tasks/current/LF-2-langfuse-db-architecture.md) - PR #150 |
 
 ## 1. Detect and explain
 
