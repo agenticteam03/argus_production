@@ -122,9 +122,23 @@ def edge(tmp_path_factory):
                 f.chmod(0o644)
     run = lambda *a: subprocess.run(["docker", *a], capture_output=True, text=True, timeout=300)
     run("network", "create", net)
-    api_c = f"{api}-{tag}"
-    run("run", "-d", "--name", api_c, "--network", net, "--network-alias", api, "python:3.12-alpine",
-        "python", "-c", FAKE_API)
+    apis = []
+
+    def start_api():
+        name = f"{api}-{tag}-{len(apis)}"
+        run("run", "-d", "--name", name, "--network", net, "--network-alias", api, "python:3.12-alpine",
+            "python", "-c", FAKE_API)
+        apis.append(name)
+
+    def recreate_api():
+        """The agent recreated by a deployment: a new container (a new address) under the same name, then the old one
+        removed, so Docker cannot hand the old address back."""
+        old = apis[-1]
+        start_api()
+        run("rm", "-f", old)
+        time.sleep(2)                                   # the new fake API listening
+
+    start_api()
     r = run("run", "-d", "--name", web, "--network", net, "-p", "127.0.0.1::8080",
             "-v", f"{NGINX_DIR}:/etc/nginx/argus:ro", "-v", f"{conf}:/etc/nginx/conf.d:ro",
             "-v", f"{site / 'html'}:/usr/share/nginx/html:ro", "-v", f"{site / 'runbooks'}:/usr/share/nginx/runbooks:ro",
@@ -142,9 +156,9 @@ def edge(tmp_path_factory):
             time.sleep(1)
         else:
             pytest.fail("nginx did not start: " + run("logs", web).stderr[-2000:])
-        yield base, run, web
+        yield base, run, web, recreate_api
     finally:
-        run("rm", "-f", web, api_c)
+        run("rm", "-f", web, *apis)
         run("network", "rm", net)
 
 
@@ -164,7 +178,7 @@ def curl(base, path, method="GET", headers=None, data=None):
 
 
 def test_nginx_accepts_the_configuration(edge):
-    _, run, web = edge
+    _, run, web, _ = edge
     r = run("exec", web, "nginx", "-t")
     assert r.returncode == 0, r.stderr
 
@@ -178,7 +192,7 @@ def test_nginx_accepts_the_configuration(edge):
     ("GET", "/openapi.json", 404), ("GET", "/api/v1/approvals", 404), ("GET", "/metrics", 200),
 ])
 def test_what_passes_and_what_is_refused(edge, method, path, code):
-    base, _, _ = edge
+    base, _, _, _ = edge
     status, _, body = curl(base, path, method=method, headers={"Authorization": "Bearer good"},
                            data="username=a&password=b&scope=read" if method == "POST" else None)
     assert status == code
@@ -187,7 +201,7 @@ def test_what_passes_and_what_is_refused(edge, method, path, code):
 
 
 def test_a_browser_cannot_forge_the_edge_headers(edge):
-    base, _, _ = edge
+    base, _, _, _ = edge
     _, _, body = curl(base, "/api/v1/me", headers={"Authorization": "Bearer good", "X-Argus-Edge": "",
                                                    "X-Real-IP": "198.51.100.99", "X-Forwarded-For": "198.51.100.99"})
     seen = json.loads(body)
@@ -195,7 +209,7 @@ def test_a_browser_cannot_forge_the_edge_headers(edge):
 
 
 def test_the_runbooks_need_a_token_that_passes_api_me(edge):
-    base, _, _ = edge
+    base, _, _, _ = edge
     assert curl(base, "/runbooks/index.json")[0] == 401
     assert curl(base, "/runbooks/RB-001-x.md", headers={"Authorization": "Bearer bad"})[0] == 401
     code, head, body = curl(base, "/runbooks/RB-001-x.md", headers={"Authorization": "Bearer good"})
@@ -205,7 +219,7 @@ def test_the_runbooks_need_a_token_that_passes_api_me(edge):
 
 
 def test_the_security_headers_are_on_every_answer(edge):
-    base, _, _ = edge
+    base, _, _, _ = edge
     for path in ("/", "/incidents/inc_1", "/api/v1/me"):
         _, head, _ = curl(base, path, headers={"Authorization": "Bearer good"})
         for h in ("content-security-policy: default-src 'self'", "x-frame-options: deny",
@@ -215,7 +229,22 @@ def test_the_security_headers_are_on_every_answer(edge):
 
 
 def test_a_burst_of_logins_is_limited(edge):
-    base, _, _ = edge
+    base, _, _, _ = edge
     codes = [curl(base, "/api/v1/auth/token", method="POST", data="username=a&password=b&scope=read")[0]
              for _ in range(12)]
     assert 429 in codes and codes[0] == 200
+
+
+def test_the_edge_follows_a_recreated_agent_without_a_reload(edge):
+    """AFTER-MERGE 2026-10-14: recreating argus-v18-agent gave it a new address and the public edge answered 502 until
+    `nginx -s reload` (Nginx had resolved the name once, at start). The upstream re-resolves through Docker's DNS."""
+    base, _, _, recreate_api = edge
+    assert curl(base, "/api/v1/me", headers={"Authorization": "Bearer good"})[0] == 200
+    recreate_api()
+    codes = []
+    for _ in range(20):                              # within the resolver's validity (a few seconds)
+        codes.append(curl(base, "/api/v1/me", headers={"Authorization": "Bearer good"})[0])
+        if codes[-1] == 200:
+            break
+        time.sleep(1)
+    assert codes[-1] == 200, codes
