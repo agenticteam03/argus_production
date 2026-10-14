@@ -2,6 +2,7 @@
 // Every incident call is a GET and is recorded in `calls`, so tests can assert paths such as limit=30.
 import { demoEscalations, demoEvents, demoEvidence, demoIncident, demoList } from "./demoIncidents.js";
 import { demoSession } from "./demoSession.js";
+import { answerMetricQuestion, parseInvestigationRequest } from "./metricQuestion.js";
 
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const httpError = (status, message) => Object.assign(new Error(message), { status });
@@ -36,14 +37,24 @@ export const mockArgusAdapter = {
     return all.filter((e) => e.seq > after);
   },
 
-  // The overview builds its incidents from the list, escalations from their route; approvals and health have
-  // no endpoint today, so they stay empty ("No data").
+  async getHostMetrics() {
+    record("/api/v1/host-metrics");
+    await wait(100);
+    return [
+      { host: "vm-095", target: "vm-095/host:vm-095", available: true, observed_at: new Date().toISOString(),
+        values: { cpu_busy_ratio: 0.25, memory_used_ratio: 0.4, disk_used_ratio: 0.7 } },
+      { host: "vm-166", target: "vm-166/host:vm-166", available: true, observed_at: new Date().toISOString(),
+        values: { cpu_busy_ratio: 0.8, memory_used_ratio: 0.6, disk_used_ratio: 0.9 } },
+    ];
+  },
+
+  // A demo overview has illustrative metrics, identified as demo data by the Dashboard's source pill.
   async getOverview() {
     return {
       incidents: await mockArgusAdapter.listIncidents({ limit: 5 }),
       approvals: [],
       escalations: await mockArgusAdapter.listEscalations(),
-      health: { wireguard: null, prometheus: null, tokens: { used: null, limit: null }, resolvedToday: null },
+      hostMetrics: await mockArgusAdapter.getHostMetrics(),
     };
   },
 
@@ -78,12 +89,14 @@ export const mockArgusAdapter = {
     return { incident_id: demoList()[0].id, status: "queued", duplicate: false };
   },
 
-  async askAgent(text, onStatus) {
-    for (const step of ["Analyzing Prometheus metrics…", "Querying incident history…"]) {
-      onStatus(step);
-      await wait(900);
+  async askAgent(text, canStartInvestigation = false) {
+    const investigation = parseInvestigationRequest(text);
+    if (investigation) {
+      if (!canStartInvestigation) return { text: "Your account cannot start investigations. You can still ask for a current host metric." };
+      const { incident_id } = await mockArgusAdapter.startInvestigation({ target: investigation.target });
+      return { text: `Investigation started for ${investigation.label}. Follow its result in the incident.`, incidentId: incident_id };
     }
-    return "The backend isn't connected yet, so this is a placeholder reply. Once the API is wired up, Argus will answer here.";
+    return { text: answerMetricQuestion(text, await mockArgusAdapter.getHostMetrics()) };
   },
   async decideApproval() {},
 };

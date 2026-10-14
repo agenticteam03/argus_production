@@ -1,7 +1,7 @@
-// The read-only HTTP adapter for the Argus API. Only the routes in `docs/API-FOR-UI.md` are used,
-// and the token (scope=read) only allows GETs. `apiFetch` logs the session out on any 401.
-// Approvals and agent actions are writes: they have no route a read token may call, so they stay placeholders.
+// The HTTP adapter for the UI contract. An investigate token permits GETs and the one bounded investigation POST.
+// `apiFetch` logs the session out on any 401; approvals still have no UI route.
 import { apiFetch, httpError } from "./http.js";
+import { answerMetricQuestion, parseInvestigationRequest, parseMetricQuestion } from "./metricQuestion.js";
 
 const getJson = async (path) => (await apiFetch(path)).json();
 
@@ -26,14 +26,18 @@ export const httpArgusAdapter = {
     return getJson("/api/v1/escalations");
   },
 
-  // The dashboard builds its incidents from the list and its escalations from their route;
-  // approvals are writes and health has no route yet, so they stay empty.
+  async getHostMetrics() {
+    return getJson("/api/v1/host-metrics");
+  },
+
+  // The dashboard reads only the named host metrics in the UI contract. Approvals have no read route yet.
   async getOverview() {
-    const [incidents, escalations] = await Promise.all([
+    const [incidents, escalations, hostMetrics] = await Promise.all([
       httpArgusAdapter.listIncidents({ limit: 5 }),
       httpArgusAdapter.listEscalations(),
+      httpArgusAdapter.getHostMetrics(),
     ]);
-    return { incidents, approvals: [], escalations, health: null };
+    return { incidents, approvals: [], escalations, hostMetrics };
   },
 
   // ACR-0012: the targets a UI may name (the inventory's refs), and the one write an investigate token may do.
@@ -50,10 +54,16 @@ export const httpArgusAdapter = {
     return res.json();
   },
 
-  // The agent chat starts an investigation, which is a write a read token never gets: it stays a placeholder
-  // until the ACR that gives the UI that scope is accepted (`brain/NEXT_STEP.md`).
-  async askAgent() {
-    return "The chat is a placeholder: Argus does not answer free-text questions yet. To start an investigation, use \"Start an investigation\" below.";
+  async askAgent(question, canStartInvestigation = false) {
+    const investigation = parseInvestigationRequest(question);
+    if (investigation) {
+      if (!canStartInvestigation) return { text: "Your account cannot start investigations. You can still ask for a current host metric." };
+      const { incident_id } = await httpArgusAdapter.startInvestigation({ target: investigation.target,
+        requestKind: "check", reason: question.slice(0, 500) });
+      return { text: `Investigation started for ${investigation.label}. Follow its result in the incident.`, incidentId: incident_id };
+    }
+    if (!parseMetricQuestion(question)) return { text: answerMetricQuestion(question, []) };
+    return { text: answerMetricQuestion(question, await httpArgusAdapter.getHostMetrics()) };
   },
 
   async decideApproval() {

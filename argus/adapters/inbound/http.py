@@ -4,8 +4,11 @@ on the private listener (v1.8 §7.1, §17.3). The only FastAPI location.
 No `from __future__ import annotations` here: FastAPI must resolve the local dependency closures."""
 
 import hmac
+import math
+import time
 import uuid
 from datetime import timedelta
+from threading import Lock
 from typing import Annotated, Literal
 
 import jwt
@@ -17,6 +20,7 @@ from pydantic import BaseModel, ConfigDict
 from argus.application.alerts import HandleAlertNotification
 from argus.domain.model import (AlertNotification, AuditRecord, Incident, IncidentStatus, Principal, RequestKind,
                                 TargetRef, TriggerKind, utcnow)
+from argus.ports.ports import MetricsUnavailable, StaleMetrics
 
 READ_METHODS = ("GET", "HEAD")          # a read-only token (ACR-0001) may use only these
 INVESTIGATE_WRITES = {("POST", "/api/v1/investigations")}   # the one non-GET of an `investigate` token (ACR-0012)
@@ -120,6 +124,8 @@ def build_api(app_ctx) -> FastAPI:
         return dep
 
     s = app_ctx.settings
+    host_metrics_lock = Lock()
+    host_metrics_cache: dict = {"at": 0.0, "rows": None}
     limiter = LoginLimiter(s.login_max_per_user, s.login_max_per_address, s.login_window_s)
     api.state.login_limiter = limiter
 
@@ -221,6 +227,40 @@ def build_api(app_ctx) -> FastAPI:
         """ACR-0012: the inventory's targets for a UI's target list (refs only: no address, port or credential)."""
         return sorted(({"target": str(t.ref), "host": t.ref.host, "kind": t.ref.kind, "name": t.ref.name}
                        for t in app_ctx.inventory.targets()), key=lambda r: r["target"])
+
+    @api.get("/api/v1/host-metrics", tags=["metrics"])
+    def host_metrics(p: Annotated[Principal, Depends(current)]):
+        """Only named host signals already in the catalogue; no browser-supplied target or PromQL."""
+        with host_metrics_lock:
+            if host_metrics_cache["rows"] is not None and time.monotonic() - host_metrics_cache["at"] < 20:
+                return host_metrics_cache["rows"]
+            rows = read_host_metrics()
+            host_metrics_cache.update(at=time.monotonic(), rows=rows)
+            return rows
+
+    def read_host_metrics():
+        signals = {"host_cpu_busy_ratio", "host_memory_available_ratio", "host_disk_used_ratio"}
+        rows = []
+        for target in sorted((t.ref for t in app_ctx.inventory.targets() if t.ref.kind == "host"), key=str):
+            values = {"cpu_busy_ratio": None, "memory_used_ratio": None, "disk_used_ratio": None}
+            observed_at = None
+            try:
+                snapshot = app_ctx.metrics.snapshot(target, signals)
+                raw = snapshot.values
+                for field, signal in (("cpu_busy_ratio", "host_cpu_busy_ratio"),
+                                      ("disk_used_ratio", "host_disk_used_ratio")):
+                    value = raw.get(signal)
+                    if value is not None and math.isfinite(value) and 0 <= value <= 1:
+                        values[field] = value
+                available = raw.get("host_memory_available_ratio")
+                if available is not None and math.isfinite(available) and 0 <= available <= 1:
+                    values["memory_used_ratio"] = round(1 - available, 10)
+                observed_at = snapshot.observed_at.isoformat() if snapshot.observed_at else None
+            except (StaleMetrics, MetricsUnavailable):
+                pass
+            rows.append({"host": target.host, "target": str(target), "available": any(v is not None for v in values.values()),
+                         "observed_at": observed_at, "values": values})
+        return rows
 
     @api.get("/api/v1/incidents", tags=["incidents"])
     def incidents(p: Annotated[Principal, Depends(current)], limit: int = 30):

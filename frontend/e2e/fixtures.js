@@ -62,6 +62,7 @@ async function fakeApi(page, { role = "operator", overrides = {} } = {}, state =
     if (key === "GET /api/v1/incidents") return json(route, sample("incidents"));
     if (key === "GET /api/v1/escalations") return json(route, sample("escalations"));
     if (key === "GET /api/v1/targets") return json(route, sample("targets"));
+    if (key === "GET /api/v1/host-metrics") return json(route, sample("host-metrics"));
     if (key === "POST /api/v1/investigations") return json(route, { ...sample("investigation"), incident_id: DIAGNOSED_ID }, 202);
     if (key === `GET /api/v1/incidents/${DIAGNOSED_ID}`) return json(route, incident);
     if (key === `GET /api/v1/incidents/${DIAGNOSED_ID}/events`) return json(route, sample("events"));

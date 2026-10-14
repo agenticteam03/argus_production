@@ -8,7 +8,7 @@ import { usePoll } from "./usePoll.js";
 // and keep the same return shape.
 export function useLiveOverview(intervalMs = POLL_MS.overview) {
   const { logout } = useAuth();
-  const [data, setData] = useState({ incidents: [], approvals: [], escalations: [], health: null });
+  const [data, setData] = useState({ incidents: [], approvals: [], escalations: [], hostMetrics: [] });
   const [live, setLive] = useState(true);
   const [updatedAt, setUpdatedAt] = useState(null);
 

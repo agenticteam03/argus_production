@@ -26,7 +26,8 @@ rendering. Unit tests with Vitest; Playwright acceptance tests come next (T-0016
    - the **agent chat**: type a question, press Send, watch the status line while it "works", the answer appears
      as a message (placeholder reply until the API exists);
    - **recent incidents**: empty state today; later the newest 5 with status badge, trigger and time;
-   - **agent status**: WireGuard / Prometheus / LLM tokens / resolved-today rows with a data-or-"No data" dot;
+   - **host metrics**: live CPU, memory and root-disk usage for Host A and Host T, with the sample time; a missing
+     signal is shown as "No data" (proposed ACR-0014). WireGuard and token totals remain outside this API;
    - **escalations**: the incidents Argus could not conclude on its own and raised to a human — target (opens the
      incident), outcome, route and the recorded diagnosis, newest first;
    - **start an investigation** (ACR-0012): a target from the inventory's list, check or report, an optional reason;
@@ -39,8 +40,8 @@ rendering. Unit tests with Vitest; Playwright acceptance tests come next (T-0016
    opens a side drawer with the rendered Markdown, Escape or a click outside closes it; relative links are shown
    as plain text (only `http(s)` links open in a new tab).
 4. **Placeholders** — Agent, Approvals, Alert Simulator and Scheduler show an explicit "Coming soon" box
-   instead of pretending to work. Approvals, the simulator and the scheduler are writes, so the read-only UI
-   hides them until a new ACR gives the UI the matching actions.
+   instead of pretending to work. Approvals, the simulator and the scheduler remain hidden until an ACR gives
+   the UI the matching actions.
 
 ## What happens on click (summary)
 
@@ -58,6 +59,7 @@ rendering. Unit tests with Vitest; Playwright acceptance tests come next (T-0016
 
 ## Constraints I accept (T-0016 rules)
 
-- Read-only: nothing in this UI ever mutates Argus; mocks today, contract-only HTTP tomorrow.
+- The UI reads through the contract. ACR-0012 permits exactly one bounded write for authorized accounts: start an
+  investigation; it cannot change a target. ACR-0014 proposes a read-only host-metrics route.
 - Tests first: every new behaviour needs a test that failed before the code.
 - All code stays in `frontend/`.

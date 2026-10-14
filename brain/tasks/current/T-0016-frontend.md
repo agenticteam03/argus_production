@@ -319,3 +319,19 @@ a screen or a button in `frontend/`.
   - **Found and fixed on the way:**
     - **the 401 acceptance test raced** with the dashboard's first load; it now waits for that load first;
     - the old dashboard test matched the new `<option>` instead of the incident row.
+
+- **2026-10-14 — PR #151 follow-up, host metrics and bounded chat (`conantkd` + agent):**
+  - **Architecture request:** proposed ACR-0014 is in PR #151 for independent review. It widens the authenticated
+    public read surface; `ARCHITECTURE.md` remains at 1.8.11 until the ACR is accepted.
+  - **API/contract:** `GET /api/v1/host-metrics` reads only the existing named host CPU, memory and root-disk
+    signals through MetricsPort, preserves missing values as null, and returns a separate availability per host.
+    The exact edge allowlist, UI contract and sample are updated together.
+  - **Frontend:** the dashboard shows Host A/T readings with sample times; the chat answers bounded metric
+    questions with measured values. An explicit host diagnosis starts ACR-0012's existing investigation and links
+    to its incident; it never presents a queued investigation as a finished diagnosis.
+  - **Red seen:** API route tests returned 404; frontend tests could not load the not-yet-implemented parser and
+    host-metrics sample. Green: frontend 91 unit tests, 16 browser tests, targeted API/contract/edge checks and
+    Brain lint. The full Python run has only seven failures in the untouched token-rotation shell tests because
+    this Windows host's WSL cannot start `/bin/bash`; Linux CI will determine the full-suite verdict.
+  - **Next:** independent ACR-0014 approval in PR #151, then update the architecture version and re-run CI. VM
+    deployment and a live Prometheus smoke test require a valid lease.

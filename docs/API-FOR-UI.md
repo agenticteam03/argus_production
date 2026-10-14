@@ -38,14 +38,19 @@ on. Anything else can change without notice.
    below, each with its method; anything else is 404 there. A login through it **must** ask for `scope=read`
    or `scope=investigate` (otherwise 400; never a full token). Failed logins are limited per username and per
    address: a locked login gets 429 with `Retry-After`.
-9. **Starting an investigation** (ACR-0012): `POST /api/v1/investigations` with `{"target", "request_kind": "check" |
+7. **Starting an investigation** (ACR-0012): `POST /api/v1/investigations` with `{"target", "request_kind": "check" |
    "report", "reason"}`, the target taken from `GET /api/v1/targets` (never free text). With an investigate token
    the API applies quotas: 10 an hour and 2 queued per account, 20 queued in all. Over one, 429 with `Retry-After`
    (seconds). Show a "Start" control only when `/me` lists `start_investigation`.
-7. **`limit` is capped by the server** (200 by default, `ARGUS_INCIDENTS_LIMIT_CAP`); asking for more returns at most
+8. **`limit` is capped by the server** (200 by default, `ARGUS_INCIDENTS_LIMIT_CAP`); asking for more returns at most
    that many.
-8. **The runbooks are not an API route:** the edge serves `/runbooks/index.json` and `/runbooks/RB-*.md` only to a
+9. **The runbooks are not an API route:** the edge serves `/runbooks/index.json` and `/runbooks/RB-*.md` only to a
    request whose bearer token passes `GET /api/v1/me` (the frontend's `httpRunbooksAdapter`).
+10. **Host metrics** (proposed ACR-0014): `GET /api/v1/host-metrics` reads only the three named host signals already
+    in `config/signals.yaml`. No target or PromQL parameter is accepted. Each host returns its sample time and
+    independent `null` values when missing; the UI never treats missing data as zero. Host A = `vm-095`, Host T =
+    `vm-166`. The chat answers these bounded metric questions directly. An explicit "Investigate Host T" uses
+    the existing investigation route and links to the incident; it does not claim the investigation finished.
 
 ## Routes
 
@@ -59,6 +64,7 @@ on. Anything else can change without notice.
 | `GET /api/v1/evidence/{id}` | operator, approver | one evidence record with its SHA-256 | [`evidence.json`](../contracts/samples/evidence.json) |
 | `GET /api/v1/escalations` | any role | the escalations Argus raised to humans | [`escalations.json`](../contracts/samples/escalations.json) |
 | `GET /api/v1/targets` | any role | the inventory's targets: `target`, `host`, `kind`, `name` (ACR-0012) | [`targets.json`](../contracts/samples/targets.json) |
+| `GET /api/v1/host-metrics` | any authenticated role | current CPU, memory and root-disk ratios for the inventory's host targets, plus `observed_at` and `available` (proposed ACR-0014) | [`host-metrics.json`](../contracts/samples/host-metrics.json) |
 | `POST /api/v1/investigations` | operator, approver; full or **investigate** token | `incident_id`, `status`, `duplicate` (202); quotas for an investigate token (ACR-0012) | [`investigation.json`](../contracts/samples/investigation.json) |
 
 Errors: `401` no token, invalid or expired token; `403` the role or a read-only token may not do this; `404` unknown

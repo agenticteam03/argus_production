@@ -32,6 +32,26 @@ test.describe("dashboard (guideline 2)", () => {
     const esc = sample("escalations")[0].payload;
     await expect(page.getByText(esc.route).first()).toBeVisible();
   });
+
+  test("shows current host metrics and answers a Host T memory question", async ({ page, api }) => {
+    await api();
+    await logIn(page);
+    await expect(page.getByText("Host metrics")).toBeVisible();
+    await expect(page.getByText("60.0%", { exact: true }).first()).toBeVisible();
+    await page.getByLabel("Message for the agent").fill("Check Host T memory usage");
+    await page.getByRole("button", { name: "Send" }).click();
+    await expect(page.getByText(/Host T \(vm-166\) memory usage: 60.0%/)).toBeVisible();
+  });
+
+  test("a chat diagnosis starts an investigation and links to its incident", async ({ page, api }) => {
+    await api({ role: "operator" });
+    await logIn(page);
+    await page.getByLabel("Message for the agent").fill("Investigate Host T");
+    const sent = page.waitForRequest((r) => r.method() === "POST" && r.url().endsWith("/api/v1/investigations"));
+    await page.getByRole("button", { name: "Send" }).click();
+    expect(JSON.parse((await sent).postData())).toMatchObject({ target: "vm-166/host:vm-166", request_kind: "check" });
+    await expect(page.getByRole("link", { name: "Open incident" })).toHaveAttribute("href", `/incidents/${DIAGNOSED_ID}`);
+  });
 });
 
 test.describe("incidents", () => {

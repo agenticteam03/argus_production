@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState } from "react";
+import { Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext.jsx";
 import { ROLES, ROLE_INFO } from "../routes.js";
 import { argus } from "../services/index.js";
+import { parseInvestigationRequest } from "../services/metricQuestion.js";
 import { Card, Send } from "./ui.jsx";
 
-const SUGGESTIONS = ["Run a diagnostic on lab-victim", "Check Host T memory usage"];
+const SUGGESTIONS = ["Check Host T memory usage", "Investigate Host T"];
 
 export default function AgentChat() {
   const { user } = useAuth();
@@ -23,12 +25,15 @@ export default function AgentChat() {
     if (!question || status) return;
     setInput("");
     setMessages((m) => [...m, { role: "user", text: question }]);
-    setStatus("Starting investigation…");
+    setStatus(parseInvestigationRequest(question) ? "Starting investigation…" : "Reading host metrics…");
     try {
-      const reply = await argus.askAgent(question, setStatus);
-      setMessages((m) => [...m, { role: "agent", text: reply }]);
-    } catch {
-      setMessages((m) => [...m, { role: "agent", text: "Something went wrong. Please try again.", error: true }]);
+      const reply = await argus.askAgent(question, user.actions?.includes("start_investigation") ?? false);
+      setMessages((m) => [...m, { role: "agent", ...reply }]);
+    } catch (err) {
+      const text = err?.status === 429 ? "Investigation limit reached. Please try again later."
+        : err?.status === 403 ? "Your account cannot start that investigation."
+          : "Could not load the result. Please try again.";
+      setMessages((m) => [...m, { role: "agent", text, error: true }]);
     } finally {
       setStatus("");
     }
@@ -47,7 +52,7 @@ export default function AgentChat() {
         {messages.length === 0 && !status ? (
           <div className="grid h-full place-items-center text-center">
             <div>
-              <p className="text-sm font-medium">Ask Argus to investigate a container or host</p>
+              <p className="text-sm font-medium">Ask for a host metric or start an investigation</p>
               <div className="mt-3 flex flex-wrap justify-center gap-2">
                 {SUGGESTIONS.map((s) => (
                   <button key={s} onClick={() => setInput(s)} className="cursor-pointer rounded-full border border-line px-3 py-1.5 text-xs text-muted transition hover:border-accent/50 hover:text-white">
@@ -60,7 +65,10 @@ export default function AgentChat() {
         ) : (
           messages.map((m, i) => (
             <div key={i} className={m.role === "user" ? "flex justify-end" : ""}>
-              <p className={`max-w-[85%] rounded-xl px-3 py-2 text-sm ${m.role === "user" ? "bg-white/5" : m.error ? "text-danger" : "text-[#d6dbe6]"}`}>{m.text}</p>
+              <div className={`max-w-[85%] rounded-xl px-3 py-2 text-sm ${m.role === "user" ? "bg-white/5" : m.error ? "text-danger" : "text-[#d6dbe6]"}`}>
+                <p>{m.text}</p>
+                {m.incidentId && <Link className="mt-1 block text-accent-hover underline" to={`/incidents/${encodeURIComponent(m.incidentId)}`}>Open incident</Link>}
+              </div>
             </div>
           ))
         )}
@@ -78,7 +86,7 @@ export default function AgentChat() {
         <input
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          placeholder="Ask or instruct the agent…"
+          placeholder="Check Host T memory usage…"
           aria-label="Message for the agent"
           className="h-11 min-w-0 flex-1 rounded-[10px] border border-field-line bg-field px-3.5 text-sm outline-none transition placeholder:text-[#4b5363] focus:border-accent focus:ring-[3px] focus:ring-accent/20"
         />
