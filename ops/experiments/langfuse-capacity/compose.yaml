@@ -1,0 +1,111 @@
+name: argus-lab-lf1
+x-env: &lf-env
+  DATABASE_URL: postgresql://langfuse:${PG_PASSWORD}@argus-lab-lf1-postgres:5432/langfuse
+  NEXTAUTH_URL: http://localhost:3000
+  SALT: ${SALT}
+  ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+  TELEMETRY_ENABLED: "false"
+  CLICKHOUSE_MIGRATION_URL: clickhouse://argus-lab-lf1-clickhouse:9000
+  CLICKHOUSE_URL: http://argus-lab-lf1-clickhouse:8123
+  CLICKHOUSE_USER: langfuse
+  CLICKHOUSE_PASSWORD: ${CH_PASSWORD}
+  CLICKHOUSE_CLUSTER_ENABLED: "false"
+  REDIS_HOST: argus-lab-lf1-redis
+  REDIS_PORT: "6379"
+  REDIS_AUTH: ${REDIS_PASSWORD}
+  LANGFUSE_S3_EVENT_UPLOAD_BUCKET: langfuse
+  LANGFUSE_S3_EVENT_UPLOAD_REGION: auto
+  LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID: langfuse
+  LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY: ${S3_PASSWORD}
+  LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT: http://argus-lab-lf1-minio:9000
+  LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE: "true"
+  LANGFUSE_S3_MEDIA_UPLOAD_BUCKET: langfuse
+  LANGFUSE_S3_MEDIA_UPLOAD_REGION: auto
+  LANGFUSE_S3_MEDIA_UPLOAD_ACCESS_KEY_ID: langfuse
+  LANGFUSE_S3_MEDIA_UPLOAD_SECRET_ACCESS_KEY: ${S3_PASSWORD}
+  LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT: http://argus-lab-lf1-minio:9000
+  LANGFUSE_S3_MEDIA_UPLOAD_FORCE_PATH_STYLE: "true"
+  LANGFUSE_S3_BATCH_EXPORT_ENABLED: "false"
+  LANGFUSE_IN_APP_AGENT_ENABLED: "false"
+services:
+  postgres:
+    image: postgres:17
+    container_name: argus-lab-lf1-postgres
+    environment: {POSTGRES_USER: langfuse, POSTGRES_DB: langfuse, POSTGRES_PASSWORD: "${PG_PASSWORD}"}
+    command: [postgres, -c, shared_buffers=32MB, -c, max_connections=30]
+    volumes: [pgdata:/var/lib/postgresql/data]
+    networks: [core]
+    mem_limit: 192m
+    memswap_limit: 192m
+    cpus: 0.05
+    restart: "no"
+  redis:
+    image: redis:7
+    container_name: argus-lab-lf1-redis
+    command: [redis-server, --requirepass, "${REDIS_PASSWORD}", --maxmemory, 32mb, --maxmemory-policy, noeviction]
+    volumes: [redisdata:/data]
+    networks: [core]
+    mem_limit: 64m
+    memswap_limit: 64m
+    cpus: 0.03
+    restart: "no"
+  minio:
+    image: cgr.dev/chainguard/minio:latest
+    container_name: argus-lab-lf1-minio
+    entrypoint: sh
+    command: ['-c', 'mkdir -p /data/langfuse && minio server --address :9000 --console-address :9001 /data']
+    environment: {MINIO_ROOT_USER: langfuse, MINIO_ROOT_PASSWORD: "${S3_PASSWORD}"}
+    volumes: [s3data:/data]
+    networks: [core]
+    mem_limit: 256m
+    memswap_limit: 256m
+    cpus: 0.05
+    restart: "no"
+  clickhouse:
+    image: clickhouse/clickhouse-server:25.12
+    container_name: argus-lab-lf1-clickhouse
+    user: "101:101"
+    environment: {CLICKHOUSE_DB: default, CLICKHOUSE_USER: langfuse, CLICKHOUSE_PASSWORD: "${CH_PASSWORD}"}
+    volumes: [chdata:/var/lib/clickhouse, chlogs:/var/log/clickhouse-server]
+    networks: [core]
+    mem_limit: 768m
+    memswap_limit: 768m
+    cpus: 0.2
+    restart: "no"
+  web:
+    image: docker.langfuse.com/langfuse/langfuse:4
+    container_name: argus-lab-lf1-web
+    environment:
+      <<: *lf-env
+      NEXTAUTH_SECRET: ${AUTH_SECRET}
+      LANGFUSE_INIT_ORG_ID: argus-lab-lf1-org
+      LANGFUSE_INIT_ORG_NAME: Argus synthetic capacity trial
+      LANGFUSE_INIT_PROJECT_ID: argus-lab-lf1-project
+      LANGFUSE_INIT_PROJECT_NAME: Synthetic only
+      LANGFUSE_INIT_PROJECT_PUBLIC_KEY: ${PUBLIC_KEY}
+      LANGFUSE_INIT_PROJECT_SECRET_KEY: ${SECRET_KEY}
+      LANGFUSE_INIT_USER_EMAIL: capacity@example.invalid
+      LANGFUSE_INIT_USER_NAME: Capacity trial
+      LANGFUSE_INIT_USER_PASSWORD: ${USER_PASSWORD}
+    networks: [core]
+    mem_limit: 1024m
+    memswap_limit: 1024m
+    cpus: 0.2
+    restart: "no"
+  worker:
+    image: docker.langfuse.com/langfuse/langfuse-worker:4
+    container_name: argus-lab-lf1-worker
+    environment: *lf-env
+    networks: [core]
+    mem_limit: 512m
+    memswap_limit: 512m
+    cpus: 0.15
+    restart: "no"
+networks:
+  core: {external: true, name: argus-v18-core}
+volumes:
+  pgdata: {name: argus-lab-lf1-pgdata}
+  redisdata: {name: argus-lab-lf1-redisdata}
+  s3data: {name: argus-lab-lf1-s3data}
+  chdata: {name: argus-lab-lf1-chdata}
+  chlogs: {name: argus-lab-lf1-chlogs}
