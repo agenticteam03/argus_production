@@ -187,7 +187,8 @@ def test_nginx_accepts_the_configuration(edge):
     ("GET", "/api/v1/me", 200), ("GET", "/api/v1/incidents?limit=30", 200), ("GET", "/api/v1/incidents/inc_1", 200),
     ("GET", "/api/v1/incidents/inc_1/events?after=0", 200), ("GET", "/api/v1/evidence/ev_1", 200),
     ("GET", "/api/v1/escalations", 200), ("POST", "/api/v1/auth/token", 200),
-    ("POST", "/api/v1/investigations", 404), ("DELETE", "/api/v1/incidents/inc_1", 403),
+    ("POST", "/api/v1/investigations", 200), ("GET", "/api/v1/targets", 200),   # ACR-0012
+    ("GET", "/api/v1/investigations", 403), ("DELETE", "/api/v1/incidents/inc_1", 403),
     ("POST", "/api/v1/me", 403), ("GET", "/api/v1/auth/token", 403), ("GET", "/docs", 404),
     ("GET", "/openapi.json", 404), ("GET", "/api/v1/approvals", 404), ("GET", "/metrics", 200),
 ])
@@ -248,3 +249,17 @@ def test_the_edge_follows_a_recreated_agent_without_a_reload(edge):
             break
         time.sleep(1)
     assert codes[-1] == 200, codes
+
+
+def test_a_burst_of_investigations_is_limited_per_address(edge):
+    """ACR-0012: about 6 a minute per address (burst 2) at the edge; the API's per-principal quotas come on top."""
+    base, _, _, _ = edge
+    codes = [curl(base, "/api/v1/investigations", method="POST", headers={"Authorization": "Bearer good"},
+                  data='{"target": "vm-166/container:argus-lab-api", "reason": "x"}')[0] for _ in range(6)]
+    assert codes[0] == 200 and 429 in codes
+
+
+def test_an_oversized_investigation_request_is_refused_at_the_edge(edge):
+    base, _, _, _ = edge
+    assert curl(base, "/api/v1/investigations", method="POST", headers={"Authorization": "Bearer good"},
+                data="x" * 5000)[0] == 413

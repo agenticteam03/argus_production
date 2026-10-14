@@ -72,6 +72,11 @@ class Settings:
     login_max_per_address: int = field(default_factory=lambda: int(os.getenv("ARGUS_LOGIN_MAX_PER_ADDRESS", "20")))
     login_window_s: int = field(default_factory=lambda: int(os.getenv("ARGUS_LOGIN_WINDOW_S", "900")))
     incidents_limit_cap: int = field(default_factory=lambda: int(os.getenv("ARGUS_INCIDENTS_LIMIT_CAP", "200")))
+    # ACR-0012: investigations started with an `investigate` token (the UI); alerts and full tokens are not counted
+    investigations_per_hour: int = field(default_factory=lambda: int(os.getenv("ARGUS_INVESTIGATIONS_PER_HOUR", "10")))
+    investigations_queued_per_principal: int = field(
+        default_factory=lambda: int(os.getenv("ARGUS_INVESTIGATIONS_QUEUED_PER_PRINCIPAL", "2")))
+    investigations_queued_max: int = field(default_factory=lambda: int(os.getenv("ARGUS_INVESTIGATIONS_QUEUED_MAX", "20")))
 
     def secret(self, rel: str) -> str | None:
         return _read(self.secrets_dir / rel)
