@@ -276,3 +276,16 @@ a screen or a button in `frontend/`.
     - a wrong mode stops with its message.
   - **Not done:** 4d (deploy on vm-095's loopback, the lease) and 4e (public: domain, address, the cloud rule, the
     certificate, one account per person).
+- **2026-10-14 — step 4d on vm-095's loopback (`conantkd` + agent, both leases;
+  [evidence](../../execution/history/T-0016/step-04d/evidence.md)):**
+  - vm-095 on `task/T-0016-playwright` `d5d992c`: the agent with 4a, and `argus-v18-ui` healthy on `127.0.0.1:18010`
+    only (uid 101, read-only). No public port; NO INTERFERENCE on both VMs.
+  - Through `ssh -L`, against the real API:
+    - routes: the app 200; `/docs` and `/openapi.json` 404; the API without a token 401; `POST /investigations` 404;
+    - runbooks: 401 without or with a bad token;
+    - security headers present; no demo password and no runbook text in the served bundle;
+    - logins: Nginx's `limit_req` stopped the 6th login in a burst; 15 s later the API's lockout answered 429 with
+      `Retry-After`; the audit shows `login_failed` × 5 and `login_locked` × 1, all `via: edge`.
+  - **Found:** the audited client is Docker's bridge gateway (`172.30.0.1`), not the browser. To check on the public
+    port before 4e (Docker's userland proxy).
+  - **Left:** a real login in the browser (a person's password), then 4e.
