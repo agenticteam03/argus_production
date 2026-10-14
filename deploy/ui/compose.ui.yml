@@ -1,0 +1,26 @@
+# argus-v18-ui (ACR-0011, T-0016 step 4): the read-only UI edge on vm-095. Add the mode's file:
+#   loopback (4d):  docker compose --env-file vm-095.env -f compose.ui.yml -f compose.loopback.yml up -d --build
+#   public   (4e):  docker compose --env-file vm-095.env -f compose.ui.yml -f compose.public.yml   up -d --build
+# Rollback: `docker compose -f compose.ui.yml -f compose.<mode>.yml down` (and, for public, ops/ui-firewall.sh remove
+# and the cloud rule). The API, the CLI and the SSH-tunnel path never depend on this container.
+name: argus-v18-ui
+services:
+  argus-v18-ui:
+    build: {context: ../.., dockerfile: deploy/ui/Dockerfile}
+    image: argus-v18-ui:1
+    container_name: argus-v18-ui
+    restart: unless-stopped
+    networks: [argus-v18-core]          # reaches argus-v18-agent:8000 only; no other Argus network
+    read_only: true
+    tmpfs:
+      - /tmp:uid=101,gid=101,mode=0700
+      - /etc/nginx/templates:uid=101,gid=101,mode=0700
+      - /etc/nginx/conf.d:uid=101,gid=101,mode=0700
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    pids_limit: 64
+    mem_limit: 128m
+    cpus: 0.25                          # 1 vCPU shared with the agent, Postgres and a protected deployment
+    logging: {driver: json-file, options: {max-size: "10m", max-file: "3"}}
+networks:
+  argus-v18-core: {external: true, name: argus-v18-core}

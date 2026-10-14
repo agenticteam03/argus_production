@@ -32,6 +32,14 @@ on. Anything else can change without notice.
 5. **Browser access during development** needs `ARGUS_UI_ORIGINS` (comma-separated origins, e.g.
    `http://localhost:5173`) on the agent. Empty by default: no CORS headers at all. In production the UI is served
    by `argus-v18-ui` with a proxy to the API, so no CORS is needed.
+6. **In production the UI is behind the public edge** (ACR-0011, `deploy/ui/`). The edge proxies only the routes
+   below, each with its method; anything else is 404 there. A login through it **must** ask for `scope=read`
+   (otherwise 400). Failed logins are limited per username and per address: a locked login gets 429 with
+   `Retry-After`.
+7. **`limit` is capped by the server** (200 by default, `ARGUS_INCIDENTS_LIMIT_CAP`); asking for more returns at most
+   that many.
+8. **The runbooks are not an API route:** the edge serves `/runbooks/index.json` and `/runbooks/RB-*.md` only to a
+   request whose bearer token passes `GET /api/v1/me` (the frontend's `httpRunbooksAdapter`).
 
 ## Routes
 

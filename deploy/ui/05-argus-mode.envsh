@@ -1,0 +1,17 @@
+#!/bin/sh
+# Sourced (.envsh) by the image entrypoint, so the export below reaches its envsubst step.
+# argus-v18-ui: pick the server block for ARGUS_UI_MODE before the image's own entrypoint renders /etc/nginx/templates
+# (envsubst of ARGUS_UI_DOMAIN only). loopback = plain HTTP on 8080 (127.0.0.1:18010 on the host, through SSH);
+# public = TLS on 8443 (host :443) and 8080 (host :80) for ACME and the redirect (ACR-0011). Anything else stops.
+set -eu
+case "${ARGUS_UI_MODE:-}" in
+  loopback|public) ;;
+  *) echo "argus-v18-ui: ARGUS_UI_MODE must be loopback or public" >&2; exit 1 ;;
+esac
+if [ "$ARGUS_UI_MODE" = public ]; then
+  [ -n "${ARGUS_UI_DOMAIN:-}" ] || { echo "argus-v18-ui: public mode needs ARGUS_UI_DOMAIN" >&2; exit 1; }
+  [ -s /etc/argus-tls/fullchain.pem ] && [ -s /etc/argus-tls/privkey.pem ] \
+    || { echo "argus-v18-ui: public mode needs /etc/argus-tls/fullchain.pem and privkey.pem" >&2; exit 1; }
+fi
+cp "/etc/nginx/argus/$ARGUS_UI_MODE.conf.template" /etc/nginx/templates/default.conf.template
+export NGINX_ENVSUBST_FILTER='^ARGUS_UI_DOMAIN$'

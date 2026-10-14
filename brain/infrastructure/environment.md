@@ -16,6 +16,9 @@ with the state probe (`/opt/argus-v18/DEPLOYED`, `docker ps`).
 provider's default host firewall (only SSH open from outside). All three developers have `sudo` on both VMs.
 Both VMs are in the same cloud private network; between them **only port 22 is reachable** — every other port is
 filtered by the cloud network rules, which the team cannot change (SSH access only, no cloud console).
+**ACR-0011 (the public UI):** tcp/443, and tcp/80 for the certificate, to vm-095 must be opened in the cloud rules by
+whoever administers them (`OBSERVED` 2026-10-13: vm-095 has no public address on its interfaces, nothing listens
+on :80/:443, its host `INPUT` accepts only tcp/22). Until then the UI runs on its loopback port only.
 
 Constraints: 1 vCPU each — CPU scenarios must be capped and time-boxed. vm-095 reports "System restart required":
 **do not reboot** either VM — they host other workloads; a reboot is a team decision.
@@ -73,7 +76,7 @@ vm-095                                               vm-166
 |---|---|---|
 | Container / compose names | `argus-v18-*` (platform), `argus-lab-*` (synthetic workloads) | nothing else is ours |
 | Directories | `/opt/argus-v18/app` (code, 0755), `/opt/argus-v18/secrets` (0700 root), `/opt/argus-v18/baseline` (non-interference snapshots), `/opt/argus-v18/hosts.env`; legacy `/opt/argus-runbooks/056b36e` (vm-095, unused after the next agent redeploy) | nothing outside them |
-| Ports | 18000–18799, bound to `127.0.0.1` only | never `0.0.0.0` or a public address |
+| Ports | 18000–18799, bound to `127.0.0.1` only (`argus-v18-ui`: `127.0.0.1:18010` in loopback mode) | never `0.0.0.0` or a public address, **with one exception**: `argus-v18-ui` publishes `0.0.0.0:443` and `0.0.0.0:80` in public mode (ACR-0011; `deploy/ui/compose.public.yml`) |
 | Docker networks | `argus-v18-core` 172.30.0.0/24 (vm-095), `argus-v18-mon` 172.30.1.0/24, `argus-lab-app` 172.30.2.0/24, `argus-lab-iso` 172.30.3.0/24 (vm-166, exists only while SC-07 runs; T-0018) | explicit subnets; a new range only after a read-only check that it is free on that VM |
 | Volumes | `argus-v18-*` (e.g. `argus-v18-pgdata`, `argus-v18-agent-data`) | — |
 | Markers (from B6) | `/opt/argus-v18/DEPLOYED` (deployed commit), `/opt/argus-v18/SESSION` (lease holder) | written by `ops/deploy.sh` / the `brain.py start` marker line |
@@ -94,6 +97,8 @@ otherwise in an ACR.
 
 `ops/nonint-check.sh before|after` snapshots everything that is **not** ours (containers, networks, volumes,
 listening ports, firewall rules, interfaces including `wg0`) and must print `NO INTERFERENCE` after every mutating step.
+It leaves out the ports `argus-v18-ui` publishes while it runs (ACR-0011), and Docker's chains, where
+`ops/ui-firewall.sh` adds its rules (`DOCKER-USER`, comment `argus-v18-ui`); the protected `wg0` rules are never touched.
 
 ## 5. Agent on vm-095
 

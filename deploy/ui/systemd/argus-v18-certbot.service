@@ -1,0 +1,8 @@
+[Unit]
+Description=Argus v1.8 UI edge certificate renewal (ACR-0011; ops/ui-cert.sh)
+Wants=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/bin/sh /opt/argus-v18/app/ops/ui-cert.sh renew --scheduled

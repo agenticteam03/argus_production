@@ -1,0 +1,11 @@
+[Unit]
+Description=Daily Argus v1.8 UI edge certificate renewal (renews when under 30 days left)
+
+[Timer]
+OnCalendar=daily
+RandomizedDelaySec=1h
+Persistent=true
+Unit=argus-v18-certbot.service
+
+[Install]
+WantedBy=timers.target
