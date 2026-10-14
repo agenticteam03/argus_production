@@ -65,6 +65,13 @@ class Settings:
     # ACR-0001: browser origins allowed to call the API (a UI during development); empty = no CORS headers at all
     ui_origins: list[str] = field(default_factory=lambda: [o.strip() for o in os.getenv("ARGUS_UI_ORIGINS", "").split(",")
                                                            if o.strip()])
+    # ACR-0011: the header the public edge (Nginx, argus-v18-ui) always sets; a login carrying it is read-only
+    edge_header: str = field(default_factory=lambda: os.getenv("ARGUS_EDGE_HEADER", "X-Argus-Edge"))
+    # §17.3 / ACR-0011: failed logins per username and per client address within the window, then a lockout
+    login_max_per_user: int = field(default_factory=lambda: int(os.getenv("ARGUS_LOGIN_MAX_PER_USER", "5")))
+    login_max_per_address: int = field(default_factory=lambda: int(os.getenv("ARGUS_LOGIN_MAX_PER_ADDRESS", "20")))
+    login_window_s: int = field(default_factory=lambda: int(os.getenv("ARGUS_LOGIN_WINDOW_S", "900")))
+    incidents_limit_cap: int = field(default_factory=lambda: int(os.getenv("ARGUS_INCIDENTS_LIMIT_CAP", "200")))
 
     def secret(self, rel: str) -> str | None:
         return _read(self.secrets_dir / rel)
