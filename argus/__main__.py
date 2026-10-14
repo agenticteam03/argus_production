@@ -51,8 +51,19 @@ def worker() -> None:
     stop = threading.Event()
     signal.signal(signal.SIGTERM, lambda *_: stop.set())
     signal.signal(signal.SIGINT, lambda *_: stop.set())
-    Worker(build(), lease_s=int(os.getenv("ARGUS_WORKER_LEASE_S", "300")),
-           max_queued_age_s=int(os.getenv("ARGUS_SCHEDULE_MAX_QUEUED_AGE_S", "900"))).run_forever(stop)
+    app = build()
+    try:
+        Worker(app, lease_s=int(os.getenv("ARGUS_WORKER_LEASE_S", "300")),
+               max_queued_age_s=int(os.getenv("ARGUS_SCHEDULE_MAX_QUEUED_AGE_S", "900"))).run_forever(stop)
+    finally:
+        _close_tracing(app)
+
+
+def _close_tracing(app) -> None:
+    """ACR-0013: flush the worker's spans on a stop (bounded); a no-op when tracing is off."""
+    close = getattr(app.runner.events, "close_tracing", None)
+    if close is not None:
+        close(timeout=2.0)
 
 
 def scheduler() -> None:
@@ -147,6 +158,7 @@ def serve() -> None:
         asyncio.run(main())
     finally:
         stop.set()
+        _close_tracing(app)
 
 
 def user(args) -> None:

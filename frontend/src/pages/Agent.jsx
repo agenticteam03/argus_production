@@ -33,23 +33,29 @@ export default function Agent() {
   }, []);
 
   useEffect(() => { refresh(); const timer = setInterval(refresh, 15000); return () => clearInterval(timer); }, [refresh]);
+  const selectedStatus = incidents.find((incident) => incident.id === selected)?.status;
+  const live = selectedStatus === "queued" || selectedStatus === "running";
+  // Events with the `after` cursor; polled only while the run is live (one final read when it closes).
   useEffect(() => {
     if (!selected) { setEvents([]); return undefined; }
     setEvents([]);
     let alive = true;
+    let after = 0;
     const load = async () => {
       if (document.hidden) return;
       try {
-        const rows = await argus.getIncidentEvents(selected);
-        if (alive) setEvents(rows);
+        const batch = await argus.getIncidentEvents(selected, { after });
+        if (!alive || !batch.length) return;
+        after = Math.max(after, ...batch.map((event) => event.seq));
+        setEvents((prev) => [...prev, ...batch.filter((event) => event.seq > (prev.at(-1)?.seq ?? 0))]);
       } catch {
-        if (alive) setEvents([]);
+        // keep the events already shown; the next poll retries
       }
     };
     load();
-    const timer = setInterval(load, 3000);
-    return () => { alive = false; clearInterval(timer); };
-  }, [selected]);
+    const timer = live ? setInterval(load, 3000) : null;
+    return () => { alive = false; if (timer) clearInterval(timer); };
+  }, [selected, live]);
 
   const current = incidents.find((incident) => incident.id === selected);
   const run = summarizeRun(events);

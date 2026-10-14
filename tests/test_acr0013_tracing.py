@@ -277,3 +277,36 @@ def test_stored_run_events_carry_the_trace_id(make_app):
     exporter.close(timeout=5)
     ids = {e["data"].get("trace_id") for e in app.store.list_run_events(inc.id, 0)}
     assert ids == {s["traceId"] for s in cap.spans()}
+
+
+# --- review fixes ----------------------------------------------------------------------------------------------------
+def test_an_attempt_that_never_records_is_closed_when_the_run_returns(make_app):
+    """A lost claim stops the run before `record`: the attempt must not stay open (memory) and its root is exported."""
+    cap = Capture()
+    app, exporter = traced_app(make_app, cap)
+    inc = incident(app, WORKER)
+    cancel = threading.Event()
+    cancel.set()                                                    # the claim is already lost
+    app.runner.run(inc.id, cancel)
+    exporter.close(timeout=5)
+    assert app.runner.events._attempts == {}
+    roots = [s for s in cap.spans() if not s.get("parentSpanId")]
+    assert len(roots) == 1 and roots[0].get("status") == {"code": 2}
+
+
+def test_close_tracing_flushes_open_attempts_and_the_queue(make_app):
+    from argus.observability.tracing import OtlpExporter, TracingEventSink
+    cap = Capture()
+    exporter = OtlpExporter("http://x/api/public/otel/v1/traces", "pk", "sk", post=cap, flush_interval=60)
+    sink = TracingEventSink(None, exporter)
+    sink.append_run_event("inc-1", "detect", "enter", {})
+    sink.close_tracing(timeout=5)
+    names = [s["name"] for s in cap.spans()]
+    assert "argus.investigation" in names and "detect" in names and exporter.dropped == 0
+
+
+def test_tracing_llm_survives_copy():
+    import copy
+    from argus.observability.tracing import TracingLLM
+    llm = TracingLLM(ScriptedLLM(oom_script), sink=None)
+    assert copy.copy(llm).inner is llm.inner

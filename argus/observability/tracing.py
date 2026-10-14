@@ -151,6 +151,19 @@ class TracingEventSink:
         self.exporter.submit(self._span(a, "llm.decide", _id(8), parent, start, end, {"argus.node": cur[1], **attrs},
                                         status))
 
+    def end_attempt(self, incident_id: str) -> None:
+        """The run returned. An attempt still open never reached `record` (a lost claim, an unknown incident): its root
+        ends now with an error status, so it is exported and does not stay in memory."""
+        cur = getattr(self._tl, "current", None)
+        if cur and cur[0] == incident_id:
+            self._tl.current = None
+        self._end_attempt(incident_id, error="not recorded")
+
+    def close_tracing(self, timeout: float = 2.0) -> None:
+        """The worker stops: end every open attempt, then flush the queue within `timeout` (the rest is dropped)."""
+        self.end_open_attempts("worker stopped")
+        self.exporter.close(timeout)
+
     def end_open_attempts(self, reason: str) -> None:
         """Close every attempt still open (the worker stops): its root span ends with an error status."""
         with self._lock:
@@ -254,4 +267,6 @@ class TracingLLM:
                 log.warning("tracing: a model call could not be traced")
 
     def __getattr__(self, name):                             # model name, timeouts etc. of the wrapped adapter
+        if name == "inner":                                  # not set yet (copy, unpickling): no recursion
+            raise AttributeError(name)
         return getattr(self.inner, name)

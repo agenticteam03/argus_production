@@ -1,5 +1,6 @@
 export function summarizeRun(events = []) {
-  const traceId = events.map((event) => event.data?.trace_id).find(Boolean) ?? null;
+  // The latest attempt's trace: a resumed run starts a new trace for the same incident.
+  const traceId = events.map((event) => event.data?.trace_id).filter(Boolean).at(-1) ?? null;
   const last = events.at(-1);
   return {
     traceId,
