@@ -6,10 +6,10 @@ second approval** in its pull request.
 
 | Field | Value |
 |---|---|
-| Status | `proposed` |
+| Status | `accepted` (`juanbetancurm`, by merging #147, 2026-10-14 04:50 UTC); implemented in the PR that applies ARCHITECTURE 1.8.11 |
 | Proposed by | conantkd (+ agent) · 2026-10-14 |
-| Accepted by | — |
-| Second approval (safety principle only) | required: least privilege (a public token that can start work on the hosts) |
+| Accepted by | `juanbetancurm` · merged #147 (2026-10-14) |
+| Second approval (safety principle only) | by `conantkd`'s decision (2026-10-14), `juanbetancurm`'s approval of the implementation PR is taken as the second approval: the same person twice, a conscious deviation from `SECURITY.md`'s "second approval", recorded here |
 | Architecture version | from `1.8.10` → `1.8.11` (1.8.9 is reserved by ACR-0010), or the next free number when applied |
 | Task / PR | T-0016 "Level 1 Investigate" (`tasks/current/T-0016-frontend.md`, "Later: from reading to acting") · PR #… |
 
@@ -127,3 +127,31 @@ on the public UI, the team decides on per-person accounts (row 6 and §4).
 | `frontend/GUIDELINES.md`, `README.md` | the Diagnose button and form; the guard's one allowed POST |
 | `brain/tasks/current/T-0016-frontend.md` | "Level 1 Investigate" as its steps (API, edge, frontend, VM) |
 | `brain/policies/SECURITY.md` | least privilege: the public edge may start investigations with an `investigate` token, under quotas |
+
+## 7. Implemented (`task/ACR-0012-impl`, 2026-10-14; not deployed, no PR yet)
+
+- **API** (`adapters/inbound/http.py`):
+  - `scope=investigate` → `access: "investigate"`; the edge issues `read` or `investigate`, never a full token;
+  - any other non-`GET` → 403, audited `access.investigate_scope_refused`;
+  - `/me` lists `start_investigation` for a full or investigate token of an operator or approver;
+  - quotas: `per_hour` 10, `queued_per_principal` 2, `queued_max` 20; 429 with `Retry-After`, audited
+    `investigation.quota_refused`;
+  - every accepted request is audited `investigation.requested` (access, via, client, target);
+  - `GET /api/v1/targets` lists refs, host, kind and name.
+  - Tests: `tests/test_acr0012_investigate.py`, 16 (12 red seen).
+- **Contract:** `contracts/ui-api.json` gains the two routes; the samples `targets.json` and `investigation.json`
+  are new, and the existing samples are unchanged.
+- **Edge:** `location = /api/v1/investigations` (POST, its own zone at 6 per minute per address with burst 2, 4 KB
+  body) and `= /api/v1/targets`. `tests/test_acr0011_ui_edge.py`: 29, with a burst giving 429 and an oversized body
+  giving 413.
+- **Frontend:**
+  - the login asks `scope=investigate`;
+  - `DiagnoseForm`: on the dashboard, a target from the list, check/report and a reason of up to 500 characters;
+    on an incident page, "Investigate again". It is shown only when `/me` lists the action, and a 429 shows when
+    to retry;
+  - the Playwright guard allows that one POST only for a session that may start one.
+  - Tests: unit 85, acceptance 14 (stable in four runs).
+
+**One difference from §3.1 row 4.** The quotas count and limit **investigate tokens only**. A full token, which is
+loopback only (the CLI and the E2E runner), is not limited: the runner starts many investigations a batch by design,
+and it never reaches the Internet. Alerts and schedules are never counted, as written.

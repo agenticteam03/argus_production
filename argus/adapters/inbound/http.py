@@ -4,8 +4,13 @@ on the private listener (v1.8 §7.1, §17.3). The only FastAPI location.
 No `from __future__ import annotations` here: FastAPI must resolve the local dependency closures."""
 
 import hmac
+import logging
+import math
+import time
 import uuid
+from concurrent.futures import ThreadPoolExecutor, wait
 from datetime import timedelta
+from threading import Lock, RLock
 from typing import Annotated, Literal
 
 import jwt
@@ -15,11 +20,15 @@ from pwdlib import PasswordHash
 from pydantic import BaseModel, ConfigDict
 
 from argus.application.alerts import HandleAlertNotification
-from argus.domain.model import (AlertNotification, AuditRecord, Incident, Principal, RequestKind, TargetRef, TriggerKind,
-                                utcnow)
+from argus.domain.model import (AlertNotification, AuditRecord, Incident, IncidentStatus, Principal, RequestKind,
+                                TargetRef, TriggerKind, utcnow)
+from argus.ports.ports import MetricsUnavailable, StaleMetrics
 
 READ_METHODS = ("GET", "HEAD")          # a read-only token (ACR-0001) may use only these
+INVESTIGATE_WRITES = {("POST", "/api/v1/investigations")}   # the one non-GET of an `investigate` token (ACR-0012)
+SCOPES = {"read", "investigate"}        # what a login may ask for; none = a full token (loopback only)
 
+log = logging.getLogger("argus.api")
 hasher = PasswordHash.recommended()
 oauth2 = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/token")
 
@@ -89,6 +98,13 @@ def _principal_dep(app_ctx):
                 event="access.read_only_refused", actor=row["id"],
                 detail={"method": request.method, "path": request.url.path}))
             raise HTTPException(status.HTTP_403_FORBIDDEN, "this token is read-only")
+        if (access == "investigate" and request.method not in READ_METHODS
+                and (request.method, request.url.path) not in INVESTIGATE_WRITES):
+            app_ctx.store.append(AuditRecord(
+                audit_id=f"aud_{uuid.uuid4().hex[:16]}", incident_id=None, at=utcnow(), category="access",
+                event="access.investigate_scope_refused", actor=row["id"],
+                detail={"method": request.method, "path": request.url.path}))
+            raise HTTPException(status.HTTP_403_FORBIDDEN, "this token may only read and start investigations")
         return Principal(id=row["id"], kind=row["kind"], role=row["role"], scopes=frozenset(row["scopes"]))
     return dep
 
@@ -111,6 +127,12 @@ def build_api(app_ctx) -> FastAPI:
         return dep
 
     s = app_ctx.settings
+    host_metrics_lock = RLock()          # re-entrant: a read's done-callback may run in the thread that submitted it
+    host_metrics_cache: dict = {"at": 0.0, "rows": None}
+    host_metrics_reads: dict = {}        # host target → its in-flight read
+    host_metrics_pool = ThreadPoolExecutor(max_workers=4, thread_name_prefix="host-metrics")
+    api.state.host_metrics_budget_s = 20.0
+    quota_lock = Lock()                  # ACR-0012: quota check and incident creation are one step (one API process)
     limiter = LoginLimiter(s.login_max_per_user, s.login_max_per_address, s.login_window_s)
     api.state.login_limiter = limiter
 
@@ -118,13 +140,17 @@ def build_api(app_ctx) -> FastAPI:
         app_ctx.store.append(AuditRecord(audit_id=f"aud_{uuid.uuid4().hex[:16]}", incident_id=None, at=utcnow(),
                                          category="access", event=event, actor=user[:64], detail=detail))
 
-    @api.post("/api/v1/auth/token", tags=["auth"])
-    def token(request: Request, form: Annotated[OAuth2PasswordRequestForm, Depends()]):
-        # ACR-0011: the public edge always sets its header (and drops any copy from the browser); only then is its
-        # X-Real-IP the client. Without it the peer is the client, so a header cannot pick a fresh address per try.
+    def origin(request: Request) -> tuple[bool, str]:
+        """(through the public edge?, the client address). ACR-0011: the edge always sets its header (and drops any
+        copy from the browser); only then is its X-Real-IP the client. Without it the peer is the client, so a header
+        cannot pick a fresh address per try."""
         edge = bool(request.headers.get(s.edge_header))
         peer = request.client.host if request.client else "unknown"
-        address = (request.headers.get("X-Real-IP") or peer) if edge else peer
+        return edge, (request.headers.get("X-Real-IP") or peer) if edge else peer
+
+    @api.post("/api/v1/auth/token", tags=["auth"])
+    def token(request: Request, form: Annotated[OAuth2PasswordRequestForm, Depends()]):
+        edge, address = origin(request)
         where = {"client": address, "via": "edge" if edge else "loopback"}
         wait = limiter.retry_after(form.username, address)
         if wait:
@@ -138,11 +164,13 @@ def build_api(app_ctx) -> FastAPI:
             audit_access("access.login_failed", form.username, where)     # never the password
             raise HTTPException(status.HTTP_401_UNAUTHORIZED, "bad credentials")
         limiter.succeeded(form.username)
-        if form.scopes and form.scopes != ["read"]:        # ACR-0001: the only scope a login may ask for is "read"
-            raise HTTPException(status.HTTP_400_BAD_REQUEST, "unknown scope (only 'read' is accepted)")
-        if edge and form.scopes != ["read"]:               # ACR-0011: a login through the public edge is read-only
-            raise HTTPException(status.HTTP_400_BAD_REQUEST, "a login through the public edge must ask for scope=read")
-        access = "read" if form.scopes == ["read"] else "full"
+        # ACR-0001 / ACR-0012: a login asks for at most one scope, `read` or `investigate`; none = a full token
+        if len(form.scopes) > 1 or (form.scopes and form.scopes[0] not in SCOPES):
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, "unknown scope (only 'read' or 'investigate')")
+        if edge and not form.scopes:                       # ACR-0011 / ACR-0012: the public edge never issues a full token
+            raise HTTPException(status.HTTP_400_BAD_REQUEST,
+                                "a login through the public edge must ask for scope=read or scope=investigate")
+        access = form.scopes[0] if form.scopes else "full"
         now = utcnow()
         claims = {"sub": row["id"], "kind": row["kind"], "role": row["role"], "scopes": row["scopes"],
                   "access": access, "iat": now, "exp": now + timedelta(minutes=app_ctx.settings.jwt_ttl_min),
@@ -158,20 +186,109 @@ def build_api(app_ctx) -> FastAPI:
         actions = ["view_incidents", "view_timeline"]
         if p.role in ("operator", "approver"):
             actions.append("view_evidence")
-            if access == "full":
+            if access in ("full", "investigate"):          # ACR-0012: an investigate token may start one
                 actions.append("start_investigation")
         return {"user": p.id, "role": p.role, "access": access, "actions": actions}
 
+    def over_quota(principal: str, idempotency_key: str | None) -> tuple[str, int] | None:
+        """ACR-0012: (which quota, seconds to wait) when an investigate token may not start one more; None = allowed.
+        Only manual incidents count: alerts, schedules and the system are never limited here. A retry with the key of
+        an incident already created starts nothing, so it is allowed and answered as a duplicate."""
+        now = utcnow()
+        manual = [i for i in app_ctx.store.list_incidents(1000) if i.trigger_kind == TriggerKind.manual]
+        if idempotency_key and any(i.trigger_id == idempotency_key for i in manual):
+            return None
+        queued = [i for i in manual if i.status == IncidentStatus.queued]
+        if len(queued) >= s.investigations_queued_max:
+            return "queued_max", 60
+        if sum(i.principal == principal for i in queued) >= s.investigations_queued_per_principal:
+            return "queued_per_principal", 60
+        hour = sorted(i.opened_at for i in manual if i.principal == principal and i.opened_at > now - timedelta(hours=1))
+        if len(hour) >= s.investigations_per_hour:
+            return "per_hour", max(1, int((hour[0] + timedelta(hours=1) - now).total_seconds()) + 1)
+        return None
+
     @api.post("/api/v1/investigations", status_code=202, tags=["incidents"])
-    def investigate(body: InvestigationIn, p: Annotated[Principal, Depends(require("operator", "approver"))]):
+    def investigate(request: Request, body: InvestigationIn,
+                    p: Annotated[Principal, Depends(require("operator", "approver"))]):
         try:
             target = TargetRef.parse(body.target)
         except ValueError as e:
             raise HTTPException(422, str(e))
-        inc = new_incident(target, TriggerKind.manual, RequestKind(body.request_kind), body.reason, p.id,
-                           body.idempotency_key or f"manual:{uuid.uuid4().hex}")
-        inc, duplicate = app_ctx.store.create_incident(inc, body.idempotency_key)
+        access = request.state.access
+        edge, address = origin(request)
+        how = {"access": access, "via": "edge" if edge else "loopback", "client": address,
+               "target": str(target), "request_kind": body.request_kind}
+        with quota_lock:                                    # concurrent POSTs cannot all pass the same last free slot
+            if access == "investigate":                     # ACR-0012: the UI's token is limited; a full one is not
+                refused = over_quota(p.id, body.idempotency_key)
+                if refused:
+                    audit_access("investigation.quota_refused", p.id, {**how, "quota": refused[0]})
+                    raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS,
+                                        f"investigation quota reached ({refused[0]}); try again later",
+                                        headers={"Retry-After": str(refused[1])})
+            inc = new_incident(target, TriggerKind.manual, RequestKind(body.request_kind), body.reason, p.id,
+                               body.idempotency_key or f"manual:{uuid.uuid4().hex}")
+            inc, duplicate = app_ctx.store.create_incident(inc, body.idempotency_key)
+        audit_access("investigation.requested", p.id, {**how, "incident_id": inc.id, "duplicate": duplicate})
         return {"incident_id": inc.id, "status": inc.status, "duplicate": duplicate}
+
+    @api.get("/api/v1/targets", tags=["incidents"])
+    def targets(p: Annotated[Principal, Depends(current)]):
+        """ACR-0012: the inventory's targets for a UI's target list (refs only: no address, port or credential)."""
+        return sorted(({"target": str(t.ref), "host": t.ref.host, "kind": t.ref.kind, "name": t.ref.name}
+                       for t in app_ctx.inventory.targets()), key=lambda r: r["target"])
+
+    @api.get("/api/v1/host-metrics", tags=["metrics"])
+    def host_metrics(p: Annotated[Principal, Depends(current)]):
+        """Only named host signals already in the catalogue; no browser-supplied target or PromQL."""
+        # The lock guards only the cache and the in-flight reads, never Prometheus I/O. Hosts are read in parallel, at
+        # most one read per host at a time, and the answer waits at most `host_metrics_budget_s` (under the edge's 30 s
+        # proxy timeout): a host still reading is `available: false`, so one slow host never hides the other.
+        with host_metrics_lock:
+            if host_metrics_cache["rows"] is not None and time.monotonic() - host_metrics_cache["at"] < 20:
+                return host_metrics_cache["rows"]
+            reads = {}
+            for target in sorted((t.ref for t in app_ctx.inventory.targets() if t.ref.kind == "host"), key=str):
+                read = host_metrics_reads.get(target)
+                if read is None:
+                    read = host_metrics_reads[target] = host_metrics_pool.submit(read_host_row, target)
+                    read.add_done_callback(lambda f, t=target: forget_read(t, f))
+                reads[target] = read
+        wait(reads.values(), timeout=api.state.host_metrics_budget_s)
+        rows = [f.result() if f.done() else host_row(t, {}, None) for t, f in reads.items()]
+        with host_metrics_lock:
+            host_metrics_cache.update(at=time.monotonic(), rows=rows)
+        return rows
+
+    def forget_read(target, future) -> None:
+        with host_metrics_lock:
+            if host_metrics_reads.get(target) is future:
+                del host_metrics_reads[target]
+
+    def host_row(target, values: dict, observed_at) -> dict:
+        values = {"cpu_busy_ratio": None, "memory_used_ratio": None, "disk_used_ratio": None, **values}
+        return {"host": target.host, "target": str(target), "available": any(v is not None for v in values.values()),
+                "observed_at": observed_at, "values": values}
+
+    def read_host_row(target) -> dict:
+        signals = {"host_cpu_busy_ratio", "host_memory_available_ratio", "host_disk_used_ratio"}
+        try:
+            snapshot = app_ctx.metrics.snapshot(target, signals)
+        except (StaleMetrics, MetricsUnavailable):
+            return host_row(target, {}, None)
+        except Exception:                                  # a bad answer from Prometheus: this host only, never a 500
+            log.exception("host metrics read failed for %s", target)
+            return host_row(target, {}, None)
+        raw, values = snapshot.values, {}
+        for field, signal in (("cpu_busy_ratio", "host_cpu_busy_ratio"), ("disk_used_ratio", "host_disk_used_ratio")):
+            value = raw.get(signal)
+            if value is not None and math.isfinite(value) and 0 <= value <= 1:
+                values[field] = value
+        available = raw.get("host_memory_available_ratio")
+        if available is not None and math.isfinite(available) and 0 <= available <= 1:
+            values["memory_used_ratio"] = round(1 - available, 10)
+        return host_row(target, values, snapshot.observed_at.isoformat() if snapshot.observed_at else None)
 
     @api.get("/api/v1/incidents", tags=["incidents"])
     def incidents(p: Annotated[Principal, Depends(current)], limit: int = 30):

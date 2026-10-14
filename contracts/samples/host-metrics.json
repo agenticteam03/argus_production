@@ -1,0 +1,24 @@
+[
+  {
+    "available": true,
+    "host": "vm-095",
+    "observed_at": "2026-10-14T12:05:39.828072+00:00",
+    "target": "vm-095/host:vm-095",
+    "values": {
+      "cpu_busy_ratio": 0.25,
+      "disk_used_ratio": 0.7,
+      "memory_used_ratio": 0.6
+    }
+  },
+  {
+    "available": true,
+    "host": "vm-166",
+    "observed_at": "2026-10-14T12:05:39.828072+00:00",
+    "target": "vm-166/host:vm-166",
+    "values": {
+      "cpu_busy_ratio": 0.8,
+      "disk_used_ratio": 0.9,
+      "memory_used_ratio": 0.6
+    }
+  }
+]

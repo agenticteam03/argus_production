@@ -48,7 +48,7 @@ describe("httpAuthAdapter", () => {
     expect(loginUrl).toBe("/api/v1/auth/token");
     expect(loginInit.method).toBe("POST");
     expect(loginInit.headers["Content-Type"]).toBe("application/x-www-form-urlencoded");
-    expect(String(loginInit.body)).toBe("username=alice&password=s3cret&scope=read");
+    expect(String(loginInit.body)).toBe("username=alice&password=s3cret&scope=investigate");   // ACR-0012
 
     const [meUrl, meInit] = fetch.mock.calls[1];
     expect(meUrl).toBe("/api/v1/me");

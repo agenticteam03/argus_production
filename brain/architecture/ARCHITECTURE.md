@@ -1,7 +1,7 @@
 # Argus — Production Architecture Specification
 
 **Document type:** consolidated target architecture and implementation blueprint ·
-**Version:** 1.8.10 (2026-10-14, ACR-0011; 1.8.8 2026-10-12, ACR-0009; 1.8.7 2026-10-12, ACR-0008; 1.8.6 2026-10-11, ACR-0007; 1.8.5 2026-10-09, ACR-0005; 1.8.4 2026-10-09, ACR-0004; 1.8.3 2026-10-08, ACR-0003; 1.8.2 2026-10-09, ACR-0002; 1.8.1 2026-10-06, ACR-0001; base 1.8.0 of 30 September 2026, sanitized for the shared repository 2026-10-02) · **Audience:** engineers and AI coding agents implementing
+**Version:** 1.8.12 (2026-10-14, ACR-0014; 1.8.11 2026-10-14, ACR-0012; 1.8.10 2026-10-14, ACR-0011; 1.8.8 2026-10-12, ACR-0009; 1.8.7 2026-10-12, ACR-0008; 1.8.6 2026-10-11, ACR-0007; 1.8.5 2026-10-09, ACR-0005; 1.8.4 2026-10-09, ACR-0004; 1.8.3 2026-10-08, ACR-0003; 1.8.2 2026-10-09, ACR-0002; 1.8.1 2026-10-06, ACR-0001; base 1.8.0 of 30 September 2026, sanitized for the shared repository 2026-10-02) · **Audience:** engineers and AI coding agents implementing
 Argus from an empty repository.
 
 
@@ -1216,13 +1216,15 @@ An unauthorized read returns **404** (not 403) and is audited as `access.inciden
 |---|---|---|---|
 | `POST /api/v1/auth/token` | — (authentication, §17.3) | username + password (humans) or client credentials (agents) | returns a short-lived JWT |
 | `POST /api/v1/alerts` | `HandleAlertNotification` | Alertmanager bearer token | Alertmanager webhook payload; returns 2xx only after durable intake |
-| `POST /api/v1/investigations` | `RunInvestigation` (`manual`) | JWT: operator or approver | body: `target`, `reason`, optional `idempotency_key`; no `force_reasoning` flag exists |
+| `POST /api/v1/investigations` | `RunInvestigation` (`manual`) | JWT (full or investigate): operator or approver | body: `target`, `reason`, `request_kind`, optional `idempotency_key`; no `force_reasoning` flag exists. With an **investigate** token (ACR-0012): quotas per principal (`ARGUS_INVESTIGATIONS_PER_HOUR` 10, `ARGUS_INVESTIGATIONS_QUEUED_PER_PRINCIPAL` 2) and on all queued manual incidents (`ARGUS_INVESTIGATIONS_QUEUED_MAX` 20), else 429 + `Retry-After` (audited `investigation.quota_refused`); every accepted request audited `investigation.requested` (access, via, client) |
+| `GET /api/v1/targets` | — (the inventory's target refs) | JWT, any role | `target`, `host`, `kind`, `name` of every inventory target, for a UI's target list; no address, port or credential (ACR-0012) |
+| `GET /api/v1/host-metrics` | named host metric snapshot | JWT, any role | Inventory host targets only; fixed CPU busy, memory used and root-disk used ratios; sample time; missing is null; no PromQL parameter (ACR-0014). |
 | `GET /api/v1/incidents` | `ListIncidents` | JWT | filters: status, class, target, since |
 | `GET /api/v1/incidents/{id}` | `GetIncident` | JWT | role-redacted view |
 | `GET /api/v1/incidents/{id}/events` | run events of an incident | JWT | the node timeline (CLI and UIs) |
 | `GET /api/v1/evidence/{id}` | one evidence record | JWT: operator or approver | |
 | `GET /api/v1/escalations` | escalations waiting for a human | JWT | |
-| `GET /api/v1/me` | — (who am I) | JWT (read or full) | `user`, `role`, `access` and the `actions` this token may use (e.g. `view_incidents`, `view_timeline`, `view_evidence`); a UI shows a control only when its action is listed (ACR-0001) |
+| `GET /api/v1/me` | — (who am I) | JWT (read, investigate or full) | `user`, `role`, `access` and the `actions` this token may use (e.g. `view_incidents`, `view_timeline`, `view_evidence`); a UI shows a control only when its action is listed (ACR-0001) |
 | `GET /api/v1/approvals?state=pending` | `ListPendingApprovals` | JWT: approver | shows each proposal with `approval_id` and `proposal_digest` |
 | `POST /api/v1/incidents/{id}/approve` | `AnswerApprovalRequest` | JWT: human approver (later also a signed single-use link) | body: `approval_id`, `proposal_digest` |
 | `POST /api/v1/incidents/{id}/deny` | `AnswerApprovalRequest` | same | same |
@@ -1251,7 +1253,10 @@ HTTP or the application in-process.
 - **The public UI edge (ACR-0011):** `argus-v18-ui` proxies only the routes of `contracts/ui-api.json`, each with
   its method; everything else under `/api/`, `/docs` and `/openapi.json` is 404 there, and Swagger stays on the
   loopback listener. It always sets `X-Argus-Edge` and `X-Real-IP` (replacing a client's own): a login carrying the
-  header issues only a **read** token, and the limits of §17.3 count the edge's client address.
+  header issues only a **read** or an **investigate** token (ACR-0012), never a full one, and the limits of §17.3
+  count the edge's client address. Its one proxied POST besides the login is `POST /api/v1/investigations`, with its
+  own per-address rate limit and a 4 KB body. The authenticated `GET /api/v1/host-metrics` (ACR-0014) is one of the
+  contract's GET routes it proxies; the private `/metrics` route is never proxied.
   `GET /api/v1/incidents` caps `limit` server-side (`ARGUS_INCIDENTS_LIMIT_CAP`, 200).
 
 ### 7.2 CLI (`adapters/inbound/cli`)
@@ -2326,7 +2331,7 @@ client secrets.
 | 11 | Write gate | per `(capability, target)` release in policy **and** in the action-gateway configuration |
 | 12 | Peer boundary | peers authenticate as agent principals; no write authority; scoped reads; quotas; loop protection (§23) |
 | 13 | Audit integrity | DB permissions enforce append-only |
-| 14 | Public edge (ACR-0011) | `argus-v18-ui` only: TLS (Let's Encrypt, renewed daily); the UI contract's routes and methods only; edge logins read-only; request and connection limits per address; security headers (CSP, HSTS, no framing); runbooks only after login; no Argus secret in the edge |
+| 14 | Public edge (ACR-0011) | `argus-v18-ui` only: TLS (Let's Encrypt, renewed daily); the UI contract's routes and methods only; edge logins read-only or investigate (ACR-0012: one POST, rate-limited); request and connection limits per address; security headers (CSP, HSTS, no framing); runbooks only after login; no Argus secret in the edge |
 
 ### 17.2 Identities and credentials
 
@@ -2358,7 +2363,12 @@ stored as evidence or sent to the model.
   names) and can only **narrow** what the role allows: a read token is refused with 403 on every route that is
   not a `GET`, whatever the role, and the refusal is audited (`access.read_only_refused`). User interfaces are
   separate clients of the API and hold only the user's own short-lived token, never a server secret; in this
-  release that token is always a read token (a UI write action needs a new ACR).
+  release that token is a read token or an investigate token (a UI write action needs a new ACR).
+- **Investigate tokens (ACR-0012).** The login may ask for `scope=investigate` instead: `access: "investigate"`
+  allows every `GET` and exactly one other route, `POST /api/v1/investigations`; any other non-`GET` is refused
+  with 403 and audited (`access.investigate_scope_refused`). Like `read`, it only narrows the role (a viewer cannot
+  start an investigation), and it is the token the public edge issues to the UI. The quotas of §7.1 apply to it;
+  alerts, schedules and full (loopback) tokens are not counted.
 - Every request re-reads the principal's `disabled` flag, so disabling a user takes effect before the
   token expires.
 - The JWT only proves **who** is calling. What the caller may do is decided server-side by the use
@@ -2495,7 +2505,7 @@ bound and escalates when the bound is exhausted.
 | Credentials (files/env) | Alertmanager webhook token, JWT signing key, executor credentials per `(host, executor)` (mounted for `argus-tools`), action-gateway credential per host (after a release only), model key, notifier credentials, DB DSNs |
 | Model request | model name, timeout, and optional parameters (temperature, response format) omitted when the model rejects them |
 | Budgets | `MAX_STEPS`, `MAX_TOKENS_PER_INCIDENT`, `MAX_MODEL_COST_PER_DAY`, `MAX_MODEL_COST_PER_PRINCIPAL_PER_DAY`, `MAX_READS_PER_STEP` *(1)* |
-| Authentication | `ACCESS_TOKEN_TTL` *(30 min)*, login rate limit (`ARGUS_LOGIN_MAX_PER_USER`, `ARGUS_LOGIN_MAX_PER_ADDRESS`, `ARGUS_LOGIN_WINDOW_S`), the edge header (`ARGUS_EDGE_HEADER`), `ARGUS_INCIDENTS_LIMIT_CAP`, listener addresses (loopback, private, peer) |
+| Authentication | `ACCESS_TOKEN_TTL` *(30 min)*, login rate limit (`ARGUS_LOGIN_MAX_PER_USER`, `ARGUS_LOGIN_MAX_PER_ADDRESS`, `ARGUS_LOGIN_WINDOW_S`), the edge header (`ARGUS_EDGE_HEADER`), `ARGUS_INCIDENTS_LIMIT_CAP`, the investigation quotas (`ARGUS_INVESTIGATIONS_PER_HOUR`, `ARGUS_INVESTIGATIONS_QUEUED_PER_PRINCIPAL`, `ARGUS_INVESTIGATIONS_QUEUED_MAX`), listener addresses (loopback, private, peer) |
 | Peers | `MAX_ORIGIN_CHAIN` *(2)*, peer request rate limits |
 | Concurrency | `MAX_ACTIVE_INVESTIGATIONS` *(2)*, worker lease timeout |
 | Correlation | `CORRELATION_WINDOW` *(30 min)* |
@@ -2759,7 +2769,7 @@ The goal of this architecture is that Argus's diagnostic reach grows **without c
 | OD-7 | Numeric values for `MAX_STEPS`, `MAX_TOKENS_PER_INCIDENT`, `MAX_MODEL_COST_PER_DAY`, per-principal quotas, approval expiry, `METRICS_MAX_STALENESS`, `VERIFY_TIMEOUT`, `RESUME_MAX_ATTEMPTS`, evidence retention per kind | set from measurements and the project model budget |
 | OD-8 | Schedule cadence per target | derived from the measured p95 investigation duration (§6.5) |
 | OD-9 | Plain SQL vs SQLAlchemy; migration tooling | adopt SQLAlchemy only if schema complexity justifies it |
-| OD-10 | A dedicated approval/incident UI beyond Swagger, CLI and (later) Slack links | **decided by ACR-0001 (2026-10-06):** user interfaces are allowed as separate clients of the HTTP API, never inside the core; in this release a UI holds only read-only tokens, and any UI write action needs a new ACR; the team's frontend lives in `frontend/` and runs as `argus-v18-ui` (static files + a proxy to the API) on a public HTTPS address of Host A (ACR-0011; its loopback port stays for development and recovery); answering approvals stays in Swagger/CLI in this release |
+| OD-10 | A dedicated approval/incident UI beyond Swagger, CLI and (later) Slack links | **decided by ACR-0001 (2026-10-06):** user interfaces are allowed as separate clients of the HTTP API, never inside the core; in this release a UI holds read-only tokens, or investigate tokens that may start an investigation under quotas (ACR-0012), and any UI write action needs a new ACR; the team's frontend lives in `frontend/` and runs as `argus-v18-ui` (static files + a proxy to the API) on a public HTTPS address of Host A (ACR-0011; its loopback port stays for development and recovery); answering approvals stays in Swagger/CLI in this release |
 | OD-11 | Model fine-tuning | explicitly undecided |
 | OD-12 | Consolidating gateways and probes into one target agent per host | revisit at the second monitored host; privilege separation argues for keeping them separate |
 | OD-13 | Automatic merging of related incidents | linked only in this release; decide from operational experience |
@@ -2932,3 +2942,5 @@ erDiagram
 | 1.8.7 | 2026-10-12 | `confirm_then_reason`: an exited writer of the full filesystem is a suspect too (its logs are read; its data stays on the mount) (§10.3) | [ACR-0008](changes/ACR-0008-stopped-writer-suspect.md) |
 | 1.8.8 | 2026-10-12 | a monitoring heartbeat per host: a lost heartbeat opens one escalated "Host monitoring unavailable" incident per episode (no run, no model), and a host without a fresh heartbeat resolves nothing; explicit maintenance (§6.4, §7.3, `alerts.yml`) | [ACR-0009](changes/ACR-0009-monitoring-heartbeat.md) |
 | 1.8.10 | 2026-10-14 | the read-only UI on a public HTTPS address: `argus-v18-ui` (Nginx) on Host A:443 proxies only the UI contract's routes; edge logins read-only; failed logins audited and limited per username and address; `limit` capped; layer 14 public edge (§3.3, §3.5, §3.6, §7.1, §17.1, §17.3, §20.1, OD-10) | [ACR-0011](changes/ACR-0011-public-https-ui.md) |
+| 1.8.11 | 2026-10-14 | the UI may start an investigation: `scope=investigate` tokens (every GET and `POST /api/v1/investigations` only), issued by the public edge; per-principal and queue quotas for them; `GET /api/v1/targets` (§7.1, §17.1 layer 14, §17.3, §20.1, OD-10) | [ACR-0012](changes/ACR-0012-ui-start-investigation.md) |
+| 1.8.12 | 2026-10-14 | `GET /api/v1/host-metrics`: the inventory's hosts' CPU busy, memory used and root-disk used ratios for any authenticated role, through the public edge; no request parameter or PromQL; missing or stale is null; a 20 s shared snapshot (§7.1) | [ACR-0014](changes/ACR-0014-ui-host-metrics.md) |

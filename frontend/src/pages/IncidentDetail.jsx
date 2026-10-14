@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
+import DiagnoseForm from "../components/DiagnoseForm.jsx";
 import { AuditSection, EvidenceSection, RestrictedNotice } from "../components/EvidenceAudit.jsx";
 import RunTimeline from "../components/RunTimeline.jsx";
 import SafeMarkdown from "../components/SafeMarkdown.jsx";
@@ -93,6 +94,8 @@ export default function IncidentDetail() {
           <Fact label="Opened">{dateTime(inc.opened_at)}</Fact>
           <Fact label="Closed">{inc.closed_at ? `${dateTime(inc.closed_at)} (took ${duration(inc.opened_at, inc.closed_at)})` : "Still open"}</Fact>
         </dl>
+        {/* ACR-0012: a new investigation of the same target (shown only when /me allows it) */}
+        <div className="mt-5"><DiagnoseForm fixedTarget={inc.target} compact /></div>
       </section>
 
       <Card title="Diagnosis">

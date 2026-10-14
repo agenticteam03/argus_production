@@ -1,4 +1,4 @@
-// The real login: POST /api/v1/auth/token (form-encoded, scope=read), then GET /api/v1/me.
+// The real login: POST /api/v1/auth/token (form-encoded, scope=investigate; ACR-0012), then GET /api/v1/me.
 // The token is never put in `localStorage`, cookies or the URL (T-0016 rule 4): it lives in memory (./session.js)
 // and, so a reload does not log the user out, in this tab's `sessionStorage` (./sessionStore.js). There is no
 // logout route, so signing out is forgetting it.
@@ -13,7 +13,9 @@ export const httpAuthAdapter = {
     const res = await fetch("/api/v1/auth/token", {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({ username, password, scope: "read" }),
+      // ACR-0012: an investigate token reads like a read token and may start an investigation (the one POST);
+      // /me lists start_investigation only for an operator or approver, so a viewer sees no button.
+      body: new URLSearchParams({ username, password, scope: "investigate" }),
     });
     if (res.status === 401) throw httpError(401, BAD_CREDENTIALS);
     if (!res.ok) throw httpError(res.status, "Could not log in. Please try again.");

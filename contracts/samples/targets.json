@@ -1,0 +1,92 @@
+[
+  {
+    "host": "vm-095",
+    "kind": "container",
+    "name": "argus-lab-api",
+    "target": "vm-095/container:argus-lab-api"
+  },
+  {
+    "host": "vm-095",
+    "kind": "container",
+    "name": "argus-lab-worker",
+    "target": "vm-095/container:argus-lab-worker"
+  },
+  {
+    "host": "vm-095",
+    "kind": "host",
+    "name": "vm-095",
+    "target": "vm-095/host:vm-095"
+  },
+  {
+    "host": "vm-166",
+    "kind": "container",
+    "name": "argus-lab-api",
+    "target": "vm-166/container:argus-lab-api"
+  },
+  {
+    "host": "vm-166",
+    "kind": "container",
+    "name": "argus-lab-backend",
+    "target": "vm-166/container:argus-lab-backend"
+  },
+  {
+    "host": "vm-166",
+    "kind": "container",
+    "name": "argus-lab-burner",
+    "target": "vm-166/container:argus-lab-burner"
+  },
+  {
+    "host": "vm-166",
+    "kind": "container",
+    "name": "argus-lab-cache",
+    "target": "vm-166/container:argus-lab-cache"
+  },
+  {
+    "host": "vm-166",
+    "kind": "container",
+    "name": "argus-lab-client",
+    "target": "vm-166/container:argus-lab-client"
+  },
+  {
+    "host": "vm-166",
+    "kind": "container",
+    "name": "argus-lab-db",
+    "target": "vm-166/container:argus-lab-db"
+  },
+  {
+    "host": "vm-166",
+    "kind": "container",
+    "name": "argus-lab-filler",
+    "target": "vm-166/container:argus-lab-filler"
+  },
+  {
+    "host": "vm-166",
+    "kind": "container",
+    "name": "argus-lab-leaker",
+    "target": "vm-166/container:argus-lab-leaker"
+  },
+  {
+    "host": "vm-166",
+    "kind": "container",
+    "name": "argus-lab-nginx",
+    "target": "vm-166/container:argus-lab-nginx"
+  },
+  {
+    "host": "vm-166",
+    "kind": "container",
+    "name": "argus-lab-slow",
+    "target": "vm-166/container:argus-lab-slow"
+  },
+  {
+    "host": "vm-166",
+    "kind": "container",
+    "name": "argus-lab-worker",
+    "target": "vm-166/container:argus-lab-worker"
+  },
+  {
+    "host": "vm-166",
+    "kind": "host",
+    "name": "vm-166",
+    "target": "vm-166/host:vm-166"
+  }
+]

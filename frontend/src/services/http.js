@@ -17,6 +17,12 @@ export async function apiFetch(path, options = {}) {
     clearSession();
     throw httpError(401, "Your session expired. Please log in again.");
   }
-  if (!res.ok) throw httpError(res.status, `Request failed (${res.status}).`);
+  if (!res.ok) {
+    // ACR-0012: a quota answer (429) says when to try again
+    const err = httpError(res.status, `Request failed (${res.status}).`);
+    const wait = Number(res.headers?.get?.("Retry-After"));
+    if (Number.isFinite(wait) && wait > 0) err.retryAfter = wait;
+    throw err;
+  }
   return res;
 }

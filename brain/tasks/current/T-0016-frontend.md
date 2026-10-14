@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | `in progress` — steps 1–3 merged (#24, #56, #137); acceptance tests, guard, contract check, linter and ACR-0011 4a–4c merged (#144, approved by `juanbetancurm`: ACR-0011's second approval); **4d and 4e deployed 2026-10-14: the read-only UI is public on vm-095** (HTTPS, Let's Encrypt for the IP address). Next: a person's browser login; the AFTER-MERGE to `main`; "Level 1 Investigate" is ACR-0012 |
+| Status | `in progress` — steps 1–4 done (the read-only UI public on vm-095, ACR-0011); **Level 1 Investigate (ACR-0012, accepted by `juanbetancurm`) in its implementation PR**; next: its approval and AFTER-MERGE, a person's browser login |
 | Phase | 10 — output modes |
 | Architecture | ACR-0001 (from T-0015) |
 | Branch | `task/T-0016-frontend` (one PR per step is fine) |
@@ -300,3 +300,39 @@ a screen or a button in `frontend/`.
     `/openapi.json` and `POST /investigations` 404; the API and the runbooks 401 without a token.
   - **The real client address reaches the API's audit** (4d's `172.30.0.1` came only from the tunnel).
   - NO INTERFERENCE on both VMs.
+- **2026-10-14 — Level 1 Investigate, ACR-0012 (`conantkd` + agent; local branch `task/ACR-0012-impl`, no PR yet):**
+  - **API:**
+    - `scope=investigate` tokens (every GET and `POST /api/v1/investigations` only), issued by the edge;
+    - quotas for them: 10 an hour and 2 queued per account, 20 queued in all; 429 with `Retry-After`, audited;
+    - `GET /api/v1/targets`;
+    - `investigation.requested` audited with access, via and client.
+    - Tests: 16 (12 red seen).
+  - **Contract** (2 routes, 2 new samples) and **edge** (one POST location, 6 per minute per address, 4 KB):
+    29 edge tests.
+  - **Frontend:**
+    - `DiagnoseForm`: on the dashboard, a target from the list, check/report and a reason; "Investigate again" on
+      an incident;
+    - only when `/me` lists `start_investigation`;
+    - the login asks `investigate`;
+    - the guard allows that one POST only for such a session.
+    - Totals: `npm test` 85, `npm run e2e` 14 (stable four times), lint 0 errors.
+  - **Found and fixed on the way:**
+    - **the 401 acceptance test raced** with the dashboard's first load; it now waits for that load first;
+    - the old dashboard test matched the new `<option>` instead of the incident row.
+
+- **2026-10-14 — PR #151 follow-up, host metrics and bounded chat (`conantkd` + agent):**
+  - **Architecture:** ACR-0014 (it widens the authenticated public read surface) was accepted by `juanbetancurm`
+    in the review of PR #151 and applied in the same PR as `ARCHITECTURE.md` 1.8.12 (§7.1 row, public-edge
+    paragraph, changelog).
+  - **API/contract:** `GET /api/v1/host-metrics` reads only the existing named host CPU, memory and root-disk
+    signals through MetricsPort, preserves missing values as null, and returns a separate availability per host.
+    The exact edge allowlist, UI contract and sample are updated together.
+  - **Frontend:** the dashboard shows Host A/T readings with sample times; the chat answers bounded metric
+    questions with measured values. An explicit host diagnosis starts ACR-0012's existing investigation and links
+    to its incident; it never presents a queued investigation as a finished diagnosis.
+  - **Red seen:** API route tests returned 404; frontend tests could not load the not-yet-implemented parser and
+    host-metrics sample. Green: frontend 91 unit tests, 16 browser tests, targeted API/contract/edge checks and
+    Brain lint. The full Python run has only seven failures in the untouched token-rotation shell tests because
+    this Windows host's WSL cannot start `/bin/bash`; Linux CI will determine the full-suite verdict.
+  - **Next:** independent ACR-0014 approval in PR #151, then update the architecture version and re-run CI. VM
+    deployment and a live Prometheus smoke test require a valid lease.

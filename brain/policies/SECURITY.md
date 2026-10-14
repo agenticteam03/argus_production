@@ -33,7 +33,8 @@
 - **Host isolation:** an executor is resolved for the target's own host only, never another host.
 - **Evidence integrity:** evidence and audit are insert-only; the runtime database role cannot UPDATE or DELETE them.
 - **Least privilege:** gateways expose exact GET routes; probes expose typed verbs; tokens per service. The only
-  public listener is the UI edge (ACR-0011): the UI contract's routes only, read tokens only, one account per person.
+  public listener is the UI edge (ACR-0011): the UI contract's routes only, read or investigate tokens only (an
+  investigate token may start an investigation under quotas, ACR-0012, and nothing else), one account per person.
 - **Secrets** as above.
 
 ## Everyone has sudo — the rails

@@ -25,7 +25,9 @@ UPDATE = os.getenv("ARGUS_UPDATE_UI_CONTRACT") == "1"
 # (method, path) a UI may call - docs/API-FOR-UI.md describes each one
 UI_ROUTES = [("post", "/api/v1/auth/token"), ("get", "/api/v1/me"), ("get", "/api/v1/incidents"),
              ("get", "/api/v1/incidents/{incident_id}"), ("get", "/api/v1/incidents/{incident_id}/events"),
-             ("get", "/api/v1/evidence/{evidence_id}"), ("get", "/api/v1/escalations")]
+             ("get", "/api/v1/evidence/{evidence_id}"), ("get", "/api/v1/escalations"),
+             ("post", "/api/v1/investigations"), ("get", "/api/v1/targets"),
+             ("get", "/api/v1/host-metrics")]
 PASSWORD = "a-long-password"
 SC03 = "vm-166/container:argus-lab-worker"          # OOM restart loop, diagnosed
 UNSUPPORTED = "vm-095/container:argus-lab-worker"   # healthy metrics + report -> unsupported, escalated
@@ -83,7 +85,13 @@ def scripted_run(make_app) -> dict[str, object]:
         return {"calls": [("conclude", {"diagnosis": "OOM-killed by its 64 MiB memory limit", "evidence_ids": ids[-2:],
                                         "confidence": "high", "root_cause_target": SC03})]}
     metrics = FakeMetrics({SC03: {"restarts_10m": 5, "oom_killed": 1, "last_exit_code": 137},
-                           UNSUPPORTED: {"restarts_10m": 0}})
+                           UNSUPPORTED: {"restarts_10m": 0},
+                           "vm-095/host:vm-095": {"host_cpu_busy_ratio": 0.25,
+                                                   "host_memory_available_ratio": 0.4,
+                                                   "host_disk_used_ratio": 0.7},
+                           "vm-166/host:vm-166": {"host_cpu_busy_ratio": 0.8,
+                                                   "host_memory_available_ratio": 0.4,
+                                                   "host_disk_used_ratio": 0.9}})
     app = make_app(llm=ScriptedLLM(script), metrics=metrics)
     app.store.upsert_principal("alice", "human", "operator", ["lab"], PasswordHash.recommended().hash(PASSWORD))
     api = TestClient(build_api(app))
@@ -102,7 +110,14 @@ def scripted_run(make_app) -> dict[str, object]:
            "incidents": api.get("/api/v1/incidents", headers=read).json(), "incident": detail,
            "events": api.get(f"/api/v1/incidents/{inc}/events", headers=read).json(),
            "evidence": api.get(f"/api/v1/evidence/{detail['evidence'][0]['evidence_id']}", headers=read).json(),
-           "escalations": api.get("/api/v1/escalations", headers=read).json()}
+           "escalations": api.get("/api/v1/escalations", headers=read).json(),
+           "targets": api.get("/api/v1/targets", headers=read).json(),
+           "host-metrics": api.get("/api/v1/host-metrics", headers=read).json()}
+    # ACR-0012: what the UI does with an investigate token (after the others, so they keep their content)
+    inv = api.post("/api/v1/auth/token", data={"username": "alice", "password": PASSWORD, "scope": "investigate"})
+    out["investigation"] = api.post("/api/v1/investigations", json={"target": SC03, "reason": "from the UI",
+                                                                    "request_kind": "check"},
+                                    headers={"Authorization": f"Bearer {inv.json()['access_token']}"}).json()
     out["login"]["access_token"] = "<a JWT>"          # a sample must never hold a usable token
     return out
 

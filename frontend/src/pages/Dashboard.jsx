@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import AgentChat from "../components/AgentChat.jsx";
+import DiagnoseForm from "../components/DiagnoseForm.jsx";
 import IncidentRow from "../components/IncidentRow.jsx";
 import { Arrow, Bell, Card, Empty, Inbox, LivePill, OutcomeBadge, Shield } from "../components/ui.jsx";
 import { useAuth } from "../context/AuthContext.jsx";
@@ -25,29 +26,33 @@ function IncidentsCard({ incidents, className }) {
   );
 }
 
-const Row = ({ label, children }) => (
-  <div className="flex items-center justify-between gap-3 text-sm"><span className="text-muted">{label}</span>{children}</div>
-);
-const Status = ({ ok, yes, no }) => (
-  <span className="flex items-center gap-2">
-    <span className={`size-2 rounded-full ${ok == null ? "bg-zinc-600" : ok ? "bg-emerald-400" : "bg-red-400"}`} />
-    {ok == null ? "No data" : ok ? yes : no}
-  </span>
-);
+const HOST_LABELS = { "vm-095": "Host A", "vm-166": "Host T" };
+const HOST_METRICS = [
+  ["CPU", "cpu_busy_ratio"], ["Memory", "memory_used_ratio"], ["Disk /", "disk_used_ratio"],
+];
 
-function HealthCard({ health }) {
-  const { used, limit } = health?.tokens ?? {};
-  const pct = used != null && limit ? Math.min(100, (used / limit) * 100) : 0;
+function HostMetricsCard({ rows }) {
   return (
-    <Card title="Agent status">
-      <div className="space-y-3">
-        <Row label="WireGuard tunnel (A ↔ T)"><Status ok={health?.wireguard} yes="Connected" no="Down" /></Row>
-        <Row label="Prometheus metrics"><Status ok={health?.prometheus} yes="Online" no="Offline" /></Row>
-        <div>
-          <Row label="LLM tokens today"><span>{used == null ? "No data" : `${used} / ${limit ?? "—"}`}</span></Row>
-          <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/10"><div className="h-full rounded-full bg-accent" style={{ width: `${pct}%` }} /></div>
-        </div>
-        <Row label="Resolved today"><span>{health?.resolvedToday ?? "No data"}</span></Row>
+    <Card title="Host metrics">
+      <div className="space-y-4">
+        {["vm-095", "vm-166"].map((host) => {
+          const row = rows.find((item) => item.host === host);
+          return <div key={host} className="rounded-lg bg-field p-3">
+            <div className="flex items-center justify-between gap-2 text-sm font-medium">
+              <span>{HOST_LABELS[host]} <span className="text-xs font-normal text-muted">({host})</span></span>
+              <span className={`text-xs ${row?.available ? "text-emerald-400" : "text-muted"}`}>
+                {row?.available ? "Live" : "No current data"}
+              </span>
+            </div>
+            <dl className="mt-2 space-y-1">
+              {HOST_METRICS.map(([label, key]) => <div key={key} className="flex justify-between text-sm">
+                <dt className="text-muted">{label}</dt>
+                <dd>{Number.isFinite(row?.values?.[key]) ? `${(row.values[key] * 100).toFixed(1)}%` : "No data"}</dd>
+              </div>)}
+            </dl>
+            {row?.observed_at && <time dateTime={row.observed_at} className="mt-2 block text-xs text-muted" title={dateTime(row.observed_at)}>Sample {timeAgo(row.observed_at)}</time>}
+          </div>;
+        })}
       </div>
     </Card>
   );
@@ -108,7 +113,7 @@ function EscalationsCard({ escalations }) {
 
 export default function Dashboard() {
   const { user } = useAuth();
-  const { incidents, approvals, escalations, health, live, updatedAt, refresh } = useLiveOverview();
+  const { incidents, approvals, escalations, hostMetrics, live, updatedAt, refresh } = useLiveOverview();
   // A read token never lists `approve`, so the buttons stay hidden (ACR-0001); the UI never decides who may act.
   const canDecide = user.actions?.includes("approve") ?? false;
   // The server derives the actor from the token; an expired/conflicting decision just triggers a refresh.
@@ -126,10 +131,12 @@ export default function Dashboard() {
 
       <AgentChat />
 
+      <DiagnoseForm />
+
       <div className="grid gap-4 lg:grid-cols-3">
         <IncidentsCard incidents={incidents} className="lg:col-span-2" />
         <div className="space-y-4">
-          <HealthCard health={health} />
+          <HostMetricsCard rows={hostMetrics} />
           <EscalationsCard escalations={escalations} />
           <Card title="Pending approvals" count={approvals.length}>
             {approvals.length === 0 ? (

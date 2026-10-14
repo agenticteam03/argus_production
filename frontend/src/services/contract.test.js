@@ -44,16 +44,18 @@ describe("the real adapters against contracts/ui-api.json", () => {
     await httpArgusAdapter.getEvidence("ev_1");
     await httpArgusAdapter.listEscalations();
     await httpArgusAdapter.getOverview();
-    expect(calls.length).toBeGreaterThanOrEqual(9);
+    await httpArgusAdapter.listTargets();                                            // ACR-0012
+    await httpArgusAdapter.startInvestigation({ target: "vm-166/container:x", requestKind: "check", reason: "r" });
+    expect(calls.length).toBeGreaterThanOrEqual(11);
     expect(undeclared(calls)).toEqual([]);
   });
 
   it("flags a route, a method or a query parameter the contract does not declare", () => {
     expect(undeclared([
-      { method: "POST", url: "/api/v1/investigations" },
+      { method: "POST", url: "/api/v1/approvals" },
       { method: "DELETE", url: "/api/v1/incidents/inc_1" },
       { method: "GET", url: "/api/v1/incidents?offset=30" },
       { method: "GET", url: "/api/v1/incidents?limit=30" },
-    ])).toEqual(["POST /api/v1/investigations", "DELETE /api/v1/incidents/inc_1", "GET /api/v1/incidents ?offset"]);
+    ])).toEqual(["POST /api/v1/approvals", "DELETE /api/v1/incidents/inc_1", "GET /api/v1/incidents ?offset"]);
   });
 });

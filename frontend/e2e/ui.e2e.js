@@ -13,12 +13,12 @@ test.describe("login (guideline 1)", () => {
     await expect(page.getByRole("button", { name: "Log in" })).toBeVisible();
   });
 
-  test("a login asks for a read-only token and opens the dashboard", async ({ page, api }) => {
+  test("a login asks for an investigate token (never a full one) and opens the dashboard", async ({ page, api }) => {
     await api();
     const login = page.waitForRequest((r) => r.url().endsWith("/api/v1/auth/token"));
     await logIn(page);
     const form = new URLSearchParams((await login).postData() ?? "");
-    expect(form.get("scope")).toBe("read");                         // ACR-0001: never a full token
+    expect(form.get("scope")).toBe("investigate");                  // ACR-0012; never a full token (ACR-0001)
     await expect(page.getByRole("heading", { name: "Dashboard" })).toBeVisible();
   });
 });
@@ -28,9 +28,29 @@ test.describe("dashboard (guideline 2)", () => {
     await api();
     await logIn(page);
     const firstTarget = sample("incidents")[0].target;
-    await expect(page.getByText(firstTarget).first()).toBeVisible();
+    await expect(page.getByRole("link").filter({ hasText: firstTarget }).first()).toBeVisible();   // a row, not the form's option
     const esc = sample("escalations")[0].payload;
     await expect(page.getByText(esc.route).first()).toBeVisible();
+  });
+
+  test("shows current host metrics and answers a Host T memory question", async ({ page, api }) => {
+    await api();
+    await logIn(page);
+    await expect(page.getByText("Host metrics")).toBeVisible();
+    await expect(page.getByText("60.0%", { exact: true }).first()).toBeVisible();
+    await page.getByLabel("Message for the agent").fill("Check Host T memory usage");
+    await page.getByRole("button", { name: "Send" }).click();
+    await expect(page.getByText(/Host T \(vm-166\) memory usage: 60.0%/)).toBeVisible();
+  });
+
+  test("a chat diagnosis starts an investigation and links to its incident", async ({ page, api }) => {
+    await api({ role: "operator" });
+    await logIn(page);
+    await page.getByLabel("Message for the agent").fill("Investigate Host T");
+    const sent = page.waitForRequest((r) => r.method() === "POST" && r.url().endsWith("/api/v1/investigations"));
+    await page.getByRole("button", { name: "Send" }).click();
+    expect(JSON.parse((await sent).postData())).toMatchObject({ target: "vm-166/host:vm-166", request_kind: "check" });
+    await expect(page.getByRole("link", { name: "Open incident" })).toHaveAttribute("href", `/incidents/${DIAGNOSED_ID}`);
   });
 });
 
@@ -97,8 +117,10 @@ test.describe("session", () => {
     await api({ overrides: { "GET /api/v1/incidents": (route) => (expired
       ? route.fulfill({ status: 401, contentType: "application/json", body: '{"detail":"expired"}' })
       : route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(sample("incidents")) })) } });
+    const firstList = page.waitForResponse((r) => r.url().includes("/api/v1/incidents?") && r.status() === 200);
     await logIn(page);
     await expect(page.getByRole("heading", { name: "Dashboard" })).toBeVisible();
+    await firstList;                                   // the dashboard's own first load done, so the 401 is the list's
     expired = true;
     await page.getByRole("link", { name: "Incidents" }).first().click();
     await expect(page.getByRole("button", { name: "Log in" })).toBeVisible();
@@ -117,5 +139,54 @@ test.describe("read-only guard", () => {
     ];
     expect(violations(seen, baseURL).map((v) => `${v.method} ${new URL(v.url).pathname}`))
       .toEqual(["POST /api/v1/investigations", "DELETE /api/v1/incidents/x", "GET /track.js"]);
+    // ACR-0012: the one POST is allowed when the session may start an investigation, and nothing else is
+    expect(violations(seen, baseURL, { investigate: true }).map((v) => `${v.method} ${new URL(v.url).pathname}`))
+      .toEqual(["DELETE /api/v1/incidents/x", "GET /track.js"]);
+  });
+});
+
+test.describe("start an investigation (ACR-0012)", () => {
+  const TARGET = sample("targets").find((t) => t.target.startsWith("vm-166/")).target;
+
+  test("an operator starts one from the dashboard and lands on the new incident", async ({ page, api }) => {
+    await api({ role: "operator" });
+    await logIn(page);
+    const form = page.getByRole("form", { name: "Start an investigation" });
+    await form.getByLabel("Target").selectOption(TARGET);
+    await form.getByLabel("Check").check();
+    await form.getByLabel("Reason").fill("users report slowness");
+    const sent = page.waitForRequest((r) => r.method() === "POST" && r.url().endsWith("/api/v1/investigations"));
+    await form.getByRole("button", { name: "Start investigation" }).click();
+    expect(JSON.parse((await sent).postData())).toEqual({ target: TARGET, request_kind: "check", reason: "users report slowness" });
+    await expect(page).toHaveURL(new RegExp(`/incidents/${DIAGNOSED_ID}$`));
+  });
+
+  test("a viewer sees no way to start one, and sends nothing", async ({ page, api }) => {
+    await api({ role: "viewer" });
+    await logIn(page);
+    await expect(page.getByRole("heading", { name: "Dashboard" })).toBeVisible();
+    await expect(page.getByRole("form", { name: "Start an investigation" })).toHaveCount(0);
+    await page.goto(`/incidents/${DIAGNOSED_ID}`);
+    await expect(page.getByRole("button", { name: "Investigate again" })).toHaveCount(0);
+  });
+
+  test("a quota answer says when to try again", async ({ page, api }) => {
+    await api({ role: "operator", overrides: { "POST /api/v1/investigations": (route) => route.fulfill({
+      status: 429, headers: { "Retry-After": "600" }, contentType: "application/json",
+      body: '{"detail":"investigation quota reached (per_hour)"}' }) } });
+    await logIn(page);
+    const form = page.getByRole("form", { name: "Start an investigation" });
+    await form.getByLabel("Target").selectOption(TARGET);
+    await form.getByRole("button", { name: "Start investigation" }).click();
+    await expect(form.getByRole("alert")).toContainText("10 min");
+  });
+
+  test("an incident's page starts a new investigation of the same target", async ({ page, api }) => {
+    await api({ role: "operator" });
+    await logIn(page);
+    await page.goto(`/incidents/${DIAGNOSED_ID}`);
+    const sent = page.waitForRequest((r) => r.method() === "POST" && r.url().endsWith("/api/v1/investigations"));
+    await page.getByRole("button", { name: "Investigate again" }).click();
+    expect(JSON.parse((await sent).postData()).target).toBe(sample("incident").target);
   });
 });

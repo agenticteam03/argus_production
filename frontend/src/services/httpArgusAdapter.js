@@ -1,7 +1,7 @@
-// The read-only HTTP adapter for the Argus API. Only the routes in `docs/API-FOR-UI.md` are used,
-// and the token (scope=read) only allows GETs. `apiFetch` logs the session out on any 401.
-// Approvals and agent actions are writes: they have no route a read token may call, so they stay placeholders.
+// The HTTP adapter for the UI contract. An investigate token permits GETs and the one bounded investigation POST.
+// `apiFetch` logs the session out on any 401; approvals still have no UI route.
 import { apiFetch, httpError } from "./http.js";
+import { answerMetricQuestion, parseInvestigationRequest, parseMetricQuestion } from "./metricQuestion.js";
 
 const getJson = async (path) => (await apiFetch(path)).json();
 
@@ -26,20 +26,49 @@ export const httpArgusAdapter = {
     return getJson("/api/v1/escalations");
   },
 
-  // The dashboard builds its incidents from the list and its escalations from their route;
-  // approvals are writes and health has no route yet, so they stay empty.
-  async getOverview() {
-    const [incidents, escalations] = await Promise.all([
-      httpArgusAdapter.listIncidents({ limit: 5 }),
-      httpArgusAdapter.listEscalations(),
-    ]);
-    return { incidents, approvals: [], escalations, health: null };
+  async getHostMetrics() {
+    return getJson("/api/v1/host-metrics");
   },
 
-  // The agent chat starts an investigation, which is a write a read token never gets: it stays a placeholder
-  // until the ACR that gives the UI that scope is accepted (`brain/NEXT_STEP.md`).
-  async askAgent() {
-    return "Argus is read-only in this release, so the chat is a placeholder. Starting an investigation needs a new ACR.";
+  // The dashboard reads only the named host metrics in the UI contract. Approvals have no read route yet.
+  // A failed metrics read (slow or down Prometheus) leaves the card empty; it never hides incidents and escalations.
+  async getOverview() {
+    const [incidents, escalations, metrics] = await Promise.allSettled([
+      httpArgusAdapter.listIncidents({ limit: 5 }),
+      httpArgusAdapter.listEscalations(),
+      httpArgusAdapter.getHostMetrics(),
+    ]);
+    for (const result of [incidents, escalations]) if (result.status === "rejected") throw result.reason;
+    if (metrics.status === "rejected" && metrics.reason?.status === 401) throw metrics.reason;
+    const hostMetrics = metrics.status === "fulfilled" ? metrics.value : [];
+    return { incidents: incidents.value, approvals: [], escalations: escalations.value, hostMetrics };
+  },
+
+  // ACR-0012: the targets a UI may name (the inventory's refs), and the one write an investigate token may do.
+  async listTargets() {
+    return getJson("/api/v1/targets");
+  },
+
+  async startInvestigation({ target, requestKind = "report", reason = "" }) {
+    const res = await apiFetch("/api/v1/investigations", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ target, request_kind: requestKind, reason }),
+    });
+    return res.json();
+  },
+
+  async askAgent(question, canStartInvestigation = false) {
+    const investigation = parseInvestigationRequest(question);
+    if (investigation) {
+      if (!canStartInvestigation) return { text: "Your account cannot start investigations. You can still ask for a current host metric." };
+      const { incident_id } = await httpArgusAdapter.startInvestigation({ target: investigation.target,
+        requestKind: "check", reason: question.slice(0, 500) });
+      // ACR-0014: a `check` ("is it healthy?"); with no matching symptom it ends quietly as no_incident.
+      return { text: `Health check queued for ${investigation.label}. If Argus finds a problem it diagnoses it; follow the result in the incident.`, incidentId: incident_id };
+    }
+    if (!parseMetricQuestion(question)) return { text: answerMetricQuestion(question, []) };
+    return { text: answerMetricQuestion(question, await httpArgusAdapter.getHostMetrics()) };
   },
 
   async decideApproval() {

@@ -4,6 +4,7 @@ import evidence from "../../../contracts/samples/evidence.json";
 import events from "../../../contracts/samples/events.json";
 import incident from "../../../contracts/samples/incident.json";
 import incidents from "../../../contracts/samples/incidents.json";
+import hostMetrics from "../../../contracts/samples/host-metrics.json";
 import { httpArgusAdapter } from "./httpArgusAdapter.js";
 import { clearToken, getToken, setToken } from "./session.js";
 import { clearSession, loadSession, saveSession } from "./sessionStore.js";
@@ -71,17 +72,55 @@ describe("httpArgusAdapter", () => {
     expect(raised).toEqual(escalations);
   });
 
-  it("builds the dashboard overview from the incident list and the escalations route; approvals and health have no route", async () => {
-    fetch.mockResolvedValueOnce(response(200, incidents)).mockResolvedValueOnce(response(200, escalations));
+  it("builds the dashboard overview with live host metrics", async () => {
+    fetch.mockResolvedValueOnce(response(200, incidents)).mockResolvedValueOnce(response(200, escalations))
+      .mockResolvedValueOnce(response(200, hostMetrics));
 
     const overview = await httpArgusAdapter.getOverview();
 
     expect(fetch.mock.calls[0][0]).toBe("/api/v1/incidents?limit=5");
     expect(fetch.mock.calls[1][0]).toBe("/api/v1/escalations");
+    expect(fetch.mock.calls[2][0]).toBe("/api/v1/host-metrics");
     expect(overview.incidents).toEqual(incidents);
     expect(overview.escalations).toEqual(escalations);
     expect(overview.approvals).toEqual([]);
-    expect(overview.health).toBeNull();
+    expect(overview.hostMetrics).toEqual(hostMetrics);
+  });
+
+  it("keeps incidents and escalations when the host metrics read fails", async () => {
+    fetch.mockResolvedValueOnce(response(200, incidents)).mockResolvedValueOnce(response(200, escalations))
+      .mockResolvedValueOnce(response(504, {}));
+
+    const overview = await httpArgusAdapter.getOverview();
+
+    expect(overview.incidents).toEqual(incidents);
+    expect(overview.escalations).toEqual(escalations);
+    expect(overview.hostMetrics).toEqual([]);
+  });
+
+  it("still fails the overview when incidents cannot be read", async () => {
+    fetch.mockResolvedValueOnce(response(500, {})).mockResolvedValueOnce(response(200, escalations))
+      .mockResolvedValueOnce(response(200, hostMetrics));
+
+    await expect(httpArgusAdapter.getOverview()).rejects.toMatchObject({ status: 500 });
+  });
+
+  it("answers a supported metric question from live readings", async () => {
+    fetch.mockResolvedValueOnce(response(200, hostMetrics));
+    const answer = await httpArgusAdapter.askAgent("Check Host T memory usage");
+    expect(fetch.mock.calls[0][0]).toBe("/api/v1/host-metrics");
+    expect(answer.text).toContain("memory usage");
+  });
+
+  it("starts a bounded host investigation only for an authorized chat session", async () => {
+    expect((await httpArgusAdapter.askAgent("Investigate Host T", false)).incidentId).toBeUndefined();
+    expect(fetch).not.toHaveBeenCalled();
+    fetch.mockResolvedValueOnce(response(202, { incident_id: "inc_123" }));
+    const reply = await httpArgusAdapter.askAgent("Investigate Host T", true);
+    expect(reply.incidentId).toBe("inc_123");
+    expect(reply.text).toMatch(/^Health check queued for Host T/);
+    expect(fetch.mock.calls[0][0]).toBe("/api/v1/investigations");
+    expect(JSON.parse(fetch.mock.calls[0][1].body)).toMatchObject({ target: "vm-166/host:vm-166", request_kind: "check" });
   });
 
   it("on 401 it forgets the token and the persisted session", async () => {
