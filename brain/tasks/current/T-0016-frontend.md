@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | `in progress` — steps 1–3 merged (#24, #56, #137); acceptance tests, guard, contract check, linter and ACR-0011 4a–4c merged (#144, approved by `juanbetancurm`: ACR-0011's second approval); **4d and 4e deployed 2026-10-14: the read-only UI is public on vm-095** (HTTPS, Let's Encrypt for the IP address). Next: a person's browser login; the AFTER-MERGE to `main`; "Level 1 Investigate" is ACR-0012 |
+| Status | `in progress` — steps 1–4 done (the read-only UI public on vm-095, ACR-0011); **Level 1 Investigate (ACR-0012) implemented on `task/ACR-0012-impl` (local, 2026-10-14), not deployed, no PR yet**; next: deploy it after its review, a person's browser login |
 | Phase | 10 — output modes |
 | Architecture | ACR-0001 (from T-0015) |
 | Branch | `task/T-0016-frontend` (one PR per step is fine) |
@@ -300,3 +300,22 @@ a screen or a button in `frontend/`.
     `/openapi.json` and `POST /investigations` 404; the API and the runbooks 401 without a token.
   - **The real client address reaches the API's audit** (4d's `172.30.0.1` came only from the tunnel).
   - NO INTERFERENCE on both VMs.
+- **2026-10-14 — Level 1 Investigate, ACR-0012 (`conantkd` + agent; local branch `task/ACR-0012-impl`, no PR yet):**
+  - **API:**
+    - `scope=investigate` tokens (every GET and `POST /api/v1/investigations` only), issued by the edge;
+    - quotas for them: 10 an hour and 2 queued per account, 20 queued in all; 429 with `Retry-After`, audited;
+    - `GET /api/v1/targets`;
+    - `investigation.requested` audited with access, via and client.
+    - Tests: 16 (12 red seen).
+  - **Contract** (2 routes, 2 new samples) and **edge** (one POST location, 6 per minute per address, 4 KB):
+    29 edge tests.
+  - **Frontend:**
+    - `DiagnoseForm`: on the dashboard, a target from the list, check/report and a reason; "Investigate again" on
+      an incident;
+    - only when `/me` lists `start_investigation`;
+    - the login asks `investigate`;
+    - the guard allows that one POST only for such a session.
+    - Totals: `npm test` 85, `npm run e2e` 14 (stable four times), lint 0 errors.
+  - **Found and fixed on the way:**
+    - **the 401 acceptance test raced** with the dashboard's first load; it now waits for that load first;
+    - the old dashboard test matched the new `<option>` instead of the incident row.

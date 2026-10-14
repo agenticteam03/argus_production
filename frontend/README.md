@@ -81,6 +81,8 @@ Argus handle and the team password; the token has `scope=read` and cannot write.
   What they do not check yet: the response *fields* the UI reads (the routes, methods and query parameters are
   checked); the API's own contract test guards the bodies.
 - **Menu from `/me` actions** instead of `routes.js` roles (ACR-0001 rule), once there is more than one action.
+- **Starting an investigation exists** (ACR-0012: `DiagnoseForm`, an investigate token, the API's quotas). The
+  agent chat stays a placeholder: no route answers a free-text question.
 - **Real agent chat and health need the API, not just permission.** A `scope=read` token is refused by design
   (ACR-0001), and `POST /api/v1/investigations` is not in the contract *and* only **starts** an investigation for
   a target — no route answers a free-text question. The health card's four fields have no route either (the only

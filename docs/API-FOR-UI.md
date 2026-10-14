@@ -20,9 +20,11 @@ on. Anything else can change without notice.
 
 ## Rules for every UI
 
-1. **Log in with `scope=read`.** The token can then only read. Argus refuses it on every route that is not a `GET`
-   (403, audited as `access.read_only_refused`), whatever the user's role. A bug in a UI cannot start, approve or
-   change anything.
+1. **Log in with `scope=read` or `scope=investigate`** (ACR-0012). A read token can only read; an investigate token
+   reads and may also call `POST /api/v1/investigations`, nothing else. The team's UI uses `investigate`. Argus
+   refuses any other non-`GET` (403, audited as `access.read_only_refused` or `access.investigate_scope_refused`),
+   whatever the user's role. A bug in a UI cannot approve or change anything; the most it can do is start an
+   investigation (a read of the target), within the quotas.
 2. **Show a control only when `GET /api/v1/me` lists its action.** Never decide permissions in the UI. New features
    add actions to `/me`.
 3. **Send the token as `Authorization: Bearer <token>`.** Tokens expire after `ARGUS_JWT_TTL_MIN` minutes (30 by
@@ -34,8 +36,12 @@ on. Anything else can change without notice.
    by `argus-v18-ui` with a proxy to the API, so no CORS is needed.
 6. **In production the UI is behind the public edge** (ACR-0011, `deploy/ui/`). The edge proxies only the routes
    below, each with its method; anything else is 404 there. A login through it **must** ask for `scope=read`
-   (otherwise 400). Failed logins are limited per username and per address: a locked login gets 429 with
-   `Retry-After`.
+   or `scope=investigate` (otherwise 400; never a full token). Failed logins are limited per username and per
+   address: a locked login gets 429 with `Retry-After`.
+9. **Starting an investigation** (ACR-0012): `POST /api/v1/investigations` with `{"target", "request_kind": "check" |
+   "report", "reason"}`, the target taken from `GET /api/v1/targets` (never free text). With an investigate token
+   the API applies quotas: 10 an hour and 2 queued per account, 20 queued in all. Over one, 429 with `Retry-After`
+   (seconds). Show a "Start" control only when `/me` lists `start_investigation`.
 7. **`limit` is capped by the server** (200 by default, `ARGUS_INCIDENTS_LIMIT_CAP`); asking for more returns at most
    that many.
 8. **The runbooks are not an API route:** the edge serves `/runbooks/index.json` and `/runbooks/RB-*.md` only to a
@@ -52,6 +58,8 @@ on. Anything else can change without notice.
 | `GET /api/v1/incidents/{id}/events?after=0` | any role | the run's timeline, one event per node phase; poll with `after=<last seq>` | [`events.json`](../contracts/samples/events.json) |
 | `GET /api/v1/evidence/{id}` | operator, approver | one evidence record with its SHA-256 | [`evidence.json`](../contracts/samples/evidence.json) |
 | `GET /api/v1/escalations` | any role | the escalations Argus raised to humans | [`escalations.json`](../contracts/samples/escalations.json) |
+| `GET /api/v1/targets` | any role | the inventory's targets: `target`, `host`, `kind`, `name` (ACR-0012) | [`targets.json`](../contracts/samples/targets.json) |
+| `POST /api/v1/investigations` | operator, approver; full or **investigate** token | `incident_id`, `status`, `duplicate` (202); quotas for an investigate token (ACR-0012) | [`investigation.json`](../contracts/samples/investigation.json) |
 
 Errors: `401` no token, invalid or expired token; `403` the role or a read-only token may not do this; `404` unknown
 incident or evidence id; `400` a login asked for a scope other than `read`.
@@ -63,7 +71,7 @@ incident or evidence id; `400` a login asked for a scope other than `read`.
 | `view_incidents` | every role | the incident list and each incident's summary |
 | `view_timeline` | every role | the run events (detect → recall → investigate ⇄ act → record) |
 | `view_evidence` | operator, approver | evidence records and the audit trail |
-| `start_investigation` | operator, approver, **full token only** | nothing in a read-only UI: a read token never gets it |
+| `start_investigation` | operator, approver, with a full or an **investigate** token | the "Start an investigation" form and "Investigate again" (ACR-0012) |
 
 ## Examples
 
