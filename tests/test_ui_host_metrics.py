@@ -1,5 +1,9 @@
 """The public UI receives only bounded, named host metrics, never PromQL."""
 
+import threading
+import time
+from concurrent.futures import ThreadPoolExecutor
+
 from fastapi.testclient import TestClient
 from pwdlib import PasswordHash
 
@@ -68,3 +72,76 @@ def test_host_metrics_reuses_a_short_snapshot_for_concurrent_dashboard_clients(m
     assert api.get("/api/v1/host-metrics", headers=headers).status_code == 200
     assert api.get("/api/v1/host-metrics", headers=headers).status_code == 200
     assert metrics.calls == 2  # once per inventory host, not once per viewer and poll
+
+
+def viewer_headers(app, api):
+    app.store.upsert_principal("alice", "human", "viewer", ["lab"], PasswordHash.recommended().hash("long-password"))
+    token = api.post("/api/v1/auth/token", data={"username": "alice", "password": "long-password",
+                                               "scope": "read"}).json()["access_token"]
+    return {"Authorization": f"Bearer {token}"}
+
+
+def test_a_slow_host_is_answered_unavailable_within_the_budget_and_never_blocks_the_other(make_app):
+    release = threading.Event()
+
+    class SlowHost(FakeMetrics):
+        def snapshot(self, target, signals):
+            if target.host == "vm-166":
+                release.wait(10)                          # a Prometheus query near its own timeout
+            return super().snapshot(target, signals)
+
+    metrics = SlowHost({"vm-095/host:vm-095": {"host_cpu_busy_ratio": 0.1}})
+    app = make_app(metrics=metrics)
+    built = build_api(app)
+    built.state.host_metrics_budget_s = 0.3
+    api = TestClient(built)
+    headers = viewer_headers(app, api)
+    try:
+        started = time.monotonic()
+        rows = api.get("/api/v1/host-metrics", headers=headers).json()
+        assert time.monotonic() - started < 3
+        assert rows[0]["available"] is True and rows[1]["available"] is False
+    finally:
+        release.set()
+
+
+def test_a_slow_host_is_read_once_at_a_time_and_concurrent_viewers_do_not_queue_on_it(make_app):
+    release = threading.Event()
+
+    class SlowHost(FakeMetrics):
+        calls = 0
+
+        def snapshot(self, target, signals):
+            if target.host == "vm-166":
+                type(self).calls += 1
+                release.wait(10)
+            return super().snapshot(target, signals)
+
+    app = make_app(metrics=SlowHost({}))
+    built = build_api(app)
+    built.state.host_metrics_budget_s = 0.2
+    api = TestClient(built)
+    headers = viewer_headers(app, api)
+    try:
+        started = time.monotonic()
+        with ThreadPoolExecutor(4) as pool:              # four viewers arrive while the cache is cold
+            codes = list(pool.map(lambda _: api.get("/api/v1/host-metrics", headers=headers).status_code, range(4)))
+        assert codes == [200] * 4
+        assert time.monotonic() - started < 3            # none waited behind another's Prometheus I/O
+        assert SlowHost.calls == 1                       # they share the one read still running: nothing piles up
+    finally:
+        release.set()
+
+
+def test_a_malformed_prometheus_answer_is_one_unavailable_host_not_a_500(make_app):
+    class BadJson(FakeMetrics):
+        def snapshot(self, target, signals):
+            if target.host == "vm-166":
+                raise ValueError("Expecting value: line 1 column 1")
+            return super().snapshot(target, signals)
+
+    app = make_app(metrics=BadJson({"vm-095/host:vm-095": {"host_cpu_busy_ratio": 0.1}}))
+    api = TestClient(build_api(app))
+    response = api.get("/api/v1/host-metrics", headers=viewer_headers(app, api))
+    assert response.status_code == 200
+    assert [row["available"] for row in response.json()] == [True, False]

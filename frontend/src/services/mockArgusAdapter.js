@@ -94,7 +94,7 @@ export const mockArgusAdapter = {
     if (investigation) {
       if (!canStartInvestigation) return { text: "Your account cannot start investigations. You can still ask for a current host metric." };
       const { incident_id } = await mockArgusAdapter.startInvestigation({ target: investigation.target });
-      return { text: `Investigation started for ${investigation.label}. Follow its result in the incident.`, incidentId: incident_id };
+      return { text: `Health check queued for ${investigation.label}. If Argus finds a problem it diagnoses it; follow the result in the incident.`, incidentId: incident_id };
     }
     return { text: answerMetricQuestion(text, await mockArgusAdapter.getHostMetrics()) };
   },

@@ -31,13 +31,17 @@ export const httpArgusAdapter = {
   },
 
   // The dashboard reads only the named host metrics in the UI contract. Approvals have no read route yet.
+  // A failed metrics read (slow or down Prometheus) leaves the card empty; it never hides incidents and escalations.
   async getOverview() {
-    const [incidents, escalations, hostMetrics] = await Promise.all([
+    const [incidents, escalations, metrics] = await Promise.allSettled([
       httpArgusAdapter.listIncidents({ limit: 5 }),
       httpArgusAdapter.listEscalations(),
       httpArgusAdapter.getHostMetrics(),
     ]);
-    return { incidents, approvals: [], escalations, hostMetrics };
+    for (const result of [incidents, escalations]) if (result.status === "rejected") throw result.reason;
+    if (metrics.status === "rejected" && metrics.reason?.status === 401) throw metrics.reason;
+    const hostMetrics = metrics.status === "fulfilled" ? metrics.value : [];
+    return { incidents: incidents.value, approvals: [], escalations: escalations.value, hostMetrics };
   },
 
   // ACR-0012: the targets a UI may name (the inventory's refs), and the one write an investigate token may do.
@@ -60,7 +64,8 @@ export const httpArgusAdapter = {
       if (!canStartInvestigation) return { text: "Your account cannot start investigations. You can still ask for a current host metric." };
       const { incident_id } = await httpArgusAdapter.startInvestigation({ target: investigation.target,
         requestKind: "check", reason: question.slice(0, 500) });
-      return { text: `Investigation started for ${investigation.label}. Follow its result in the incident.`, incidentId: incident_id };
+      // ACR-0014: a `check` ("is it healthy?"); with no matching symptom it ends quietly as no_incident.
+      return { text: `Health check queued for ${investigation.label}. If Argus finds a problem it diagnoses it; follow the result in the incident.`, incidentId: incident_id };
     }
     if (!parseMetricQuestion(question)) return { text: answerMetricQuestion(question, []) };
     return { text: answerMetricQuestion(question, await httpArgusAdapter.getHostMetrics()) };

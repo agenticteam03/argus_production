@@ -87,6 +87,24 @@ describe("httpArgusAdapter", () => {
     expect(overview.hostMetrics).toEqual(hostMetrics);
   });
 
+  it("keeps incidents and escalations when the host metrics read fails", async () => {
+    fetch.mockResolvedValueOnce(response(200, incidents)).mockResolvedValueOnce(response(200, escalations))
+      .mockResolvedValueOnce(response(504, {}));
+
+    const overview = await httpArgusAdapter.getOverview();
+
+    expect(overview.incidents).toEqual(incidents);
+    expect(overview.escalations).toEqual(escalations);
+    expect(overview.hostMetrics).toEqual([]);
+  });
+
+  it("still fails the overview when incidents cannot be read", async () => {
+    fetch.mockResolvedValueOnce(response(500, {})).mockResolvedValueOnce(response(200, escalations))
+      .mockResolvedValueOnce(response(200, hostMetrics));
+
+    await expect(httpArgusAdapter.getOverview()).rejects.toMatchObject({ status: 500 });
+  });
+
   it("answers a supported metric question from live readings", async () => {
     fetch.mockResolvedValueOnce(response(200, hostMetrics));
     const answer = await httpArgusAdapter.askAgent("Check Host T memory usage");
@@ -100,6 +118,7 @@ describe("httpArgusAdapter", () => {
     fetch.mockResolvedValueOnce(response(202, { incident_id: "inc_123" }));
     const reply = await httpArgusAdapter.askAgent("Investigate Host T", true);
     expect(reply.incidentId).toBe("inc_123");
+    expect(reply.text).toMatch(/^Health check queued for Host T/);
     expect(fetch.mock.calls[0][0]).toBe("/api/v1/investigations");
     expect(JSON.parse(fetch.mock.calls[0][1].body)).toMatchObject({ target: "vm-166/host:vm-166", request_kind: "check" });
   });

@@ -13,6 +13,7 @@
 from __future__ import annotations
 
 import sqlite3
+import time
 
 import jwt
 import pytest
@@ -158,6 +159,36 @@ def test_per_hour_counts_closed_ones_too(ui):
     r = start(c, t, headers=EDGE)
     assert r.status_code == 429
     assert any('"per_hour"' in b for b in audit_bodies(app))
+
+
+def test_an_idempotent_retry_at_the_quota_gets_its_incident_not_429(ui):
+    app, client = ui
+    app.settings.investigations_queued_per_principal = 1
+    c = client()
+    t = token(c, scope="investigate", headers=EDGE)
+    first = start(c, t, headers=EDGE, idempotency_key="ui:retry-1")
+    again = start(c, t, headers=EDGE, idempotency_key="ui:retry-1")
+    assert first.status_code == 202 and again.status_code == 202
+    assert again.json() == {**first.json(), "duplicate": True}
+    assert start(c, t, headers=EDGE, idempotency_key="ui:retry-2").status_code == 429
+
+
+def test_concurrent_requests_cannot_pass_the_same_last_slot(ui):
+    from concurrent.futures import ThreadPoolExecutor
+    app, client = ui
+    app.settings.investigations_queued_per_principal = 1
+    c = client()
+    t = token(c, scope="investigate", headers=EDGE)
+    real = app.store.list_incidents
+
+    def slow_list(limit):                                # widen the check-then-create window
+        rows = real(limit)
+        time.sleep(0.2)
+        return rows
+    app.store.list_incidents = slow_list
+    with ThreadPoolExecutor(4) as pool:
+        codes = sorted(pool.map(lambda _: start(c, t, headers=EDGE).status_code, range(4)))
+    assert codes == [202, 429, 429, 429]
 
 
 def test_all_queued_manual_incidents_are_capped(ui):
