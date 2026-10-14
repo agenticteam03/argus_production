@@ -228,7 +228,8 @@ def last_exit(d: dict, evs: list[dict]) -> tuple[int, bool]:
 # T-0037: the named log patterns of `search_logs` (the catalogue's SEARCH_PATTERNS: a test keeps them equal). Never a
 # pattern from the request: the model picks a NAME.
 LOG_PATTERNS = {
-    "error": re.compile(r"(?i)\b(error|exception|traceback|fatal|panic)\b"),
+    # `KeyError`, `RuntimeException`, `errors` too (EVAL-search-logs: `\berror\b` missed an exception class name)
+    "error": re.compile(r"(?i)(error|exception)s?\b|\b(traceback|fatal|panic)\b"),
     "timeout": re.compile(r"(?i)\b(timed? ?out|timeout|deadline exceeded)\b"),
     "refused": re.compile(r"(?i)\b(connection refused|refused|unreachable|no route to host)\b"),
     "oom": re.compile(r"(?i)\b(out of memory|oom|cannot allocate memory|memoryerror)\b"),

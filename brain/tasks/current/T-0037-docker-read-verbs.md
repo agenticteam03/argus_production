@@ -43,3 +43,9 @@ pattern names match, the four specs and their policy entries, each capability's 
    (no service changed): the four routes on lab containers.
 3. **After the merge:** the target services rebuilt on both hosts (AFTER-MERGE); then offer to a class with an
    evaluation batch.
+   - **`search_logs` → `health_check_failed`, measured 2026-10-14 (EVAL-search-logs):** not offered. The model
+     used it in 1 of 30 health runs, because the cases' logs are 2–3 lines, which the tail already returns. Health
+     went 0.96 → 0.92, which is noise ([evidence](../../execution/history/EVAL-search-logs/step-01/evidence.md)).
+     Log tools need cases with long logs first.
+   - Found by it, and fixed: the `error` pattern missed `KeyError`, `ValueError`, `RuntimeException` and `errors`.
+     It reaches the VMs at the next AFTER-MERGE.
