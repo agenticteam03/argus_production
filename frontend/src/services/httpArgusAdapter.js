@@ -36,10 +36,24 @@ export const httpArgusAdapter = {
     return { incidents, approvals: [], escalations, health: null };
   },
 
+  // ACR-0012: the targets a UI may name (the inventory's refs), and the one write an investigate token may do.
+  async listTargets() {
+    return getJson("/api/v1/targets");
+  },
+
+  async startInvestigation({ target, requestKind = "report", reason = "" }) {
+    const res = await apiFetch("/api/v1/investigations", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ target, request_kind: requestKind, reason }),
+    });
+    return res.json();
+  },
+
   // The agent chat starts an investigation, which is a write a read token never gets: it stays a placeholder
   // until the ACR that gives the UI that scope is accepted (`brain/NEXT_STEP.md`).
   async askAgent() {
-    return "Argus is read-only in this release, so the chat is a placeholder. Starting an investigation needs a new ACR.";
+    return "The chat is a placeholder: Argus does not answer free-text questions yet. To start an investigation, use \"Start an investigation\" below.";
   },
 
   async decideApproval() {

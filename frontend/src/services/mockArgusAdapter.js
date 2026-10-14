@@ -63,6 +63,21 @@ export const mockArgusAdapter = {
     return found;
   },
 
+  // ACR-0012, demo: the targets of the demo incidents; an operator or approver "starts" one (the newest demo
+  // incident stands for it), a viewer is refused as by the API.
+  async listTargets() {
+    record("/api/v1/targets");
+    await wait(100);
+    return [...new Set(demoList().map((i) => i.target))].sort().map((t) => ({ target: t, host: "demo", kind: "container", name: t }));
+  },
+
+  async startInvestigation({ target }) {
+    calls.push({ method: "POST", path: "/api/v1/investigations", target });
+    await wait(300);
+    if (demoSession.role !== "operator" && demoSession.role !== "approver") throw httpError(403, "This role may not start investigations.");
+    return { incident_id: demoList()[0].id, status: "queued", duplicate: false };
+  },
+
   async askAgent(text, onStatus) {
     for (const step of ["Analyzing Prometheus metrics…", "Querying incident history…"]) {
       onStatus(step);

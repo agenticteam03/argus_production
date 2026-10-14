@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import AgentChat from "../components/AgentChat.jsx";
+import DiagnoseForm from "../components/DiagnoseForm.jsx";
 import IncidentRow from "../components/IncidentRow.jsx";
 import { Arrow, Bell, Card, Empty, Inbox, LivePill, OutcomeBadge, Shield } from "../components/ui.jsx";
 import { useAuth } from "../context/AuthContext.jsx";
@@ -125,6 +126,8 @@ export default function Dashboard() {
       </div>
 
       <AgentChat />
+
+      <DiagnoseForm />
 
       <div className="grid gap-4 lg:grid-cols-3">
         <IncidentsCard incidents={incidents} className="lg:col-span-2" />
