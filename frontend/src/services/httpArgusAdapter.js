@@ -5,6 +5,10 @@ import { answerMetricQuestion, parseInvestigationRequest, parseMetricQuestion } 
 
 const getJson = async (path) => (await apiFetch(path)).json();
 
+// Map and metrics (phases 4 and 5) are not in contracts/ui-api.json yet. Off until the API serves them
+// (set VITE_ARGUS_INSIGHTS=1), so no request goes to a route that does not exist; the UI then hides Map and Metrics.
+const INSIGHTS = import.meta.env.VITE_ARGUS_INSIGHTS === "1";
+
 export const httpArgusAdapter = {
   async listIncidents({ limit = 30 } = {}) {
     return getJson(`/api/v1/incidents?limit=${limit}`);
@@ -24,6 +28,14 @@ export const httpArgusAdapter = {
 
   async listEscalations() {
     return getJson("/api/v1/escalations");
+  },
+
+  async getTopology() {
+    return INSIGHTS ? getJson("/api/v1/topology") : null;
+  },
+
+  async getIncidentMetrics(id, range = "30m") {
+    return INSIGHTS ? getJson(`/api/v1/incidents/${encodeURIComponent(id)}/metrics?range=${encodeURIComponent(range)}`) : null;
   },
 
   async getHostMetrics() {

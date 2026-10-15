@@ -4,8 +4,8 @@
 export const ROLES = { viewer: "Viewer", operator: "Operator", approver: "Approver" };
 export const ROLE_INFO = {
   viewer: "Read-only: browse incidents and their run timelines.",
-  operator: "Read-only in this release; evidence appears when the API grants it.",
-  approver: "Read-only in this release; evidence appears when the API grants it.",
+  operator: "Can start investigations (ACR-0012); evidence appears when the API grants it.",
+  approver: "Can start investigations and decide pending approvals; evidence appears when the API grants it.",
 };
 
 export const routes = [

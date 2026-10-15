@@ -1,18 +1,9 @@
 import { useCallback, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import RunbookCard from "../components/RunbookCard.jsx";
 import RunbookDrawer from "../components/RunbookDrawer.jsx";
-import { Book, Chevron, Empty, LivePill, Search, Warning } from "../components/ui.jsx";
+import { Book, Empty, fieldClass, LivePill, Search, Select, Warning } from "../components/ui.jsx";
 import { useRunbooks } from "../hooks/useRunbooks.js";
-
-const field =
-  "h-11 rounded-[10px] border border-field-line bg-field px-3.5 text-sm outline-none transition placeholder:text-[#4b5363] focus:border-accent focus:ring-[3px] focus:ring-accent/20";
-
-const Select = ({ children, ...props }) => (
-  <div className="relative">
-    <select {...props} className={`${field} cursor-pointer appearance-none pr-10`}>{children}</select>
-    <Chevron width="14" height="14" className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-muted" />
-  </div>
-);
 
 export default function Runbooks() {
   const { items, loading, live } = useRunbooks();
@@ -20,7 +11,14 @@ export default function Runbooks() {
   const [detector, setDetector] = useState("");
   const [action, setAction] = useState("");
   const [gapsOnly, setGapsOnly] = useState(false);
-  const [openId, setOpenId] = useState(null);
+  // The open runbook lives in the URL (?runbook=RB-003): an incident can link straight to it, and Back closes it.
+  const [params, setParams] = useSearchParams();
+  const openId = params.get("runbook");
+  const setOpenId = useCallback((id) => setParams((prev) => {
+    const next = new URLSearchParams(prev);
+    if (id) next.set("runbook", id); else next.delete("runbook");
+    return next;
+  }, { replace: !id }), [setParams]);
 
   const detectors = useMemo(() => [...new Set(items.map((r) => r.detector).filter(Boolean))].sort(), [items]);
   const filtered = useMemo(() => {
@@ -35,7 +33,7 @@ export default function Runbooks() {
   }, [items, query, detector, action, gapsOnly]);
 
   const open = items.find((r) => r.id === openId); // looked up live, so the drawer refreshes with the server
-  const close = useCallback(() => setOpenId(null), []);
+  const close = useCallback(() => setOpenId(null), [setOpenId]);
   const clear = () => { setQuery(""); setDetector(""); setAction(""); setGapsOnly(false); };
 
   return (
@@ -51,7 +49,7 @@ export default function Runbooks() {
       <div className="flex flex-wrap gap-2">
         <div className="relative min-w-60 flex-1">
           <Search className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-muted" width="16" height="16" />
-          <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search by ID, title, detector or tool…" aria-label="Search runbooks" className={`${field} w-full pl-10`} />
+          <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search by ID, title, detector or tool…" aria-label="Search runbooks" className={`${fieldClass} w-full pl-10`} />
         </div>
         <Select value={detector} onChange={(e) => setDetector(e.target.value)} aria-label="Filter by detector">
           <option value="">All detectors</option>

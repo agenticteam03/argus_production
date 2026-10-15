@@ -3,11 +3,12 @@ import { Link } from "react-router-dom";
 import AgentChat from "../components/AgentChat.jsx";
 import DiagnoseForm from "../components/DiagnoseForm.jsx";
 import IncidentRow from "../components/IncidentRow.jsx";
-import { Arrow, Bell, Card, Empty, Inbox, LivePill, OutcomeBadge, Shield } from "../components/ui.jsx";
+import { Arrow, Bell, Card, Empty, Inbox, LivePill, OutcomeBadge, Pill, Shield } from "../components/ui.jsx";
 import { useAuth } from "../context/AuthContext.jsx";
 import { useLiveOverview } from "../hooks/useLiveOverview.js";
 import { argus, dataSource } from "../services/index.js";
 import { dateTime, timeAgo } from "../utils/format.js";
+import { loadLevel, worstLevel } from "../utils/load.js";
 
 function IncidentsCard({ incidents, className }) {
   return (
@@ -31,26 +32,43 @@ const HOST_METRICS = [
   ["CPU", "cpu_busy_ratio"], ["Memory", "memory_used_ratio"], ["Disk /", "disk_used_ratio"],
 ];
 
-function HostMetricsCard({ rows }) {
+// Load level -> [label, Pill tone, bar colour]. Colour is never the only signal: the label is always written.
+const LEVEL = {
+  ok: ["Normal", "green", "bg-emerald-400"],
+  high: ["High", "amber", "bg-amber-400"],
+  critical: ["Critical", "red", "bg-red-400"],
+};
+
+function HostMetricsCard({ rows, live, updatedAt }) {
   return (
-    <Card title="Host metrics">
+    <Card title="Host metrics" right={<LivePill live={live} source={dataSource} at={updatedAt} />}>
       <div className="space-y-4">
         {["vm-095", "vm-166"].map((host) => {
           const row = rows.find((item) => item.host === host);
+          const levels = HOST_METRICS.map(([, key]) => loadLevel(row?.values?.[key]));
+          const overall = worstLevel(levels);
           return <div key={host} className="rounded-lg bg-field p-3">
             <div className="flex items-center justify-between gap-2 text-sm font-medium">
               <span>{HOST_LABELS[host]} <span className="text-xs font-normal text-muted">({host})</span></span>
-              <span className={`text-xs ${row?.available ? "text-emerald-400" : "text-muted"}`}>
-                {row?.available ? "Live" : "No current data"}
-              </span>
+              {overall ? <Pill tone={LEVEL[overall][1]}>{LEVEL[overall][0]}</Pill> : <span className="text-xs font-normal text-muted">No current data</span>}
             </div>
-            <dl className="mt-2 space-y-1">
-              {HOST_METRICS.map(([label, key]) => <div key={key} className="flex justify-between text-sm">
-                <dt className="text-muted">{label}</dt>
-                <dd>{Number.isFinite(row?.values?.[key]) ? `${(row.values[key] * 100).toFixed(1)}%` : "No data"}</dd>
-              </div>)}
-            </dl>
-            {row?.observed_at && <time dateTime={row.observed_at} className="mt-2 block text-xs text-muted" title={dateTime(row.observed_at)}>Sample {timeAgo(row.observed_at)}</time>}
+            <ul className="mt-2 space-y-1.5">
+              {HOST_METRICS.map(([label, key], i) => {
+                const value = row?.values?.[key];
+                const level = levels[i];
+                const pct = Math.min(100, Math.max(0, value * 100));
+                return <li key={key} className="grid grid-cols-[4.5rem_minmax(0,1fr)_3.75rem] items-center gap-3 text-sm">
+                  <span className="text-muted">{label}</span>
+                  <span aria-hidden="true" className="h-1.5 overflow-hidden rounded-full bg-white/5">
+                    {level && <span className={`block h-full rounded-full ${LEVEL[level][2]}`} style={{ width: `${pct}%` }} />}
+                  </span>
+                  <span className="text-right">
+                    {level ? `${(value * 100).toFixed(1)}%` : "No data"}
+                    {level && <span className="sr-only"> ({LEVEL[level][0]})</span>}
+                  </span>
+                </li>;
+              })}
+            </ul>
           </div>;
         })}
       </div>
@@ -133,11 +151,10 @@ export default function Dashboard() {
 
       <DiagnoseForm />
 
-      <div className="grid gap-4 lg:grid-cols-3">
-        <IncidentsCard incidents={incidents} className="lg:col-span-2" />
-        <div className="space-y-4">
-          <HostMetricsCard rows={hostMetrics} />
-          <EscalationsCard escalations={escalations} />
+      {/* items-start: each column is as tall as its own content, so Recent incidents ends at its last row. */}
+      <div className="grid items-start gap-4 lg:grid-cols-3">
+        <div className="space-y-4 lg:col-span-2">
+          <IncidentsCard incidents={incidents} />
           <Card title="Pending approvals" count={approvals.length}>
             {approvals.length === 0 ? (
               <Empty icon={Shield} title="No pending approvals" text="Remediations that need a human decision will appear here." />
@@ -147,6 +164,10 @@ export default function Dashboard() {
               </ul>
             )}
           </Card>
+        </div>
+        <div className="space-y-4">
+          <HostMetricsCard rows={hostMetrics} live={live} updatedAt={updatedAt} />
+          <EscalationsCard escalations={escalations} />
         </div>
       </div>
     </div>
