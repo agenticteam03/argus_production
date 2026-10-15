@@ -310,3 +310,23 @@ def test_tracing_llm_survives_copy():
     from argus.observability.tracing import TracingLLM
     llm = TracingLLM(ScriptedLLM(oom_script), sink=None)
     assert copy.copy(llm).inner is llm.inner
+
+
+def test_the_worker_alone_takes_the_tracing_endpoint_private_by_default(monkeypatch):
+    """ACR-0015: the endpoint is a deployment setting (Langfuse Cloud or the private stack). Compose passes it to the
+    worker only, the one process with the keys; unset, it stays the private Langfuse web of ACR-0013."""
+    from pathlib import Path
+
+    import yaml
+
+    from argus.infrastructure.wiring import Settings
+    core = yaml.safe_load((Path(__file__).resolve().parents[1] / "deploy" / "vm-095" / "compose.core.yml")
+                          .read_text(encoding="utf-8"))["services"]
+    private = "http://argus-v18-langfuse-web:3000/api/public/otel/v1/traces"
+    assert core["argus-v18-worker"]["environment"]["ARGUS_TRACING_ENDPOINT"] == "${ARGUS_TRACING_ENDPOINT:-" + private + "}"
+    assert all("ARGUS_TRACING_ENDPOINT" not in core[s].get("environment", {})
+               for s in ("argus-v18-agent", "argus-v18-scheduler"))
+    monkeypatch.delenv("ARGUS_TRACING_ENDPOINT", raising=False)
+    assert Settings().tracing_endpoint == private
+    monkeypatch.setenv("ARGUS_TRACING_ENDPOINT", "https://cloud.langfuse.com/api/public/otel/v1/traces")
+    assert Settings().tracing_endpoint == "https://cloud.langfuse.com/api/public/otel/v1/traces"
