@@ -9,6 +9,7 @@ from typing import Any
 import yaml
 
 from argus.adapters.outbound.config_adapters import PrometheusMetrics, TfidfRunbooks, YamlInventory
+from argus.adapters.outbound.rag import HashingEmbeddings, HybridRunbooks, OpenAIEmbeddings, WeaviateIndex
 from argus.adapters.outbound.llm import OpenAIChat, OpenAIResponses
 from argus.adapters.outbound.sqlite_store import SqliteStore
 from argus.application.invoke_capability import InvokeCapability
@@ -41,6 +42,17 @@ class Settings:
     runbooks_dir: Path = field(default_factory=lambda: Path(os.getenv(
         "ARGUS_RUNBOOKS_DIR", str(Path(__file__).resolve().parents[1] / "runbooks"))))   # argus/runbooks (D-002)
     runbooks_commit: str | None = field(default_factory=lambda: os.getenv("ARGUS_RUNBOOKS_COMMIT") or None)
+    # T-0044 / ACR-0015: runbook recall, `tfidf` (default) or `hybrid` (BM25 + vectors in the local Weaviate, TF-IDF
+    # as the fallback). Vectors come from the model provider's embeddings endpoint (the worker's model key).
+    retrieval: str = field(default_factory=lambda: os.getenv("ARGUS_RETRIEVAL", "tfidf"))
+    retrieval_alpha: float = field(default_factory=lambda: float(os.getenv("ARGUS_RETRIEVAL_ALPHA", "0.5")))
+    retrieval_skip_titles: bool = field(default_factory=lambda: os.getenv("ARGUS_RETRIEVAL_SKIP_TITLES", "0") == "1")
+    weaviate_url: str = field(default_factory=lambda: os.getenv("ARGUS_WEAVIATE_URL", ""))
+    weaviate_class: str = field(default_factory=lambda: os.getenv("ARGUS_WEAVIATE_CLASS", "RunbookPassage"))
+    embeddings: str = field(default_factory=lambda: os.getenv("ARGUS_EMBEDDINGS", "openai"))   # openai | hashing
+    embedding_model: str = field(default_factory=lambda: os.getenv("ARGUS_EMBEDDING_MODEL", "text-embedding-3-small"))
+    embedding_base_url: str | None = field(default_factory=lambda: os.getenv("ARGUS_EMBEDDING_BASE_URL") or None)
+    embedding_timeout_s: float = field(default_factory=lambda: float(os.getenv("ARGUS_EMBEDDING_TIMEOUT", "5")))
     db_path: str = field(default_factory=lambda: os.getenv("ARGUS_DB", "argus.db"))
     db_backend: str = field(default_factory=lambda: os.getenv("ARGUS_DB_BACKEND", "sqlite"))   # sqlite | postgres
     pg_host: str = field(default_factory=lambda: os.getenv("ARGUS_PG_HOST", "argus-v18-postgres"))
@@ -218,6 +230,29 @@ def make_llm(s: Settings):
     raise SystemExit(f"ARGUS_LLM_API must be 'responses' or 'chat', not {s.llm_api!r}")
 
 
+def make_knowledge(s: Settings):
+    """T-0044: the runbook `KnowledgePort`. `tfidf` is the library itself; `hybrid` ranks in the local Weaviate and
+    falls back to it. A misconfigured hybrid refuses to start rather than silently degrading."""
+    tfidf = TfidfRunbooks(str(s.runbooks_dir), s.runbooks_commit and f"commit {s.runbooks_commit}")
+    if s.retrieval == "tfidf":
+        return tfidf
+    if s.retrieval != "hybrid":
+        raise SystemExit(f"ARGUS_RETRIEVAL must be 'tfidf' or 'hybrid', not {s.retrieval!r}")
+    if not s.weaviate_url:
+        raise SystemExit("ARGUS_RETRIEVAL=hybrid needs ARGUS_WEAVIATE_URL (the local Weaviate)")
+    if s.embeddings == "hashing":
+        embedder = HashingEmbeddings()
+    elif s.embeddings == "openai":
+        key = s.secret("openai_api_key") or os.getenv("OPENAI_API_KEY")
+        if not key:
+            raise SystemExit("ARGUS_RETRIEVAL=hybrid with ARGUS_EMBEDDINGS=openai needs the openai_api_key secret")
+        embedder = OpenAIEmbeddings(key, s.embedding_model, s.embedding_base_url or s.llm_base_url, s.embedding_timeout_s)
+    else:
+        raise SystemExit(f"ARGUS_EMBEDDINGS must be 'openai' or 'hashing', not {s.embeddings!r}")
+    return HybridRunbooks(tfidf, embedder, WeaviateIndex(s.weaviate_url, s.weaviate_class), s.retrieval_alpha,
+                          s.retrieval_skip_titles)
+
+
 def build(settings: Settings | None = None, llm=None, metrics=None, executors: ExecutorRegistry | None = None,
           store=None, require_credentials: bool = True, load_credentials: bool = True) -> App:
     """`load_credentials=False`: read no executor token (the api, which never investigates; T-0021 step 4)."""
@@ -259,7 +294,7 @@ def build(settings: Settings | None = None, llm=None, metrics=None, executors: E
     redactor = Redactor(declared_paths(yaml.safe_load(pol_text), yaml.safe_load(inv_text)))   # #107 review
     if executors is None:
         executors = _target_executors(signals)
-    knowledge = TfidfRunbooks(str(s.runbooks_dir), s.runbooks_commit and f"commit {s.runbooks_commit}")
+    knowledge = make_knowledge(s)
     store = store or make_store(s)
     if "argus_internal" not in executors.names():              # in-worker capabilities (knowledge.*)
         executors.register("argus_internal", lambda url, tok: KnowledgeClient(knowledge, store))   # T-0039: memory

@@ -2,9 +2,9 @@
 
 | Field | Value |
 |---|---|
-| Status | `proposed` — needs a teammate's approval of its pull request; then applied (ARCHITECTURE.md, code) |
+| Status | `applied` — accepted in #155; applied with the implementation (T-0044 step 1) |
 | Proposed by | `juanes6554` (+ agent) · 2026-10-14 |
-| Accepted by | — |
+| Accepted by | conantkd · 2026-10-15 (#155, after a capacity trial of Weaviate on vm-095) |
 | Second approval (safety principle only) | not needed (no safety principle is touched; see §4) |
 | Architecture version | from `1.8.12` → `1.8.13` (when applied) |
 | Task / PR | T-0044 · this pull request (ACR and documentation only; the evaluation, the code and the deployment are delivered by a teammate's implementation pull request) |
@@ -106,7 +106,17 @@ retriever behind `KnowledgePort`, opt-in via `ARGUS_RETRIEVAL=hybrid`, keeping T
 §21.2 comparison justifies the switch. Proposed by `juanes6554`; pending a teammate's acceptance.
 
 ## 6. Applied
-- [ ] `ARCHITECTURE.md` updated, version bumped (`1.8.12` → `1.8.13`), changelog line added (with this ACR's link)
+
+**As implemented (T-0044 step 1), refining §3–§4 after the #155 review:**
+- The rationale is the project's technical requirement for a vector database; TF-IDF recall@3 is 1.00 on all 9 classes
+  today, so the comparison needs section-level labels (next step), not the runbook-level metric.
+- Weaviate only **ranks**: the passage text comes from the local library, matched by SHA-256; a stale entry is skipped.
+- The embeddings provider is called at indexing **and at every recall** (the query: class, detector findings,
+  reason). Any failure falls back to TF-IDF. The §21.2 replay pins `tfidf` (no network, no key).
+- A thin REST/GraphQL client on `httpx` (already a dependency) instead of the official client.
+- The service as measured on 2026-10-15 (44 MiB idle, 210 MiB peak with 6,510 objects, I/O pressure 5 %), plus
+  `ENABLE_API_BASED_MODULES=false`, on `argus-v18-core` with no host port.
+
+- [x] `ARCHITECTURE.md` updated (§3.5, §15.3, §16.1, §21.2), version `1.8.12` → `1.8.13`, changelog line added
 - [x] journal entry (`brain/journal/entries/2026-10-14-T-0044-rag-pgvector.md`)
-- [ ] the ACR, the architecture change and the first code that needs it are in the same pull request (the evaluation,
-      the code and the deployment follow in a teammate's implementation pull request, per the owner's decision)
+- [x] the architecture change and the first code that needs it are in the same pull request (T-0044 step 1); the VM deployment, the index and the comparison are step 2

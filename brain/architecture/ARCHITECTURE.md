@@ -1,7 +1,7 @@
 # Argus — Production Architecture Specification
 
 **Document type:** consolidated target architecture and implementation blueprint ·
-**Version:** 1.8.12 (2026-10-14, ACR-0014; 1.8.11 2026-10-14, ACR-0012; 1.8.10 2026-10-14, ACR-0011; 1.8.8 2026-10-12, ACR-0009; 1.8.7 2026-10-12, ACR-0008; 1.8.6 2026-10-11, ACR-0007; 1.8.5 2026-10-09, ACR-0005; 1.8.4 2026-10-09, ACR-0004; 1.8.3 2026-10-08, ACR-0003; 1.8.2 2026-10-09, ACR-0002; 1.8.1 2026-10-06, ACR-0001; base 1.8.0 of 30 September 2026, sanitized for the shared repository 2026-10-02) · **Audience:** engineers and AI coding agents implementing
+**Version:** 1.8.13 (2026-10-15, ACR-0015; 1.8.12 2026-10-14, ACR-0014; 1.8.11 2026-10-14, ACR-0012; 1.8.10 2026-10-14, ACR-0011; 1.8.8 2026-10-12, ACR-0009; 1.8.7 2026-10-12, ACR-0008; 1.8.6 2026-10-11, ACR-0007; 1.8.5 2026-10-09, ACR-0005; 1.8.4 2026-10-09, ACR-0004; 1.8.3 2026-10-08, ACR-0003; 1.8.2 2026-10-09, ACR-0002; 1.8.1 2026-10-06, ACR-0001; base 1.8.0 of 30 September 2026, sanitized for the shared repository 2026-10-02) · **Audience:** engineers and AI coding agents implementing
 Argus from an empty repository.
 
 
@@ -575,6 +575,7 @@ flowchart TB
 | `argus-worker` | A | Argus image, `worker` command | claims intake; runs graphs, resume, expiry and outbox loops; spawns the MCP tools server as a child |
 | `argus-scheduler` | A | Argus image, `scheduler` command | cron-style; submits triggers only |
 | `postgres` | A | PostgreSQL 16, named volume | all Argus durable state |
+| `argus-v18-weaviate` | A | Weaviate (open source), named volume | the runbook retrieval index (ACR-0015): no vectorizer or API module, no host port, 512 MiB; derived, rebuildable |
 | `argus-v18-ui` | A | `deploy/ui/Dockerfile` (Nginx, no root) | the read-only UI edge (ACR-0011): the built frontend, the runbooks after login, a proxy of the UI contract's routes to the API; TLS on 443 (public) or `127.0.0.1:18010` (loopback); the only Argus listener on a public address |
 | `prometheus`, `alertmanager` | T | upstream images | **Argus-owned** instances with Argus alert rules; they may scrape exporters that already exist on the host, and never modify another team's monitoring |
 | `node-exporter`, `cadvisor` | T | upstream images | host and container resource metrics; **Argus-owned** instances (ACR-0003). Exporters of another deployment are reused only when its owners agree, recorded in `brain/infrastructure/environment.md`. `cadvisor`'s read-only host mounts: §4.3 |
@@ -2231,7 +2232,7 @@ are reported separately.
 |---|---|---|---|
 | Episodic memory (past incidents and outcomes) | Postgres | `IncidentMemoryPort.similar_incidents` | same target/class first; redacted summaries only |
 | Evidence | Postgres, insert-only | `IncidentMemoryPort` evidence methods | one record per observation; referenced by ID + hash |
-| Runbooks | library v1.1.0 in `argus/runbooks/`, versioned in Git | `KnowledgePort.search` (TF-IDF) | improving the corpus comes before changing the retriever |
+| Runbooks | library v1.1.0 in `argus/runbooks/`, versioned in Git | `KnowledgePort.search` (TF-IDF, or hybrid in the local Weaviate: ACR-0015) | the library is the source of every passage's text; an index only ranks |
 | Working memory of a run | graph state + checkpoints | orchestration only | evidence references and counters; bounded by §10.6 |
 
 **Runbook corpus rules** (from the library's integration requirements):
@@ -2249,8 +2250,15 @@ are reported separately.
 - A runbook's `detector` metadata names the class that uses it (for example `container_restart_loop`
   for RB-001 and RB-008).
 
-No vector store is part of the architecture. A future retriever plugs in behind `KnowledgePort`
-(§24), and only once §21 shows TF-IDF recall is insufficient.
+Runbook retrieval may be hybrid (ACR-0015): BM25 (lexical) and dense embeddings fused in a **local Weaviate**
+(`argus-v18-weaviate`, no vectorizer module, no host port) behind the same `KnowledgePort`, selected by
+`ARGUS_RETRIEVAL` (`tfidf` default, `hybrid` opt-in). The vectors come from the model provider's embeddings
+endpoint (the worker's model key): at indexing, every section; at recall, the query (class, detector findings and
+the request's reason, which the model already receives). The index only **ranks**: every returned passage's text
+comes from the library, matched by the SHA-256 the index stored, so a citation stays traceable to the library
+commit and a stale entry is skipped. Any failure (embeddings, Weaviate, an empty or stale index) falls back to
+TF-IDF, logged: recall never blocks an investigation. The index is derived and rebuilt with
+`argus runbooks index`; TF-IDF stays the default until the §21.2 comparison shows the hybrid at least as good.
 
 ---
 
@@ -2269,6 +2277,7 @@ tables and abstractions:
 | 4 | Episodic, approval and action state | summaries, proposals, approvals, holds, resume intents, outbox, actions, per-target locks | Postgres | application | months/years |
 | 5 | Principals | human users (Argon2 password hashes), agent clients (hashed secrets), roles, scopes, disabled flag | Postgres | authentication adapter | while active + audit period |
 | 6 | Knowledge | runbooks | Markdown in Git + TF-IDF index built at startup | versioned with code | — |
+| 6b | Runbook retrieval index (ACR-0015) | one vector and the BM25 terms per runbook section, with its SHA-256 | local Weaviate (`argus-v18-weaviate`, own volume) | derived from the library: not a system of record, not evidence, not audit | rebuilt with `argus runbooks index`; lost = TF-IDF until rebuilt |
 | 7 | Configuration | inventory, policy, signals, routing, schedules | YAML in Git; SHA-256 versions recorded on proposals and audit | versioned with deployment | — |
 | 8 | Audit | all events in §5.7 | Postgres append-only (+ optional JSONL copy) | audit sink | longest of all |
 | 9 | Metrics | target and Argus time series | Prometheus TSDB on each Host T | operations | operational |
@@ -2602,7 +2611,8 @@ labeled supporting passages.
   forbidden-target proposals that survive precheck.
 - **Quality:** diagnosis accuracy ≥ 80 % on in-scope classes and not worse than the baseline; safe
   abstention ≥ 90 % on ambiguous cases; ≤ 2 unnecessary calls per incident on average.
-- **Retrieval:** TF-IDF recall@3 ≥ 0.9. Below that, fix the runbook corpus before changing retrievers.
+- **Retrieval:** TF-IDF recall@3 ≥ 0.9 is the **baseline**. Below that, fix the runbook corpus first. The hybrid
+  retriever (ACR-0015) must match or beat TF-IDF on the same cases before `ARGUS_RETRIEVAL=hybrid` is the default.
 - **Cost/latency:** within the configured budgets.
 
 **Rule:** the model/provider choice, retriever changes, MCP retention, strategy choice per class and
@@ -2944,3 +2954,4 @@ erDiagram
 | 1.8.10 | 2026-10-14 | the read-only UI on a public HTTPS address: `argus-v18-ui` (Nginx) on Host A:443 proxies only the UI contract's routes; edge logins read-only; failed logins audited and limited per username and address; `limit` capped; layer 14 public edge (§3.3, §3.5, §3.6, §7.1, §17.1, §17.3, §20.1, OD-10) | [ACR-0011](changes/ACR-0011-public-https-ui.md) |
 | 1.8.11 | 2026-10-14 | the UI may start an investigation: `scope=investigate` tokens (every GET and `POST /api/v1/investigations` only), issued by the public edge; per-principal and queue quotas for them; `GET /api/v1/targets` (§7.1, §17.1 layer 14, §17.3, §20.1, OD-10) | [ACR-0012](changes/ACR-0012-ui-start-investigation.md) |
 | 1.8.12 | 2026-10-14 | `GET /api/v1/host-metrics`: the inventory's hosts' CPU busy, memory used and root-disk used ratios for any authenticated role, through the public edge; no request parameter or PromQL; missing or stale is null; a 20 s shared snapshot (§7.1) | [ACR-0014](changes/ACR-0014-ui-host-metrics.md) |
+| 1.8.13 | 2026-10-15 | hybrid runbook retrieval: BM25 + vectors in a local Weaviate (`argus-v18-weaviate`) behind `KnowledgePort`, opt-in by `ARGUS_RETRIEVAL`; the library stays the source of passage text (SHA-256); any failure falls back to TF-IDF; a derived index in the state inventory; TF-IDF recall@3 becomes the baseline (§3.5, §15.3, §16.1, §21.2) | [ACR-0015](changes/ACR-0015-rag-hybrid-retrieval.md) |

@@ -94,6 +94,8 @@ services:
       ARGUS_WORKER_LEASE_S: "300"                     # claim renewed every 100 s; a dead worker's run waits <= 300 s
       ARGUS_TRACING_ENABLED: ${ARGUS_TRACING_ENABLED:-0}   # ACR-0013: off unless "1"; also needs the worker-only Langfuse key files
       ARGUS_SCHEDULE_MAX_QUEUED_AGE_S: "900"          # a scheduled check not started within 15 min is stale_skipped
+      ARGUS_RETRIEVAL: ${ARGUS_RETRIEVAL:-tfidf}       # T-0044 (ACR-0015): hybrid = BM25 + vectors in argus-v18-weaviate
+      ARGUS_WEAVIATE_URL: http://argus-v18-weaviate:8080   # read only when hybrid; unreachable = TF-IDF fallback
     networks: [argus-v18-core]          # no host port; reaches vm-095 executors directly and vm-166 through the tunnel
     depends_on:
       argus-v18-tunnel: {condition: service_started}
@@ -124,6 +126,31 @@ services:
     cpus: 0.2
     pids_limit: 50
     restart: unless-stopped
+  argus-v18-weaviate:                   # T-0044 (ACR-0015): the runbook vector index; derived, rebuilt by `argus runbooks index`
+    image: semitechnologies/weaviate:1.38.18
+    container_name: argus-v18-weaviate
+    command: ["--host", "0.0.0.0", "--port", "8080", "--scheme", "http"]
+    environment:
+      CLUSTER_HOSTNAME: node1
+      PERSISTENCE_DATA_PATH: /var/lib/weaviate
+      PERSISTENCE_LSM_ACCESS_STRATEGY: pread      # segments read with pread, not mmap: less page-cache churn (LF-3)
+      DEFAULT_VECTORIZER_MODULE: none             # Argus supplies the vectors; no model runs here
+      ENABLE_MODULES: ""
+      ENABLE_API_BASED_MODULES: "false"           # 1.38 enables ~40 API modules (text2vec-openai, generative-*) otherwise
+      AUTHENTICATION_ANONYMOUS_ACCESS_ENABLED: "true"   # argus-v18-core only, no host port: the worker is the one client
+      QUERY_DEFAULTS_LIMIT: "10"
+      LIMIT_RESOURCES: "true"
+      GOMEMLIMIT: 400MiB
+      GOMAXPROCS: "1"
+      DISABLE_TELEMETRY: "true"
+      LOG_LEVEL: warning
+    volumes: [argus-v18-weaviate-data:/var/lib/weaviate]
+    networks: [argus-v18-core]          # no host port
+    mem_limit: 512m                     # trial 2026-10-15: 44 MiB idle, 210 MiB peak with 6,510 objects
+    memswap_limit: 512m
+    cpus: 0.5
+    pids_limit: 256
+    restart: unless-stopped
 networks:
   argus-v18-core:
     name: argus-v18-core
@@ -132,5 +159,7 @@ networks:
 volumes:
   argus-v18-agent-data:
     name: argus-v18-agent-data
+  argus-v18-weaviate-data:
+    name: argus-v18-weaviate-data
   argus-v18-pgdata:
     name: argus-v18-pgdata

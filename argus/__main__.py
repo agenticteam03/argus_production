@@ -1,4 +1,4 @@
-"""argus serve | api | worker | scheduler | user add|disable | db import-sqlite PATH|check | diagnose TARGET [--raw] | incident ID [--raw]"""
+"""argus serve | api | worker | scheduler | user add|disable | db import-sqlite PATH|check | runbooks index|search Q | diagnose TARGET [--raw] | incident ID [--raw]"""
 from __future__ import annotations
 
 import argparse
@@ -203,6 +203,67 @@ def db(args) -> None:
               f"blobs={result['blobs']} writes={result['writes']}")
 
 
+def runbooks(args) -> None:
+    """T-0044: `index` rebuilds the local Weaviate class from the library (hybrid settings required); `search` asks the
+    configured retriever (`--compare`: TF-IDF beside it), as the recall node would."""
+    import dataclasses
+
+    from argus.infrastructure.wiring import make_knowledge
+    s = Settings()
+    if args.runbooks_cmd == "index":
+        kb = make_knowledge(dataclasses.replace(s, retrieval="hybrid"))
+        n = kb.index()
+        print(f"indexed {n} sections of {len(kb.ids)} runbooks ({kb.library_version}) into "
+              f"{kb.index_.cls} at {kb.index_.url}; {kb.index_.count()} objects stored")
+        return
+    if args.runbooks_cmd == "compare":
+        _compare(s, args)
+        return
+    kb = make_knowledge(s)
+    ids = [r.strip() for r in args.runbooks.split(",") if r.strip()] if args.runbooks else None
+    sides = [(s.retrieval, kb)]
+    if args.compare and s.retrieval != "tfidf":
+        sides.append(("tfidf", kb.tfidf))
+    for name, k in sides:
+        print(f"--- {name}")
+        for p in k.search(args.query, args.k, ids):
+            print(f"  {p.score:7.3f}  {p.runbook_id}  {p.section}")
+        if getattr(k, "fallbacks", 0):
+            print(f"  (fell back to TF-IDF: {k.last_fallback})")
+
+
+def _compare(s, args) -> None:
+    """T-0044 step 3: score TF-IDF and the hybrid (an alpha grid) on the items read from stdin
+    (`python -m argus.evaluation.retrieval` makes them); each query is embedded once."""
+    import dataclasses
+    import json
+    import sys
+
+    from argus.adapters.outbound.rag import HybridRunbooks
+    from argus.evaluation.retrieval import score, table
+    from argus.infrastructure.wiring import make_knowledge
+    items = [json.loads(line) for line in sys.stdin if line.strip()]
+    hybrid = make_knowledge(dataclasses.replace(s, retrieval="hybrid"))
+    memo: dict[str, list[float]] = {}
+    inner = hybrid.embedder
+
+    class Memo:
+        def embed(self, texts):
+            missing = [t for t in texts if t not in memo]
+            if missing:
+                memo.update(zip(missing, inner.embed(missing)))
+            return [memo[t] for t in texts]
+
+    print(table("tfidf", score(lambda it: hybrid.tfidf.search(it["query"], 3, it["runbook_ids"]), items)))
+    for alpha in [float(a) for a in args.alphas.split(",")]:
+        for skip in ([False, True] if args.skip_titles else [False]):
+            kb = HybridRunbooks(hybrid.tfidf, Memo(), hybrid.index_, alpha, skip)
+            name = f"hybrid a={alpha:g}{' -titles' if skip else ''}"
+            print(table(name, score(lambda it, kb=kb: kb.search(it["query"], 3, it["runbook_ids"]), items)))
+            if kb.fallbacks:
+                print(f"    (fell back to TF-IDF {kb.fallbacks} times: {kb.last_fallback})")
+
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="argus")
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -225,6 +286,17 @@ def build_parser() -> argparse.ArgumentParser:
     m.add_argument("host")
     m.add_argument("--minutes", type=int, required=True, help="1..240")
     m.add_argument("--as", dest="who", required=True, help="who declares it (audited)")
+    r = sub.add_parser("runbooks", help="T-0044: the hybrid runbook index in the local Weaviate")
+    rs = r.add_subparsers(dest="runbooks_cmd", required=True)
+    rs.add_parser("index", help="rebuild the index from the runbook library (idempotent)")
+    q = rs.add_parser("search", help="ask the configured retriever, as the recall node does")
+    q.add_argument("query")
+    q.add_argument("--k", type=int, default=3)
+    q.add_argument("--runbooks", default="", help="comma-separated runbook ids (a class's runbooks)")
+    q.add_argument("--compare", action="store_true", help="also show TF-IDF's answer")
+    c = rs.add_parser("compare", help="score TF-IDF and the hybrid on items from stdin (step 3)")
+    c.add_argument("--alphas", default="0,0.25,0.5,0.75,1")
+    c.add_argument("--skip-titles", action="store_true", help="also score each alpha without the title stubs")
     from argus.adapters.inbound.cli.main import add_parsers
     add_parsers(sub)
     return p
@@ -247,6 +319,8 @@ def main() -> None:
         db(a)
     elif a.cmd == "monitoring":
         monitoring(a)
+    elif a.cmd == "runbooks":
+        runbooks(a)
     else:
         from argus.adapters.inbound.cli.main import run
         raise SystemExit(run(a))
