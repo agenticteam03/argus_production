@@ -43,6 +43,21 @@ rendering. Unit tests with Vitest; Playwright acceptance tests come next (T-0016
    instead of pretending to work. Approvals, the simulator and the scheduler remain hidden until an ACR gives
    the UI the matching actions.
 
+### The incident page (2026-10-15 redesign)
+
+- **One answer first.** The top of the page shows the root cause and, when the API provides it, the next step for a
+  person; a **Copy summary** button copies a plain-text summary ready to paste in a ticket, and **Raw output** opens
+  the incident's raw API document in a dialog.
+- **Tabs, in this order:** **Incident & Diagnosis** (default), then **Map** and **Metrics** *only when their route
+  answers*, then **Runtime Timeline**, **Evidence** and **Audit**. The tab lives in the URL (`?tab=…`) so a link
+  opens the right one.
+- **Why Argus concluded this:** the target → root-cause chain, confidence, who decided (rules or AI), the findings,
+  the runbooks it read (each opens on the Runbooks page) and the evidence it cites (each jumps to the Evidence tab).
+- **Map and Metrics are honest.** They read `GET /api/v1/topology` and `GET /api/v1/incidents/{id}/metrics`, which
+  Argus does not serve yet (see [`BACKEND-REQUESTS.md`](BACKEND-REQUESTS.md)). The UI never invents them: the real
+  adapter asks for them only with `VITE_ARGUS_INSIGHTS=1` (off by default), and the tabs stay hidden until the route
+  answers.
+
 ## What happens on click (summary)
 
 - Menu items are filtered by role (viewer / operator / approver); a route the role cannot see is neither shown nor
