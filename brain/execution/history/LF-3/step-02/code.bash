@@ -1,7 +1,7 @@
 # (archived) LF-3 step 02, run 2026-10-14/15 by conantkd's agent over ssh; leases vm-095 + vm-166, session d7bfceb6737f.
 # Ran: L.0-L.3 and L.6 as written; L.5 by the developer (first try failed: uutils install refuses a numeric owner;
 #   the block below is the corrected one); L.4 in the browser. L.7-L.8 NOT run: ClickHouse was OOM-killed and the
-#   disk saturated, so the stack was stopped and tracing rolled back (L.R in evidence.md). See ACR-0015.
+#   disk saturated, so the stack was stopped and tracing rolled back (L.R in evidence.md). See ACR-0016.
 # =====================================================================================
 # LF-3 step 02 (2026-10-14, conantkd): vm-095 to main 5d4b347 (#152 ACR-0013 code + #154 record), then the private
 #   Langfuse v4 stack (deploy/langfuse/README.md) and the worker's tracing switched on.
@@ -153,7 +153,7 @@ cd ~; sudo bash /opt/argus-v18/app/ops/nonint-check.sh after </dev/null | tail -
 # Expected: the six stopped (not removed); hosts.env without the three ACR-0013 lines; no key file; health 200;
 #   tracing=0; NO INTERFERENCE; load falling.
 
-# --- L.C [VM vm-095 · bash] egress to Langfuse Cloud from the worker (read-only; for ACR-0015) ----------------------
+# --- L.C [VM vm-095 · bash] egress to Langfuse Cloud from the worker (read-only; for ACR-0016) ----------------------
 sudo docker exec argus-v18-worker python -c "
 import urllib.request
 for u in ('https://cloud.langfuse.com/api/public/health', 'https://us.cloud.langfuse.com/api/public/health'):

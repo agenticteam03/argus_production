@@ -313,7 +313,7 @@ def test_tracing_llm_survives_copy():
 
 
 def test_the_worker_alone_takes_the_tracing_endpoint_private_by_default(monkeypatch):
-    """ACR-0015: the endpoint is a deployment setting (Langfuse Cloud or the private stack). Compose passes it to the
+    """ACR-0016: the endpoint is a deployment setting (Langfuse Cloud or the private stack). Compose passes it to the
     worker only, the one process with the keys; unset, it stays the private Langfuse web of ACR-0013."""
     from pathlib import Path
 

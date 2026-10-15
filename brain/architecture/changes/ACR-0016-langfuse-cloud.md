@@ -1,4 +1,4 @@
-# ACR-0015 — Langfuse Cloud (EU) instead of the self-hosted stack on Host A
+# ACR-0016 — Langfuse Cloud (EU) instead of the self-hosted stack on Host A
 
 | Field | Value |
 |---|---|
@@ -6,7 +6,7 @@
 | Proposed by | conantkd (+ agent) · 2026-10-15 |
 | Accepted by | pending (juanbetancurm) |
 | Second approval (safety principle only) | not required: read-only, write gate, host isolation, evidence integrity and the secrets rules are unchanged (§4) |
-| Architecture version | applied together with ACR-0013 (still `proposed`, its code merged in #152) at the next free version (`1.8.13`) |
+| Architecture version | applied together with ACR-0013 (still `proposed`, its code merged in #152) at the next free version when applied (`1.8.13`, or later if ACR-0015 of #155 is applied first) |
 | Task / PR | [LF-3](../../tasks/current/LF-3-langfuse-local-implementation.md) step 02 · PR #156 |
 
 ## 1. Detect and explain
@@ -57,7 +57,7 @@ The worker sends the same filtered OTLP spans to **Langfuse Cloud, EU region** (
 - **The self-hosted stack:** stays in `deploy/langfuse/` as the reviewed alternative for a host with headroom; it is
   stopped on vm-095 and its volumes are removed in the next leased session once this ACR is accepted.
 
-Architecture text when applied (with ACR-0013): §18.5 "This is optional." → "This is optional (ACR-0013, ACR-0015):
+Architecture text when applied (with ACR-0013): §18.5 "This is optional." → "This is optional (ACR-0013, ACR-0016):
 the worker exports filtered OTLP spans to Langfuse Cloud (EU) through `ARGUS_TRACING_ENDPOINT`; a self-hosted stack
 (`deploy/langfuse/`) is the alternative for a host with headroom. Telemetry never replaces audit and never blocks an
 investigation." Plus a §3.3 communication-matrix row (`argus-worker` → Langfuse Cloud, HTTPS egress, filtered traces, the Langfuse project key pair) beside the model endpoint row, and the Langfuse keys in the worker's row of the credentials table (§17.2).
@@ -104,7 +104,7 @@ measured self-hosted stack saturated Host A's disk. Awaiting juanbetancurm's rev
 ## 6. Applied
 
 - [ ] Accepted in the PR review.
-- [ ] `ARCHITECTURE.md` §18.5, §3.3 and the §17.2 credentials row updated with ACR-0013 and this ACR, version `1.8.13`, changelog line.
+- [ ] `ARCHITECTURE.md` §18.5, §3.3 and the §17.2 credentials row updated with ACR-0013 and this ACR, the next free version, changelog line.
 - [ ] vm-095: Cloud keys and `hosts.env`, worker and agent recreated; one trace seen in Langfuse Cloud with nothing
       outside the allowlist; a run with Cloud unreachable still records and audits.
 - [ ] The stopped self-hosted stack and its volumes removed from vm-095.

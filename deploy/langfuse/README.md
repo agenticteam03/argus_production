@@ -2,7 +2,7 @@
 
 > **2026-10-15 (LF-3 step 02):** this stack failed its capacity gate on vm-095 (1 vCPU, no swap): a ClickHouse merge
 > was OOM-killed at its 768 MiB limit and the shared disk saturated (I/O pressure 99 %). It is stopped there.
-> [ACR-0015](../../brain/architecture/changes/ACR-0015-langfuse-cloud.md) proposes Langfuse Cloud (EU) instead: set
+> [ACR-0016](../../brain/architecture/changes/ACR-0016-langfuse-cloud.md) proposes Langfuse Cloud (EU) instead: set
 > `ARGUS_TRACING_ENDPOINT=https://cloud.langfuse.com/api/public/otel/v1/traces` in `hosts.env` and put the Cloud
 > project's keys in the same worker-only files. Keep this directory for a host with headroom.
 

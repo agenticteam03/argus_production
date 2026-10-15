@@ -40,7 +40,7 @@ While L.6 ran, a separate read-only query to the Langfuse database also hung. Di
   200`; `tracing=0`; the six `Exited` (not removed, `unless-stopped` keeps them down); `NO INTERFERENCE`; at 01:06:10
   load `1.22, 55.17, 86.98`.
 
-## L.C — Langfuse Cloud reachable (for ACR-0015)
+## L.C — Langfuse Cloud reachable (for ACR-0016)
 
 From inside `argus-v18-worker`: `https://cloud.langfuse.com/api/public/health` 200 `{"status":"OK","version":"4.59.0"}`;
 the US region the same.
@@ -48,7 +48,7 @@ the US region the same.
 ## State at the end
 
 vm-095: `main` `5d4b347`, Argus as before tracing (off), the Langfuse stack stopped with its volumes and
-`/opt/argus-v18/secrets/langfuse/runtime.env` kept (removed once ACR-0015 is decided). vm-166: unchanged, its
+`/opt/argus-v18/secrets/langfuse/runtime.env` kept (removed once ACR-0016 is decided). vm-166: unchanged, its
 `argus-lab-cache` still stopped (not ours). Both leases released.
 
 ## Not done
