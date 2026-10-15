@@ -44,9 +44,13 @@ The worker sends the same filtered OTLP spans to **Langfuse Cloud, EU region** (
   `hosts.env` sets `https://cloud.langfuse.com/api/public/otel/v1/traces`.
 - **Keys:** a Cloud project key pair, in the same worker-only files (`langfuse_public_key`, `langfuse_secret_key`,
   0400, uid 10010), typed on the VM with a hidden prompt. Never in the API, the UI, a log or the repository.
-- **What leaves Host A:** only ACR-0013 §3's allowlist: node and capability names, status and error categories,
-  durations, model id, token counts and cost, incident and opaque evidence ids. Never prompts, replies, tool arguments
-  or results, evidence bodies, target or host names or addresses, credentials, approval payloads.
+- **What leaves Host A:** exactly the attributes `test_nothing_sensitive_is_exported` allows (`tracing.py` `ALLOWED`,
+  `ROOT_KEYS`): incident id and attempt, incident class, strategy, outcome, node, capability, status, error category,
+  step, `decided_by`, evidence id, **the host's inventory name** (`argus.host`: `vm-095`, `vm-166`) and the target
+  kind; on a model call the model id, finish reason and token counts; durations. Never prompts, replies, tool
+  arguments or results, evidence bodies, container or target names, addresses, ports, credentials, approval payloads.
+  (`deploy/langfuse/README.md` acceptance step 4 says "no … host names": the code exports the inventory name, which
+  is not an address; step 03 checks the trace against this list, not the README's.)
 - **The trace link:** `ARGUS_LANGFUSE_UI_URL=https://cloud.langfuse.com` and the Cloud project id; operators and
   approvers only, a link, never Langfuse data (ACR-0013 C).
 - **Access:** the team's Cloud organization, each member with their own login. No Langfuse port on Host A.
@@ -74,10 +78,18 @@ investigation." Plus a §3.3 communication-matrix row (`argus-worker` → Langfu
   one test (`test_the_worker_alone_takes_the_tracing_endpoint_private_by_default`).
 - **Deployment:** vm-095 `hosts.env` three lines, two key files, the worker and agent recreated. Egress to
   `cloud.langfuse.com:443` from the worker already works (checked 2026-10-15: `/api/public/health` 200).
-- **Cost and limits:** the Cloud plan's monthly units and retention bound the volume (one root trace per attempt plus
-  a few dozen spans); the plan is chosen by the team. A refused or throttled export only drops telemetry (fail-open,
-  counted, logged once): the run, its audit and its records are unchanged.
-- **Risk:** span metadata (incident ids, class and capability names, durations, tokens) is stored by a third party.
+- **Cost and limits** (langfuse.com/pricing, read 2026-10-15): every trace and observation is one unit. **Hobby**
+  (free): 50k units a month, 30 days of data, **2 users**, a GDPR DPA, EU region. **Core** ($29 a month): 100k units,
+  90 days, unlimited users. One attempt is about 8–30 units (a root, five or six node spans, one per capability read:
+  `ARGUS_MAX_STEPS` 8 × `ARGUS_MAX_READS_PER_STEP` 2 at most, one per model call), so Hobby holds roughly 1,700
+  investigations a month, about 55 a day: well above the lab's alert and manual load (the scheduled check is
+  disabled). The §21.2 evaluation does not trace: `run_case` swaps in a throwaway secrets folder without the key files.
+  The 2-user limit is the real constraint (three developers are onboarded): the team either names two users or takes
+  Core. A refused or throttled export only drops telemetry (fail-open, counted, logged once): the run, its audit and
+  its records are unchanged. The exporter sends at most one batch of 64 spans every 2 s, far below the 1,000
+  requests a minute ingestion limit.
+- **Risk:** span metadata (incident ids, class, capability and host inventory names, durations, tokens) is stored by
+  a third party.
   Mitigated by the allowlist above, which ACR-0013's tests (`test_nothing_sensitive_is_exported`) already enforce.
 - **How to reverse it:** `ARGUS_TRACING_ENABLED=0` (or remove the key files) and recreate the worker; delete the Cloud
   project. Nothing in Argus's database or audit depends on Langfuse.
