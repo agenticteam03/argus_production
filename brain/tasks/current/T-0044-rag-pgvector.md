@@ -1,20 +1,21 @@
-# T-0044 — Evaluate Weaviate for hybrid runbook retrieval behind `KnowledgePort`
+# T-0044 — Evaluate a locally-hosted (open-source) Weaviate for hybrid runbook retrieval behind `KnowledgePort`
 
 | Field | Value |
 |---|---|
 | Status | `proposed` — **ACR + documentation only** (this pull request); the evaluation, the code and the deployment are delivered by a teammate's implementation pull request |
 | Phase | 5 / 9 — retrieval over the runbook corpus ([`../../IMPLEMENTATION_PLAN.md`](../../IMPLEMENTATION_PLAN.md)) |
-| Architecture | **ACR-0015** (proposed): §15.3 "no vector store" → evaluate Weaviate behind `KnowledgePort`; a §16.1 row and one deployment container |
-| Branch | `task/T-0044-rag-pgvector` (from `main`; the branch name is historical — the store under evaluation is Weaviate) |
+| Architecture | **ACR-0015** (proposed): §15.3 "no vector store" → evaluate a self-hosted Weaviate behind `KnowledgePort`; a §16.1 row and one deployment container |
+| Branch | `task/T-0044-rag-pgvector` (from `main`; the branch name is historical — the store under evaluation is a local Weaviate) |
 | Owner | `juanes6554` (+ agent) — proposer; evaluation handed to a teammate |
-| Needs the VM lease | the evaluation (deploy Weaviate, build the index) and the benchmark |
+| Needs the VM lease | the evaluation (deploy local Weaviate, build the index) and the benchmark |
 
 ## Problem
 
 Runbook recall in the orchestrator is pure **TF-IDF** (`argus/adapters/outbound/config_adapters.py::TfidfRunbooks`),
 built at startup, `k=3`. §21.2 targets recall@3 ≥ 0.9; the lab wants a stronger retriever and a TF-IDF-vs-RAG
-comparison. The owner asks to **evaluate Weaviate** — a dedicated vector database with native hybrid search and a
-reranking stage — as the store for that retriever, instead of adopting pgVector on the existing Postgres.
+comparison. The owner asks to **evaluate Weaviate** as the store for that retriever, run **locally**: Weaviate is open
+source, so it is self-hosted in the lab as a container on Host A (private Docker network), **not** used through a
+managed/cloud API and with no API key.
 
 ## Design (for the implementer)
 
@@ -25,28 +26,30 @@ reranking stage — as the store for that retriever, instead of adopting pgVecto
 - **`EmbeddingPort`** in `argus/ports/ports.py`, with two adapters: an OpenAI embeddings adapter (production,
   `text-embedding-3-small`, 1536 dims, batched + retried) and a deterministic keyless one (offline tests / smoke run,
   never for quality). Weaviate stores the vectors; the adapter that fills them lives in Argus.
-- **Hybrid adapter behind `KnowledgePort`** (`search(query, k, runbook_ids)` unchanged), backed by Weaviate: BM25
-  (k1=1.5, b=0.75) and dense neighbours fused as `alpha * vector + (1 - alpha) * bm25` after max-normalising each side,
-  **or** Weaviate's native hybrid query if the evaluation shows it equivalent. `top_k` (default **20**) is the fusion /
-  retrieval depth; `search` still returns at most the caller's `k` (the orchestrator's 3, §21 recall@3), so the model
-  context is unchanged. An empty index degrades to BM25 — retrieval never fails because the index is empty.
-- **Weaviate client**: official `weaviate` Python client, one collection for runbook passages (properties: runbook id,
-  version, status, section, content, sha256), cosine distance, an optional reranker module. Connection details from
-  settings; no credentials in code.
+- **Hybrid adapter behind `KnowledgePort`** (`search(query, k, runbook_ids)` unchanged), backed by the local Weaviate:
+  BM25 (k1=1.5, b=0.75) and dense neighbours fused as `alpha * vector + (1 - alpha) * bm25` after max-normalising each
+  side, **or** Weaviate's native hybrid query if the evaluation shows it equivalent. `top_k` (default **20**) is the
+  fusion / retrieval depth; `search` still returns at most the caller's `k` (the orchestrator's 3, §21 recall@3), so
+  the model context is unchanged. An empty index degrades to BM25 — retrieval never fails because the index is empty.
+- **Weaviate client**: official `weaviate` Python client pointed at the **local** instance (no Cloud/API credentials),
+  one collection for runbook passages (properties: runbook id, version, status, section, content, sha256), cosine
+  distance, an optional local reranker module. Connection details from settings; no credentials in code.
 - **Composition root** (`wiring.py`): a `make_knowledge(settings)` selector — `tfidf` (default) or `hybrid` — so the
   default path is byte-for-byte unchanged. `wiring` still validates every class's runbook ids.
-- **CLI**: `argus runbooks index` (embed + upsert into Weaviate, idempotent) and `argus runbooks search "…" [--k N]`.
-- **Deployment**: a `weaviate` service definition (image, port, network, `mem_limit`/`cpus`/`pids_limit`) following the
-  existing deployment rules; the index is derived and rebuildable from `argus/runbooks/`.
+- **CLI**: `argus runbooks index` (embed + upsert into the local Weaviate, idempotent) and
+  `argus runbooks search "…" [--k N]`.
+- **Deployment**: a self-hosted `weaviate` service definition (open-source image, port, network,
+  `mem_limit`/`cpus`/`pids_limit`) following the existing deployment rules; the index is derived and rebuildable from
+  `argus/runbooks/`. No external/cloud vector service is involved.
 
 ## Configuration (settings / env)
 
 | Setting | Default | Meaning |
 |---|---|---|
-| `ARGUS_RETRIEVAL` | `tfidf` | `tfidf` (baseline) or `hybrid` (Weaviate + BM25) |
+| `ARGUS_RETRIEVAL` | `tfidf` | `tfidf` (baseline) or `hybrid` (local Weaviate + BM25) |
 | `ARGUS_RETRIEVAL_TOP_K` | `20` | fusion depth and maximum results |
 | `ARGUS_RETRIEVAL_ALPHA` | `0.5` | `0` = pure BM25, `1` = pure vector |
-| `ARGUS_WEAVIATE_URL` | — | Weaviate endpoint (e.g. `http://argus-v18-weaviate:8080`) |
+| `ARGUS_WEAVIATE_URL` | — | the **local** Weaviate endpoint (e.g. `http://argus-v18-weaviate:8080`) |
 | `ARGUS_WEAVIATE_CLASS` | `RunbookPassage` | the Weaviate collection/class |
 | `ARGUS_EMBEDDINGS` | `openai` | `openai` (needs a key) or `hashing` (offline) |
 | `ARGUS_EMBEDDING_MODEL` | `text-embedding-3-small` | must match the vectors stored in Weaviate |
@@ -54,16 +57,17 @@ reranking stage — as the store for that retriever, instead of adopting pgVecto
 
 ## Weaviate steps (owner-run, vm-095)
 
-1. **Deploy Weaviate** as a new `argus-v18-*` container on Host A: an image (for example `semitechnologies/weaviate`
-   with the `text2vec-*`/`reranker` modules not required if Argus supplies vectors), its own port in the 18000–18799
-   range, its own named volume, and the usual `mem_limit`/`cpus`/`pids_limit`. Nothing in the protected lab is touched.
+1. **Deploy Weaviate locally** as a new `argus-v18-*` container on Host A using the **open-source** image (for example
+   `cr.weaviate.io/semitechnologies/weaviate:<pin>`; the `text2vec-*`/`reranker` modules are optional when Argus
+   supplies its own vectors), its own port in the 18000–18799 range, its own named volume, the private Docker network,
+   and the usual `mem_limit`/`cpus`/`pids_limit`. No cloud account, no API key. Nothing in the protected lab is touched.
 2. **Smoke check**: `curl http://<host>:<port>/v1/.well-known/ready` returns 200.
 3. **Build the index** from the worker host with the `openai_api_key` secret present and
    `ARGUS_RETRIEVAL=hybrid ARGUS_WEAVIATE_URL=…`: `argus runbooks index`. Re-run after any runbook change (idempotent).
 4. **Flip the agent** on the worker (`ARGUS_RETRIEVAL=hybrid`) only after the benchmark (§ below) shows the Weaviate
    hybrid wins. Rollback is `ARGUS_RETRIEVAL=tfidf` and stopping the container.
 
-## Benchmark plan (TF-IDF vs Weaviate hybrid — the comparison table)
+## Benchmark plan (TF-IDF vs local Weaviate hybrid — the comparison table)
 
 - Extend `argus/evaluation` recall to run the same labelled cases through both retrievers at `k=3` and report
   **recall@3** (and ideally MRR@3 / nDCG@3) from `tests/eval/thresholds.yaml` (`runbooks` labels), following the
@@ -71,8 +75,7 @@ reranking stage — as the store for that retriever, instead of adopting pgVecto
 - Grid: `tfidf` vs Weaviate `hybrid` for `alpha ∈ {0, 0.25, 0.5, 0.75, 1}` and `top_k ∈ {10, 20, 40}`; optionally
   with/without Weaviate's reranker.
 - Done when: the table shows the Weaviate hybrid's recall@3 versus the TF-IDF baseline; that result justifies (or
-  rejects) offering it to a class and the §21.2 threshold change in ACR-0015. If the evaluation is inconclusive, record
-  it and fall back to the pgVector alternative (ACR-0015 §3).
+  rejects) offering it to a class and the §21.2 threshold change in ACR-0015.
 
 ## Tests (for the implementer)
 
@@ -82,6 +85,6 @@ upsert against a stubbed Weaviate client (no live service). The existing suite m
 
 ## Next step
 
-A teammate reviews/accepts ACR-0015, then implements the design above (Weaviate container + code + tests), leases the VM
-for the deployment, builds the index and runs the benchmark. The architecture text (§15.3, §16.1, §21.2) and the version
-bump are applied in that implementation pull request.
+A teammate reviews/accepts ACR-0015, then implements the design above (local Weaviate container + code + tests), leases
+the VM for the deployment, builds the index and runs the benchmark. The architecture text (§15.3, §16.1, §21.2) and the
+version bump are applied in that implementation pull request.
