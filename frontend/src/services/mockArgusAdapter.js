@@ -1,6 +1,6 @@
 // Placeholder for the Argus API. Swap for an HTTP adapter with the same methods (services/index.js).
 // Every incident call is a GET and is recorded in `calls`, so tests can assert paths such as limit=30.
-import { demoEscalations, demoEvents, demoEvidence, demoIncident, demoList } from "./demoIncidents.js";
+import { demoEscalations, demoEvents, demoEvidence, demoIncident, demoList, demoMetrics, demoTopology } from "./demoIncidents.js";
 import { demoSession } from "./demoSession.js";
 import { answerMetricQuestion, parseInvestigationRequest } from "./metricQuestion.js";
 
@@ -35,6 +35,21 @@ export const mockArgusAdapter = {
     const all = demoEvents(id);
     if (!all) throw httpError(404, "Incident not found");
     return all.filter((e) => e.seq > after);
+  },
+
+  // Phases 4 and 5 (demo): the system map and an incident's metrics window. Not in contracts/ui-api.json yet.
+  async getTopology() {
+    record("/api/v1/topology");
+    await wait(200);
+    return demoTopology();
+  },
+
+  async getIncidentMetrics(id, range = "30m") {
+    record(`/api/v1/incidents/${id}/metrics?range=${range}`);
+    await wait(200);
+    const metrics = demoMetrics(id, range);
+    if (!metrics) throw httpError(404, "Incident not found");
+    return metrics;
   },
 
   async getHostMetrics() {
