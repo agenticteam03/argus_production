@@ -5,7 +5,7 @@
   "branch": "task/T-0044-weaviate-capacity",
   "base_commit": "852b55f568987b184e79833241d4f33404a75097",
   "started_at": "2026-10-15T02:49:15+00:00",
-  "expires_at": "2026-10-15T03:49:15+00:00",
+  "expires_at": "2026-10-15T04:56:38+00:00",
   "released": false,
   "handoff": null,
   "vms": {
@@ -16,7 +16,7 @@
       "branch": "task/T-0044-weaviate-capacity",
       "base_commit": "852b55f568987b184e79833241d4f33404a75097",
       "started_at": "2026-10-15T02:49:15+00:00",
-      "expires_at": "2026-10-15T03:49:15+00:00",
+      "expires_at": "2026-10-15T04:56:38+00:00",
       "released": false,
       "handoff": null
     },
