@@ -37,7 +37,8 @@ test.describe("dashboard (guideline 2)", () => {
     await api();
     await logIn(page);
     await expect(page.getByText("Host metrics")).toBeVisible();
-    await expect(page.getByText("60.0%", { exact: true }).first()).toBeVisible();
+    // The value carries its level as screen-reader text ("60.0% (Normal)"), so the colour is never the only signal.
+    await expect(page.getByText("60.0% (Normal)").first()).toBeVisible();
     await page.getByLabel("Message for the agent").fill("Check Host T memory usage");
     await page.getByRole("button", { name: "Send" }).click();
     await expect(page.getByText(/Host T \(vm-166\) memory usage: 60.0%/)).toBeVisible();
@@ -64,6 +65,7 @@ test.describe("incidents", () => {
     const inc = sample("incident");
     await expect(page.getByRole("heading", { level: 1 })).toHaveText(inc.target);
     await expect(page.getByText(inc.diagnosis).first()).toBeVisible();
+    await page.getByRole("tab", { name: "Runtime Timeline" }).click();   // the redesign moved the timeline into a tab
     await expect(page.getByText(/detect/i).first()).toBeVisible();      // the timeline's first node
   });
 
@@ -71,13 +73,29 @@ test.describe("incidents", () => {
     await api({ role: "operator" });
     await logIn(page);
     await page.goto(`/incidents/${DIAGNOSED_ID}`);
+    await page.getByRole("tab", { name: "Evidence" }).click();                      // the redesign moved evidence into a tab
     await expect(page.getByText(`via ${readCapability()}`).first()).toBeVisible();   // an evidence row
 
     await page.unrouteAll({ behavior: "ignoreErrors" });
     await api({ role: "viewer" });
     await page.reload();
+    await page.getByRole("tab", { name: "Evidence" }).click();
     await expect(page.getByText(`via ${readCapability()}`)).toHaveCount(0);
     await expect(page.getByText("Evidence is visible to operators and approvers.")).toBeVisible();
+  });
+
+  test("the page groups its sections into tabs and adds Map/Metrics only when their routes answer", async ({ page, api }) => {
+    await api();
+    await logIn(page);
+    await page.goto(`/incidents/${DIAGNOSED_ID}`);
+    await expect(page.getByRole("tab", { name: "Incident & Diagnosis" })).toHaveAttribute("aria-selected", "true");
+    for (const name of ["Runtime Timeline", "Evidence", "Audit"]) {
+      await expect(page.getByRole("tab", { name })).toBeVisible();
+    }
+    // No VITE_ARGUS_INSIGHTS in this build, so the two routes that do not exist yet are never called and their tabs
+    // stay hidden (the hooks return null). The Map and Metrics tabs appear only when the API answers with data.
+    await expect(page.getByRole("tab", { name: "Map", exact: true })).toHaveCount(0);
+    await expect(page.getByRole("tab", { name: "Metrics", exact: true })).toHaveCount(0);
   });
 
   test("an unknown incident shows 'Incident not found'", async ({ page, api }) => {
@@ -152,8 +170,9 @@ test.describe("start an investigation (ACR-0012)", () => {
     await api({ role: "operator" });
     await logIn(page);
     const form = page.getByRole("form", { name: "Start an investigation" });
-    await form.getByLabel("Target").selectOption(TARGET);
-    await form.getByLabel("Check").check();
+    await form.getByLabel("Target").click();
+    await form.getByRole("option", { name: TARGET, exact: true }).click();
+    await form.getByRole("group", { name: "Kind" }).getByRole("button", { name: "Check" }).click();
     await form.getByLabel("Reason").fill("users report slowness");
     const sent = page.waitForRequest((r) => r.method() === "POST" && r.url().endsWith("/api/v1/investigations"));
     await form.getByRole("button", { name: "Start investigation" }).click();
@@ -176,7 +195,8 @@ test.describe("start an investigation (ACR-0012)", () => {
       body: '{"detail":"investigation quota reached (per_hour)"}' }) } });
     await logIn(page);
     const form = page.getByRole("form", { name: "Start an investigation" });
-    await form.getByLabel("Target").selectOption(TARGET);
+    await form.getByLabel("Target").click();
+    await form.getByRole("option", { name: TARGET, exact: true }).click();
     await form.getByRole("button", { name: "Start investigation" }).click();
     await expect(form.getByRole("alert")).toContainText("10 min");
   });
