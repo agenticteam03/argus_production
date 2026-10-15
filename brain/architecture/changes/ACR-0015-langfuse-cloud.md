@@ -7,7 +7,7 @@
 | Accepted by | pending (juanbetancurm) |
 | Second approval (safety principle only) | not required: read-only, write gate, host isolation, evidence integrity and the secrets rules are unchanged (§4) |
 | Architecture version | applied together with ACR-0013 (still `proposed`, its code merged in #152) at the next free version (`1.8.13`) |
-| Task / PR | [LF-3](../../tasks/current/LF-3-langfuse-local-implementation.md) step 02 · PR #… |
+| Task / PR | [LF-3](../../tasks/current/LF-3-langfuse-local-implementation.md) step 02 · PR #156 |
 
 ## 1. Detect and explain
 
