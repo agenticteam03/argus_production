@@ -5,7 +5,7 @@
   "branch": "task/LF-3-vm-deploy",
   "base_commit": "83b0fd4467ed274c62fd8f548647443402e0069a",
   "started_at": "2026-10-15T00:08:50+00:00",
-  "expires_at": "2026-10-15T01:08:50+00:00",
+  "expires_at": "2026-10-15T02:12:23+00:00",
   "released": false,
   "handoff": null,
   "vms": {
@@ -16,7 +16,7 @@
       "branch": "task/LF-3-vm-deploy",
       "base_commit": "83b0fd4467ed274c62fd8f548647443402e0069a",
       "started_at": "2026-10-15T00:08:50+00:00",
-      "expires_at": "2026-10-15T01:08:50+00:00",
+      "expires_at": "2026-10-15T02:12:23+00:00",
       "released": false,
       "handoff": null
     },
@@ -27,7 +27,7 @@
       "branch": "task/LF-3-vm-deploy",
       "base_commit": "83b0fd4467ed274c62fd8f548647443402e0069a",
       "started_at": "2026-10-15T00:08:50+00:00",
-      "expires_at": "2026-10-15T01:08:50+00:00",
+      "expires_at": "2026-10-15T02:12:23+00:00",
       "released": false,
       "handoff": null
     }
