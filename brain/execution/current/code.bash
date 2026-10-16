@@ -31,8 +31,10 @@ python3 -c 'import sys; assert sys.version_info >= (3, 12), sys.version' && pyth
 sudo bash /opt/argus-v18/app/ops/nonint-check.sh before
 
 # --- 1.2 [VM vm-095 · bash] Fetch the branch and extract only the demo files ------------------------------------
-APP=/opt/argus-v18/app
-sudo git -C "$APP" -c safe.directory="$APP" fetch --quiet origin task/demo-cli-replay
+APP=/opt/argus-v18/app; KEYDIR=/opt/argus-v18/secrets/deploy
+# same deploy key and pinned known_hosts that ops/deploy.sh uses (root's default SSH has no access to the repo)
+GSSH="ssh -i $KEYDIR/id_ed25519 -o IdentitiesOnly=yes -o UserKnownHostsFile=$KEYDIR/known_hosts -o StrictHostKeyChecking=yes -o BatchMode=yes"
+sudo env GIT_SSH_COMMAND="$GSSH" git -C "$APP" -c safe.directory="$APP" fetch --quiet origin task/demo-cli-replay
 sudo mkdir -p /opt/argus-v18/demo
 sudo git -C "$APP" -c safe.directory="$APP" archive FETCH_HEAD \
   argus/__init__.py argus/adapters/__init__.py argus/adapters/inbound/__init__.py \
@@ -64,3 +66,29 @@ clear; cd /opt/argus-v18/demo && PYTHONDONTWRITEBYTECODE=1 python3 -m argus.adap
 
 # --- 2.3 [LAPTOP · PowerShell] release the VM when you are done -----------------------------------------------------
 #   python brain/tools/brain.py release
+
+# =====================================================================================
+# STEP DEMO.3 — Run SC-01 (OOM restart loop) for real, so the incident is recorded and visible in the UI   [~10 min]
+# Goal / Why: a real investigation through the API (evidence + audit), the same failure the demo replays.
+# MUTATES (vm-166): starts the lab container argus-lab-worker-oom (profile sc01), then the runner removes it.
+#   Creates one incident in the database of vm-095 (kept; that is the point).
+#   Undo if the runner dies halfway: [VM vm-166 · bash]
+#     cd /opt/argus-v18/app/deploy/lab && sudo docker compose -f compose.lab.yml --profile sc01 rm -sf argus-lab-worker-oom
+# Needs BOTH leases (the runner touches vm-166 and reads through vm-095).
+# =====================================================================================
+
+# --- 3.0 [LAPTOP · PowerShell] claim vm-166 too and write its marker ---------------------------------------------
+#   python brain/tools/brain.py start --vm vm-166
+#   then on [VM vm-166 · bash] (ssh argus-vm166) paste the exact `echo 'holder=conantkd session=<id>' | sudo tee ...` line it prints
+#   (if you only see "ACTIVE" without the line, read the id with:  git show origin/session:session.json )
+
+# --- 3.1 [LAPTOP · PowerShell] Dry run: prints what would be done, touches nothing (READ-ONLY) ------------------
+python ops/e2e/run.py SC-01 --runs 1 --as conantkd --dry-run
+# Expected: the catalogue commands for SC-01 listed, no ssh executed.
+
+# --- 3.2 [LAPTOP · PowerShell] The real run (asks the Argus password with a hidden prompt; never paste it) -------
+python ops/e2e/run.py SC-01 --runs 1 --as conantkd
+# Expected: pre-gate clean -> start -> gate (>=3 restarts, up to 5 min) -> investigate -> PASS (diagnosed, container_restart_loop,
+#   RB-001) -> reset -> nonint-check "NO INTERFERENCE" on both hosts. One JSON line is written under ~/argus-e2e/.
+# Then open the UI (Incidents) and look for the newest incident on vm-166/container:argus-lab-worker.
+# >>> Paste the runner's final lines into output.bash and tell the agent "output.bash updated". <<<
