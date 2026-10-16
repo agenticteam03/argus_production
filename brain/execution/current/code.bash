@@ -18,10 +18,15 @@
 
 # --- 1.0 [LAPTOP · PowerShell] claim vm-095 (the session lease) ------------------------------------------------
 #   python brain/tools/brain.py start --vm vm-095
-# Expected: the lease is yours (stop if it names someone else).
+# Expected: "Lease CLAIMED by conantkd on vm-095 ...". It ends by printing the VM marker command (next block).
 
-# --- 1.1 [VM vm-095 · bash] (ssh argus-vm095) Session marker, Python version, "before" snapshot ----------------
-grep -q "holder=conantkd" /opt/argus-v18/SESSION || { echo "NOT YOUR SESSION"; exit 1; }
+# --- 1.0b [VM vm-095 · bash] (ssh argus-vm095) Write the session marker: COPY THE EXACT LINE brain.py printed -----
+#   echo 'holder=conantkd session=<id printed by brain.py start>' | sudo tee /opt/argus-v18/SESSION >/dev/null
+# MUTATES: the marker file only.   Undo: brain.py release (the marker is overwritten by the next claim)
+
+# --- 1.1 [VM vm-095 · bash] Session marker, Python version, "before" snapshot ----------------------------------
+# (no `exit`: in an interactive SSH shell it would close your session)
+grep -q "holder=conantkd" /opt/argus-v18/SESSION && echo "SESSION OK" || echo "NOT YOUR SESSION - STOP, do not run the rest"
 python3 -c 'import sys; assert sys.version_info >= (3, 12), sys.version' && python3 --version   # expected: Python 3.12+
 sudo bash /opt/argus-v18/app/ops/nonint-check.sh before
 
