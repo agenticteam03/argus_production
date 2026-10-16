@@ -108,7 +108,8 @@ def run_case(case: Case, workdir: Path, llm: Any | None = None, settings: Settin
     secrets.mkdir(exist_ok=True)
     (secrets / "jwt_signing_key").write_text(os.urandom(24).hex(), encoding="utf-8")
     s = dataclasses.replace(base, secrets_dir=secrets, db_path=str(db), db_backend="sqlite",
-                            tool_catalogue="direct")
+                            tool_catalogue="direct",
+                            retrieval="tfidf")   # T-0044: no Weaviate or embeddings in a replay (`argus runbooks` compares)
     reg = ExecutorRegistry()
     for kind in EXECUTORS:
         reg.register(kind, lambda url, token, kind=kind: FixtureExecutor(case.fixtures.get(kind, {})))

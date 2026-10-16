@@ -1,0 +1,13 @@
+# T-0044 step 3: the sections a diagnosis needs, labelled by class (2026-10-15, conantkd).
+# A case's useful sections = these sections of the runbooks in its label (`label.runbooks`), plus the diagnostic
+# sections of the runbooks in `extra` for that case. Not useful: the title stub, scope, tools lists, actions,
+# verification, lab validation, references (they matter later, not to decide what is wrong).
+working_sections:
+  - Symptoms
+  - Plausible causes / hypotheses
+  - Required evidence
+  - Diagnostic workflow
+  - Decision tree
+  - Evidence interpretation
+extra:
+  dep-backend-wrong-network: [RB-009]        # the client shares no network with the backend: a network cause

@@ -2,11 +2,11 @@
 
 | Field | Value |
 |---|---|
-| Status | `proposed` — **ACR + documentation only** (this pull request); the evaluation, the code and the deployment are delivered by a teammate's implementation pull request |
+| Status | **`suspended`** (2026-10-15, conantkd) — steps 1–3 done (code; the index on vm-095; the section-level comparison: TF-IDF stays the default); the runbook corpus and the eval cases are improved first; vm-095 back on `main` without Weaviate ([step 4](../../execution/history/T-0044/step-04/evidence.md)); #157 is a draft |
 | Phase | 5 / 9 — retrieval over the runbook corpus ([`../../IMPLEMENTATION_PLAN.md`](../../IMPLEMENTATION_PLAN.md)) |
-| Architecture | **ACR-0015** (proposed): §15.3 "no vector store" → evaluate a self-hosted Weaviate behind `KnowledgePort`; a §16.1 row and one deployment container |
-| Branch | `task/T-0044-rag-pgvector` (from `main`; the branch name is historical — the store under evaluation is a local Weaviate) |
-| Owner | `juanes6554` (+ agent) — proposer; evaluation handed to a teammate |
+| Architecture | **ACR-0015** (applied, 1.8.13): §15.3 "no vector store" → evaluate a self-hosted Weaviate behind `KnowledgePort`; a §16.1 row and one deployment container |
+| Branch | `task/T-0044-weaviate-rag` (implementation); `task/T-0044-rag-pgvector` was the ACR (#155) |
+| Owner | `juanes6554` (+ agent) — proposer; `conantkd` (+ agent) — implementation |
 | Needs the VM lease | the evaluation (deploy local Weaviate, build the index) and the benchmark |
 
 ## Problem
@@ -88,3 +88,29 @@ upsert against a stubbed Weaviate client (no live service). The existing suite m
 A teammate reviews/accepts ACR-0015, then implements the design above (local Weaviate container + code + tests), leases
 the VM for the deployment, builds the index and runs the benchmark. The architecture text (§15.3, §16.1, §21.2) and the
 version bump are applied in that implementation pull request.
+
+## Steps
+
+1. **Code (offline)** — done 2026-10-15. `argus/adapters/outbound/rag.py`: `HashingEmbeddings`, `OpenAIEmbeddings`
+   (batched, order kept), `WeaviateIndex` (REST/GraphQL on `httpx`: schema, batch, Weaviate's native hybrid with a
+   `runbook_id` filter), `HybridRunbooks` (`KnowledgePort`: Weaviate ranks, the text comes from the library matched by
+   SHA-256, stale entries skipped, any failure → TF-IDF, counted and logged; `index()` rebuilds idempotently with
+   stable ids). `wiring.make_knowledge` (`tfidf` default, refuses a misconfigured hybrid); the replay pins `tfidf`;
+   `argus runbooks index|search [--compare]`; `argus-v18-weaviate` in `compose.core.yml` (as measured in the capacity
+   trial, plus `ENABLE_API_BASED_MODULES=false`, no host port), the worker's `ARGUS_RETRIEVAL` (default `tfidf`) and
+   `ARGUS_WEAVIATE_URL`. Design changes from above: the native hybrid instead of a client-side fusion, no official
+   client. Tests: `tests/test_t0044_rag.py`, 20 (red seen: no `rag` module).
+2. **vm-095** — done 2026-10-15 ([evidence](../../execution/history/T-0044/step-02/evidence.md)): the branch deployed,
+   `argus-v18-weaviate` up (no host port), 630 sections indexed from the worker in 23 s with real embeddings, the
+   hybrid answering every query (no fallback); the worker stays `tfidf`.
+3. **Comparison** — done 2026-10-15 ([evidence](../../execution/history/T-0044/step-03/evidence.md)): section labels
+   by class (`tests/eval/section_labels.yaml`), the recall node's own queries replayed offline
+   (`python -m argus.evaluation.retrieval`), `argus runbooks compare` on vm-095. TF-IDF: runbook recall@3 1.000,
+   section hit@3 0.636, precision 0.250. Best hybrid (sections embedded with their runbook title, title stubs skipped):
+   hit 0.705 (alpha 0.75) or precision 0.280 (alpha 1), runbook recall 0.909–0.977: better on disk and blind spot,
+   worse on restart loop, dependency and CPU. **TF-IDF stays the default** (§21.2); `hybrid` and
+   `ARGUS_RETRIEVAL_SKIP_TITLES` are opt-in.
+4. **Suspended** — 2026-10-15 ([evidence](../../execution/history/T-0044/step-04/evidence.md)): vm-095 back on `main`,
+   Weaviate removed. To resume: deploy the branch, start `argus-v18-weaviate`, `argus runbooks index`, re-measure.
+5. **When resumed (not started):** rank fusion of TF-IDF and vectors; per-case labels where the class set is too coarse; the
+   health query, which no retriever serves.
