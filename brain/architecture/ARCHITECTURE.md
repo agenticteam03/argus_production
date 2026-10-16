@@ -1,7 +1,7 @@
 # Argus — Production Architecture Specification
 
 **Document type:** consolidated target architecture and implementation blueprint ·
-**Version:** 1.8.14 (2026-10-16, ACR-0017 incident metrics; 1.8.12 2026-10-14, ACR-0014; 1.8.11 2026-10-14, ACR-0012; 1.8.10 2026-10-14, ACR-0011; 1.8.8 2026-10-12, ACR-0009; 1.8.7 2026-10-12, ACR-0008; 1.8.6 2026-10-11, ACR-0007; 1.8.5 2026-10-09, ACR-0005; 1.8.4 2026-10-09, ACR-0004; 1.8.3 2026-10-08, ACR-0003; 1.8.2 2026-10-09, ACR-0002; 1.8.1 2026-10-06, ACR-0001; base 1.8.0 of 30 September 2026, sanitized for the shared repository 2026-10-02) · **Audience:** engineers and AI coding agents implementing
+**Version:** 1.8.15 (2026-10-16, ACR-0017 topology; 1.8.14 2026-10-16, ACR-0017 incident metrics; 1.8.12 2026-10-14, ACR-0014; 1.8.11 2026-10-14, ACR-0012; 1.8.10 2026-10-14, ACR-0011; 1.8.8 2026-10-12, ACR-0009; 1.8.7 2026-10-12, ACR-0008; 1.8.6 2026-10-11, ACR-0007; 1.8.5 2026-10-09, ACR-0005; 1.8.4 2026-10-09, ACR-0004; 1.8.3 2026-10-08, ACR-0003; 1.8.2 2026-10-09, ACR-0002; 1.8.1 2026-10-06, ACR-0001; base 1.8.0 of 30 September 2026, sanitized for the shared repository 2026-10-02) · **Audience:** engineers and AI coding agents implementing
 Argus from an empty repository.
 
 
@@ -1220,6 +1220,7 @@ An unauthorized read returns **404** (not 403) and is audited as `access.inciden
 | `GET /api/v1/targets` | — (the inventory's target refs) | JWT, any role | `target`, `host`, `kind`, `name` of every inventory target, for a UI's target list; no address, port or credential (ACR-0012) |
 | `GET /api/v1/host-metrics` | named host metric snapshot | JWT, any role | Inventory host targets only; fixed CPU busy, memory used and root-disk used ratios; sample time; missing is null; no PromQL parameter (ACR-0014). |
 | `GET /api/v1/incidents/{id}/metrics` | an incident's metric window | JWT, any role | `range` 15m/30m/1h (else 422); a fixed signal list per class (`config/ui-incident-signals.yaml`, validated at startup); the incident's host only; window from `opened_at − range` to `closed_at + 2 min` (or now); at most ~130 points per series (the step grows); missing is null; shared for 30 s while open, 10 min once closed (ACR-0017). |
+| `GET /api/v1/topology` | the system map | JWT, any role (`incident_id` overlay: operator/approver) | Inventory targets; declared dependencies with their ports; declared networks; live state from `restarts_10m`, `health_unhealthy` and the dependency probe (`dependency_probe_min`); with `incident_id`, the incident's target and root cause from its stored `container.status` evidence (state, real networks; "no shared network" on their link); `unknown`, never ok, when Argus does not know; never VM addresses, Argus's internal endpoints or secrets; no new host read; shared for 20 s (ACR-0017). The host Argus runs on is `ARGUS_HOME_HOST`. |
 | `GET /api/v1/incidents` | `ListIncidents` | JWT | filters: status, class, target, since |
 | `GET /api/v1/incidents/{id}` | `GetIncident` | JWT | role-redacted view |
 | `GET /api/v1/incidents/{id}/events` | run events of an incident | JWT | the node timeline (CLI and UIs) |
@@ -1257,7 +1258,8 @@ HTTP or the application in-process.
   header issues only a **read** or an **investigate** token (ACR-0012), never a full one, and the limits of §17.3
   count the edge's client address. Its one proxied POST besides the login is `POST /api/v1/investigations`, with its
   own per-address rate limit and a 4 KB body. The authenticated `GET /api/v1/host-metrics` (ACR-0014) and
-  `GET /api/v1/incidents/{id}/metrics` (ACR-0017) are among the contract's GET routes it proxies; the private
+  `GET /api/v1/incidents/{id}/metrics` and `GET /api/v1/topology` (ACR-0017) are among the contract's GET routes it
+  proxies; the private
   `/metrics` route is never proxied.
   `GET /api/v1/incidents` caps `limit` server-side (`ARGUS_INCIDENTS_LIMIT_CAP`, 200).
 
@@ -2947,3 +2949,4 @@ erDiagram
 | 1.8.11 | 2026-10-14 | the UI may start an investigation: `scope=investigate` tokens (every GET and `POST /api/v1/investigations` only), issued by the public edge; per-principal and queue quotas for them; `GET /api/v1/targets` (§7.1, §17.1 layer 14, §17.3, §20.1, OD-10) | [ACR-0012](changes/ACR-0012-ui-start-investigation.md) |
 | 1.8.12 | 2026-10-14 | `GET /api/v1/host-metrics`: the inventory's hosts' CPU busy, memory used and root-disk used ratios for any authenticated role, through the public edge; no request parameter or PromQL; missing or stale is null; a 20 s shared snapshot (§7.1) | [ACR-0014](changes/ACR-0014-ui-host-metrics.md) |
 | 1.8.14 | 2026-10-16 | `GET /api/v1/incidents/{id}/metrics`: an incident's metric window for the UI's charts, any authenticated role, through the public edge; `range` 15m/30m/1h; a fixed signal list per class (`config/ui-incident-signals.yaml`); the incident's host only; ≤ ~130 points per series; missing is null; `MetricsPort.range` gains an optional `end` (§7.1, §8.1). The topology route of the same ACR follows in its own version | [ACR-0017](changes/ACR-0017-ui-topology-and-incident-metrics.md) |
+| 1.8.15 | 2026-10-16 | `GET /api/v1/topology`: the system map for any authenticated role, through the public edge: inventory targets, declared dependencies with their ports and networks, live state from named signals and the dependency probe; an `incident_id` overlay (operator/approver) from the incident's stored status evidence; never VM addresses, Argus's internal endpoints or secrets; `ARGUS_HOME_HOST` (§7.1) | [ACR-0017](changes/ACR-0017-ui-topology-and-incident-metrics.md) |
