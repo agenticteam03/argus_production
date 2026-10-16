@@ -1,0 +1,247 @@
+{
+  "edges": [
+    {
+      "from": "vm-166/container:argus-lab-api",
+      "label": "tcp 6379",
+      "port": 6379,
+      "state": "unknown",
+      "to": "vm-166/container:argus-lab-cache"
+    },
+    {
+      "from": "vm-166/container:argus-lab-client",
+      "label": "tcp 8080",
+      "port": 8080,
+      "state": "unknown",
+      "to": "vm-166/container:argus-lab-backend"
+    },
+    {
+      "from": "vm-166/container:argus-lab-filler",
+      "label": "declared dependency",
+      "port": null,
+      "state": "unknown",
+      "to": "vm-166/host:vm-166"
+    },
+    {
+      "from": "vm-166/container:argus-lab-leaker",
+      "label": "tcp 5432",
+      "port": 5432,
+      "state": "unknown",
+      "to": "vm-166/container:argus-lab-db"
+    },
+    {
+      "from": "vm-166/container:argus-lab-nginx",
+      "label": "tcp 8080",
+      "port": 8080,
+      "state": "unknown",
+      "to": "vm-166/container:argus-lab-slow"
+    }
+  ],
+  "hosts": [
+    {
+      "id": "vm-095",
+      "label": "vm-095",
+      "role": "monitored"
+    },
+    {
+      "id": "vm-166",
+      "label": "vm-166",
+      "role": "monitored"
+    }
+  ],
+  "nodes": [
+    {
+      "host": "vm-095",
+      "id": "vm-095/container:argus-lab-api",
+      "info": [],
+      "kind": "container",
+      "label": "argus-lab-api",
+      "status": "unknown",
+      "sub": "container",
+      "target": "vm-095/container:argus-lab-api"
+    },
+    {
+      "host": "vm-095",
+      "id": "vm-095/container:argus-lab-worker",
+      "info": [
+        {
+          "label": "Restarts (10 min)",
+          "value": "0"
+        }
+      ],
+      "kind": "container",
+      "label": "argus-lab-worker",
+      "status": "running",
+      "sub": "container",
+      "target": "vm-095/container:argus-lab-worker"
+    },
+    {
+      "host": "vm-095",
+      "id": "vm-095/host:vm-095",
+      "info": [],
+      "kind": "host",
+      "label": "vm-095",
+      "status": "running",
+      "sub": "host",
+      "target": "vm-095/host:vm-095"
+    },
+    {
+      "host": "vm-166",
+      "id": "vm-166/container:argus-lab-api",
+      "info": [],
+      "kind": "container",
+      "label": "argus-lab-api",
+      "status": "unknown",
+      "sub": "container",
+      "target": "vm-166/container:argus-lab-api"
+    },
+    {
+      "host": "vm-166",
+      "id": "vm-166/container:argus-lab-backend",
+      "info": [
+        {
+          "label": "Declared networks",
+          "value": "argus-lab-app"
+        },
+        {
+          "label": "Ports",
+          "value": "8080"
+        }
+      ],
+      "kind": "container",
+      "label": "argus-lab-backend",
+      "status": "unknown",
+      "sub": "container",
+      "target": "vm-166/container:argus-lab-backend"
+    },
+    {
+      "host": "vm-166",
+      "id": "vm-166/container:argus-lab-burner",
+      "info": [],
+      "kind": "container",
+      "label": "argus-lab-burner",
+      "status": "unknown",
+      "sub": "container",
+      "target": "vm-166/container:argus-lab-burner"
+    },
+    {
+      "host": "vm-166",
+      "id": "vm-166/container:argus-lab-cache",
+      "info": [
+        {
+          "label": "Ports",
+          "value": "6379"
+        }
+      ],
+      "kind": "container",
+      "label": "argus-lab-cache",
+      "status": "unknown",
+      "sub": "container",
+      "target": "vm-166/container:argus-lab-cache"
+    },
+    {
+      "host": "vm-166",
+      "id": "vm-166/container:argus-lab-client",
+      "info": [
+        {
+          "label": "Declared networks",
+          "value": "argus-lab-app"
+        }
+      ],
+      "kind": "container",
+      "label": "argus-lab-client",
+      "status": "unknown",
+      "sub": "container",
+      "target": "vm-166/container:argus-lab-client"
+    },
+    {
+      "host": "vm-166",
+      "id": "vm-166/container:argus-lab-db",
+      "info": [
+        {
+          "label": "Ports",
+          "value": "5432"
+        },
+        {
+          "label": "Database",
+          "value": "argus_lab"
+        }
+      ],
+      "kind": "container",
+      "label": "argus-lab-db",
+      "status": "unknown",
+      "sub": "database container",
+      "target": "vm-166/container:argus-lab-db"
+    },
+    {
+      "host": "vm-166",
+      "id": "vm-166/container:argus-lab-filler",
+      "info": [],
+      "kind": "container",
+      "label": "argus-lab-filler",
+      "status": "unknown",
+      "sub": "container",
+      "target": "vm-166/container:argus-lab-filler"
+    },
+    {
+      "host": "vm-166",
+      "id": "vm-166/container:argus-lab-leaker",
+      "info": [],
+      "kind": "container",
+      "label": "argus-lab-leaker",
+      "status": "unknown",
+      "sub": "container",
+      "target": "vm-166/container:argus-lab-leaker"
+    },
+    {
+      "host": "vm-166",
+      "id": "vm-166/container:argus-lab-nginx",
+      "info": [],
+      "kind": "container",
+      "label": "argus-lab-nginx",
+      "status": "unknown",
+      "sub": "container",
+      "target": "vm-166/container:argus-lab-nginx"
+    },
+    {
+      "host": "vm-166",
+      "id": "vm-166/container:argus-lab-slow",
+      "info": [
+        {
+          "label": "Ports",
+          "value": "8080"
+        }
+      ],
+      "kind": "container",
+      "label": "argus-lab-slow",
+      "status": "unknown",
+      "sub": "container",
+      "target": "vm-166/container:argus-lab-slow"
+    },
+    {
+      "host": "vm-166",
+      "id": "vm-166/container:argus-lab-worker",
+      "info": [
+        {
+          "label": "Restarts (10 min)",
+          "value": "5"
+        }
+      ],
+      "kind": "container",
+      "label": "argus-lab-worker",
+      "status": "restarting",
+      "sub": "container",
+      "target": "vm-166/container:argus-lab-worker"
+    },
+    {
+      "host": "vm-166",
+      "id": "vm-166/host:vm-166",
+      "info": [],
+      "kind": "host",
+      "label": "vm-166",
+      "status": "running",
+      "sub": "host",
+      "target": "vm-166/host:vm-166"
+    }
+  ],
+  "observed_at": "2026-10-16T00:39:25.312845Z"
+}

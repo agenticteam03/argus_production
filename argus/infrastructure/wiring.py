@@ -80,6 +80,8 @@ class Settings:
     login_max_per_address: int = field(default_factory=lambda: int(os.getenv("ARGUS_LOGIN_MAX_PER_ADDRESS", "20")))
     login_window_s: int = field(default_factory=lambda: int(os.getenv("ARGUS_LOGIN_WINDOW_S", "900")))
     incidents_limit_cap: int = field(default_factory=lambda: int(os.getenv("ARGUS_INCIDENTS_LIMIT_CAP", "200")))
+    # ACR-0017: the inventory host Argus runs on (the map marks it and draws its reads); unset = every host monitored
+    home_host: str = field(default_factory=lambda: os.getenv("ARGUS_HOME_HOST", "").strip())
     # ACR-0012: investigations started with an `investigate` token (the UI); alerts and full tokens are not counted
     investigations_per_hour: int = field(default_factory=lambda: int(os.getenv("ARGUS_INVESTIGATIONS_PER_HOUR", "10")))
     investigations_queued_per_principal: int = field(
@@ -121,6 +123,7 @@ class App:
     alertmanager_token: str | None
     llm_configured: bool
     incident_metrics: Any = None        # ACR-0017: the metric window around an incident (the UI's charts)
+    topology: Any = None                # ACR-0017: the system map (inventory, signals, an incident's evidence)
 
 
 def _credentials(s: Settings, inventory: YamlInventory, require: bool, errors: list[str],
@@ -328,6 +331,10 @@ def build(settings: Settings | None = None, llm=None, metrics=None, executors: E
     if len(jwt_key) < 32:
         raise SystemExit("jwt_signing_key missing or shorter than 32 characters")
     from argus.application.incident_metrics import IncidentMetrics
+    from argus.application.topology import Topology
+    if s.home_host and inventory.host(s.home_host) is None:
+        raise SystemExit(f"ARGUS_HOME_HOST {s.home_host!r} is not an inventory host")
     return App(settings=s, store=store, inventory=inventory, policy=policy, runner=runner, catalogue=catalogue,
                metrics=metrics, jwt_key=jwt_key, alertmanager_token=s.secret("alertmanager_token"), llm_configured=llm_configured,
-               incident_metrics=IncidentMetrics(metrics, ui_signals))
+               incident_metrics=IncidentMetrics(metrics, ui_signals),
+               topology=Topology(inventory, metrics, store, s.home_host))

@@ -327,6 +327,21 @@ def build_api(app_ctx) -> FastAPI:
             raise HTTPException(404, "not found")
         return app_ctx.store.list_run_events(incident_id, after)
 
+    @api.get("/api/v1/topology", tags=["incidents"])
+    def topology(p: Annotated[Principal, Depends(current)],
+                 incident_id: Annotated[str | None, Query(pattern=r"^inc_[A-Za-z0-9_-]+$", max_length=64)] = None):
+        """ACR-0017: the system map: inventory targets, declared dependencies with their ports and networks, live state
+        from named signals and the dependency probe; with `incident_id` (operator/approver), the incident's target and
+        root cause from its stored evidence. Never VM addresses, Argus's internal endpoints or secrets."""
+        if incident_id is None:
+            return app_ctx.topology.view()
+        if p.role not in ("operator", "approver"):
+            raise HTTPException(status.HTTP_403_FORBIDDEN, "the incident overlay uses evidence: operator or approver")
+        inc = app_ctx.store.get_incident(incident_id)
+        if inc is None:
+            raise HTTPException(404, "not found")
+        return app_ctx.topology.view_for(inc)
+
     @api.get("/api/v1/incidents/{incident_id}/metrics", tags=["incidents"])
     def incident_metrics(incident_id: str, p: Annotated[Principal, Depends(current)],
                          rng: Annotated[Literal["15m", "30m", "1h"], Query(alias="range")] = "30m"):

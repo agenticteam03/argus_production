@@ -604,6 +604,61 @@
           "incidents"
         ]
       }
+    },
+    "/api/v1/topology": {
+      "get": {
+        "description": "ACR-0017: the system map: inventory targets, declared dependencies with their ports and networks, live state\nfrom named signals and the dependency probe; with `incident_id` (operator/approver), the incident's target and\nroot cause from its stored evidence. Never VM addresses, Argus's internal endpoints or secrets.",
+        "operationId": "topology_api_v1_topology_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "incident_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 64,
+                  "pattern": "^inc_[A-Za-z0-9_-]+$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Incident Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Topology",
+        "tags": [
+          "incidents"
+        ]
+      }
     }
   }
 }
