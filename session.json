@@ -1,12 +1,12 @@
 {
   "holder": "juanbetancurm",
-  "session_id": "92f256d0f0c9",
-  "task": "DEPLOY-158-ui",
+  "session_id": "6b62abd3ffdb",
+  "task": "DEMO-READY",
   "branch": "main",
-  "base_commit": "f9a4a0659f4e1f545d5fd4f4399992056314589f",
-  "started_at": "2026-10-15T20:19:14+00:00",
-  "expires_at": "2026-10-15T21:19:14+00:00",
-  "released": true,
+  "base_commit": "0b3b4e8e0f7ac5959ab460343093057006f141f0",
+  "started_at": "2026-10-16T03:14:50+00:00",
+  "expires_at": "2026-10-16T04:14:50+00:00",
+  "released": false,
   "handoff": null,
   "vms": {
     "vm-095": {
@@ -21,14 +21,14 @@
       "handoff": null
     },
     "vm-166": {
-      "holder": "conantkd",
-      "session_id": "0ec3a32ee8cd",
-      "task": "T-0044",
-      "branch": "task/ACR-0013-langfuse-integration",
-      "base_commit": "6af7d9b7279811c1789cdcf3de1499473ef1ff57",
-      "started_at": "2026-10-15T05:56:37+00:00",
-      "expires_at": "2026-10-15T06:56:37+00:00",
-      "released": true,
+      "holder": "juanbetancurm",
+      "session_id": "6b62abd3ffdb",
+      "task": "DEMO-READY",
+      "branch": "main",
+      "base_commit": "0b3b4e8e0f7ac5959ab460343093057006f141f0",
+      "started_at": "2026-10-16T03:14:50+00:00",
+      "expires_at": "2026-10-16T04:14:50+00:00",
+      "released": false,
       "handoff": null
     }
   }
