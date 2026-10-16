@@ -5,7 +5,7 @@
   "branch": "task/demo-cli-replay",
   "base_commit": "985d21a7800c96a843f081c9408188e0f6981346",
   "started_at": "2026-10-16T12:10:58+00:00",
-  "expires_at": "2026-10-16T13:10:58+00:00",
+  "expires_at": "2026-10-16T14:32:42+00:00",
   "released": false,
   "handoff": null,
   "vms": {
@@ -16,7 +16,7 @@
       "branch": "task/demo-cli-replay",
       "base_commit": "985d21a7800c96a843f081c9408188e0f6981346",
       "started_at": "2026-10-16T12:10:58+00:00",
-      "expires_at": "2026-10-16T13:10:58+00:00",
+      "expires_at": "2026-10-16T14:32:42+00:00",
       "released": false,
       "handoff": null
     },
