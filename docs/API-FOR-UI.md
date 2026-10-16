@@ -51,6 +51,11 @@ on. Anything else can change without notice.
     independent `null` values when missing; the UI never treats missing data as zero. Host A = `vm-095`, Host T =
     `vm-166`. The chat answers these bounded metric questions directly. An explicit "Investigate Host T" uses
     the existing investigation route and links to the incident; it does not claim the investigation finished.
+11. **Incident metrics** (ACR-0017): `GET /api/v1/incidents/{id}/metrics?range=15m|30m|1h` returns the charts around
+    one incident. The browser chooses only the range; the server picks a fixed list of named signals for the
+    incident's class (`config/ui-incident-signals.yaml`), reads them on the incident's host only, and returns at most
+    ~130 points per series. `null` is a missing sample (draw a gap, never 0); `fired: true` marks the detector's
+    signal; `max` and `unit` are optional.
 
 ## Routes
 
@@ -65,6 +70,7 @@ on. Anything else can change without notice.
 | `GET /api/v1/escalations` | any role | the escalations Argus raised to humans | [`escalations.json`](../contracts/samples/escalations.json) |
 | `GET /api/v1/targets` | any role | the inventory's targets: `target`, `host`, `kind`, `name` (ACR-0012) | [`targets.json`](../contracts/samples/targets.json) |
 | `GET /api/v1/host-metrics` | any authenticated role | current CPU, memory and root-disk ratios for the inventory's host targets, plus `observed_at` and `available` (proposed ACR-0014) | [`host-metrics.json`](../contracts/samples/host-metrics.json) |
+| `GET /api/v1/incidents/{id}/metrics?range=30m` | any authenticated role | `incident_id`, `range`, `from`, `to`, `step_s`, `series[]` of `{key, title, unit, max, fired, points: [[time, value or null]]}` (ACR-0017) | [`incident-metrics.json`](../contracts/samples/incident-metrics.json) |
 | `POST /api/v1/investigations` | operator, approver; full or **investigate** token | `incident_id`, `status`, `duplicate` (202); quotas for an investigate token (ACR-0012) | [`investigation.json`](../contracts/samples/investigation.json) |
 
 Errors: `401` no token, invalid or expired token; `403` the role or a read-only token may not do this; `404` unknown
