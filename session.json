@@ -1,11 +1,11 @@
 {
   "holder": "juanbetancurm",
-  "session_id": "bd7100416e18",
+  "session_id": "19195da3fd04",
   "task": "DEPLOY-161",
   "branch": "main",
   "base_commit": "0b3b4e8e0f7ac5959ab460343093057006f141f0",
-  "started_at": "2026-10-16T19:11:20+00:00",
-  "expires_at": "2026-10-16T20:11:20+00:00",
+  "started_at": "2026-10-16T18:39:52+00:00",
+  "expires_at": "2026-10-16T20:11:30+00:00",
   "released": false,
   "handoff": null,
   "vms": {
@@ -16,7 +16,7 @@
       "branch": "main",
       "base_commit": "0b3b4e8e0f7ac5959ab460343093057006f141f0",
       "started_at": "2026-10-16T18:39:52+00:00",
-      "expires_at": "2026-10-16T19:39:52+00:00",
+      "expires_at": "2026-10-16T20:11:30+00:00",
       "released": false,
       "handoff": null
     },
