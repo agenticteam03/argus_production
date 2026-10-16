@@ -1,4 +1,4 @@
-"""CLI client: `argus diagnose` / `argus incident`, formatted (default) or --raw.
+"""CLI client: `argus diagnose` / `argus incident` / `argus demo`, formatted (default) or --raw.
 
 Talks to the Argus API with a JWT, so it works the same on the agent host or through an SSH tunnel.
   ARGUS_API       default http://127.0.0.1:18000
@@ -70,6 +70,9 @@ def follow(client: Client, iid: str, raw: bool, color: bool, timeout_s: int = 60
 
 
 def run(args) -> int:
+    if args.cmd == "demo":                                   # offline replay: no API, no login
+        from argus.adapters.inbound.cli.demo import run as run_demo
+        return run_demo(args)
     api = os.getenv("ARGUS_API", "http://127.0.0.1:18000")
     user = args.user or os.getenv("ARGUS_USER") or getpass.getuser()
     password = os.getenv("ARGUS_PASSWORD") or getpass.getpass(f"Argus password for {user}: ")
@@ -97,6 +100,10 @@ def add_parsers(sub) -> None:
     d.add_argument("--check", action="store_true", help="'is it healthy?' instead of 'there is a problem'")
     i = sub.add_parser("incident", help="show an existing incident")
     i.add_argument("incident_id")
+    m = sub.add_parser("demo", help="paced replay of a recorded investigation for a live presentation")
+    m.add_argument("--duration", type=float, default=180.0, help="total seconds (default 180)")
+    m.add_argument("--events", default="contracts/samples/events.json", help="recorded run events (JSON list)")
+    m.add_argument("--no-color", action="store_true")
     for p in (d, i):
         p.add_argument("--raw", action="store_true", help="raw JSON lines (events) + full incident JSON")
         p.add_argument("--no-color", action="store_true")
