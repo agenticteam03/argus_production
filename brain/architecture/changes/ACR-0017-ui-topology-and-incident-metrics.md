@@ -2,11 +2,11 @@
 
 | Field | Value |
 |---|---|
-| Status | `proposed` |
+| Status | `accepted` (`juanes6554`, approving #159, 2026-10-15); step 1 applied (incident metrics, ARCHITECTURE 1.8.14); the topology route pending |
 | Proposed by | juanbetancurm (+ agent) · 2026-10-15 |
-| Accepted by | — |
-| Second approval (safety principle only) | required: least privilege (the public edge's read surface widens) and host isolation (the metrics reads) |
-| Architecture version | from `1.8.12` → the next free version when applied (1.8.13 is taken by ACR-0015 in #157) |
+| Accepted by | `juanes6554` · #159 (2026-10-15) |
+| Second approval (safety principle only) | `juanes6554`, approving #159 (least privilege, host isolation) |
+| Architecture version | 1.8.12 → 1.8.14 (incident metrics; 1.8.13 is ACR-0015's); the topology route takes the next free version |
 | Task / PR | T-0016 (UI) · this PR proposes it; backend PRs by juanbetancurm; the frontend connection by juanes6554 after it is applied |
 
 ## 1. Detect and explain
@@ -242,6 +242,6 @@ The frontend connects only after the routes are deployed.
 
 ## 6. Applied
 
-- [ ] `ARCHITECTURE.md` updated (§7.1 rows and public-edge paragraph, the port, the version and changelog line)
-- [ ] journal entry
-- [ ] the ACR, the architecture change and the first code that needs it are in the same pull request
+- [x] `ARCHITECTURE.md` updated for the incident metrics route (§7.1 row, public-edge paragraph, the port, 1.8.14 and changelog line); the topology route's row follows with its PR
+- [x] journal entry (step 1)
+- [x] the ACR's application and the first code that needs it (the metrics route) are in the same pull request

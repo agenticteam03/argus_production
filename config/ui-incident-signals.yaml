@@ -1,0 +1,43 @@
+# ACR-0017: the charts around an incident (GET /api/v1/incidents/{id}/metrics). For each incident class, the named
+# signals (config/signals.yaml) the UI draws, in order; `default` for an incident without a class. Validated at
+# startup: an unknown signal, class, key or scope stops the API (as routing.yaml does).
+#   signal   a name from config/signals.yaml
+#   title    what the chart is called in the UI
+#   scope    target (the incident's target, default) or host (the incident's host); never another host
+#   unit     shown after the value ("%", "MiB", "cores", "h"; empty for a count or a 0/1 state)
+#   scale    multiplies each value (100 for a 0-1 ratio shown in %, 1/1048576 for bytes shown in MiB)
+#   max      the chart's top (optional; the UI uses the largest value otherwise)
+#   fired    true for the signal the class's detector fires on (drawn in red)
+default:
+  - {signal: host_cpu_busy_ratio, title: "Host CPU busy", scope: host, unit: "%", scale: 100, max: 100}
+  - {signal: host_memory_available_ratio, title: "Host memory available", scope: host, unit: "%", scale: 100, max: 100}
+
+classes:
+  dependency_unavailable:
+    - {signal: dependency_probe_min, title: "Dependency probe (1 = reachable)", max: 1, fired: true}
+    - {signal: container_restart_count, title: "Restarts (total)"}
+    - {signal: host_cpu_busy_ratio, title: "Host CPU busy", scope: host, unit: "%", scale: 100, max: 100}
+    - {signal: host_memory_available_ratio, title: "Host memory available", scope: host, unit: "%", scale: 100, max: 100}
+  container_restart_loop:
+    - {signal: restarts_10m, title: "Restarts in 10 min", fired: true}
+    - {signal: container_memory_bytes, title: "Memory", unit: "MiB", scale: 0.00000095367431640625}
+    - {signal: oom_killed, title: "OOM killed (1 = yes)", max: 1}
+    - {signal: container_cpu_cores, title: "CPU", unit: "cores"}
+  health_check_failed:
+    - {signal: health_unhealthy, title: "Health check failing (1 = yes)", max: 1, fired: true}
+    - {signal: restarts_10m, title: "Restarts in 10 min"}
+    - {signal: container_memory_bytes, title: "Memory", unit: "MiB", scale: 0.00000095367431640625}
+  postgresql_connection_exhaustion:
+    - {signal: db_connection_usage, title: "Connection slots used", unit: "%", scale: 100, max: 100, fired: true}
+    - {signal: db_up, title: "Database up (1 = yes)", max: 1}
+  nginx_upstream_failure:
+    - {signal: http_gateway_error_ratio_5m, title: "Gateway errors", unit: "%", scale: 100, max: 100, fired: true}
+    - {signal: restarts_10m, title: "Restarts in 10 min"}
+  cpu_saturation:
+    - {signal: container_cpu_throttled_ratio_5m, title: "CPU periods throttled", unit: "%", scale: 100, max: 100, fired: true}
+    - {signal: container_cpu_quota_used_ratio_5m, title: "CPU quota used", unit: "%", scale: 100, max: 100}
+  disk_pressure:
+    - {signal: host_disk_used_ratio_5m, title: "Disk used", unit: "%", scale: 100, max: 100, fired: true}
+    - {signal: host_disk_hours_to_full, title: "Hours until full", unit: "h"}
+  monitoring_blind_spot:
+    - {signal: scrape_targets_down, title: "Scrape targets down", fired: true}

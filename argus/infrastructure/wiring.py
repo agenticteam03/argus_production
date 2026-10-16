@@ -120,6 +120,7 @@ class App:
     jwt_key: str
     alertmanager_token: str | None
     llm_configured: bool
+    incident_metrics: Any = None        # ACR-0017: the metric window around an incident (the UI's charts)
 
 
 def _credentials(s: Settings, inventory: YamlInventory, require: bool, errors: list[str],
@@ -148,6 +149,16 @@ def load_routing(config_dir: Path):
     if not path.exists():
         return Routing()
     return Routing.from_data(yaml.safe_load(path.read_text(encoding="utf-8")), {c.family for c in CLASSES})
+
+
+def load_ui_signals(config_dir: Path, signals: set[str]):
+    """ACR-0017: `ui-incident-signals.yaml`, validated against the named signals and the classes (ValueError); no file =
+    no series (the UI then hides its charts)."""
+    from argus.application.incident_metrics import SignalList
+    path = config_dir / "ui-incident-signals.yaml"
+    if not path.exists():
+        return SignalList()
+    return SignalList.from_data(yaml.safe_load(path.read_text(encoding="utf-8")), signals, {c.name for c in CLASSES})
 
 
 def tracing_sink(s: Settings, store):
@@ -236,6 +247,11 @@ def build(settings: Settings | None = None, llm=None, metrics=None, executors: E
         routing = load_routing(s.config_dir)
     except ValueError as e:
         errors.append(str(e))
+    ui_signals = None                                # ACR-0017: the incident charts' signal list, validated likewise
+    try:
+        ui_signals = load_ui_signals(s.config_dir, set(signals))
+    except ValueError as e:
+        errors.append(str(e))
     for spec in specs:
         if not policy.capability_known(spec.name):
             continue  # not allowed ⇒ refused at call time (fail closed); not an error
@@ -311,5 +327,7 @@ def build(settings: Settings | None = None, llm=None, metrics=None, executors: E
     jwt_key = s.secret("jwt_signing_key") or os.getenv("ARGUS_JWT_KEY") or ""
     if len(jwt_key) < 32:
         raise SystemExit("jwt_signing_key missing or shorter than 32 characters")
+    from argus.application.incident_metrics import IncidentMetrics
     return App(settings=s, store=store, inventory=inventory, policy=policy, runner=runner, catalogue=catalogue,
-               metrics=metrics, jwt_key=jwt_key, alertmanager_token=s.secret("alertmanager_token"), llm_configured=llm_configured)
+               metrics=metrics, jwt_key=jwt_key, alertmanager_token=s.secret("alertmanager_token"), llm_configured=llm_configured,
+               incident_metrics=IncidentMetrics(metrics, ui_signals))

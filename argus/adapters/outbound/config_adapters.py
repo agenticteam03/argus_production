@@ -123,8 +123,26 @@ class PrometheusMetrics:
         return MetricSnapshot(target=target, values=values,
                               observed_at=datetime.fromtimestamp(newest, timezone.utc) if newest else None)
 
-    def range(self, target: TargetRef, signal: str, minutes: int, step_s: int) -> list[tuple[float, float]]:
-        raise NotImplementedError("history is served by the metrics.* capabilities")
+    def range(self, target: TargetRef, signal: str, minutes: int, step_s: int,
+              end: datetime | None = None) -> list[tuple[float, float]]:
+        """ACR-0017: one named signal over `minutes` ending at `end` (None = now), one sample per `step_s`. Only the
+        target's own host's Prometheus; a missing step is simply absent (the caller shows a gap, never 0)."""
+        if signal not in self.signals:
+            raise ValueError(f"unknown signal {signal}")
+        info = self.inventory.target(target)
+        mounts = "|".join(info.mounts) if info else ""
+        expr = Template(self.signals[signal]).substitute(host=target.host, name=target.name, mounts=mounts)
+        stop = (end or datetime.now(timezone.utc)).timestamp()
+        try:
+            r = httpx.get(f"{self._url(target.host)}/api/v1/query_range",
+                          params={"query": expr, "start": stop - minutes * 60, "end": stop, "step": step_s}, timeout=8)
+            r.raise_for_status()
+        except httpx.HTTPError as e:
+            raise MetricsUnavailable(f"prometheus for {target.host}: {type(e).__name__}") from e
+        result = r.json().get("data", {}).get("result", [])
+        if not result:
+            return []
+        return [(float(t), float(v)) for t, v in result[0]["values"]]
 
 
 # --- Knowledge ---------------------------------------------------------------------------------

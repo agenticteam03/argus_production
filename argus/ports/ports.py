@@ -30,7 +30,9 @@ class AlertSourcePort(Protocol):
 
 class MetricsPort(Protocol):
     def snapshot(self, target: TargetRef, signals: set[str]) -> MetricSnapshot: ...
-    def range(self, target: TargetRef, signal: str, minutes: int, step_s: int) -> list[tuple[float, float]]: ...
+    # `end` (ACR-0017): the window ends then (None = now); an incident's chart ends at its close, not today
+    def range(self, target: TargetRef, signal: str, minutes: int, step_s: int,
+              end: datetime | None = None) -> list[tuple[float, float]]: ...
 
 
 # --- LLM (provider-neutral) ------------------------------------------------------------------
