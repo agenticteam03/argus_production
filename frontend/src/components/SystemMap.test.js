@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { layoutMap, miniNodes, stateOf } from "./SystemMap.jsx";
+import { DASH, EDGE, layoutMap, miniNodes, stateOf } from "./SystemMap.jsx";
 
 // The map is hand-rolled SVG (no library); these are its pure helpers, so the layout and the
 // cause/affected derivation are checked here instead of through the pixels.
@@ -57,6 +57,23 @@ describe("stateOf", () => {
   it("is normal for a node that matches nothing", () => {
     expect(stateOf(TOPOLOGY.nodes[1], { target: "vm-095/host:vm-095" })).toBe("ok");
     expect(stateOf(TOPOLOGY.nodes[1], null)).toBe("ok");
+  });
+
+  it("marks a component Argus does not know as unknown, never ok (ACR-0017)", () => {
+    const unknown = { id: "x", host: "vm-166", label: "argus-lab-api", kind: "container", status: "unknown" };
+    expect(stateOf(unknown, null)).toBe("unknown");
+    // The incident overlay still wins: the affected target keeps its amber box even with an unknown status.
+    const incident = { target: "vm-166/container:argus-lab-api", root_cause_target: "vm-166/container:argus-lab-worker" };
+    expect(stateOf({ ...unknown, target: incident.target }, incident)).toBe("affected");
+  });
+});
+
+describe("edge styles", () => {
+  it("gives 'unknown' its own style so it is never drawn as the green 'ok' (ACR-0017)", () => {
+    expect(EDGE.unknown).toBeDefined();
+    expect(EDGE.unknown).not.toBe(EDGE.ok);
+    expect(DASH.unknown).toBeDefined();
+    expect(EDGE.broken).not.toBe(EDGE.ok);
   });
 });
 

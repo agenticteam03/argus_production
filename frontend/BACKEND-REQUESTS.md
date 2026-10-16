@@ -1,63 +1,57 @@
-# What the UI needs from the API (not there yet)
+# What the UI needs from the API (delivered)
 
 Task: [`T-0016`](../brain/tasks/current/T-0016-frontend.md) — the web frontend, `frontend/`.
 Rule (T-0016): the UI uses **only** the routes in [`../docs/API-FOR-UI.md`](../docs/API-FOR-UI.md). When a screen
 needs data that no route provides, it is **asked for here** and the screen stays hidden until the route exists —
 the UI never calls an undocumented route.
 
-This file lists the two read routes the redesigned incident page (2026-10-15) can show but that Argus does not
-serve yet. Until they exist, the **Map** and **Metrics** tabs are simply absent; nothing breaks and nothing is
-invented. Both are **read-only** GETs, so they stay inside the UI's read-only rule (ACR-0001). Adding them widens
-the authenticated read surface, so — like ACR-0014 (host metrics) — each needs an **ACR**, a
-`contracts/ui-api.json` update, a sample in `contracts/samples/`, and an edge allowlist entry. That is the API
-side's work; this file is the frontend's request and the exact shape the components expect.
+This file originally requested the two read routes the redesigned incident page (2026-10-15) draws. They are now
+**delivered and merged** by [ACR-0017](../brain/architecture/changes/ACR-0017-ui-topology-and-incident-metrics.md)
+(backend steps #160/#161, deployed in DEPLOY-161; the frontend connection is T-0016). Both are **read-only** GETs,
+inside the UI's read-only rule (ACR-0001), and both are declared in `contracts/ui-api.json` with samples under
+`contracts/samples/`. The shapes the components expect are below; they match the samples.
 
 The UI reads either route **only when `VITE_ARGUS_INSIGHTS=1`** (see `src/services/httpArgusAdapter.js`): off by
-default, so a normal build never calls a route that does not exist. The tabs and the two mini cards on the
-incident page appear **automatically** once the route answers with data (the hooks
-`src/hooks/useTopology.js`, `src/hooks/useIncidentMetrics.js` return `null` on 404/empty/error and the page hides
-what it cannot draw).
+default, so a build against an API that predates the routes never calls a missing one. When it is on, the tabs and
+the cards appear **automatically** once the route answers with data (the hooks `src/hooks/useTopology.js`,
+`src/hooks/useIncidentMetrics.js` return `null` on 404/empty/error and the page hides what it cannot draw).
 
 ---
 
-## 1. `GET /api/v1/topology` — the system map
+## 1. `GET /api/v1/topology[?incident_id=<id>]` — the system map
 
-Needed by: the **Map** tab and the “Where it broke” card (`src/components/SystemMap.jsx`).
+Needed by: the **Map** tab, the “Where it broke” card and the **Dashboard live map**
+(`src/components/SystemMap.jsx`).
 
-Read access: same as the other GETs (a read/investigate token). No query parameters.
+Read access: a read/investigate token (any role). With `incident_id`, the overlay adds the incident's target and
+root cause from its stored evidence, and is **operator/approver only** (a viewer gets `403`; the UI then falls back
+to the plain map, `useTopology`).
 
 Response body:
 
 ```json
 {
+  "observed_at": "2026-10-14T15:39:20Z",
   "hosts": [
-    { "id": "vm-095", "label": "Host A", "role": "argus" },
-    { "id": "vm-166", "label": "Host T", "role": "monitored" }
+    { "id": "vm-095", "label": "vm-095", "role": "monitored" },
+    { "id": "vm-166", "label": "vm-166", "role": "monitored" }
   ],
   "nodes": [
     {
-      "id": "argus-v18-agent",
-      "host": "vm-095",
-      "label": "argus-v18-agent",
-      "sub": "agent",
-      "target": "vm-095/container:argus-v18-agent",
-      "kind": "argus",
-      "status": "running",
-      "info": [{ "label": "Image", "value": "argus-v18-agent:1.8.13" }]
-    },
-    {
-      "id": "argus-lab-worker",
+      "id": "vm-166/container:argus-lab-worker",
       "host": "vm-166",
       "label": "argus-lab-worker",
       "sub": "container",
       "target": "vm-166/container:argus-lab-worker",
-      "kind": "app",
-      "status": "restarting"
+      "kind": "container",
+      "status": "restarting",
+      "info": [{ "label": "Memory limit", "value": "64 MiB" }]
     }
   ],
   "edges": [
-    { "from": "argus-v18-agent", "to": "argus-lab-worker", "state": "ok", "label": "reads" }
-  ]
+    { "from": "vm-166/container:argus-lab-worker", "to": "vm-166/host:vm-166", "state": "unknown", "label": "declared dependency" }
+  ],
+  "incident_id": "inc_f4b1b8c6be87"
 }
 ```
 
@@ -65,9 +59,13 @@ Response body:
 - `nodes[].target`: the same string the incident uses (`vm-166/container:…`). The UI matches the incident's
   `target` and `root_cause_target` **against this** to colour the affected box and the root-cause box; it never
   guesses them (`stateOf`, `miniNodes` in `SystemMap.jsx`). A node without `target` is drawn normally.
-- `nodes[].kind`: `"argus"` (the agent itself) or `"app"`.
-- `edges[].state`: `"ok"` | `"broken"` | `"read"` (`label` is optional).
+- `nodes[].kind`: the inventory kind, `"container"` or `"host"` (the mock demo also uses `"argus"`).
+- `nodes[].status`: may be `"unknown"` — Argus does not know. The UI draws an unknown box with its own style and
+  **never as “ok”** (`stateOf`, `RECT`).
+- `edges[].state`: `"ok"` | `"unknown"` | `"broken"` | `"read"` (`label` is optional). `"unknown"` is neither green
+  nor red — it has its own dashed style, so it is never read as a working dependency (`EDGE`, `DASH`).
 - `info` is optional; the side panel shows it as label → value rows.
+- Never VM addresses, Argus's internal endpoints or secrets; container/network/port names are intentional.
 
 ## 2. `GET /api/v1/incidents/{id}/metrics?range=15m|30m|1h` — the incident's metrics window
 
@@ -82,7 +80,7 @@ Response body:
   "to": "2026-10-06T16:00:00Z",
   "series": [
     {
-      "key": "memory_used_ratio",
+      "key": "container_memory_bytes",
       "title": "Memory",
       "unit": "%",
       "max": 1,
@@ -108,7 +106,7 @@ Response body:
 
 ## Why not just wire them with mock data?
 
-The demo (`VITE_ARGUS_MOCK=1`) already ships a fake topology and a fake metrics window
-(`demoTopology` / `demoMetrics` in `src/services/demoIncidents.js`), so the Map and Metrics tabs can be seen
-offline **without any flag**. Real mode needs the two routes above **and** `VITE_ARGUS_INSIGHTS=1`; until then the
-HTTP adapter's two methods return `null` in real mode and the tabs stay hidden.
+The demo (`VITE_ARGUS_MOCK=1`) also ships a fake topology and a fake metrics window (`demoTopology` / `demoMetrics`
+in `src/services/demoIncidents.js`), so the Map and Metrics tabs can be seen offline **without any flag**. Real mode
+needs the two routes above **and** `VITE_ARGUS_INSIGHTS=1`; without the flag the HTTP adapter's two methods return
+`null` in real mode and the tabs stay hidden.

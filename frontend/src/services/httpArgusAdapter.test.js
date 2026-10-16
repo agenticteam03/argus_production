@@ -5,6 +5,9 @@ import events from "../../../contracts/samples/events.json";
 import incident from "../../../contracts/samples/incident.json";
 import incidents from "../../../contracts/samples/incidents.json";
 import hostMetrics from "../../../contracts/samples/host-metrics.json";
+import incidentMetrics from "../../../contracts/samples/incident-metrics.json";
+import topology from "../../../contracts/samples/topology.json";
+import topologyIncident from "../../../contracts/samples/topology-incident.json";
 import { httpArgusAdapter } from "./httpArgusAdapter.js";
 import { clearToken, getToken, setToken } from "./session.js";
 import { clearSession, loadSession, saveSession } from "./sessionStore.js";
@@ -35,6 +38,7 @@ describe("httpArgusAdapter", () => {
     clearToken();
     clearSession();
     delete globalThis.sessionStorage;
+    vi.unstubAllEnvs();
     vi.restoreAllMocks();
   });
 
@@ -136,6 +140,31 @@ describe("httpArgusAdapter", () => {
     fetch.mockResolvedValueOnce(response(404, {}));
 
     await expect(httpArgusAdapter.getIncident("nope")).rejects.toMatchObject({ status: 404 });
+  });
+
+  it("reads the system map, the incident overlay and the metric window when insights are on (ACR-0017)", async () => {
+    vi.stubEnv("VITE_ARGUS_INSIGHTS", "1");
+    fetch.mockResolvedValueOnce(response(200, topology))
+      .mockResolvedValueOnce(response(200, topologyIncident))
+      .mockResolvedValueOnce(response(200, incidentMetrics));
+
+    const map = await httpArgusAdapter.getTopology();
+    const overlay = await httpArgusAdapter.getTopology("inc_f4b1b8c6be87");
+    const window = await httpArgusAdapter.getIncidentMetrics("inc_f4b1b8c6be87", "15m");
+
+    expect(fetch.mock.calls[0][0]).toBe("/api/v1/topology");
+    expect(fetch.mock.calls[1][0]).toBe("/api/v1/topology?incident_id=inc_f4b1b8c6be87");
+    expect(fetch.mock.calls[2][0]).toBe("/api/v1/incidents/inc_f4b1b8c6be87/metrics?range=15m");
+    expect(map.nodes.length).toBeGreaterThan(0);
+    expect(overlay.incident_id).toBe("inc_f4b1b8c6be87");
+    expect(Array.isArray(window.series)).toBe(true);
+  });
+
+  it("does not call the map or metrics routes when the flag is off", async () => {
+    expect(await httpArgusAdapter.getTopology()).toBeNull();
+    expect(await httpArgusAdapter.getTopology("inc_1")).toBeNull();
+    expect(await httpArgusAdapter.getIncidentMetrics("inc_1", "15m")).toBeNull();
+    expect(fetch).not.toHaveBeenCalled();
   });
 
   it("rejects the placeholder write call: this release is read-only", async () => {

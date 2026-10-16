@@ -33,6 +33,13 @@ test.describe("dashboard (guideline 2)", () => {
     await expect(page.getByText(esc.route).first()).toBeVisible();
   });
 
+  test("shows the live system map (ACR-0017)", async ({ page, api }) => {
+    await api();
+    await logIn(page);
+    await expect(page.getByText("System map")).toBeVisible();
+    await expect(page.locator('svg[aria-label^="System map"]')).toBeVisible();
+  });
+
   test("shows current host metrics and answers a Host T memory question", async ({ page, api }) => {
     await api();
     await logIn(page);
@@ -84,7 +91,7 @@ test.describe("incidents", () => {
     await expect(page.getByText("Evidence is visible to operators and approvers.")).toBeVisible();
   });
 
-  test("the page groups its sections into tabs and adds Map/Metrics only when their routes answer", async ({ page, api }) => {
+  test("the page groups its sections into tabs and shows Map/Metrics when their routes answer (ACR-0017)", async ({ page, api }) => {
     await api();
     await logIn(page);
     await page.goto(`/incidents/${DIAGNOSED_ID}`);
@@ -92,10 +99,50 @@ test.describe("incidents", () => {
     for (const name of ["Runtime Timeline", "Evidence", "Audit"]) {
       await expect(page.getByRole("tab", { name })).toBeVisible();
     }
-    // No VITE_ARGUS_INSIGHTS in this build, so the two routes that do not exist yet are never called and their tabs
-    // stay hidden (the hooks return null). The Map and Metrics tabs appear only when the API answers with data.
-    await expect(page.getByRole("tab", { name: "Map", exact: true })).toHaveCount(0);
-    await expect(page.getByRole("tab", { name: "Metrics", exact: true })).toHaveCount(0);
+    // VITE_ARGUS_INSIGHTS=1 and the faked API serve GET /api/v1/topology and .../metrics, so both tabs appear and
+    // render the real shapes. "unknown" edges must show, never as "dependency ok".
+    await page.getByRole("tab", { name: "Map", exact: true }).click();
+    await expect(page.locator('svg[aria-label^="System map"]')).toBeVisible();
+    await expect(page.getByText("unknown", { exact: true })).toBeVisible();          // the legend entry
+    await page.getByRole("tab", { name: "Metrics", exact: true }).click();
+    await expect(page.getByText(/missing sample is a gap/)).toBeVisible();
+  });
+
+  test("an operator's Map asks for the incident overlay (ACR-0017)", async ({ page, api }) => {
+    await api({ role: "operator" });
+    const overlay = page.waitForRequest((r) => r.url().includes("/api/v1/topology?incident_id="));
+    await logIn(page);
+    await page.goto(`/incidents/${DIAGNOSED_ID}`);
+    await overlay;                                                     // the incident page asks for the overlay
+    await page.getByRole("tab", { name: "Map", exact: true }).click();
+    await expect(page.locator('svg[aria-label^="System map"]')).toBeVisible();
+  });
+
+  test("a viewer never asks for the overlay and still sees the plain map (ACR-0017)", async ({ page, api }) => {
+    await api({ role: "viewer" });
+    const seen = [];
+    page.on("request", (r) => { if (r.url().includes("/api/v1/topology")) seen.push(r.url()); });
+    await logIn(page);
+    await page.goto(`/incidents/${DIAGNOSED_ID}`);
+    await page.getByRole("tab", { name: "Map", exact: true }).click();
+    await expect(page.locator('svg[aria-label^="System map"]')).toBeVisible();
+    expect(seen.some((u) => u.includes("incident_id"))).toBe(false);   // a viewer gets the plain map only
+  });
+
+  test("a refused overlay (403) falls back to the plain map (ACR-0017)", async ({ page, api }) => {
+    // The overlay is operator/approver only; if the API refuses it, the page must still show the plain system map
+    // instead of losing it (the API decides permissions, never the UI).
+    await api({ role: "operator", overrides: {
+      "GET /api/v1/topology": (route, request) => {
+        const overlay = new URL(request.url()).searchParams.get("incident_id");
+        return route.fulfill({ status: overlay ? 403 : 200, contentType: "application/json",
+          body: JSON.stringify(overlay ? { detail: "role may not read the incident overlay" } : sample("topology")) });
+      },
+    } });
+    await logIn(page);
+    await page.goto(`/incidents/${DIAGNOSED_ID}`);
+    await page.getByRole("tab", { name: "Map", exact: true }).click();
+    await expect(page.locator('svg[aria-label^="System map"]')).toBeVisible();
   });
 
   test("an unknown incident shows 'Incident not found'", async ({ page, api }) => {

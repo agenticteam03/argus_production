@@ -3,9 +3,11 @@ import { Link } from "react-router-dom";
 import AgentChat from "../components/AgentChat.jsx";
 import DiagnoseForm from "../components/DiagnoseForm.jsx";
 import IncidentRow from "../components/IncidentRow.jsx";
+import { SystemMapCard } from "../components/SystemMap.jsx";
 import { Arrow, Bell, Card, Empty, Inbox, LivePill, OutcomeBadge, Pill, Shield } from "../components/ui.jsx";
 import { useAuth } from "../context/AuthContext.jsx";
 import { useLiveOverview } from "../hooks/useLiveOverview.js";
+import { useTopology } from "../hooks/useTopology.js";
 import { argus, dataSource } from "../services/index.js";
 import { dateTime, timeAgo } from "../utils/format.js";
 import { loadLevel, worstLevel } from "../utils/load.js";
@@ -132,6 +134,7 @@ function EscalationsCard({ escalations }) {
 export default function Dashboard() {
   const { user } = useAuth();
   const { incidents, approvals, escalations, hostMetrics, live, updatedAt, refresh } = useLiveOverview();
+  const topology = useTopology();     // ACR-0017: the live map, any role; the card hides itself when the route is absent
   // A read token never lists `approve`, so the buttons stay hidden (ACR-0001); the UI never decides who may act.
   const canDecide = user.actions?.includes("approve") ?? false;
   // The server derives the actor from the token; an expired/conflicting decision just triggers a refresh.
@@ -170,6 +173,8 @@ export default function Dashboard() {
           <EscalationsCard escalations={escalations} />
         </div>
       </div>
+
+      <SystemMapCard topology={topology} />
     </div>
   );
 }

@@ -27,6 +27,7 @@ describe("the real adapters against contracts/ui-api.json", () => {
   let calls;
   beforeEach(() => {
     calls = [];
+    vi.stubEnv("VITE_ARGUS_INSIGHTS", "1");    // ACR-0017: the map and metrics calls are read only behind this flag
     vi.stubGlobal("fetch", vi.fn(async (url, init = {}) => {
       calls.push({ method: (init.method ?? "GET").toUpperCase(), url });
       const body = String(url).endsWith("/auth/token") ? { access: "read", access_token: "a.b.c", token_type: "bearer" }
@@ -34,7 +35,7 @@ describe("the real adapters against contracts/ui-api.json", () => {
       return { ok: true, status: 200, json: async () => body };
     }));
   });
-  afterEach(() => { vi.unstubAllGlobals(); clearToken(); });
+  afterEach(() => { vi.unstubAllGlobals(); vi.unstubAllEnvs(); clearToken(); });
 
   it("call only declared routes, methods and query parameters", async () => {
     await httpAuthAdapter.signIn({ username: "alice", password: "x" });
@@ -46,7 +47,10 @@ describe("the real adapters against contracts/ui-api.json", () => {
     await httpArgusAdapter.getOverview();
     await httpArgusAdapter.listTargets();                                            // ACR-0012
     await httpArgusAdapter.startInvestigation({ target: "vm-166/container:x", requestKind: "check", reason: "r" });
-    expect(calls.length).toBeGreaterThanOrEqual(11);
+    await httpArgusAdapter.getTopology();                                            // ACR-0017: the system map
+    await httpArgusAdapter.getTopology("inc_1");                                     // the incident overlay
+    await httpArgusAdapter.getIncidentMetrics("inc_1", "15m");                       // the incident's metric window
+    expect(calls.length).toBeGreaterThanOrEqual(14);
     expect(undeclared(calls)).toEqual([]);
   });
 
