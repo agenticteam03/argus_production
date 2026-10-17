@@ -393,3 +393,7 @@ a screen or a button in `frontend/`.
      `frontend/BACKEND-REQUESTS.md` (marked delivered), `frontend/GUIDELINES.md`, `frontend/README.md`.
    - **Not done / needs a teammate:** a real-mode click-through on vm-095 with `VITE_ARGUS_INSIGHTS=1` (needs a
      person's browser login) and the deploy build passing the flag; the routes and the flag stay off by default.
+   - **Deploy build passes the flag (2026-10-16, `task/T-0016-insights-build`):** `deploy/ui/Dockerfile` now sets
+     `ENV VITE_ARGUS_INSIGHTS=1` (test `test_the_dockerfile_builds_the_map_and_metrics_calls_in`, red seen before the
+     line). The image still has to be rebuilt and the UI edge redeployed on vm-095 (lease), then the real-mode
+     click-through by a person.
