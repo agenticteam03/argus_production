@@ -10,6 +10,8 @@ RUN npm ci --no-audit --no-fund
 COPY frontend/ ./
 COPY argus/runbooks/ /src/argus/runbooks/
 ENV VITE_ARGUS_MOCK=0
+# ACR-0017: build the Map and Metrics calls in (the edge serves both routes). Unset it to hide the tabs again.
+ENV VITE_ARGUS_INSIGHTS=1
 RUN npm run build \
  && mkdir -p /out/runbooks \
  && cp /src/argus/runbooks/RB-*.md /out/runbooks/ \

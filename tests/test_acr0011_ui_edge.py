@@ -71,6 +71,12 @@ def test_the_dockerfile_uses_the_tested_nginx_image_and_a_real_mode_build():
     assert f"FROM {NGINX_IMAGE}" in df and "ENV VITE_ARGUS_MOCK=0" in df
 
 
+def test_the_dockerfile_builds_the_map_and_metrics_calls_in():
+    # ACR-0017: without this flag the real build never requests the topology and metrics routes the edge already serves.
+    df = (ROOT / "deploy" / "ui" / "Dockerfile").read_text(encoding="utf-8")
+    assert "ENV VITE_ARGUS_INSIGHTS=1" in df
+
+
 # --- with Docker: the real Nginx, a fake API ------------------------------------------------------------------------
 FAKE_API = r'''
 import json
