@@ -37,9 +37,10 @@ export const mockArgusAdapter = {
     return all.filter((e) => e.seq > after);
   },
 
-  // Phases 4 and 5 (demo): the system map and an incident's metrics window. Not in contracts/ui-api.json yet.
-  async getTopology() {
-    record("/api/v1/topology");
+  // Phases 4 and 5 (demo): the system map and an incident's metrics window (ACR-0017; routes now in
+  // contracts/ui-api.json). The demo map already carries the demo incident's target, so the overlay is the same body.
+  async getTopology(incidentId) {
+    record(incidentId ? `/api/v1/topology?incident_id=${incidentId}` : "/api/v1/topology");
     await wait(200);
     return demoTopology();
   },

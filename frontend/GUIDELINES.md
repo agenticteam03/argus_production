@@ -30,6 +30,8 @@ rendering. Unit tests with Vitest; Playwright acceptance tests come next (T-0016
      signal is shown as "No data" (proposed ACR-0014). WireGuard and token totals remain outside this API;
    - **escalations**: the incidents Argus could not conclude on its own and raised to a human — target (opens the
      incident), outcome, route and the recorded diagnosis, newest first;
+   - **system map** (ACR-0017): the live topology of both hosts, with the same legend as the incident's Map tab; it
+     hides itself while the route is absent or the flag is off;
    - **start an investigation** (ACR-0012): a target from the inventory's list, check or report, an optional reason;
      it opens the new incident. Shown only when `/me` lists `start_investigation` (an operator or approver); an
      incident page offers "Investigate again" on its target. A quota answer says when to try again;
@@ -54,9 +56,11 @@ rendering. Unit tests with Vitest; Playwright acceptance tests come next (T-0016
 - **Why Argus concluded this:** the target → root-cause chain, confidence, who decided (rules or AI), the findings,
   the runbooks it read (each opens on the Runbooks page) and the evidence it cites (each jumps to the Evidence tab).
 - **Map and Metrics are honest.** They read `GET /api/v1/topology` and `GET /api/v1/incidents/{id}/metrics`, which
-  Argus does not serve yet (see [`BACKEND-REQUESTS.md`](BACKEND-REQUESTS.md)). The UI never invents them: the real
-  adapter asks for them only with `VITE_ARGUS_INSIGHTS=1` (off by default), and the tabs stay hidden until the route
-  answers.
+  Argus now serves (ACR-0017). The UI never invents them: the real adapter asks for them only with
+  `VITE_ARGUS_INSIGHTS=1` (off by default), and the tabs stay hidden until the route answers. On an incident, an
+  operator or approver also asks for the overlay (`?incident_id=…`) that adds the target and root cause from the
+  incident's evidence; a viewer (or a refused overlay) gets the plain map. `unknown` is a first-class state — it is
+  never drawn as `ok`, and a `null` metric sample is a gap, never a zero.
 
 ## What happens on click (summary)
 

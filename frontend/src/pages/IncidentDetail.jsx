@@ -10,6 +10,7 @@ import RunTimeline from "../components/RunTimeline.jsx";
 import { MapTab, MiniMapCard, miniNodes } from "../components/SystemMap.jsx";
 import { ErrorCard, Disclosure, Fact, OUTCOME_META, OutcomeBadge, Skeleton, STATUS_META, StatusBadge, TabList, TabPanel } from "../components/ui.jsx";
 import WhyCard from "../components/WhyCard.jsx";
+import { useAuth } from "../context/AuthContext.jsx";
 import { useIncident } from "../hooks/useIncident.js";
 import { useIncidentMetrics } from "../hooks/useIncidentMetrics.js";
 import { useTopology } from "../hooks/useTopology.js";
@@ -23,11 +24,15 @@ const ghost = "cursor-pointer rounded-xl border border-line bg-field px-4 py-2 t
 
 export default function IncidentDetail() {
   const { id } = useParams();
+  const { user } = useAuth();
   const { view, incident: inc, events, reconnecting, retry } = useIncident(id);
   const [params, setParams] = useSearchParams();
   const [range, setRange] = useState("30m");
   const [rawOpen, setRawOpen] = useState(false);
-  const topology = useTopology();
+  // ACR-0017: the incident overlay (real networks and state from the incident's evidence) is operator/approver only;
+  // asking for it as a viewer is a 403, so a viewer gets the plain system map instead.
+  const canOverlay = user?.role === "operator" || user?.role === "approver";
+  const topology = useTopology(canOverlay ? id : undefined);
   const metrics = useIncidentMetrics(id, range, inc?.status);
   const headingRef = useRef(null);
   const [announce, setAnnounce] = useState("");

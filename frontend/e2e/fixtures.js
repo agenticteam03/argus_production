@@ -28,6 +28,8 @@ const allowed = (method, path, { investigate = false } = {}) => method === "GET"
   || (method === "POST" && path === "/api/v1/auth/token")
   || (investigate && method === "POST" && path === "/api/v1/investigations");
 const CAN_INVESTIGATE = new Set(["operator", "approver"]);
+// ACR-0017: the topology overlay (?incident_id=) uses the incident's evidence, so only operators and approvers.
+const CAN_OVERLAY = new Set(["operator", "approver"]);
 
 // role: "operator" (sees evidence and audit) or "viewer" (the API leaves them out of the incident view).
 // overrides: { "<METHOD> <path>": (route, request) => … } to change one answer in a test.
@@ -63,6 +65,14 @@ async function fakeApi(page, { role = "operator", overrides = {} } = {}, state =
     if (key === "GET /api/v1/escalations") return json(route, sample("escalations"));
     if (key === "GET /api/v1/targets") return json(route, sample("targets"));
     if (key === "GET /api/v1/host-metrics") return json(route, sample("host-metrics"));
+    if (key === "GET /api/v1/topology") {                                    // ACR-0017
+      const overlay = url.searchParams.get("incident_id");
+      if (!overlay) return json(route, sample("topology"));
+      return CAN_OVERLAY.has(role)
+        ? json(route, sample("topology-incident"))
+        : json(route, { detail: "role may not read the incident overlay" }, 403);
+    }
+    if (key === `GET /api/v1/incidents/${DIAGNOSED_ID}/metrics`) return json(route, sample("incident-metrics"));
     if (key === "POST /api/v1/investigations") return json(route, { ...sample("investigation"), incident_id: DIAGNOSED_ID }, 202);
     if (key === `GET /api/v1/incidents/${DIAGNOSED_ID}`) return json(route, incident);
     if (key === `GET /api/v1/incidents/${DIAGNOSED_ID}/events`) return json(route, sample("events"));
