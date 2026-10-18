@@ -1,7 +1,7 @@
 # Argus — Production Architecture Specification
 
 **Document type:** consolidated target architecture and implementation blueprint ·
-**Version:** 1.8.15 (2026-10-16, ACR-0017 topology; 1.8.14 2026-10-16, ACR-0017 incident metrics; 1.8.12 2026-10-14, ACR-0014; 1.8.11 2026-10-14, ACR-0012; 1.8.10 2026-10-14, ACR-0011; 1.8.8 2026-10-12, ACR-0009; 1.8.7 2026-10-12, ACR-0008; 1.8.6 2026-10-11, ACR-0007; 1.8.5 2026-10-09, ACR-0005; 1.8.4 2026-10-09, ACR-0004; 1.8.3 2026-10-08, ACR-0003; 1.8.2 2026-10-09, ACR-0002; 1.8.1 2026-10-06, ACR-0001; base 1.8.0 of 30 September 2026, sanitized for the shared repository 2026-10-02) · **Audience:** engineers and AI coding agents implementing
+**Version:** 1.8.16 (2026-10-18, ACR-0013 and ACR-0016 Langfuse Cloud tracing; 1.8.15 2026-10-16, ACR-0017 topology; 1.8.14 2026-10-16, ACR-0017 incident metrics; 1.8.12 2026-10-14, ACR-0014; 1.8.11 2026-10-14, ACR-0012; 1.8.10 2026-10-14, ACR-0011; 1.8.8 2026-10-12, ACR-0009; 1.8.7 2026-10-12, ACR-0008; 1.8.6 2026-10-11, ACR-0007; 1.8.5 2026-10-09, ACR-0005; 1.8.4 2026-10-09, ACR-0004; 1.8.3 2026-10-08, ACR-0003; 1.8.2 2026-10-09, ACR-0002; 1.8.1 2026-10-06, ACR-0001; base 1.8.0 of 30 September 2026, sanitized for the shared repository 2026-10-02) · **Audience:** engineers and AI coding agents implementing
 Argus from an empty repository.
 
 
@@ -501,6 +501,7 @@ The cross-host path **MUST** satisfy all of the following, in every profile:
 | argus-worker (tools server child) | host-probe / network-probe / db-probe | HTTP over the private path | target-context diagnostics | per-(host, executor) credential + allowlisted verbs |
 | argus-worker (write path) | action-gateway | HTTP over the private path | approved write action | credential + exact route/target + action ID; **only after that capability's write gate** |
 | argus-worker | model endpoint | HTTPS egress | reasoning | provider API key |
+| argus-worker | Langfuse Cloud (EU) | HTTPS egress | filtered traces (ACR-0013, ACR-0016) | Langfuse project key pair |
 | argus-worker | Slack/email | HTTPS/SMTP egress | notifications | provider credentials |
 | argus-scheduler | argus-api (or application directly) | internal HTTP or in-process | scheduled triggers | internal service identity |
 | Human | Argus API | the CLI and Swagger: HTTP(S) over a loopback-bound SSH tunnel or VPN | manual trigger, approval, incident view | human login ⇒ short-lived JWT (§17.3) |
@@ -2349,7 +2350,7 @@ client secrets.
 | Scheduler service identity | scheduler → api | internal credential |
 | `argus-tools` UID | MCP tools server | executor credentials per `(host, executor)` |
 | Worker write identity | `local_write.py` | action-gateway credential per host (after a release only) |
-| Model provider key, notifier credentials | worker | egress credentials |
+| Model provider key, notifier credentials, Langfuse project key pair | worker | egress credentials |
 | DB runtime / maintenance / migration roles | api, worker, scheduler / retention job / migrations | see §16.2 |
 
 All secrets are injected by the deployment (environment or mounted files), read only by
@@ -2446,8 +2447,11 @@ A separate monitoring-of-monitoring rule (outside Argus) SHOULD detect Alertmana
 
 ### 18.5 Tracing
 
-This is optional. `observability/tracing_langfuse.py` or an OpenTelemetry integration is selected by
-`wiring.py`, with `tracing_noop.py` as the default. It is never an application port.
+This is optional (ACR-0013, ACR-0016): the worker exports filtered OTLP spans to Langfuse Cloud (EU) through
+`ARGUS_TRACING_ENDPOINT`; a self-hosted stack (`deploy/langfuse/`) is the alternative for a host with headroom.
+`observability/tracing_langfuse.py` or an OpenTelemetry integration is selected by `wiring.py`, with
+`tracing_noop.py` as the default. It is never an application port. Telemetry never replaces audit and never blocks an
+investigation.
 
 ---
 
@@ -2950,3 +2954,4 @@ erDiagram
 | 1.8.12 | 2026-10-14 | `GET /api/v1/host-metrics`: the inventory's hosts' CPU busy, memory used and root-disk used ratios for any authenticated role, through the public edge; no request parameter or PromQL; missing or stale is null; a 20 s shared snapshot (§7.1) | [ACR-0014](changes/ACR-0014-ui-host-metrics.md) |
 | 1.8.14 | 2026-10-16 | `GET /api/v1/incidents/{id}/metrics`: an incident's metric window for the UI's charts, any authenticated role, through the public edge; `range` 15m/30m/1h; a fixed signal list per class (`config/ui-incident-signals.yaml`); the incident's host only; ≤ ~130 points per series; missing is null; `MetricsPort.range` gains an optional `end` (§7.1, §8.1). The topology route of the same ACR follows in its own version | [ACR-0017](changes/ACR-0017-ui-topology-and-incident-metrics.md) |
 | 1.8.15 | 2026-10-16 | `GET /api/v1/topology`: the system map for any authenticated role, through the public edge: inventory targets, declared dependencies with their ports and networks, live state from named signals and the dependency probe; an `incident_id` overlay (operator/approver) from the incident's stored status evidence; never VM addresses, Argus's internal endpoints or secrets; `ARGUS_HOME_HOST` (§7.1) | [ACR-0017](changes/ACR-0017-ui-topology-and-incident-metrics.md) |
+| 1.8.16 | 2026-10-18 | the worker exports filtered OTLP spans to Langfuse Cloud (EU) through `ARGUS_TRACING_ENDPOINT`, with the Langfuse key pair in worker-only files; the self-hosted stack stays as the alternative for a host with headroom; telemetry never replaces audit (§3.3, §17.2, §18.5) | [ACR-0013](changes/ACR-0013-langfuse-agent-observability.md), [ACR-0016](changes/ACR-0016-langfuse-cloud.md) |

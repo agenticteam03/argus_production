@@ -2,11 +2,11 @@
 
 | Field | Value |
 |---|---|
-| Status | `proposed` - architecture and deployment remain unchanged until an implementation PR |
+| Status | `accepted` - its host changed by [ACR-0016](ACR-0016-langfuse-cloud.md) (Langfuse Cloud instead of Host A) |
 | Proposed by | conantkd (+ agent) - 2026-10-14 |
-| Accepted by | pending teammate review |
+| Accepted by | juanbetancurm - PR #156 review, 2026-10-16 |
 | Second approval (safety principle only) | not required for this proposal: read-only, audit, secrets and target-host isolation rules are preserved |
-| Architecture version | current `1.8.10` to the next free version when applied (tentatively `1.8.12`; ACR-0012 proposes `1.8.11`) |
+| Architecture version | applied at `1.8.16` together with ACR-0016 |
 | Task / PR | [LF-2](../../tasks/current/LF-2-langfuse-db-architecture.md) - PR #150 |
 
 ## 1. Detect and explain

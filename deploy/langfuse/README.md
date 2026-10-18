@@ -1,5 +1,11 @@
 # Langfuse observability on vm-095
 
+> **2026-10-15 (LF-3 step 02):** this stack failed its capacity gate on vm-095 (1 vCPU, no swap): a ClickHouse merge
+> was OOM-killed at its 768 MiB limit and the shared disk saturated (I/O pressure 99 %). It is stopped there.
+> [ACR-0016](../../brain/architecture/changes/ACR-0016-langfuse-cloud.md) proposes Langfuse Cloud (EU) instead: set
+> `ARGUS_TRACING_ENDPOINT=https://cloud.langfuse.com/api/public/otel/v1/traces` in `hosts.env` and put the Cloud
+> project's keys in the same worker-only files. Keep this directory for a host with headroom.
+
 This directory prepares a private Langfuse v4 deployment next to Argus. It is not deployed by this branch. The six
 dedicated services use their own PostgreSQL database and volumes: web, worker, PostgreSQL, ClickHouse, Redis and MinIO.
 The web UI listens only on `127.0.0.1:18300`; the Argus worker reaches it over `argus-v18-core`. No browser receives a
