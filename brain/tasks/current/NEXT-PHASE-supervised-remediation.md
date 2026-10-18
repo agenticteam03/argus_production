@@ -2,45 +2,82 @@
 
 | Field | Value |
 |---|---|
-| Status | `proposed` — team review of the proposal PR; no implementation starts before it is approved |
-| Phase | 15–21 (planned, [`../../IMPLEMENTATION_PLAN.md`](../../IMPLEMENTATION_PLAN.md)) |
-| Architecture | [ACR-0018](../../architecture/changes/ACR-0018-operator-access-and-audit.md) operator access and audit · [ACR-0019](../../architecture/changes/ACR-0019-human-approved-remediation.md) human-approved remediation · [ACR-0020](../../architecture/changes/ACR-0020-operator-terminal.md) operator terminal — all `proposed` |
+| Status | `proposed` — team review of PR #170; no implementation starts before it is approved |
+| Phase | 15–23 (planned, [`../../IMPLEMENTATION_PLAN.md`](../../IMPLEMENTATION_PLAN.md)) |
+| Architecture | [ACR-0018](../../architecture/changes/ACR-0018-operator-access-and-audit.md) operator access and audit · [ACR-0019](../../architecture/changes/ACR-0019-human-approved-remediation.md) human-approved remediation · [ACR-0020](../../architecture/changes/ACR-0020-operator-terminal.md) operator terminal · [ACR-0022](../../architecture/changes/ACR-0022-autonomous-investigation.md) more autonomous investigation — all `proposed` |
+| Sources | this proposal (juanbetancurm) merged with `conantkd`'s "Argus actúa" (2026-10-18) |
 | Branch | `task/NEXT-PHASE-proposal` (documentation only) |
-| Owner | `juanbetancurm` (+ agent); lanes below |
+| Owner | `juanbetancurm` and `conantkd` (+ agents); lanes below |
 | Needs the VM lease | no (documentation only) |
 
 ## Goal
 
-Move Argus from read-only diagnosis to **supervised remediation**, with the operator in control of every change:
+Move Argus from read-only diagnosis to **supervised remediation**, with a human operator as the final approver of
+every change:
 
-1. **Argus-proposed fix (ACR-0019):** Argus proposes one action from a runbook's action menu; an authenticated
-   approver approves that frozen proposal with a fresh second factor; a restricted executor that never sees model
-   output runs exactly that action; Argus verifies recovery on fresh evidence.
-2. **Operator terminal (ACR-0020):** the operator in charge fixes the problem manually in a full, recorded terminal
-   in the UI, under their own identity.
+1. **Argus-proposed fix (ACR-0019):**
+   - Argus proposes **one action from a closed catalogue**, allowed by the target's **service card** and the
+     **action card**, with cited evidence and grounds (a runbook, the memory of verified actions, or curated vendor
+     documentation), a **prediction** and alternatives;
+   - a **judge** model reviews it and can only make it stricter;
+   - an authenticated human approves that frozen proposal, with a fresh second factor;
+   - the **worker** executes exactly that action through an exact-route gateway;
+   - Prometheus confirms the recovery and the prediction, and the result goes into the memory of actions.
+2. **Operator terminal (ACR-0020):** the operator in charge fixes the problem in a full, recorded terminal in the UI,
+   under their own identity. "Insert" offers only commands the cards allow; the shell itself is unrestricted for the
+   authorized operator.
+3. **More autonomous investigation (ACR-0022):** reads and suggestions only.
+   - open investigations for incidents no class covers;
+   - automatic follow-up checks after any fix;
+   - new reads ("what changed recently", allowlisted config files, vendor documentation);
+   - isolated internet research that only produces suggestions for the operator.
 
-Both rest on **ACR-0018**: one account per person, WebAuthn MFA, step-up, revocable sessions, explicit permissions,
-a tamper-evident audit copied off Host A, privileged routes only on a private path.
+All of it rests on **ACR-0018**:
+- one account per person, WebAuthn MFA, step-up, revocable sessions, explicit permissions;
+- a tamper-evident audit copied off Host A;
+- privileged routes only on a private path.
 
-## Responsibility model (ACR-0019 §3)
+## What each proposal contributed
 
-The approving operator is accountable for the decision to execute a specific, frozen proposal. The team is
-accountable for which actions Argus may propose, for the accuracy and completeness of what the approver is shown,
-and for ensuring that only the approved action runs, on the approved target, at most once, with its outcome verified
-and recorded. Human approval is required but never sufficient. In the terminal, the operator is directly responsible
-for the commands they type; the controls there are access and recording.
+| From this proposal | From `conantkd`'s "Argus actúa" |
+|---|---|
+| MFA, step-up, sessions, permissions, audit chain, private path (ACR-0018) | the closed catalogue organized by intent; "the model never writes commands" |
+| the operator terminal (ACR-0020) | service cards and action cards with code-evaluated preconditions |
+| the responsibility model; why approval and live gauges are not enough | grounds and a computed basis; a model-only basis becomes a suggestion |
+| leases as automatic holds; lab-only scope; per-pair release | risk colours in a reviewed table; colour only goes up |
+| the prompt-injection escape (#166) and the self-merge protected paths | the mandatory prediction and alternatives; verification of the prediction |
+| | the judge (stricter only, fail closed) |
+| | the memory of verified actions; runbook drafts from repeated verified fixes |
+| | `suggest_action`; isolated research for suggestions; the curated reference corpus |
+| | scenarios with answer keys (correct / acceptable / useless / harmful) and traps |
+| | the worker dispatches (with the controls of ACR-0019 §3.9) |
+
+**Deferred (each needs its own ACR later):**
+- earned autonomy (pre-approvals, veto windows); shadow mode measures it from now on;
+- more action families: PostgreSQL, configuration with a hash lock, rollback, Linux host actions, Ansible and other
+  generated tools;
+- other container runtimes.
+
+## Responsibility model (ACR-0019 §3.1)
+
+- The approving operator is accountable for the decision to execute a specific, frozen proposal.
+- The team is accountable for which actions Argus may propose (the catalogue, cards and risk table, reviewed in PRs),
+  for what the approver is shown, and for ensuring that only the approved action runs, once, verified and recorded.
+- Human approval is required but never sufficient.
+- In the terminal, the operator is directly responsible for the commands they type; the controls there are access and
+  recording.
 
 ## Why approval and live gauges are not enough
 
 | Risk | Example in this project | Control (ACR) |
 |---|---|---|
-| The data supports the wrong action | SC-03: the victim `argus-lab-api` looks broken; restarting it is wrong (RB-003) | runbook action menus, `never` rules in code (0019) |
+| The data supports the wrong action | SC-03: the victim `argus-lab-api` looks broken; restarting it is wrong (RB-003) | service card `never`, action card `not_useful_when`, the "never offered" list, the judge (0019) |
 | Same name on two hosts | `argus-lab-worker` on vm-095 and vm-166 | proposal bound to host + container id; per-host gateway (0019) |
-| Approval and execution at different times | the container recreated, the incident resolved, a teammate's scenario started | identity binding, expiry, precheck, leases as holds (0019) |
-| What runs differs from what was shown | a log line escaping its data block (#166) | an executor without model access; exact-route gateway; socket proxy (0019) |
-| "Live" data has gaps | cached views, stale metrics, `unknown` edges | unknown never ok; verification on fresh samples (0019) |
+| Approval and execution at different times | the container recreated, the incident resolved, a teammate's scenario started | identity binding, expiry, precheck with the cards' preconditions, leases as holds (0019) |
+| What runs differs from what was shown | a log line escaping its data block (#166) | the dispatch reads only frozen rows; import boundary; exact-route gateway; socket proxy (0019) |
+| "Live" data has gaps | cached views, stale metrics, `unknown` links | unknown never ok; verification and the prediction on fresh samples (0019) |
 | A stolen account or session | a password alone approves | WebAuthn, step-up per approval, private path, sessions (0018) |
-| Approval fatigue | an alert storm | small released set, rate limits, emergency stop (0019) |
+| Approval fatigue | an alert storm | small released set, colours, typing the name for red, rate limits, emergency stop (0019) |
 | Partial failure and our own bugs | a crash mid-dispatch | ledger, reconciliation, never a blind retry (0019, §14) |
 | Accountability without proof | an edited audit row | hash chain + off-host digest (0018) |
 
@@ -48,33 +85,38 @@ for the commands they type; the controls there are access and recording.
 
 | Phase | Content | Lane | ACR | Lease | Exit proof |
 |---|---|---|---|---|---|
-| **15. Foundations** | fix OP-015 (§14 described as built) and OP-016 (shared password); extend `SELF_MERGE_PROTECTED` with the new safety paths; OP-014 steps 4–8 in CI (coverage on changed lines, SAST, dependency audit, workflow lint, scheduled model evaluation) | Quality | — | no | the gates green on CI |
-| **16. Operator access and audit** | ACR-0018: per-person accounts, WebAuthn, step-up, sessions and revocation, persistent limiter, EdDSA keys, permissions with host scopes, audit hash chain + off-host digest, the private path | Integration + Quality + Frontend | 0018 | deploy (both) | authorization matrix green; public 404 for privileged routes; tamper test |
-| **17. Suggestions** | the runbook **Actions** section; `next_actions` in incidents; the UI "Next steps" card with "Copy" (read-only) | Quality + Frontend | 0019 (§12.2 part) | deploy (both) | SC-03 suggests "start the cache" and never "restart argus-lab-api"; evaluation `expected_action` / `forbidden_actions` |
-| **18. The §14 machinery, fake gateway** | tables, graph nodes, write contract, failure-injection and binding suites; the write gate stays closed | Quality | 0019 | no | §14.4 and §22.2 suites green; standing test green |
-| **19. Approvals and the executor** | approvals UI (private path, step-up), holds, emergency stop; `argus-actor`; the action gateway + socket proxy (not yet routed) | Integration + Frontend | 0019 | deploy (both) | the worker cannot reach a gateway; the actor refuses unapproved rows; gateway route tests on real images |
-| **20. First released pair (lab)** | `container.start` on `vm-166/container:argus-lab-cache` (SC-03), its own release PR, two reviewers | Integration + Quality | 0019 | release (both) | 5/5 scenario runs: right proposal, approved, executed once, verified healthy; rollback rehearsed |
-| **21. Operator terminal** (may overlap 18–20 after 16) | ACR-0020: broker, SSH CA, per-person accounts, recording off-host, private path, incident linking, "Insert" | Integration + Frontend | 0020 | deploy (both) | ACR-0020 §4 tests; a drill of the terminal's incident response |
+| **15. Foundations** | fix OP-015 and OP-016; extend `SELF_MERGE_PROTECTED` (`config/actions/`, `config/risk.yaml`, the dispatch module, the gateway); OP-014 steps 4–8 in CI | Quality | — | no | the gates green on CI |
+| **16. Operator access and audit** | ACR-0018 | Integration + Quality + Frontend | 0018 | deploy (both) | authorization matrix green; public 404 for privileged routes; tamper test |
+| **17. Cards, catalogue and suggestions** | service cards in the inventory; action cards and the precondition interpreter; `config/risk.yaml`; the runbook `actions` block; `suggest_action`; `next_actions` in incidents (read-only); scenario answer keys and traps in the evaluation | Quality + Frontend | 0019 | deploy (both) | SC-03 suggests "start the cache" and never "restart argus-lab-api"; evaluation grades actions; no `eval` in the interpreter |
+| **18. The §14 machinery, fake gateway** | tables, `ProposeRemediation` with grounds / prediction / alternatives, basis computation and downgrade, the judge, `propose_action` → `judge_proposal` → `request_approval` → `await_approval` → `precheck_action` → `execute_write` → `verify`; failure-injection and binding suites; shadow-mode recording; the write gate stays closed | Quality | 0019 | no | §14.4 and §22.2 suites green; judge fail-closed; standing test green |
+| **19. Approvals in the UI and the gateway** | approvals (private path, step-up, colours, judge, typing the name for red), holds, emergency stop, suggestions, the incident's Actions tab; the action gateway + socket proxy (not yet routed); the import-boundary and token-isolation tests | Integration + Frontend | 0019 | deploy (both) | the dispatch module cannot import the LLM adapter; the tools child cannot read the action token; gateway route tests on real images |
+| **20. First released pair (lab)** | `container.start` on `vm-166/container:argus-lab-cache` (SC-03), its own release PR, two reviewers | Integration + Quality | 0019 | release (both) | 5/5 scenario runs: right proposal, judge agrees, approved, executed once, prediction met, `recovered_verified`; rollback rehearsed |
+| **21. Operator terminal** (may overlap 18–20 after 16) | ACR-0020: broker, SSH CA, per-person accounts, recording off-host, private path, incident linking, card-limited "Insert" | Integration + Frontend | 0020 | deploy (both) | ACR-0020 §4 tests; a drill of the terminal's incident response |
+| **22. More autonomous investigation** (after 16) | ACR-0022: follow-up checks, the new reads, the curated reference corpus, the open investigation (lab scope) | Quality + Integration | 0022 | deploy (both) | follow-up checks recorded after a manual fix and after an action; an open investigation never proposes; new reads pass their inspection policy |
+| **23. Isolated research** (last, disabled by default) | the research container, proxy, quarantined reader, suggestion card buttons | Integration | 0022 | deploy (vm-095) | queries carry no host/address/secret; no route to Argus's database; results never in a model request or a ground |
 
-**Critical path:** 15 → 16 → 18 → 19 → 20. Phase 17 and 21 run in parallel once 16 is deployed.
+**Critical path:** 15 → 16 → 17 → 18 → 19 → 20. Phases 21 and 22 run in parallel once 16 is deployed; 23 comes last.
 
-**Later phases, each with its own ACR when proposed** (from the next-phase notes, not part of this proposal):
-observed topology with live dependency checks; explicit hypotheses and transparent cause ranking; incident feedback
-and outcomes (was the diagnosis right, what fixed it); controlled external knowledge from approved sources only.
-Incident feedback is the natural next ACR: phase 20's verification and phase 21's sessions produce the outcomes it
-records.
+**Later, with their own ACRs:**
+- more action families: `db-action` for PostgreSQL, `config.patch` / `config.restore` with a hash lock,
+  `deployment.rollback`, Linux `host-action`, Ansible / OpenAPI / pattern-generated tools;
+- other container runtimes;
+- **earned autonomy**, using the shadow-mode data from phase 18 on.
+
+The UI backend (T-0045, ACR-0021), observed topology with scheduled edge checks, and explicit hypotheses with cause
+ranking are separate tracks.
 
 ## Cross-cutting gates
 
 | Gate | Where | Blocks |
 |---|---|---|
-| Unit, contract, Postgres and Docker tests (including gateway, socket proxy and broker isolation) | CI on every pull request | any merge |
+| Unit, contract, Postgres and Docker tests (gateway, socket proxy, broker isolation, token isolation, import boundary) | CI on every pull request | any merge |
 | Authorization matrix, step-up, revocation, audit chain | CI | phases 19–21 |
-| §14.4 failure injection, §22.2 binding tests | CI | phase 20 |
-| Evaluation hard checks (`unauthorized_actions`, `actions_on_forbidden_targets`, `action_without_valid_approval` and the existing three) at 0; accuracy not below the previous run | scheduled evaluation + before each release PR | phase 20 |
-| Prompt-injection regression (logs, files, history) | CI | phases 17–20 |
+| §14.4 failure injection, §22.2 binding tests, judge fail-closed, basis downgrade, colour only goes up | CI | phase 20 |
+| Evaluation: answer keys; hard checks (`unauthorized_actions`, `actions_on_forbidden_targets`, `action_without_valid_approval`, `harmful_actions` and the existing three) at 0; accuracy not below the previous run | scheduled evaluation + before each release PR | phase 20 |
+| Prompt-injection regression (logs, files, history, fetched pages) | CI | phases 17–23 |
 | Scenario runs 5/5, `nonint-check.sh` clean | `code.bash`, leases | each deployment and release |
-| Two reviewers | the PR | every `write_gate.open` change, terminal enablement |
+| Two reviewers | the PR | every `write_gate.open` change, every card or risk-table change that adds power, terminal enablement, research enablement |
 
 ## Open decisions (for the proposal review)
 
@@ -82,10 +124,15 @@ records.
 2. Private path: a team VPN, or mTLS client certificates with an address allowlist? (`wg0` belongs to the protected
    deployment and is not reused without its owner's agreement.)
 3. Who holds `approve_action` and `open_terminal:<host>`; is separation of duties enforced on the lab profile?
-4. First released pairs: `container.start argus-lab-cache` only, or also `container.restart` for SC-02's worker?
-5. The off-host store for the audit digest and the terminal recordings, and their retention.
-6. Approval expiry (proposed 15 min) and the per-target action rate (proposed one per 10 min).
-7. The model-evaluation budget for phases 17 and 20 (trials per change).
+4. First released pair: `container.start` (this proposal) or `container.restart` (`conantkd`'s 1A) on
+   `argus-lab-cache`? The cache is stopped in SC-03, so `start` is the narrower action.
+5. The judge's model: another provider or family than the deciding model, and its cost.
+6. Approval expiry (proposed 30 min in the lab) and the per-target action rate (one per 10 min).
+7. The off-host store for the audit digest and the terminal recordings, and their retention.
+8. Whether vm-095 (Argus's own host) ever gets actions (recommendation: no).
+9. Whether drills count as memory for production (recommendation: counts are per scope; lab counts never apply to
+   production).
+10. The model-evaluation budget for phases 17, 18 and 20.
 
 ## Not in this proposal
 

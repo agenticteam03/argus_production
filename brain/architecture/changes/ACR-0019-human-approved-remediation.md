@@ -1,146 +1,299 @@
-# ACR-0019 — Human-approved remediation: Argus proposes, an operator approves, a restricted executor acts
+# ACR-0019 — Human-approved remediation: actions from service and action cards, a human approves, the worker executes
 
 Part of the next-phase proposal ([task](../../tasks/current/NEXT-PHASE-supervised-remediation.md)). Depends on
 [ACR-0018](ACR-0018-operator-access-and-audit.md) (operator access and audit), which must be applied and deployed
-first.
+first. Revised 2026-10-18 to merge `conantkd`'s proposal "Argus actúa" (the catalogue, service and action cards, risk
+colours, prediction, memory, judge, scenarios with answer keys) with this one.
 
 | Field | Value |
 |---|---|
 | Status | `proposed` |
-| Proposed by | juanbetancurm (+ agent) · 2026-10-18 |
+| Proposed by | juanbetancurm and conantkd (+ agents) · 2026-10-18 |
 | Accepted by | pending (team review of the NEXT-PHASE proposal PR) |
-| Second approval (safety principle only) | **required**: read-only and the write gate (the first released write capability), least privilege (a new executor and gateway), secrets (action-gateway tokens) |
+| Second approval (safety principle only) | **required**: read-only and the write gate (the first released write capability), least privilege (a new gateway), secrets (action-gateway tokens) |
 | Architecture version | the next free version when applied (after ACR-0018) |
-| Task / PR | NEXT-PHASE · PR (this proposal) |
+| Task / PR | NEXT-PHASE · PR #170 |
 
 ## 1. Detect and explain
 
 Argus diagnoses and recommends; a human then repairs by hand, outside Argus, with no link back to the incident. The
-team wants the next step: an operator can **approve a fix that Argus proposes**, and Argus executes exactly that fix
-and verifies recovery.
+team wants the next step: Argus **proposes a fix from a closed catalogue**, an authenticated **human approves** that
+exact proposal, the worker executes it through an exact-route gateway, and Prometheus confirms the recovery.
 
-ARCHITECTURE already designs this path (§4.5 action gateway, §13.3 write gate, §14 approval → resume → precheck →
+ARCHITECTURE designs most of the path (§4.5 action gateway, §13.3 write gate, §14 approval → resume → precheck →
 ledger → reconcile → verify, §14.8 the write contract, §22.2 release criteria), but:
-
-- **none of it is implemented** (no `action_proposal` / `approval` / `action` / `target_hold` tables, no write
-  contract, no approval routes), although §14 says "the machinery, its tables and its tests exist from the start"
-  and `IMPLEMENTATION_PLAN.md` phase 9 lists "HITL against a fake action endpoint" (OP-015);
-- the design gives the action credential to **the worker** (§4.5 "the worker holds no action credential" until a
-  release; §17.2 "Worker write identity | `local_write.py`"), the same process that reads model output;
-- proposals are not tied to the runbooks' constraints, so a proposal can be technically valid and still wrong
-  (restarting the victim, RB-002; restarting the dependent service, RB-003).
+- **none of it is implemented** (OP-015): no `action_proposal` / `approval` / `action` / `target_hold` tables, no
+  write contract, no approval routes; `argus/policy/engine.py` refuses to start with a non-empty `write_gate.open`,
+  and `tests/test_write_gate_standing.py` requires that no write capability is registered;
+- a proposal is not tied to **who may touch what** (a service's owner, its criticality, which actions it allows) nor
+  to **why the action should work** (a runbook, a verified earlier fix, the vendor's documentation);
+- nothing predicts what a fix should change, or remembers whether a fix worked.
 
 ## 2. Why the current architecture is insufficient
 
-Human approval protects the *decision*, not its inputs or its execution. The live gauges in the UI show symptoms,
-not causes or targets. Cases the current design does not close:
+Human approval protects the *decision*, not its inputs or its execution. Live gauges show symptoms, not causes or
+targets. Cases the current design does not close:
 
-1. **The data supports the wrong action:** in SC-03 the victim (`argus-lab-api`) looks broken on every graph; a
-   proposal to restart it would look justified.
-2. **Same name, two hosts:** `argus-lab-worker` exists on vm-095 and vm-166; "restart argus-lab-worker" is ambiguous
-   to a reader.
-3. **Approval and execution happen at different times:** the target can be replaced, the incident resolved, or a
+1. **The data supports the wrong action:** in SC-03 the victim (`argus-lab-api`) looks broken on every graph.
+2. **Same name, two hosts:** `argus-lab-worker` exists on vm-095 and vm-166.
+3. **Approval and execution happen at different times:** the target can be recreated, the incident resolved, a
    teammate's scenario started in between.
-4. **What runs can differ from what was shown,** if the execution path can be influenced by model output (a log line
-   that escaped its data block was found and fixed in #166).
-5. **"Live" data has gaps:** cached views (20–30 s), stale metrics, `unknown` edges.
-6. **Partial failure and our own bugs:** a crash during dispatch, a retry, a wrong route.
+4. **What runs can differ from what was shown** if the dispatch path reads anything the model or a log can influence
+   (a log line escaped its data block before #166).
+5. **"Live" data has gaps:** cached views, stale metrics, `unknown` links.
+6. **Approval fatigue, partial failures and our own bugs.**
+7. **No source of authority:** §1.3 says the runbooks' mutating actions are candidates, but a runbook does not say
+   whether *this* service may be touched; RB-003 requires "a separately authorized target" for a dependency.
 
 ## 3. Smallest reasonable change
 
-**Responsibility model** — new paragraph in §1.4, after rule 9:
+### 3.1 Responsibility (new paragraph in §1.4, after rule 9)
 
 > The approving operator is accountable for the decision to execute a specific, frozen proposal. The team is
-> accountable for which actions Argus may propose, for the accuracy and completeness of what the approver is shown,
-> and for ensuring that only the approved action runs, on the approved target, at most once, with its outcome
-> verified and recorded. Human approval is required but never sufficient: every action also passes the controls of
-> §13–§14.
+> accountable for which actions Argus may propose (the catalogue, the service and action cards, the risk table, all
+> reviewed in pull requests), for the accuracy and completeness of what the approver is shown, and for ensuring that
+> only the approved action runs, on the approved target, at most once, with its outcome verified and recorded. Human
+> approval is required but never sufficient: every action also passes the controls of §13–§14.
 
-**§1.2**, before: "In this release **no write capability is released**: Argus is read-only, and remediation is
-performed by humans." After: "Write capabilities are released one `(capability, target)` pair at a time (§13.3,
-§22.2), on lab targets only in this release; every execution needs a human approval of a frozen proposal (§14)."
+Rule 2 is **unchanged**: every write needs the explicit approval of an authenticated human, given at the time. There
+are no pre-approvals in this release (§3.10).
 
-**§4.5 and §17.2 — the executor never sees the model.** A new container **`argus-actor`** replaces "the worker's write
-path":
-- it claims only `action` rows whose approval is `approved` and whose precheck passed;
-- it holds the per-host action-gateway token; it has **no model client and parses no model output**;
-- the worker writes proposal rows only and has no network route to any action gateway (a tested property).
+### 3.2 §1.2
 
-§17.2 row before: "Worker write identity | `local_write.py` | action-gateway credential per host (after a release
-only)". After: "Actor identity | `argus-actor` | action-gateway credential per host (after a release only)".
+Before: "In this release **no write capability is released**: Argus is read-only, and remediation is performed by
+humans." After: "Write capabilities are released per `(capability, scope)` (§13.3, §22.2), on lab targets only in this
+release. Each execution needs an authenticated human's approval of a frozen proposal (§14). Argus never writes a
+command: it picks an action and its parameters from closed lists."
 
-**§4.5 — the action gateway** gains a Docker **socket proxy** with path ACLs between it and the socket, so a bug in
-the gateway still cannot reach another Docker API. Routes are rendered from a reviewed `config/actions.yaml` (exact
-route + exact targets per released pair).
+### 3.3 The catalogue (§12.2)
 
-**§12.2 / §14.8 — proposals come from runbook menus.** A class's runbooks declare their actions in a machine-readable
-**Actions** section (`action_id`, `capability`, typed placeholders, `preconditions`, `never` rules, verification
-signals, `reversible`, `risk`). A proposal names an `action_id` and fills only its placeholders from the incident; a
-free-form proposal is refused by the harness. `never` rules are evaluated by code at proposal and at precheck.
+- A closed catalogue of **typed actions**, organized by intent: start, stop/contain, limit resources, reload, roll
+  back, free disk, fix configuration.
+- Each action has a canonical name (`container.start`) and a model name (`start_container`), like the reads.
+- **The model never writes commands.** It picks a capability and its parameters from enums; the gateway translates
+  the call into one exact API route. A made-up action has nothing that could execute it (`fabricated_tool`, a
+  security event).
+- **First catalogue, Docker (`action-gateway`):**
+  - `container.start`, `container.restart`, `container.stop`, `container.pause`, `container.unpause`;
+  - `container.update_resources`, `container.signal`;
+  - `container.network_connect`, `container.network_disconnect`;
+  - `deployment.rollback`, `docker.prune_images`, `docker.prune_build_cache`.
 
-**§14.4 step 7 (precheck)** additions: no other developer's active VM lease on the target's host (an active lease is
-an automatic hold); no other action on the same target within 10 minutes; the incident class still detected on a
-fresh sample.
+  Later families (PostgreSQL `db-action`, configuration with a hash lock, Linux `host-action`, generated tools) each
+  come with their own ACR.
+- **Never offered** (no enum value, no gateway route, a standing test):
+  - restarting the victim instead of the cause (RB-002, RB-003);
+  - the Docker or containerd daemon (RB-017);
+  - deleting data, WAL or volumes;
+  - flushing firewall or DNS rules; lowering TLS security; moving the clock back;
+  - Argus itself (`argus-v18-*`), Prometheus, Alertmanager, the gateways and the probes;
+  - `exec`, `archive`, privileged containers, mounting the Docker socket;
+  - free SQL;
+  - installing packages, creating users, kernel changes.
+- **`suggest_action(text, closest_capability?)`:** a new decision for when no catalogue action fits or no source
+  supports one. It is text for the operator and never executes; the suggestions are the backlog of actions to add.
 
-**§14.3 — approving in the UI:** the approval view shows the frozen proposal: capability, host-qualified target and
-its identity (container id), arguments, the runbook action and its constraints, the evidence ids with their source
-and time, the precheck preview, reversible yes/no, the expiry (15 minutes). Answering needs the `approve_action`
-permission, a human principal, the private path and a step-up token bound to `approval_id + proposal_digest`
-(ACR-0018). An approver-only **emergency stop** places a global hold.
+### 3.4 Service cards and action cards (§5.8, §13.1)
 
-**§13.3 / §22 — release scope for this phase:** `write_gate.open` may list only `argus-lab-*` targets. Candidate
-first pairs (each released by its own reviewed PR, two reviewers, §22.2 criteria, 5/5 scenario runs):
-`container.start` on `vm-166/container:argus-lab-cache` (SC-03); possibly `container.restart` on
-`vm-095/container:argus-lab-worker` for the non-OOM crash (SC-02, RB-008). Argus's own containers, Prometheus, the
-gateways, the probes and the protected objects are never action targets.
+**Service card**: a `service:` block per target in `config/inventory.yaml`, written by the service's owner and
+reviewed in a PR. It is part of `inventory_version`, so a change between approval and execution cancels at precheck.
+Fields:
+- `role`, `kind` (`stateless` | `stateful` | `proxy` | `database`), `owner`, `criticality` (`low` | `medium` |
+  `high`), `data` (`ephemeral` | `persistent`);
+- `safe_actions` (each with parameter bounds), `never` (e.g. `container.restart` on the database);
+- `allowed_networks`, `verify`, `quirks`.
 
-**§15.1 — verification:** unchanged in principle (fresh samples only); its result is recorded per incident.
+It is the "separately authorized target" RB-003 asks for.
 
-**§21.2 — evaluation:** new labels (`expected_action`, `forbidden_actions`) and hard checks at 0:
-`unauthorized_actions`, `actions_on_forbidden_targets`, `action_without_valid_approval`.
+**Action card**: one file per action in `config/actions/`, reviewed in a PR. Fields:
+- the executor, the exact route, the parameters, and the identity fields;
+- `preconditions` as expressions over fresh observations, evaluated by a minimal interpreter (comparisons, `in`,
+  `and`, `or`; **never `eval`**);
+- `useful_when` and `not_useful_when` (e.g. "it died of OOM: a restart will not help, the action is
+  `update_resources`");
+- `verify` (signals and window), `rollback`;
+- `risk` per target kind;
+- `sources` (runbook ids, reference ids).
+
+### 3.5 Grounds and basis: when Argus may propose (§11.2, §11.3)
+
+A proposal answers three questions, each from a source that is cited and stored as evidence:
+
+| Question | Source | Required |
+|---|---|---|
+| What is happening? | the incident's evidence | always |
+| May this be touched here? | the **service card** (`safe_actions`), or a runbook that names the action | always |
+| Why will this action fix it? | a runbook's `actions` block, the **memory of verified actions**, or curated vendor documentation | always |
+
+- The **basis** (`runbook` | `memory` | `reference` | `operator`) is computed by code from the cited grounds; the
+  model never declares it.
+- A proposal whose only basis is the model's own knowledge, or that cites an internet result, is **downgraded to a
+  suggestion** (`decision.downgraded_to_suggestion`).
+- A manual action by the operator (ACR-0020) or a suggestion the operator turns into a proposal (basis `operator`)
+  follows the same rule: allowed only when the service card and the action card permit it, with cited evidence.
+
+### 3.6 The mandatory shape of a proposal (§5.6, §11.2)
+
+`ProposeRemediation` carries:
+- `capability`, `target` and `arguments` (enums; validated against the action card and the service card's bounds);
+- `root_cause`, and a `rationale` that says why it addresses the cause and not the symptom;
+- `evidence_refs` (the current state), `grounds` (why it works);
+- a **`prediction`**: the signal on the target that must reach the expected value within N seconds (e.g. the victim's
+  `dependency_probe_min == 1` within 120 s);
+- 1–3 **`alternatives`**, from the least to the most invasive, each with `why_not`.
+
+A proposal missing any of them is `InvalidDecision(malformed)`. The digest also covers the preview (`dry_run` or
+diff, where the action has one) and the rollback plan.
+
+### 3.7 Risk colours (`config/risk.yaml`, §13.1)
+
+- **Colours:**
+  - **green**: reversible, no data loss, a stateless target;
+  - **amber**: reversible, but it cuts connections or work in progress;
+  - **red**: hard to reverse, or a data risk;
+  - **forbidden**: never offered.
+- **Set by people** in a reviewed table, per action **and** target kind (from the service card): restarting the
+  ephemeral cache is green; restarting the database is forbidden. The model never rates risk.
+- **The colour of one proposal can only go up:** `criticality: high` raises it one level, a judge's `disagree` raises
+  it one more.
+- **The approver sees the colour.** A **red** proposal needs the approver to type the target's name to confirm.
+
+### 3.8 The judge (§10, §11)
+
+- A second model call reviews the **frozen** proposal: its extracts of evidence and grounds, the service card and the
+  action card, without the deciding model's conversation. It answers a fixed schema: `verdict` (`agree` | `doubt` |
+  `disagree`), `checks` (evidence supports the cause, the action addresses the cause, the grounds support the action,
+  a less invasive alternative exists, the risk is understated) and `reasons`.
+- It **can only make things stricter:** it raises the colour, and shows its reasons to the approver. It never
+  approves or changes the proposal.
+- Its verdict is stored as evidence. A timeout or invalid answer counts as `doubt` (fail closed). Its agreement with
+  human decisions is measured.
+
+### 3.9 Execution by the worker (§4.5, §17.2)
+
+The worker that runs the investigation also dispatches the approved action (as §17.2's "Worker write identity |
+`local_write.py`" designs). The controls that keep the model out of the execution path:
+- `execute_write` reads **only** the frozen `action_proposal` and `approval` rows from Postgres; it never receives
+  model output or context. The module that dispatches cannot import the LLM adapter or the harness (an
+  import-boundary test, §2.3).
+- The action-gateway token is mounted for the worker process only. The MCP tools child (`argus-tools` UID, ACR-0002)
+  cannot read it (the credential-isolation test, now run in CI).
+- The gateway accepts only the released `(route, target)` pairs, requires `X-Argus-Action-Id`, keeps a journal, and
+  reaches Docker through a **socket proxy** with path ACLs.
+- One action per target at a time (the §14.4 lock), no other action on the same target within 10 minutes, a daily cap
+  per host.
+
+### 3.10 The human is the final approver (§14.3)
+
+- **The approval view** shows the frozen proposal:
+  - capability, host-qualified target and its identity, arguments;
+  - colour, basis and grounds, prediction, alternatives;
+  - the judge's verdict and reasons;
+  - the precheck preview, reversible yes/no, the expiry (proposed 30 min in the lab).
+- **Answering** needs the `approve_action` permission, a human principal, the private path and a step-up bound to
+  `approval_id + proposal_digest` (ACR-0018). The UI over the private path is the main path; the CLI and Swagger on
+  loopback stay.
+- **No pre-approvals, veto windows or autonomous execution in this release.** Shadow mode records, for each approved
+  green/amber proposal, whether a future autonomy rule *would* have allowed it. This is measurement only, for a later
+  ACR.
+- **Holds:** an approver can place a hold or pull the emergency stop (a global hold) at once from the UI or the CLI.
+  Raising power is a reviewed PR; lowering it is one click.
+
+### 3.11 Precheck (§14.4 step 7), additions
+
+- the action card's preconditions, re-evaluated on fresh reads;
+- no hold, including the automatic hold while another developer holds the host's lease;
+- the target identity is unchanged;
+- the class is still detected;
+- the service and action cards are unchanged (`inventory_version`, `policy_version`).
+
+### 3.12 Verification, outcomes and memory (§5.3, §15)
+
+- **Verification:** `verify` waits for a Prometheus sample after the action, runs the class's detector **and checks
+  the prediction**. Only `recovered_verified` counts as success; a missed prediction is recorded against the action.
+- **New outcomes in `IncidentOutcome`:** `recovered_verified`, `action_failed`, `indeterminate_escalated`, `denied`,
+  `expired` (`resolved_externally` and `no_action_escalated` exist).
+- **The memory of verified actions:** at `record`, an insert-only `action_outcome` row stores the redacted symptom
+  signature, the class and target kind, the action and argument shape, the basis, the result, what the human did
+  (approved, denied with a reason, did it manually), and the origin (lab, drill, production).
+  `knowledge.prior_incidents` returns it, e.g. "this action ended `recovered_verified` 3 of 3 times on this service".
+- **Resolution summary:** the record distinguishes "service recovered" from "cause resolved". When the same symptom,
+  action and grounds verify several times, Argus drafts a runbook `actions` block for a human to review and promote.
+
+### 3.13 Release scope and evaluation (§13.3, §21.2, §22)
+
+- `write_gate.open` lists `(capability, scope)` pairs; the only scope in this release is `lab` (`argus-lab-*`).
+  The first released pair: `container.start` on `vm-166/container:argus-lab-cache` (SC-03), its own release PR, two
+  reviewers.
+- **The evaluation grades actions:**
+  - each scenario has an answer key with the outcome correct / acceptable / useless / harmful;
+  - trap scenarios, where escalating or doing nothing is the right answer;
+  - new hard checks at 0: `unauthorized_actions`, `actions_on_forbidden_targets`, `action_without_valid_approval`,
+    `harmful_actions`.
 
 **Alternatives considered:**
-- A: **keep Argus read-only; humans repair outside Argus.** Safe, but the incident loses the link to its fix, and
-  remediation stays slow; ACR-0020 (the terminal) covers manual repair, this ACR covers routine ones.
-- B: **implement §14 as written (the worker holds the action credential).** Rejected: the process that parses model
-  output would hold write authority; one injection or parser bug is a write.
-- C: **let the model write the command, the operator approves the text.** Rejected: the text shown and the command
-  run can diverge; approvals of free text do not scale to safe execution.
-- D: **auto-approve low-risk actions.** Rejected by §1.4 rule 2 (no write without an authenticated human's approval).
+- A: **a separate executor (`argus-actor`) that never runs the model.** Stronger isolation, but a new container,
+  token and claim loop. Rejected for this release in favour of §3.9's controls (the dispatch reads only frozen rows;
+  an import-boundary test; the tools child cannot read the token). Reconsider if a review finds a path from model
+  output to dispatch.
+- B: **actions only from runbook menus.** Safer but too narrow: almost no runbook names an exact action today.
+  Replaced by service and action cards with cited grounds, where a runbook is one source.
+- C: **earned autonomy** (pre-approvals, veto windows, `actor = grant:…`), as in conantkd's phase 4. Deferred: it
+  changes rule 2 and needs shadow-mode data first. Shadow mode starts now (§3.10).
+- D: **the model writes the command and the operator approves the text.** Rejected: the text shown and the command
+  run can diverge.
+- E: **keep Argus read-only.** Safe, but remediation stays manual and unlinked; ACR-0020 covers manual repair.
 
 ## 4. Consequences
 
-- **Code:** migrations for §14.1's tables; graph nodes `propose_action`, `request_approval`, `await_approval`
-  (LangGraph `interrupt`), `precheck_action`, dispatch, `verify`; `capabilities/write_contract.py`; the runbook
-  Actions parser and the proposal validator; `argus-actor`; the action gateway and socket proxy; approval and hold
-  routes; UI approval page.
-- **Tests (before any release):** the §14.4 failure-injection suite; the §22.2 binding tests (changed arguments,
-  replaced target, resolved incident, expired proposal, changed inventory, active hold, reused token, non-human or
-  unscoped approver, other developer's lease); the actor refuses a row without a valid approval or a passed precheck;
-  the worker cannot reach a gateway; gateway exact-route and socket-proxy tests on the real images; reconciliation and
-  `indeterminate` → escalate, never retry; the standing write-gate test stays for every unreleased pair; evaluation
-  hard checks.
-- **Deployment:** `argus-actor` on vm-095; an action gateway + socket proxy per host, deployed only when a pair is
-  released; firewall rule from the actor only; per-host tokens with rotation.
-- **Brain:** `policies/SECURITY.md` "Read-only" principle → "Supervised writes"; `PARALLEL_LANES.md` (actions need
-  the host's lease; leases are holds); `AGENT_PROTOCOL.md` (the agent never answers approvals or edits the write
-  gate); `REVIEW_PROTOCOL.md` + `brain.py` `SELF_MERGE_PROTECTED` (the new safety paths); `RUNBOOK-CONVENTIONS.md`
-  (the Actions section).
-- **Risk:** a wrong but approved action on a lab container; mitigated by runbook menus, `never` rules, identity
-  binding, precheck, lab-only scope, rate limits, the emergency stop, verification.
+- **Domain:** `ProposeRemediation`, `SuggestAction`, `Prediction`, `Alternative`, `ActionProposal`, `Approval`,
+  `ActionRecord`, `ActionOutcome`; the new `IncidentOutcome` values.
+- **Policy:** the write gate per scope, holds, approvers, the action-card interpreter, `config/risk.yaml`, the service
+  cards.
+- **Orchestration:** nodes `propose_action`, `judge_proposal`, `request_approval`, `await_approval` (LangGraph
+  `interrupt`), `precheck_action`, `execute_write`, `verify`; harness conversion rules for proposals and suggestions.
+- **Store:** migration with §14.1's tables, `action_outcome`, `judge_verdict` evidence.
+- **Gateway:** the action gateway + socket proxy on each host, deployed only when a pair is released.
+- **API/UI:** approvals, holds, the emergency stop, suggestions, the incident's Actions tab (ACR-0018 for access).
+- **Tests before any release:**
+  - the §14.4 failure-injection suite;
+  - the §22.2 binding tests;
+  - the action-card interpreter (no `eval`; malformed expressions refused);
+  - "colour only goes up";
+  - judge fail-closed;
+  - a model-only basis is downgraded;
+  - an internet ground is refused;
+  - the import boundary of the dispatch module, and the tools child cannot read the action token;
+  - gateway exact routes and socket proxy on real images;
+  - reconciliation and `indeterminate` → escalate;
+  - the standing write-gate test for every unreleased pair;
+  - the scenario answer keys.
+- **Brain:**
+  - `policies/SECURITY.md`: "Read-only" becomes "Supervised writes";
+  - `PARALLEL_LANES.md`: actions need the host's lease, and leases are holds;
+  - `AGENT_PROTOCOL.md`: the agent never answers approvals or edits the write gate;
+  - `REVIEW_PROTOCOL.md` + `SELF_MERGE_PROTECTED`: `config/actions/`, `config/risk.yaml`, the dispatch module, the
+    gateway;
+  - `RUNBOOK-CONVENTIONS.md`: the runbook `actions` block.
+- **Risk:** a wrong but approved action on a lab container. Mitigated by:
+  - the closed catalogue and the cards;
+  - colours and the judge;
+  - the prediction, identity binding and precheck;
+  - lab-only scope, rate limits, holds and the emergency stop;
+  - verification.
 - **How to reverse it:** empty `write_gate.open`, stop the action gateways, close their firewall rules (one rehearsed
-  `code.bash` block); the read-only diagnosis is unaffected.
-- **Safety principles touched:** yes: read-only, write gate, least privilege, secrets. Second approval required.
+  `code.bash` block); diagnosis is unaffected.
+- **Safety principles touched:** yes (read-only, write gate, least privilege, secrets). Second approval required.
 
 ## 5. Decision
 
-Proposed. To be accepted or changed in the NEXT-PHASE proposal PR review. Implementation starts only after ACR-0018
-is applied and deployed; the first release of a pair is its own reviewed PR.
+Proposed by juanbetancurm and conantkd, merging both proposals. Implementation starts only after ACR-0018 is applied
+and deployed; the first release of a pair is its own reviewed PR.
 
 ## 6. Applied
 
-- [ ] `ARCHITECTURE.md` updated (§1.2, §1.4, §4.5, §12.2, §13.3, §14.3, §14.4, §14.8, §15.1, §17.2, §21.2, §22,
-      changelog), version bumped
+- [ ] `ARCHITECTURE.md` updated (§1.2, §1.4, §4.5, §5.3, §5.6, §5.8, §10, §11.2, §11.3, §12.2, §13.1, §13.3, §14.3,
+      §14.4, §15, §17.2, §21.2, §22, changelog), version bumped
 - [ ] `policies/SECURITY.md`, `PARALLEL_LANES.md`, `AGENT_PROTOCOL.md`, `REVIEW_PROTOCOL.md`, `RUNBOOK-CONVENTIONS.md`
 - [ ] journal entry
 - [ ] the ACR, the architecture change and the first code that needs it are in the same pull request

@@ -25,8 +25,9 @@ The architecture above is unchanged until these are accepted and applied with th
 | ACR | Proposes |
 |---|---|
 | [ACR-0018](changes/ACR-0018-operator-access-and-audit.md) | operator access and audit: one account per person, WebAuthn, step-up, revocable sessions, explicit permissions, an audit hash chain copied off Host A, privileged routes on a private path |
-| [ACR-0019](changes/ACR-0019-human-approved-remediation.md) | human-approved remediation: actions from runbook menus, a frozen proposal approved by a human, an executor (`argus-actor`) that never sees the model, an exact-route gateway, lab targets only, verification |
-| [ACR-0020](changes/ACR-0020-operator-terminal.md) | an operator terminal: a recorded, human-only shell from the UI through a broker with an SSH CA; Argus never uses it |
+| [ACR-0019](changes/ACR-0019-human-approved-remediation.md) | human-approved remediation: a closed catalogue; service and action cards; cited grounds (a model-only basis becomes a suggestion); risk colours; a prediction; a judge that can only make it stricter; a human approves the frozen proposal; the worker executes through an exact-route gateway; verification and a memory of verified actions; lab targets only |
+| [ACR-0020](changes/ACR-0020-operator-terminal.md) | an operator terminal: a recorded, human-only shell from the UI through a broker with an SSH CA; "Insert" offers only what the cards allow; Argus never uses it |
+| [ACR-0022](changes/ACR-0022-autonomous-investigation.md) | more autonomous investigation, reads and suggestions only: open investigations for unclassified incidents, follow-up checks after any fix, new reads, a curated vendor corpus, isolated internet research for the operator |
 
 ## Deployment shape (as built)
 

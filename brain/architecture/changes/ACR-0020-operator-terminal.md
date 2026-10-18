@@ -61,10 +61,21 @@ A new section **§17.4 Operator terminal**:
   with the sudo and auditd logs; audit events for grant, open, close, kill and refusals; an alert on every session
   start. Recordings may contain secrets an operator printed: access for administrators only, every viewing audited,
   retention defined.
-- **Argus's role:** it may offer "Open terminal on <host>" with the incident's context and **"Insert"** a suggested
-  command from a runbook (pasted, never executed: no Enter). It never reads or types in a live session, holds no CA
-  key or recording, and has **no network path to the broker** (a tested property). After the session, a redacted
-  summary of the commands may be attached to the incident as evidence, as data, never as instructions.
+- **Argus's role:**
+  - It may offer "Open terminal on <host>" with the incident's context, and **"Insert"** a command (pasted, never
+    executed: no Enter).
+  - Insert offers only commands that an **action card** (ACR-0019 §3.4) or a runbook lists for that service, and only
+    when the **service card** permits the action, with the incident's evidence cited next to it.
+  - It never reads or types in a live session, holds no CA key or recording, and has **no network path to the
+    broker** (a tested property).
+  - After the session, a redacted summary of the commands may be attached to the incident as evidence (data, never
+    instructions), and a follow-up check runs (ACR-0022 §3.2). The operator's "I did it manually" goes into the memory
+    of actions (ACR-0019 §3.12).
+- **Two kinds of manual work:**
+  - **Through Argus** (Insert, "Convert to proposal"): Argus offers only what the service and action cards allow,
+    with cited evidence.
+  - **The terminal itself:** a full shell for the authorized operator, who is responsible for what they type. The
+    controls are access (ACR-0018) and recording, not command restrictions.
 - **Leases:** a mutating terminal session on a VM is a mutating step: it needs that VM's lease
   (`policies/PARALLEL_LANES.md`) unless the team defines an on-call exception.
 - **Break-glass:** the existing laptop SSH path (or the cloud console) remains the recovery path when the broker or

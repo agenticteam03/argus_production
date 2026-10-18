@@ -30,18 +30,21 @@ calls); the phases below replace each simplification.
 | 14 | Optional | swap-ability experiments | prove a new executor needs no core change | ⬜ 0 % | `ssh_verbs` executor, only if time allows |
 | 15 | Foundations (next phase) | documentation fixes (OP-015, OP-016), `SELF_MERGE_PROTECTED` extended, OP-014 steps 4–8 in CI | green tests must mean "safe" before anything acts | ⬜ planned | [NEXT-PHASE](tasks/current/NEXT-PHASE-supervised-remediation.md), after the proposal is approved |
 | 16 | Operator access and audit | per-person accounts, WebAuthn, step-up, revocable sessions, permissions, audit chain off-host, private path | an approval or a shell is only as trustworthy as the identity and the record behind it | ⬜ planned | ACR-0018 (`proposed`) |
-| 17 | Suggestions | runbook Actions section, `next_actions`, the UI "Next steps" card | the fix comes from the runbook, not from the model's free text | ⬜ planned | ACR-0019 (`proposed`) |
-| 18 | Supervised actions, offline | §14 tables, nodes, write contract, failure-injection and binding suites against a fake gateway | the machinery exists and is tested before any route | ⬜ planned | ACR-0019 |
-| 19 | Approvals and executor | approvals in the UI (private path, step-up), holds, emergency stop, `argus-actor`, action gateway + socket proxy | the executor never sees the model | ⬜ planned | ACR-0019 |
+| 17 | Cards, catalogue and suggestions | service cards, action cards (code-evaluated preconditions), risk colours, the runbook `actions` block, `suggest_action`, `next_actions`, scenario answer keys | who may touch what and why it should work is reviewed data, not model judgement | ⬜ planned | ACR-0019 (`proposed`) |
+| 18 | Supervised actions, offline | §14 tables and nodes, proposals with grounds / prediction / alternatives, basis downgrade, the judge, shadow-mode recording, failure-injection and binding suites against a fake gateway | the machinery exists and is tested before any route | ⬜ planned | ACR-0019 |
+| 19 | Approvals and gateway | approvals in the UI (private path, step-up, colours, judge), holds, emergency stop, the action gateway + socket proxy; the worker's dispatch reads only frozen rows (import-boundary and token-isolation tests) | the model never reaches the execution path | ⬜ planned | ACR-0019 |
 | 20 | First released action | `container.start` on `vm-166/container:argus-lab-cache` (SC-03), lab only | a reviewed, verified, reversible first write | ⬜ planned | ACR-0019, its own release PR |
-| 21 | Operator terminal | broker, SSH CA, per-person accounts, recording off-host, incident linking | manual repair from the UI, recorded, humans only | ⬜ planned | ACR-0020 (`proposed`) |
+| 21 | Operator terminal | broker, SSH CA, per-person accounts, recording off-host, incident linking, card-limited "Insert" | manual repair from the UI, recorded, humans only | ⬜ planned | ACR-0020 (`proposed`) |
+| 22 | More autonomous investigation | follow-up checks after any fix, new reads (recent changes, config files, vendor reference corpus), open investigations for unclassified incidents (lab) | investigate more without acting more | ⬜ planned | ACR-0022 (`proposed`) |
+| 23 | Isolated research | a research container behind a domain allowlist; a quarantined reader; suggestions for the operator only; disabled by default | outside knowledge without letting the web steer Argus | ⬜ planned | ACR-0022 |
 
 **Order of the remaining work (2026-10-13):** offer the new capabilities (T-0036 to T-0040) to their classes, each
 with evaluation cases → the evaluation again on `main` → the small open items (OP-004 and OP-008 first `--apply`, the
 first `db_probe` rotation T-0041, T-0016's Playwright tests) → 14 only if time allows.
 
-**Next phase (proposed 2026-10-18, not yet approved):** 15 → 16 → 18 → 19 → 20 is the critical path; 17 and 21 run
-in parallel once 16 is deployed. Nothing in 16–21 starts before the NEXT-PHASE proposal and its ACRs are accepted.
+**Next phase (proposed 2026-10-18, not yet approved; juanbetancurm's and conantkd's proposals merged):** 15 → 16 →
+17 → 18 → 19 → 20 is the critical path; 21 and 22 run in parallel once 16 is deployed; 23 comes last. Nothing in
+16–23 starts before the NEXT-PHASE proposal and its ACRs are accepted.
 
 **Scenarios on the real VMs:** every scenario (H-1/H-2, SC-01 to SC-12, the identity proof) five runs through the
 runner, NO INTERFERENCE after every run (Phase 12). SC-12 4/5, its miss read (E2E-8 step 2).
