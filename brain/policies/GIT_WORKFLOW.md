@@ -16,8 +16,9 @@
    ([`PARALLEL_LANES.md`](PARALLEL_LANES.md)).
 2. `git checkout -b task/T-xxxx-<slug> main` — or continue the branch named in the handoff.
 3. Small commits ("checkpoints") after each verified step; push the branch after each commit, so CI runs and the work
-   is never only on one laptop.
-4. Task complete → pull request into `main` (the agent writes the description).
+   is never only on one laptop. **Every task branch has a pull request from its first push:** open it as a draft
+   (`gh pr create --draft`); CI runs on the pull request, once per push (a push to a branch without one runs no CI).
+4. Task complete → mark the pull request ready for review (`gh pr ready`; the agent writes the description).
 5. The **next developer** reviews and merges ([`../agents/REVIEW_PROTOCOL.md`](../agents/REVIEW_PROTOCOL.md)).
    Merge method: **merge commit**.
 6. Session end → `brain.py release`, or `brain.py handoff "…"` if the task is unfinished (both release every VM

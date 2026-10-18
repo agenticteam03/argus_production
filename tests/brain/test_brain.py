@@ -322,6 +322,21 @@ def test_check_main_reports_why_a_self_merge_was_not_valid():
     assert len(problems) == 1 and "PR #8 by bob" in problems[0] and "config/policy.yaml" in problems[0]
 
 
+# --- open pull requests in `brain.py start`: drafts are tasks in progress, not review requests -----------------------
+def _open_pr(n, draft):
+    return {"number": n, "title": f"T-{n}", "author": {"login": "alice"}, "headRefName": f"task/T-{n}", "isDraft": draft}
+
+
+def test_draft_pull_requests_are_listed_as_work_in_progress_not_for_review():
+    lines = brain.format_prs([_open_pr(1, False), _open_pr(2, True)])
+    review = lines.index(next(ln for ln in lines if ln.startswith("Pull requests waiting for review")))
+    drafts = lines.index(next(ln for ln in lines if ln.startswith("Tasks in progress")))
+    assert "#1 " in lines[review + 1] and drafts > review + 1 and "#2 " in lines[drafts + 1]
+    only_drafts = brain.format_prs([_open_pr(2, True)])
+    assert only_drafts[0] == "Pull requests waiting for review: none" and "#2 " in only_drafts[-1]
+    assert brain.format_prs([]) == ["Pull requests waiting for review: none"]
+
+
 def test_guard_push_refuses_main_only(monkeypatch, capsys):
     monkeypatch.setenv("PRE_COMMIT_REMOTE_BRANCH", "refs/heads/main")
     assert brain.main(["guard-push"]) == 1
