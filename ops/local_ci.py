@@ -102,6 +102,8 @@ class LocalCI:
                 note = " (without Postgres: the container did not start)"
         elif postgres:
             note = " (without Postgres: docker not found; its tests are skipped)"
+        if self.which("docker"):
+            env["ARGUS_TEST_DOCKER"] = "1"                   # as in ci.yml (OP-014): the Docker tests run, not skip
         try:
             code, out = self.run([self.py, "-m", "pytest", "-o", "addopts=", "-q", "-rfEs", "-p", "no:cacheprovider"], cwd=self.src,
                                  env=env, timeout=3600)

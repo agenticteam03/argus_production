@@ -137,15 +137,17 @@ def test_an_investigation_is_the_same_through_mcp(make_app, monkeypatch):
 
 
 def test_benchmark_compares_direct_and_mcp_on_the_same_read(child_env, monkeypatch, capfd):
-    """T-0021 step 5d (§25 OD-3): the same read, alternately in-process and through a tools process."""
+    """T-0021 step 5d (§25 OD-3): the same read, alternately in-process and through a tools process.
+    OP-014: the 100 ms verdict depends on the machine's load (4 samples on a busy runner or laptop), so this test checks
+    the mechanics only; the budget rule is `test_benchmark_verdict`, and the real budget is measured on vm-095."""
     from argus.tooling.mcp import benchmark
     for k, v in child_env.items():
         monkeypatch.setenv(k, v)
-    assert benchmark.main(["4", str(API), "container.status"]) == 0
+    code = benchmark.main(["4", str(API), "container.status"])
     out = capfd.readouterr().out.splitlines()            # capfd: the child inherits the real stderr
     assert any(ln.startswith("direct ") for ln in out) and any(ln.startswith("mcp ") for ln in out)
-    assert any(ln.startswith("overhead ") for ln in out) and "not ok: 0" in "\n".join(out)
-    assert out[-1] == "OD-3 OK"
+    assert any(ln.startswith("overhead ") for ln in out) and "not ok: 0" in "\n".join(out)   # every read succeeded
+    assert (code, out[-1]) in ((0, "OD-3 OK"), (1, "OD-3 STOP"))                           # a verdict, whichever
     assert len(_Gateway.seen) == 2 * (4 + 1)                          # 4 measured pairs + 1 warm-up pair, all reads
 
 
