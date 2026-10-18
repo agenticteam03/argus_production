@@ -8,36 +8,38 @@
 #   scale    multiplies each value (100 for a 0-1 ratio shown in %, 1/1048576 for bytes shown in MiB)
 #   max      the chart's top (optional; the UI uses the largest value otherwise)
 #   fired    true for the signal the class's detector fires on (drawn in red)
+#   kind     what the series measures, for the UI's icon and grouping (ACR-0021): memory, restarts, cpu,
+#            latency, health, disk, database, network or other (default); validated
 default:
-  - {signal: host_cpu_busy_ratio, title: "Host CPU busy", scope: host, unit: "%", scale: 100, max: 100}
-  - {signal: host_memory_available_ratio, title: "Host memory available", scope: host, unit: "%", scale: 100, max: 100}
+  - {signal: host_cpu_busy_ratio, title: "Host CPU busy", scope: host, unit: "%", scale: 100, max: 100, kind: cpu}
+  - {signal: host_memory_available_ratio, title: "Host memory available", scope: host, unit: "%", scale: 100, max: 100, kind: memory}
 
 classes:
   dependency_unavailable:
-    - {signal: dependency_probe_min, title: "Dependency probe (1 = reachable)", max: 1, fired: true}
-    - {signal: container_restart_count, title: "Restarts (total)"}
-    - {signal: host_cpu_busy_ratio, title: "Host CPU busy", scope: host, unit: "%", scale: 100, max: 100}
-    - {signal: host_memory_available_ratio, title: "Host memory available", scope: host, unit: "%", scale: 100, max: 100}
+    - {signal: dependency_probe_min, title: "Dependency probe (1 = reachable)", max: 1, fired: true, kind: network}
+    - {signal: container_restart_count, title: "Restarts (total)", kind: restarts}
+    - {signal: host_cpu_busy_ratio, title: "Host CPU busy", scope: host, unit: "%", scale: 100, max: 100, kind: cpu}
+    - {signal: host_memory_available_ratio, title: "Host memory available", scope: host, unit: "%", scale: 100, max: 100, kind: memory}
   container_restart_loop:
-    - {signal: restarts_10m, title: "Restarts in 10 min", fired: true}
-    - {signal: container_memory_bytes, title: "Memory", unit: "MiB", scale: 0.00000095367431640625}
-    - {signal: oom_killed, title: "OOM killed (1 = yes)", max: 1}
-    - {signal: container_cpu_cores, title: "CPU", unit: "cores"}
+    - {signal: restarts_10m, title: "Restarts in 10 min", fired: true, kind: restarts}
+    - {signal: container_memory_bytes, title: "Memory", unit: "MiB", scale: 0.00000095367431640625, kind: memory}
+    - {signal: oom_killed, title: "OOM killed (1 = yes)", max: 1, kind: memory}
+    - {signal: container_cpu_cores, title: "CPU", unit: "cores", kind: cpu}
   health_check_failed:
-    - {signal: health_unhealthy, title: "Health check failing (1 = yes)", max: 1, fired: true}
-    - {signal: restarts_10m, title: "Restarts in 10 min"}
-    - {signal: container_memory_bytes, title: "Memory", unit: "MiB", scale: 0.00000095367431640625}
+    - {signal: health_unhealthy, title: "Health check failing (1 = yes)", max: 1, fired: true, kind: health}
+    - {signal: restarts_10m, title: "Restarts in 10 min", kind: restarts}
+    - {signal: container_memory_bytes, title: "Memory", unit: "MiB", scale: 0.00000095367431640625, kind: memory}
   postgresql_connection_exhaustion:
-    - {signal: db_connection_usage, title: "Connection slots used", unit: "%", scale: 100, max: 100, fired: true}
-    - {signal: db_up, title: "Database up (1 = yes)", max: 1}
+    - {signal: db_connection_usage, title: "Connection slots used", unit: "%", scale: 100, max: 100, fired: true, kind: database}
+    - {signal: db_up, title: "Database up (1 = yes)", max: 1, kind: database}
   nginx_upstream_failure:
-    - {signal: http_gateway_error_ratio_5m, title: "Gateway errors", unit: "%", scale: 100, max: 100, fired: true}
-    - {signal: restarts_10m, title: "Restarts in 10 min"}
+    - {signal: http_gateway_error_ratio_5m, title: "Gateway errors", unit: "%", scale: 100, max: 100, fired: true, kind: network}
+    - {signal: restarts_10m, title: "Restarts in 10 min", kind: restarts}
   cpu_saturation:
-    - {signal: container_cpu_throttled_ratio_5m, title: "CPU periods throttled", unit: "%", scale: 100, max: 100, fired: true}
-    - {signal: container_cpu_quota_used_ratio_5m, title: "CPU quota used", unit: "%", scale: 100, max: 100}
+    - {signal: container_cpu_throttled_ratio_5m, title: "CPU periods throttled", unit: "%", scale: 100, max: 100, fired: true, kind: cpu}
+    - {signal: container_cpu_quota_used_ratio_5m, title: "CPU quota used", unit: "%", scale: 100, max: 100, kind: cpu}
   disk_pressure:
-    - {signal: host_disk_used_ratio_5m, title: "Disk used", unit: "%", scale: 100, max: 100, fired: true}
-    - {signal: host_disk_hours_to_full, title: "Hours until full", unit: "h"}
+    - {signal: host_disk_used_ratio_5m, title: "Disk used", unit: "%", scale: 100, max: 100, fired: true, kind: disk}
+    - {signal: host_disk_hours_to_full, title: "Hours until full", unit: "h", kind: disk}
   monitoring_blind_spot:
-    - {signal: scrape_targets_down, title: "Scrape targets down", fired: true}
+    - {signal: scrape_targets_down, title: "Scrape targets down", fired: true, kind: health}
