@@ -1,40 +1,34 @@
 {
   "holder": "conantkd",
-  "session_id": "aad546e54978",
-  "task": "LF-3",
-  "branch": "task/LF-3-step-03-record",
-  "base_commit": "1a95685617e483e20b5235a632433b18a24a58ba",
-  "started_at": "2026-10-18T17:00:51+00:00",
-  "expires_at": "2026-10-18T18:00:51+00:00",
-  "released": true,
+  "session_id": "d96ac65b2760",
+  "task": "DEPLOY-166",
+  "branch": "task/DEPLOY-166-agent",
+  "base_commit": "19b108555ee93d447d9d9537486fa0a9ea933bb8",
+  "started_at": "2026-10-18T17:13:42+00:00",
+  "expires_at": "2026-10-18T18:13:42+00:00",
+  "released": false,
   "handoff": null,
   "vms": {
     "vm-095": {
       "holder": "conantkd",
-      "session_id": "ceeb8c3e6e42",
-      "task": "LF-3",
-      "branch": "task/LF-3-cloud-connect",
-      "base_commit": "d390e95cd01f7092abe78a6ba6affbb0a7dea978",
-      "started_at": "2026-10-18T15:30:51+00:00",
-      "expires_at": "2026-10-18T18:25:47+00:00",
-      "released": true,
-      "handoff": null,
-      "took_over_from": {
-        "holder": "juanbetancurm",
-        "task": "DEPLOY-164",
-        "branch": "main",
-        "expired_at": "2026-10-17T17:41:46+00:00"
-      }
+      "session_id": "d96ac65b2760",
+      "task": "DEPLOY-166",
+      "branch": "task/DEPLOY-166-agent",
+      "base_commit": "19b108555ee93d447d9d9537486fa0a9ea933bb8",
+      "started_at": "2026-10-18T17:13:42+00:00",
+      "expires_at": "2026-10-18T18:13:42+00:00",
+      "released": false,
+      "handoff": null
     },
     "vm-166": {
       "holder": "conantkd",
-      "session_id": "aad546e54978",
-      "task": "LF-3",
-      "branch": "task/LF-3-step-03-record",
-      "base_commit": "1a95685617e483e20b5235a632433b18a24a58ba",
-      "started_at": "2026-10-18T17:00:51+00:00",
-      "expires_at": "2026-10-18T18:00:51+00:00",
-      "released": true,
+      "session_id": "d96ac65b2760",
+      "task": "DEPLOY-166",
+      "branch": "task/DEPLOY-166-agent",
+      "base_commit": "19b108555ee93d447d9d9537486fa0a9ea933bb8",
+      "started_at": "2026-10-18T17:13:42+00:00",
+      "expires_at": "2026-10-18T18:13:42+00:00",
+      "released": false,
       "handoff": null
     }
   }
