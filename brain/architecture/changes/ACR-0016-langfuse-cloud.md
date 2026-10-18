@@ -2,11 +2,11 @@
 
 | Field | Value |
 |---|---|
-| Status | `proposed` |
+| Status | `accepted` |
 | Proposed by | conantkd (+ agent) · 2026-10-15 |
-| Accepted by | pending (juanbetancurm) |
+| Accepted by | juanbetancurm - PR #156 review, 2026-10-16 |
 | Second approval (safety principle only) | not required: read-only, write gate, host isolation, evidence integrity and the secrets rules are unchanged (§4) |
-| Architecture version | applied together with ACR-0013 (still `proposed`, its code merged in #152) at the next free version when applied (`1.8.13`, or later if ACR-0015 of #155 is applied first) |
+| Architecture version | `1.8.16`, applied together with ACR-0013 (1.8.13 is reserved by ACR-0015, 1.8.14 and 1.8.15 by ACR-0017) |
 | Task / PR | [LF-3](../../tasks/current/LF-3-langfuse-local-implementation.md) step 02 · PR #156 |
 
 ## 1. Detect and explain
@@ -84,8 +84,7 @@ investigation." Plus a §3.3 communication-matrix row (`argus-worker` → Langfu
   `ARGUS_MAX_STEPS` 8 × `ARGUS_MAX_READS_PER_STEP` 2 at most, one per model call), so Hobby holds roughly 1,700
   investigations a month, about 55 a day: well above the lab's alert and manual load (the scheduled check is
   disabled). The §21.2 evaluation does not trace: `run_case` swaps in a throwaway secrets folder without the key files.
-  The 2-user limit is the real constraint (three developers are onboarded): the team either names two users or takes
-  Core. A refused or throttled export only drops telemetry (fail-open, counted, logged once): the run, its audit and
+  The 2-user limit is the real constraint (three developers are onboarded): **the team starts on Hobby (free, EU) with two named users**, and moves to Core if a third needs a login. A refused or throttled export only drops telemetry (fail-open, counted, logged once): the run, its audit and
   its records are unchanged. The exporter sends at most one batch of 64 spans every 2 s, far below the 1,000
   requests a minute ingestion limit.
 - **Risk:** span metadata (incident ids, class, capability and host inventory names, durations, tokens) is stored by
@@ -98,13 +97,13 @@ investigation." Plus a §3.3 communication-matrix row (`argus-worker` → Langfu
 
 ## 5. Decision
 
-Proposed: export the worker's filtered traces to Langfuse Cloud (EU) instead of a stack on Host A, because the
-measured self-hosted stack saturated Host A's disk. Awaiting juanbetancurm's review.
+Accepted: export the worker's filtered traces to Langfuse Cloud (EU) instead of a stack on Host A, because the
+measured self-hosted stack saturated Host A's disk. Accepted by juanbetancurm in the PR #156 review.
 
 ## 6. Applied
 
-- [ ] Accepted in the PR review.
-- [ ] `ARCHITECTURE.md` §18.5, §3.3 and the §17.2 credentials row updated with ACR-0013 and this ACR, the next free version, changelog line.
+- [x] Accepted in the PR review.
+- [x] `ARCHITECTURE.md` §18.5, §3.3 and the §17.2 credentials row updated with ACR-0013 and this ACR, version 1.8.16, changelog line.
 - [ ] vm-095: Cloud keys and `hosts.env`, worker and agent recreated; one trace seen in Langfuse Cloud with nothing
       outside the allowlist; a run with Cloud unreachable still records and audits.
 - [ ] The stopped self-hosted stack and its volumes removed from vm-095.
