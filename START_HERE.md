@@ -86,7 +86,9 @@ A small, safe first contribution that teaches the workflow:
 2. Copy `brain/developers/TEMPLATE.md` to `brain/developers/<handle>.md` and fill it in with the developer (role,
    agent, laptop, VM access yes/no, conversation language, preferences — no secrets).
 3. Show the developer the commit message before committing; commit; `git push -u origin task/onboard-<handle>`.
-4. Open the pull request (`gh pr create`), with another developer as reviewer. Nobody merges their own pull request.
+4. Open the pull request (`gh pr create`), with another developer as reviewer. Your first pull request is always
+   reviewed by a teammate; later ones may be self-merged only under the self-merge rule
+   (`brain/agents/REVIEW_PROTOCOL.md`).
 
 ## Part 8 — Start working
 

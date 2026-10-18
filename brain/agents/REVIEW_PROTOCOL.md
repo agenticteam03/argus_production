@@ -2,6 +2,7 @@
 
 A pull request by developer A is reviewed and approved by **the next developer (B) who works**, at the **start** of
 B's session, with B's AI agent. Reviewing comes before new work, because new work must start from the merged state.
+A pull request that meets the **self-merge** conditions below may instead be merged by its author.
 
 ## Steps
 
@@ -29,18 +30,20 @@ B's session, with B's AI agent. Reviewing comes before new work, because new wor
 ## How the rule is enforced (free GitHub plan: no branch protection on private repos)
 
 GitHub cannot block a merge for us, so the rule is enforced by the team and checked by tools:
-- **before merging** (the reviewer checks it in the PR page): the PR has an **Approve** from someone other than its
-  author, given **after the last push**; CI is green (or, when CI does not run, a `LOCAL CI PASS` comment for that
-  push: see below); the branch is up to date with `main` ("Update branch" if not);
+- **before merging** (the reviewer, or the author under the self-merge rule, checks it in the PR page): the PR has an
+  **Approve** from someone other than its author, given **after the last push**, or it meets every self-merge
+  condition below; CI is green (or, when CI does not run, a `LOCAL CI PASS` comment for that push: see below); the
+  branch is up to date with `main` ("Update branch" if not);
 - **on your laptop:** the pre-push hook refuses `git push` to `main`;
-- **after merging:** `brain.py verify-main` checks every commit on `main` came from a PR approved on its last push by
-  someone other than its author — CI runs it on every push to `main` (job `main-guard`, red = rule broken) and
+- **after merging:** `brain.py verify-main` checks that every commit on `main` came from a PR approved on its last push
+  by someone other than its author, or from a valid self-merge (its required checks green on its last push and no
+  protected path changed) — CI runs it on every push to `main` (job `main-guard`, red = rule broken) and
   `brain.py start` warns at the start of every session;
-- the only exceptions are listed in [`../policies/main-exceptions.txt`](../policies/main-exceptions.txt).
+- the only other exceptions are listed in [`../policies/main-exceptions.txt`](../policies/main-exceptions.txt).
 
 If `main-guard` is red: stop and tell the team; the fix is a follow-up PR that gets the missing review (never a
-force push). Nobody merges their own pull request (except under the temporary fast-track below). If A works again
-before anyone reviewed, A continues on the same branch.
+force push). Nobody merges their own pull request unless it meets the self-merge rule below. If A works again before
+anyone reviewed, A continues on the same branch.
 
 ## When CI does not run (local CI)
 
@@ -68,7 +71,49 @@ Node/npm and `gh`; a missing tool makes its step `skipped`, and the result says 
 
 When GitHub Actions runs again, its CI is the merge check again; nothing needs re-running for what was merged.
 
-## Temporary fast-track (windows: 2026-10-05 – 2026-10-12, and 2026-10-14 – 2026-10-16; each expires by itself)
+## Self-merge (standing rule, from 2026-10-17)
+
+**Why:** most pull requests are small and well covered by tests; waiting a day for a teammate slowed the work, and
+the fast-track windows below showed that self-merging with green tests worked. Decided by `juanbetancurm` on
+2026-10-17. This rule starts when a teammate approves the pull request that adds it (it changes the enforcement, so
+it cannot be self-merged). A teammate may object in any PR; an objection goes to the team.
+
+**Who:** every developer of the team.
+
+**The author may approve and merge their own pull request when all of these hold:**
+1. it is a pull request from a task branch (no direct push to `main`; the pre-push hook stays);
+2. **every required check is green on its last push:** CI jobs `test` and `frontend`. When CI does not run, a
+   `LOCAL CI PASS` comment for **that exact commit** (`python ops/local_ci.py --pr <n> --post`, no step `fail`)
+   replaces them, as in "When CI does not run";
+3. the branch is up to date with `main` when it is merged ("Update branch", then wait for the checks again);
+4. it changes **none of the protected paths** below. Those still need a teammate's approval on the last push:
+   - `brain/architecture/` (ARCHITECTURE.md and every ACR; a safety-principle change still needs its second approval);
+   - `brain/policies/SECURITY.md`, `brain/policies/GIT_WORKFLOW.md`, `brain/policies/main-exceptions.txt`,
+     `brain/agents/REVIEW_PROTOCOL.md`;
+   - the enforcement: `brain/tools/brain.py`, `.github/`, `.pre-commit-config.yaml`, `ops/local_ci.py`;
+   - safety data: `config/policy.yaml` (write gate, scope), `config/inventory.yaml` (host isolation);
+   - the public surface: `deploy/ui/nginx/`, `contracts/`;
+5. it is merged with a merge commit, and the branch is not deleted (`GIT_WORKFLOW.md`).
+
+The author's agent should still run the review checklist above and post its report as a PR comment before the merge:
+the tests check behaviour, the report catches scope, Brain and wording problems the tests cannot.
+
+**What it does not change:** a change on the VMs (deploy, rebuild, migration, scenario run) still needs its lease, a
+`code.bash` step and `nonint-check.sh` before and after; a merge never deploys anything by itself.
+
+**How it is enforced:** `brain.py verify-main` (CI `main-guard`, `brain.py start`) accepts a PR without another
+developer's approval only when the GitHub check runs of its last push show `test` and `frontend` as `success` (or a
+`LOCAL CI PASS` comment names that commit) and none of its files is under a protected path; the list lives in
+`brain.py` (`SELF_MERGE_PROTECTED`) and must match this section. A PR with 100 files or more is never a valid
+self-merge (too many to check). No `main-exceptions.txt` line is needed.
+
+**After the merge:** any teammate may review a merged PR with the same checklist; findings become a follow-up PR.
+
+**The tests this rule relies on:** the known gaps, and the checks to add so that green tests mean more, are in
+[`../OPEN_PROBLEMS.md`](../OPEN_PROBLEMS.md) (OP-014). Until a gap is closed, ask for a teammate's review when your
+change sits in it (for example a prompt or strategy change, which CI's offline evaluation does not judge).
+
+## Temporary fast-track (history: windows 2026-10-05 – 2026-10-12 and 2026-10-14 – 2026-10-16, both expired; replaced by the self-merge rule above)
 
 **Why:** the course presentation came earlier than planned; waiting for a review on every pull request would block
 the work. Decided by `juanbetancurm` on 2026-10-05 (journal). Teammates may object in any PR; an objection ends it.

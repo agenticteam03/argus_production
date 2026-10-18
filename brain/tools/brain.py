@@ -625,9 +625,45 @@ def read_exceptions(root: Path) -> set[int]:
             if line.startswith("pr ") and len(line.split()) > 1 and line.split()[1].isdigit()}
 
 
-def check_main(commits: list[tuple[str, int]], pr_for, reviews_for, allowed: set[int]) -> list[str]:
+# Self-merge (REVIEW_PROTOCOL.md, "Self-merge", user-approved team rule): a pull request without another developer's
+# approval is accepted when its required checks passed on its last push and it touches none of these paths, which
+# keep a teammate's review.
+SELF_MERGE_CHECKS = ("test", "frontend")
+SELF_MERGE_PROTECTED = (
+    "brain/architecture/",                                   # ARCHITECTURE.md and the ACRs
+    "brain/policies/SECURITY.md", "brain/policies/GIT_WORKFLOW.md", "brain/policies/main-exceptions.txt",
+    "brain/agents/REVIEW_PROTOCOL.md", "brain/tools/brain.py", ".github/", ".pre-commit-config.yaml",
+    "ops/local_ci.py",                                       # the enforcement and the merge check itself
+    "config/policy.yaml", "config/inventory.yaml",           # write gate, scope, host isolation
+    "deploy/ui/nginx/", "contracts/",                        # the public edge and the UI contract
+)
+FILES_PAGE = 100
+
+
+def self_merge_problem(pr: dict, checks: list[dict], files: list[str], comments: list[dict]) -> str | None:
+    """None when a pull request without another developer's approval meets the self-merge conditions; otherwise why
+    not. checks: the check runs of its last push; files: the paths it changes; comments: its conversation comments."""
+    if len(files) >= FILES_PAGE:
+        return f"changes {len(files)} or more files, too many to check for protected paths"
+    touched = sorted(f for f in files if f.startswith(SELF_MERGE_PROTECTED))
+    if touched:
+        return "touches " + ", ".join(touched[:3]) + (" and more" if len(touched) > 3 else "") + ", which needs a teammate"
+    head = pr["head"]["sha"]
+    if any(c.get("body", "").startswith("LOCAL CI PASS ") and f"commit {head}" in c.get("body", "") for c in comments):
+        return None                                          # REVIEW_PROTOCOL.md "When CI does not run"
+    runs = [r for r in checks if r.get("name") in SELF_MERGE_CHECKS]
+    missing = [n for n in SELF_MERGE_CHECKS if not any(r.get("name") == n for r in runs)]
+    failed = sorted({r["name"] for r in runs if r.get("conclusion") != "success"})
+    if missing or failed:
+        return "required checks not green on its last push (" + ", ".join(
+            [f"{n} missing" for n in missing] + [f"{n} not success" for n in failed]) + ")"
+    return None
+
+
+def check_main(commits: list[tuple[str, int]], pr_for, reviews_for, allowed: set[int], self_merge=None) -> list[str]:
     """commits: (sha, number of parents) along main's first-parent line. pr_for(sha) -> PR dict or None;
-    reviews_for(n) -> review dicts. Returns the violations (empty = rule kept)."""
+    reviews_for(n) -> review dicts; self_merge(pr) -> None when the PR meets the self-merge conditions, else why not
+    (without self_merge only approvals count). Returns the violations (empty = rule kept)."""
     problems = []
     for sha, parents in commits:
         if parents == 0:
@@ -641,9 +677,12 @@ def check_main(commits: list[tuple[str, int]], pr_for, reviews_for, allowed: set
             continue
         ok = any(r.get("state") == "APPROVED" and r["user"]["login"] != author and r.get("commit_id") == head
                  for r in reviews_for(n))
-        if not ok:
+        if ok:
+            continue
+        why = self_merge(pr) if self_merge else "no self-merge check"
+        if why is not None:
             problems.append(f"{sha[:7]}: PR #{n} by {author} merged without an approval of its last push by "
-                            "another developer")
+                            f"another developer, and not a valid self-merge: {why}")
     return problems
 
 
@@ -665,8 +704,15 @@ def verify_main(ref: str) -> list[str]:
                if p.get("merge_commit_sha") == sha]
         return prs[0] if prs else None
 
+    def self_merge(pr):
+        n, head = pr["number"], pr["head"]["sha"]
+        checks = (gh_json(f"repos/{{owner}}/{{repo}}/commits/{head}/check-runs?per_page=100") or {}).get("check_runs", [])
+        files = [f["filename"] for f in gh_json(f"repos/{{owner}}/{{repo}}/pulls/{n}/files?per_page={FILES_PAGE}") or []]
+        comments = gh_json(f"repos/{{owner}}/{{repo}}/issues/{n}/comments?per_page=100") or []
+        return self_merge_problem(pr, checks, files, comments)
+
     return check_main(commits, pr_for, lambda n: gh_json(f"repos/{{owner}}/{{repo}}/pulls/{n}/reviews"),
-                      read_exceptions(repo_root()))
+                      read_exceptions(repo_root()), self_merge)
 
 
 def cmd_verify_main(args) -> int:
@@ -674,7 +720,8 @@ def cmd_verify_main(args) -> int:
     if problems:
         print("MAIN RULE BROKEN:\n  " + "\n  ".join(problems))
         return 1
-    print("verify-main: every change on main came through an approved pull request (or a recorded exception)")
+    print("verify-main: every change on main came through an approved pull request, a valid self-merge or a recorded "
+          "exception")
     return 0
 
 
