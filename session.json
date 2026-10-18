@@ -1,35 +1,53 @@
 {
-  "holder": "juanbetancurm",
-  "session_id": "a7e74768caaf",
-  "task": "DEPLOY-164",
-  "branch": "main",
-  "base_commit": "813e0d9214ead7d60b1cd44ec21c8485951c504c",
-  "started_at": "2026-10-17T16:41:46+00:00",
-  "expires_at": "2026-10-17T17:41:46+00:00",
+  "holder": "conantkd",
+  "session_id": "ceeb8c3e6e42",
+  "task": "LF-3",
+  "branch": "task/LF-3-cloud-connect",
+  "base_commit": "d390e95cd01f7092abe78a6ba6affbb0a7dea978",
+  "started_at": "2026-10-18T15:30:51+00:00",
+  "expires_at": "2026-10-18T16:30:51+00:00",
   "released": false,
   "handoff": null,
+  "took_over_from": {
+    "holder": "juanbetancurm",
+    "task": "DEPLOY-164",
+    "branch": "main",
+    "expired_at": "2026-10-17T17:41:46+00:00"
+  },
   "vms": {
     "vm-095": {
-      "holder": "juanbetancurm",
-      "session_id": "a7e74768caaf",
-      "task": "DEPLOY-164",
-      "branch": "main",
-      "base_commit": "813e0d9214ead7d60b1cd44ec21c8485951c504c",
-      "started_at": "2026-10-17T16:41:46+00:00",
-      "expires_at": "2026-10-17T17:41:46+00:00",
+      "holder": "conantkd",
+      "session_id": "ceeb8c3e6e42",
+      "task": "LF-3",
+      "branch": "task/LF-3-cloud-connect",
+      "base_commit": "d390e95cd01f7092abe78a6ba6affbb0a7dea978",
+      "started_at": "2026-10-18T15:30:51+00:00",
+      "expires_at": "2026-10-18T16:30:51+00:00",
       "released": false,
-      "handoff": null
+      "handoff": null,
+      "took_over_from": {
+        "holder": "juanbetancurm",
+        "task": "DEPLOY-164",
+        "branch": "main",
+        "expired_at": "2026-10-17T17:41:46+00:00"
+      }
     },
     "vm-166": {
-      "holder": "juanbetancurm",
-      "session_id": "a7e74768caaf",
-      "task": "DEPLOY-164",
-      "branch": "main",
-      "base_commit": "813e0d9214ead7d60b1cd44ec21c8485951c504c",
-      "started_at": "2026-10-17T16:41:46+00:00",
-      "expires_at": "2026-10-17T17:41:46+00:00",
+      "holder": "conantkd",
+      "session_id": "ceeb8c3e6e42",
+      "task": "LF-3",
+      "branch": "task/LF-3-cloud-connect",
+      "base_commit": "d390e95cd01f7092abe78a6ba6affbb0a7dea978",
+      "started_at": "2026-10-18T15:30:51+00:00",
+      "expires_at": "2026-10-18T16:30:51+00:00",
       "released": false,
-      "handoff": null
+      "handoff": null,
+      "took_over_from": {
+        "holder": "juanbetancurm",
+        "task": "DEPLOY-164",
+        "branch": "main",
+        "expired_at": "2026-10-17T17:41:46+00:00"
+      }
     }
   }
 }
