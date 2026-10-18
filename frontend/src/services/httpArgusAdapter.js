@@ -5,6 +5,12 @@ import { answerMetricQuestion, parseInvestigationRequest, parseMetricQuestion } 
 
 const getJson = async (path) => (await apiFetch(path)).json();
 
+// ACR-0017: GET /api/v1/topology and GET /api/v1/incidents/{id}/metrics are in contracts/ui-api.json and deployed.
+// They are read only when VITE_ARGUS_INSIGHTS=1 (off by default), so a build against an API that predates them never
+// calls a missing route; the Map and Metrics tabs stay hidden until the route answers. Read per call so the flag can
+// be turned on in a test (vi.stubEnv) without reloading the module.
+const insights = () => import.meta.env.VITE_ARGUS_INSIGHTS === "1";
+
 export const httpArgusAdapter = {
   async listIncidents({ limit = 30 } = {}) {
     return getJson(`/api/v1/incidents?limit=${limit}`);
@@ -24,6 +30,19 @@ export const httpArgusAdapter = {
 
   async listEscalations() {
     return getJson("/api/v1/escalations");
+  },
+
+  // The whole system, or, with `incidentId`, the same map with that incident's target and root cause overlaid from
+  // its stored evidence (the API allows the overlay to operators and approvers only, ACR-0017).
+  async getTopology(incidentId) {
+    if (!insights()) return null;
+    const query = incidentId ? `?incident_id=${encodeURIComponent(incidentId)}` : "";
+    return getJson(`/api/v1/topology${query}`);
+  },
+
+  async getIncidentMetrics(id, range = "30m") {
+    if (!insights()) return null;
+    return getJson(`/api/v1/incidents/${encodeURIComponent(id)}/metrics?range=${encodeURIComponent(range)}`);
   },
 
   async getHostMetrics() {

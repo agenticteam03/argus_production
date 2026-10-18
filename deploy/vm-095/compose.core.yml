@@ -66,6 +66,7 @@ services:
       ARGUS_MAX_STEPS: "8"
       ARGUS_LANGFUSE_UI_URL: ${ARGUS_LANGFUSE_UI_URL:-}        # ACR-0013: operator link only; empty = no link
       ARGUS_LANGFUSE_PROJECT_ID: ${ARGUS_LANGFUSE_PROJECT_ID:-}
+      ARGUS_HOME_HOST: vm-095                          # ACR-0017: the map marks the host Argus runs on
     networks: [argus-v18-core]          # reaches vm-095 executors directly and vm-166 through argus-v18-tunnel
     depends_on:
       argus-v18-tunnel: {condition: service_started}

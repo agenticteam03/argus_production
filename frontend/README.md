@@ -54,12 +54,12 @@ only when `/me` lists the action. See
 |---|---|
 | `src/routes.js` | Single source of truth for menu + router; `roles` limits who sees/opens an item |
 | `src/pages/` | Login, Dashboard, Incidents list/detail, Runbooks (other routes are explicit "Coming soon" placeholders) |
-| `src/components/` | Header, AgentChat, IncidentRow, RunTimeline, EvidenceAudit, RunbookCard, RunbookDrawer, `ui.jsx` primitives |
+| `src/components/` | Header, AgentChat, IncidentRow, RunTimeline, EvidenceAudit, RunbookCard, RunbookDrawer, `ui.jsx` primitives; the incident redesign adds AnswerBlock, WhyCard, CopySummary, RawOutputDialog, RunbooksRead, SystemMap (SVG map), MetricChart (SVG chart) |
 | `src/context/AuthContext.jsx` | Session restored from `sessionStorage` on load — never `localStorage`, cookies or the URL |
 | `src/services/index.js` | **The single swap point**: mock adapters by default, HTTP adapters with `VITE_ARGUS_MOCK=0`; also exports `dataSource` (`demo`/`api`) for the pill |
 | `src/services/sessionStore.js` | The session that survives a reload (`sessionStorage`, TTL, bounded by the token's own JWT `exp`); holds the user and, in real mode, the token |
 | `src/services/http*.js` | The real API adapters (`auth`/`me`, incidents, events, evidence, escalations, overview) and `session.js` (the in-memory bearer token) |
-| `src/hooks/` | `useLiveOverview` (30 s poll), `useIncidentList` (30 s poll, up to 200 rows), `useIncident` + `usePoll` (paused while the tab is hidden), `useRunbooks` (10 s poll); the intervals are in `src/utils/polling.js` |
+| `src/hooks/` | `useLiveOverview` (30 s poll), `useIncidentList` (30 s poll, up to 200 rows), `useIncident` + `usePoll` (paused while the tab is hidden), `useRunbooks` (10 s poll), `useTopology` and `useIncidentMetrics` (the Map/Metrics tabs and the Dashboard map; return `null` while their route is absent); the intervals are in `src/utils/polling.js` |
 | `src/utils/parseRunbook.js` | Runbook Markdown → the data shown on cards |
 | `src/utils/paging.js` | The incidents list pages in the browser (30 at a time) over the one `limit` fetch the API allows |
 | `../../../argus/runbooks/` | The **real** runbook library (21 runbooks), read by `fileRunbooksAdapter.js`; there is no runbook API route yet |
@@ -78,6 +78,12 @@ only when `/me` lists the action. See
 
 ## Known follow-ups
 
+- **The incident Map and Metrics tabs and the Dashboard map read two routes** (`GET /api/v1/topology`,
+  `GET /api/v1/incidents/{id}/metrics`), delivered by ACR-0017. The UI draws them only when the route answers with
+  data; the HTTP adapter calls them only with `VITE_ARGUS_INSIGHTS=1` (off by default), so nothing requests a
+  missing route. On an incident, an operator/approver also asks for the `?incident_id=` overlay and falls back to
+  the plain map if it is refused. The exact shapes the components expect are in
+  [`BACKEND-REQUESTS.md`](BACKEND-REQUESTS.md).
 - **Acceptance tests, the read-only guard and the contract check exist** (`e2e/`, `src/services/contract.test.js`).
   What they do not check yet: the response *fields* the UI reads (the routes, methods and query parameters are
   checked); the API's own contract test guards the bodies.

@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | `in progress` — steps 1–4 done (the read-only UI public on vm-095, ACR-0011); **Level 1 Investigate (ACR-0012, accepted by `juanbetancurm`) in its implementation PR**; next: its approval and AFTER-MERGE, a person's browser login |
+| Status | `in progress` — steps 1–4 done (the read-only UI public on vm-095, ACR-0011); **Level 1 Investigate (ACR-0012, accepted by `juanbetancurm`) in its implementation PR**; **2026-10-15: incident/dashboard visual redesign in its own PR (tabs, map, metrics, why card)**; **2026-10-16: the Map/Metrics wiring to ACR-0017's real routes — `?incident_id=` overlay, Dashboard live map, `unknown` state, contract + e2e tests — in its own PR**; next: the ACR-0012 approval and AFTER-MERGE, a person's browser login |
 | Phase | 10 — output modes |
 | Architecture | ACR-0001 (from T-0015) |
 | Branch | `task/T-0016-frontend` (one PR per step is fine) |
@@ -336,3 +336,64 @@ a screen or a button in `frontend/`.
     this Windows host's WSL cannot start `/bin/bash`; Linux CI will determine the full-suite verdict.
   - **Next:** independent ACR-0014 approval in PR #151, then update the architecture version and re-run CI. VM
     deployment and a live Prometheus smoke test require a valid lease.
+
+- **2026-10-15 — the incident and dashboard pages, redesigned with Claude (`juanes6554`; branch
+  `task/T-0016-ui-redesign`, its own PR):**
+  - **What changed (visual/interaction only; no `argus/`, no `contracts/`, no `.github/`):** the incident page is
+    now organised in tabs — **Incident & Diagnosis** (default), optional **Map** and **Metrics**, **Runtime
+    Timeline**, **Evidence** and **Audit** — with the answer, the "why", the cited evidence and the recalled
+    runbooks grouped in one place; the dashboard's host metrics show a load level (Normal/High/Critical) beside
+    each bar; the investigation form and the evidence list use a themed `Select`/`Segmented` control instead of the
+    native `<select>`/radio. New files: `components/SystemMap.jsx` (hand-rolled SVG map), `components/MetricChart.jsx`
+    (hand-rolled SVG chart), `components/WhyCard.jsx`, `components/AnswerBlock.jsx`, `components/CopySummary.jsx`,
+    `components/RawOutputDialog.jsx`, `components/RunbooksRead.jsx`, `hooks/useTopology.js`,
+    `hooks/useIncidentMetrics.js`, `utils/incidentView.js`, `utils/load.js`, `utils/clipboard.js`.
+  - **Not real yet, by design:** the **Map** and **Metrics** tabs read two routes Argus does not serve yet
+    (`GET /api/v1/topology`, `GET /api/v1/incidents/{id}/metrics`). The HTTP adapter calls them **only** when
+    `VITE_ARGUS_INSIGHTS=1` (off by default), so a normal build never hits a missing route; the hooks return `null`
+    on 404/empty and the page hides what it cannot draw. The request and the exact shapes are written in
+    `frontend/BACKEND-REQUESTS.md`; the demo (`VITE_ARGUS_MOCK=1`) already draws both from `demoTopology`/
+    `demoMetrics`.
+  - **Red seen:** `npm run e2e` → 5 failed against the redesign — the evidence and run-timeline assertions still
+    expected a single page, and the investigation form still used `getByLabel("Target").selectOption` /
+    `getByLabel("Check").check()` on controls that are now a custom combobox and a button group; the host-metrics
+    test used `getByText("60.0%", { exact: true })` before the value gained its screen-reader level suffix.
+  - **Green:** `npm run e2e` **17/17** (the 5 updated, plus one new test: the page groups its sections into tabs and
+    Map/Metrics appear only when their routes answer); `npm test` **23 files / 127 tests** (two new unit files:
+    `components/SystemMap.test.js`, `components/RunbooksRead.test.js`); `npm run lint` 0 errors (20 fast-refresh
+    warnings); `npm run build` green.
+  - **Brain/docs in the same PR:** this file, `journal/entries/2026-10-15-T-0016-ui-redesign.md`,
+    `frontend/BACKEND-REQUESTS.md` (new) and `frontend/README.md` (structure + a follow-up line).
+  - **Not done / needs a teammate:** deployment (needs the lease) and the two routes (API side, needs an ACR like
+    ACR-0014 — they widen the authenticated read surface).
+
+- **2026-10-16 — the Map and Metrics wiring to ACR-0017's real routes (`juanes6554` + agent; branch
+  `task/T-0016-map-metrics-wiring`, its own PR):**
+   - **Why:** ACR-0017's backend (steps #160/#161, DEPLOY-161) now serves `GET /api/v1/topology[?incident_id=]` and
+     `GET /api/v1/incidents/{id}/metrics?range=`. The redesign (#158) had drawn the Map and Metrics tabs but the
+     real adapter only called the **plain** topology, never the overlay; the Dashboard had no map at all; and the
+     routes were not in the contract test.
+   - **What changed (`frontend/` only; no `argus/`, no `contracts/`):** `httpArgusAdapter.getTopology(incidentId)`
+     now sends `?incident_id=` (and reads the `VITE_ARGUS_INSIGHTS` flag per call so a test can turn it on);
+     `useTopology(incidentId)` refetches on the id; `IncidentDetail` asks for the overlay for operators and
+     approvers and falls back to the plain map when the API refuses it (403); `Dashboard` gained the ACR-0017 live
+     **System map** card; `SystemMap` gained a first-class **`unknown`** node and edge state (`RECT`/`EDGE`/`DASH`)
+     — an unknown edge no longer falls back to the green **ok** style — plus a shared `MapLegend` and a read-only
+     `SystemMapCard`; the mock adapter mirrors the overlay call.
+   - **Care points honoured:** a `null` metric sample is a gap and `fired` is red (`MetricChart`, already); `unknown`
+     is never drawn as `ok`; the SC-07 "no shared network" broken link only appears via the overlay, which is now
+     fetched; the UI still requests only when `VITE_ARGUS_INSIGHTS=1` (off by default) and hides what it cannot draw.
+   - **Red seen:** the new contract assertion, the `unknown` style assertions, the overlay URL assertion and 5 e2e
+     tests (Map/Metrics tabs, Dashboard map, operator overlay, viewer plain map, refused-overlay fallback) failed
+     before the wiring; the e2e run then showed the old "Map/Metrics absent without the flag" premise was stale.
+   - **Green:** `npm test` **23 files / 131 tests** (contract test now calls both routes plus the overlay; two new
+     adapter tests; two new map-style tests); `npx playwright test` **21/21**; `npm run lint` 0 errors (23
+     fast-refresh warnings, same pattern as before); `npm run build` green.
+   - **Brain/docs in the same PR:** this file, `journal/entries/2026-10-16-T-0016-map-metrics-wiring.md`,
+     `frontend/BACKEND-REQUESTS.md` (marked delivered), `frontend/GUIDELINES.md`, `frontend/README.md`.
+   - **Not done / needs a teammate:** a real-mode click-through on vm-095 with `VITE_ARGUS_INSIGHTS=1` (needs a
+     person's browser login) and the deploy build passing the flag; the routes and the flag stay off by default.
+   - **Deploy build passes the flag (2026-10-16, `task/T-0016-insights-build`):** `deploy/ui/Dockerfile` now sets
+     `ENV VITE_ARGUS_INSIGHTS=1` (test `test_the_dockerfile_builds_the_map_and_metrics_calls_in`, red seen before the
+     line). The image still has to be rebuilt and the UI edge redeployed on vm-095 (lease), then the real-mode
+     click-through by a person.

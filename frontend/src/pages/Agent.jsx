@@ -6,6 +6,8 @@ import { summarizeRun } from "../utils/agentObservability.js";
 import { dateTime } from "../utils/format.js";
 
 const NODE_LABEL = { detect: "Detection", recall: "Runbook recall", investigate: "Investigation", act: "Read-only tools", evidence_pack: "Evidence pack", record: "Record outcome" };
+// Same cadence as the other pages (overview and incident list).
+const REFRESH_MS = 30000;
 const EVENT_LABEL = { enter: "Started", step: "Tool read", exit: "Completed" };
 
 export default function Agent() {
@@ -32,7 +34,7 @@ export default function Agent() {
     }
   }, []);
 
-  useEffect(() => { refresh(); const timer = setInterval(refresh, 15000); return () => clearInterval(timer); }, [refresh]);
+  useEffect(() => { refresh(); const timer = setInterval(refresh, REFRESH_MS); return () => clearInterval(timer); }, [refresh]);
   const selectedStatus = incidents.find((incident) => incident.id === selected)?.status;
   const live = selectedStatus === "queued" || selectedStatus === "running";
   // Events with the `after` cursor; polled only while the run is live (one final read when it closes).
@@ -63,12 +65,11 @@ export default function Agent() {
   const escalated = incidents.filter((incident) => incident.status === "escalated").length;
 
   return (
-    <div className="space-y-5">
-      <header className="flex flex-wrap items-end justify-between gap-4">
+    <div className="space-y-6">
+      <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-accent-hover">Agent / Observability</p>
-          <h1 className="mt-2 text-[28px] font-semibold tracking-[-0.04em]">Investigation activity</h1>
-          <p className="mt-1 max-w-2xl text-sm text-muted">Follow Argus runs and correlate them with private Langfuse traces. This view reads Argus events; it does not expose Langfuse credentials.</p>
+          <h1 className="text-[28px] font-semibold tracking-[-0.03em]">Investigation activity</h1>
+          <p className="max-w-2xl text-sm text-muted">Follow Argus runs and correlate them with private Langfuse traces. This view reads Argus events; it does not expose Langfuse credentials.</p>
         </div>
         <LivePill live={!error} source={dataSource} at={updated} />
       </header>

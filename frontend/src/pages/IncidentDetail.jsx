@@ -1,26 +1,39 @@
 import { useEffect, useRef, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useParams, useSearchParams } from "react-router-dom";
+import AnswerBlock from "../components/AnswerBlock.jsx";
+import CopySummary from "../components/CopySummary.jsx";
 import DiagnoseForm from "../components/DiagnoseForm.jsx";
 import { AuditSection, EvidenceSection, RestrictedNotice } from "../components/EvidenceAudit.jsx";
+import { MetricsTab, MiniCharts } from "../components/MetricChart.jsx";
+import RawOutputDialog from "../components/RawOutputDialog.jsx";
 import RunTimeline from "../components/RunTimeline.jsx";
-import SafeMarkdown from "../components/SafeMarkdown.jsx";
-import { Card, ErrorCard, OUTCOME_META, OutcomeBadge, Skeleton, STATUS_META, StatusBadge } from "../components/ui.jsx";
+import { MapTab, MiniMapCard, miniNodes } from "../components/SystemMap.jsx";
+import { ErrorCard, Disclosure, Fact, OUTCOME_META, OutcomeBadge, Skeleton, STATUS_META, StatusBadge, TabList, TabPanel } from "../components/ui.jsx";
+import WhyCard from "../components/WhyCard.jsx";
+import { useAuth } from "../context/AuthContext.jsx";
 import { useIncident } from "../hooks/useIncident.js";
+import { useIncidentMetrics } from "../hooks/useIncidentMetrics.js";
+import { useTopology } from "../hooks/useTopology.js";
 import { dateTime, duration, isActive } from "../utils/format.js";
+import { citedEvidence, decidedBy, hostOf, modelCalls } from "../utils/incidentView.js";
 
 const Back = () => (
-  <Link to="/incidents" className="inline-flex text-[13px] text-accent-hover hover:underline">← Incidents</Link>
+  <Link to="/incidents" state={{ restore: true }} className="inline-flex text-[13px] text-accent-hover hover:underline">← Incidents</Link>
 );
-const Fact = ({ label, children }) => (
-  <div className="min-w-0">
-    <dt className="text-xs text-muted">{label}</dt>
-    <dd className="mt-0.5 break-words text-sm leading-snug text-[#d6dbe6]">{children ?? "—"}</dd>
-  </div>
-);
+const ghost = "cursor-pointer rounded-xl border border-line bg-field px-4 py-2 text-sm text-[#d6dbe6] transition hover:border-field-line hover:text-white motion-reduce:transition-none";
 
 export default function IncidentDetail() {
   const { id } = useParams();
+  const { user } = useAuth();
   const { view, incident: inc, events, reconnecting, retry } = useIncident(id);
+  const [params, setParams] = useSearchParams();
+  const [range, setRange] = useState("30m");
+  const [rawOpen, setRawOpen] = useState(false);
+  // ACR-0017: the incident overlay (real networks and state from the incident's evidence) is operator/approver only;
+  // asking for it as a viewer is a 403, so a viewer gets the plain system map instead.
+  const canOverlay = user?.role === "operator" || user?.role === "approver";
+  const topology = useTopology(canOverlay ? id : undefined);
+  const metrics = useIncidentMetrics(id, range, inc?.status);
   const headingRef = useRef(null);
   const [announce, setAnnounce] = useState("");
   const prevStatus = useRef(null);
@@ -37,12 +50,6 @@ export default function IncidentDetail() {
     }
     prevStatus.current = status ?? null;
   }, [inc?.status, inc?.outcome]);
-
-  const toggleEvidence = (key) => setOpenEvidence((prev) => { const next = new Set(prev); next.has(key) ? next.delete(key) : next.add(key); return next; });
-  const jumpToEvidence = (key) => {
-    setOpenEvidence((prev) => new Set(prev).add(key));
-    setTimeout(() => document.getElementById(`evidence-${key}`)?.focus(), 0);
-  };
 
   if (view === "loading") {
     return (
@@ -70,7 +77,47 @@ export default function IncidentDetail() {
   }
 
   const active = isActive(inc.status);
+  const hasEvidence = "evidence" in inc;
+  const hasAudit = "audit" in inc;
   const evidenceIds = new Set((inc.evidence ?? []).map((e) => e.evidence_id));
+  const cited = citedEvidence(inc, events);
+
+  // Map and Metrics exist only when their route answered with data: nothing is invented.
+  const showMap = Boolean(topology);
+  const showMetrics = Boolean(metrics);
+  const tabs = [
+    { id: "overview", label: "Incident & Diagnosis" },
+    ...(showMap ? [{ id: "map", label: "Map" }] : []),
+    ...(showMetrics ? [{ id: "metrics", label: "Metrics" }] : []),
+    { id: "timeline", label: "Runtime Timeline" },
+    { id: "evidence", label: "Evidence", count: hasEvidence ? inc.evidence.length : undefined },
+    { id: "audit", label: "Audit", count: hasAudit ? inc.audit.length : undefined },
+  ];
+  const requested = params.get("tab");
+  const tab = tabs.some((t) => t.id === requested) ? requested : "overview";
+  const setTab = (next) => {
+    const p = new URLSearchParams(params);
+    if (next === "overview") p.delete("tab"); else p.set("tab", next);
+    setParams(p);
+  };
+
+  const toggleEvidence = (key) => setOpenEvidence((prev) => { const next = new Set(prev); next.has(key) ? next.delete(key) : next.add(key); return next; });
+  const jumpToEvidence = (key) => {
+    setOpenEvidence((prev) => new Set(prev).add(key));
+    setTab("evidence");
+    setTimeout(() => {
+      const el = document.getElementById(`evidence-${key}`);
+      el?.scrollIntoView?.({ block: "center" });
+      el?.focus();
+    }, 60);
+  };
+
+  const by = decidedBy(events);
+  const decided = by === "rules" ? `decided by rules${modelCalls(inc) === 0 ? " (no AI)" : ""}` : by === "AI" ? "decided with AI" : null;
+  const subtitle = [inc.reason, inc.incident_class, decided, inc.closed_at ? `took ${duration(inc.opened_at, inc.closed_at)}` : null].filter(Boolean).join(" · ");
+
+  const showMini = showMap && miniNodes(topology, inc);
+  const hasSide = Boolean(showMini || showMetrics);
 
   return (
     <div className="space-y-5">
@@ -83,50 +130,63 @@ export default function IncidentDetail() {
           <span className="flex flex-wrap gap-1.5"><StatusBadge status={inc.status} /><OutcomeBadge outcome={inc.outcome} /></span>
         </div>
         <h1 ref={headingRef} tabIndex={-1} className="mt-2 text-[26px] font-semibold leading-tight tracking-[-0.03em] outline-none">{inc.target}</h1>
-        {inc.reason && <p className="mt-1.5 text-sm leading-relaxed text-[#a3abba]">{inc.reason}</p>}
-        <dl className="mt-5 grid grid-cols-2 gap-x-4 gap-y-4 md:grid-cols-3">
-          <Fact label="Class">{inc.incident_class}</Fact>
-          <Fact label="Strategy">{inc.strategy}</Fact>
-          <Fact label="Triggered by">{inc.trigger_kind}</Fact>
-          <Fact label="Request">{inc.request_kind}</Fact>
-          <Fact label="Principal">{inc.principal}</Fact>
-          <Fact label="Trigger ID">{inc.trigger_id}</Fact>
-          <Fact label="Opened">{dateTime(inc.opened_at)}</Fact>
-          {inc.trace_url && (
-            <Fact label="Agent trace">
-              <a href={inc.trace_url} target="_blank" rel="noopener noreferrer" className="text-accent-hover hover:underline">Open in Langfuse</a>
-            </Fact>
-          )}
-          <Fact label="Closed">{inc.closed_at ? `${dateTime(inc.closed_at)} (took ${duration(inc.opened_at, inc.closed_at)})` : "Still open"}</Fact>
-        </dl>
-        {/* ACR-0012: a new investigation of the same target (shown only when /me allows it) */}
-        <div className="mt-5"><DiagnoseForm fixedTarget={inc.target} compact /></div>
+        {subtitle && <p className="mt-1.5 text-sm leading-relaxed text-[#a3abba]">{subtitle}</p>}
+
+        <div className="mt-4 border-t border-line pt-4"><AnswerBlock incident={inc} active={active} /></div>
+
+        <div className="mt-4 flex flex-wrap items-start justify-between gap-3 border-t border-line pt-4">
+          <Disclosure summary="Details: trigger, principal, times" className="min-w-0 flex-1 basis-64">
+            <dl className="grid grid-cols-2 gap-x-4 gap-y-4 md:grid-cols-3">
+              <Fact label="Class">{inc.incident_class}</Fact>
+              <Fact label="Strategy">{inc.strategy}</Fact>
+              <Fact label="Triggered by">{inc.trigger_kind}</Fact>
+              <Fact label="Request">{inc.request_kind}</Fact>
+              <Fact label="Principal">{inc.principal}</Fact>
+              <Fact label="Trigger ID">{inc.trigger_id}</Fact>
+              <Fact label="Opened">{dateTime(inc.opened_at)}</Fact>
+              <Fact label="Closed">{inc.closed_at ? `${dateTime(inc.closed_at)} (took ${duration(inc.opened_at, inc.closed_at)})` : "Still open"}</Fact>
+              {inc.trace_url && (
+                <Fact label="Agent trace">
+                  <a href={inc.trace_url} target="_blank" rel="noopener noreferrer" className="text-accent-hover hover:underline">Open in Langfuse</a>
+                </Fact>
+              )}
+            </dl>
+          </Disclosure>
+          {/* ACR-0012: "Investigate again" is shown only when /me allows it */}
+          <div className="flex flex-wrap items-center gap-2">
+            <button type="button" onClick={() => setRawOpen(true)} className={ghost}>Raw output</button>
+            <CopySummary incident={inc} cited={cited} className={ghost} />
+            <DiagnoseForm fixedTarget={inc.target} compact />
+          </div>
+        </div>
       </section>
 
-      <Card title="Diagnosis">
-        {inc.diagnosis ? (
-          <div className="markdown-body"><SafeMarkdown>{inc.diagnosis}</SafeMarkdown></div>
-        ) : (
-          <p className="text-sm text-muted">{active ? "No diagnosis yet" : "No diagnosis was produced"}</p>
-        )}
-        <dl className="mt-4 grid gap-4 border-t border-line pt-4 sm:grid-cols-2">
-          <Fact label="Root cause target">{inc.root_cause_target}</Fact>
-          <Fact label="Confidence">{inc.confidence == null ? null : String(inc.confidence)}</Fact>
-        </dl>
-        <div className="mt-4 border-t border-line pt-4">
-          <h3 className="text-sm font-medium">Findings</h3>
-          {inc.findings?.length ? (
-            <ul className="mt-2 list-disc space-y-1.5 pl-5 text-sm leading-relaxed text-[#d6dbe6]">{inc.findings.map((f, i) => <li key={i}>{f}</li>)}</ul>
-          ) : (
-            <p className="mt-2 text-sm text-muted">No findings recorded.</p>
+      <TabList tabs={tabs} value={tab} onChange={setTab} label="Incident information" />
+
+      <TabPanel id="overview" value={tab}>
+        <div className={`grid items-start gap-4 ${hasSide ? "lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)]" : ""}`}>
+          <WhyCard incident={inc} events={events} cited={cited} onJump={jumpToEvidence} />
+          {hasSide && (
+            <div className="space-y-4">
+              {showMini && <MiniMapCard topology={topology} incident={inc} onOpen={() => setTab("map")} />}
+              {showMetrics && <MiniCharts metrics={metrics} incident={inc} onOpen={() => setTab("metrics")} />}
+            </div>
           )}
         </div>
-      </Card>
+      </TabPanel>
+      <TabPanel id="map" value={tab}>{showMap && <MapTab topology={topology} incident={inc} />}</TabPanel>
+      <TabPanel id="metrics" value={tab}>{showMetrics && <MetricsTab metrics={metrics} incident={inc} range={range} onRange={setRange} />}</TabPanel>
+      <TabPanel id="timeline" value={tab}>
+        <RunTimeline incident={inc} events={events} active={active} reconnecting={reconnecting} evidenceIds={evidenceIds} onJump={jumpToEvidence} />
+      </TabPanel>
+      <TabPanel id="evidence" value={tab}>
+        {hasEvidence ? <EvidenceSection items={inc.evidence} cited={cited} host={hostOf(inc.target)} open={openEvidence} onToggle={toggleEvidence} /> : <RestrictedNotice title="Evidence" label="Evidence" />}
+      </TabPanel>
+      <TabPanel id="audit" value={tab}>
+        {hasAudit ? <AuditSection items={inc.audit} evidenceIds={evidenceIds} onJump={jumpToEvidence} /> : <RestrictedNotice title="Audit" label="Audit" />}
+      </TabPanel>
 
-      <RunTimeline events={events} active={active} reconnecting={reconnecting} />
-
-      {"evidence" in inc ? <EvidenceSection items={inc.evidence} open={openEvidence} onToggle={toggleEvidence} /> : <RestrictedNotice title="Evidence" label="Evidence" />}
-      {"audit" in inc ? <AuditSection items={inc.audit} evidenceIds={evidenceIds} onJump={jumpToEvidence} /> : <RestrictedNotice title="Audit" label="Audit" />}
+      <RawOutputDialog open={rawOpen} onClose={() => setRawOpen(false)} incident={inc} events={events} />
     </div>
   );
 }

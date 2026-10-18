@@ -1,21 +1,44 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useLocation, useNavigationType } from "react-router-dom";
 import IncidentRow from "../components/IncidentRow.jsx";
 import { Card, Empty, ErrorCard, fieldClass, Inbox, LivePill, OUTCOME_META, Search, Select, Skeleton, STATUS_META } from "../components/ui.jsx";
 import { useIncidentList } from "../hooks/useIncidentList.js";
 import { dataSource } from "../services/index.js";
 import { incidentsSummary, PAGE_SIZE } from "../utils/paging.js";
 
+// The list (filters, "Show more" count, scroll) is remembered while an incident is open, so coming back lands on the
+// same row. Kept in module memory only: one small object, gone on reload, never sent anywhere.
+let remembered = null;
+
 export default function Incidents() {
+  const location = useLocation();
+  const navType = useNavigationType();
+  // Restore only when coming back (browser Back, or the incident page's "← Incidents"); a fresh visit starts clean.
+  const restore = useRef(remembered && (navType === "POP" || location.state?.restore) ? remembered : null).current;
+  const scrollY = useRef(restore?.scrollY ?? 0);
+  const pendingScroll = useRef(restore ? restore.scrollY : null);
   const { rows, error, live, updatedAt, retry, truncated } = useIncidentList();
-  const [query, setQuery] = useState("");
-  const [status, setStatus] = useState("");
-  const [outcome, setOutcome] = useState("");
-  const [target, setTarget] = useState("");
-  const [visible, setVisible] = useState(PAGE_SIZE);
+  const [query, setQuery] = useState(restore?.query ?? "");
+  const [status, setStatus] = useState(restore?.status ?? "");
+  const [outcome, setOutcome] = useState(restore?.outcome ?? "");
+  const [target, setTarget] = useState(restore?.target ?? "");
+  const [visible, setVisible] = useState(restore?.visible ?? PAGE_SIZE);
   const headingRef = useRef(null);
-  useEffect(() => { headingRef.current?.focus(); }, []);
+  // preventScroll: when returning, focusing the heading must not pull the page back to the top.
+  useEffect(() => { headingRef.current?.focus({ preventScroll: Boolean(restore) }); }, [restore]);
   // A new filter is a new result set: go back to the first page so "Show more" always starts from the top.
-  useEffect(() => { setVisible(PAGE_SIZE); }, [query, status, outcome, target]);
+  // (Compared with the previous key, so restoring the filters on arrival does not count as a change.)
+  const filterKey = [query, status, outcome, target].join("\u0000");
+  const lastKey = useRef(filterKey);
+  useEffect(() => {
+    if (lastKey.current !== filterKey) { lastKey.current = filterKey; setVisible(PAGE_SIZE); }
+  }, [filterKey]);
+  useEffect(() => { remembered = { query, status, outcome, target, visible, scrollY: scrollY.current }; }, [query, status, outcome, target, visible]);
+  // Once the rows (and the restored "Show more" count) are on screen, go back to where the person was.
+  useLayoutEffect(() => {
+    if (rows && pendingScroll.current != null) { window.scrollTo(0, pendingScroll.current); pendingScroll.current = null; }
+  }, [rows]);
+  const rememberScroll = () => { scrollY.current = window.scrollY; if (remembered) remembered.scrollY = window.scrollY; };
 
   const targets = useMemo(() => [...new Set((rows ?? []).map((r) => r.target))].sort(), [rows]);
   const filtered = useMemo(() => {
@@ -88,7 +111,7 @@ export default function Incidents() {
                 {incidentsSummary({ shown: shown.length, matched: filtered.length, total: rows.length, hasFilters: Boolean(filtersActive), truncated })}
               </p>
               <Card title="Incidents" count={filtered.length}>
-                <ul className="space-y-2">{shown.map((r) => <IncidentRow key={r.id} incident={r} />)}</ul>
+                <ul onClickCapture={rememberScroll} className="space-y-2">{shown.map((r) => <IncidentRow key={r.id} incident={r} />)}</ul>
                 {remaining > 0 && (
                   <div className="mt-4 flex justify-center">
                     <button

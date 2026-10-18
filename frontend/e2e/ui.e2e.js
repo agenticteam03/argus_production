@@ -33,11 +33,19 @@ test.describe("dashboard (guideline 2)", () => {
     await expect(page.getByText(esc.route).first()).toBeVisible();
   });
 
+  test("shows the live system map (ACR-0017)", async ({ page, api }) => {
+    await api();
+    await logIn(page);
+    await expect(page.getByText("System map")).toBeVisible();
+    await expect(page.locator('svg[aria-label^="System map"]')).toBeVisible();
+  });
+
   test("shows current host metrics and answers a Host T memory question", async ({ page, api }) => {
     await api();
     await logIn(page);
     await expect(page.getByText("Host metrics")).toBeVisible();
-    await expect(page.getByText("60.0%", { exact: true }).first()).toBeVisible();
+    // The value carries its level as screen-reader text ("60.0% (Normal)"), so the colour is never the only signal.
+    await expect(page.getByText("60.0% (Normal)").first()).toBeVisible();
     await page.getByLabel("Message for the agent").fill("Check Host T memory usage");
     await page.getByRole("button", { name: "Send" }).click();
     await expect(page.getByText(/Host T \(vm-166\) memory usage: 60.0%/)).toBeVisible();
@@ -64,6 +72,7 @@ test.describe("incidents", () => {
     const inc = sample("incident");
     await expect(page.getByRole("heading", { level: 1 })).toHaveText(inc.target);
     await expect(page.getByText(inc.diagnosis).first()).toBeVisible();
+    await page.getByRole("tab", { name: "Runtime Timeline" }).click();   // the redesign moved the timeline into a tab
     await expect(page.getByText(/detect/i).first()).toBeVisible();      // the timeline's first node
   });
 
@@ -71,13 +80,69 @@ test.describe("incidents", () => {
     await api({ role: "operator" });
     await logIn(page);
     await page.goto(`/incidents/${DIAGNOSED_ID}`);
+    await page.getByRole("tab", { name: "Evidence" }).click();                      // the redesign moved evidence into a tab
     await expect(page.getByText(`via ${readCapability()}`).first()).toBeVisible();   // an evidence row
 
     await page.unrouteAll({ behavior: "ignoreErrors" });
     await api({ role: "viewer" });
     await page.reload();
+    await page.getByRole("tab", { name: "Evidence" }).click();
     await expect(page.getByText(`via ${readCapability()}`)).toHaveCount(0);
     await expect(page.getByText("Evidence is visible to operators and approvers.")).toBeVisible();
+  });
+
+  test("the page groups its sections into tabs and shows Map/Metrics when their routes answer (ACR-0017)", async ({ page, api }) => {
+    await api();
+    await logIn(page);
+    await page.goto(`/incidents/${DIAGNOSED_ID}`);
+    await expect(page.getByRole("tab", { name: "Incident & Diagnosis" })).toHaveAttribute("aria-selected", "true");
+    for (const name of ["Runtime Timeline", "Evidence", "Audit"]) {
+      await expect(page.getByRole("tab", { name })).toBeVisible();
+    }
+    // VITE_ARGUS_INSIGHTS=1 and the faked API serve GET /api/v1/topology and .../metrics, so both tabs appear and
+    // render the real shapes. "unknown" edges must show, never as "dependency ok".
+    await page.getByRole("tab", { name: "Map", exact: true }).click();
+    await expect(page.locator('svg[aria-label^="System map"]')).toBeVisible();
+    await expect(page.getByText("unknown", { exact: true })).toBeVisible();          // the legend entry
+    await page.getByRole("tab", { name: "Metrics", exact: true }).click();
+    await expect(page.getByText(/missing sample is a gap/)).toBeVisible();
+  });
+
+  test("an operator's Map asks for the incident overlay (ACR-0017)", async ({ page, api }) => {
+    await api({ role: "operator" });
+    const overlay = page.waitForRequest((r) => r.url().includes("/api/v1/topology?incident_id="));
+    await logIn(page);
+    await page.goto(`/incidents/${DIAGNOSED_ID}`);
+    await overlay;                                                     // the incident page asks for the overlay
+    await page.getByRole("tab", { name: "Map", exact: true }).click();
+    await expect(page.locator('svg[aria-label^="System map"]')).toBeVisible();
+  });
+
+  test("a viewer never asks for the overlay and still sees the plain map (ACR-0017)", async ({ page, api }) => {
+    await api({ role: "viewer" });
+    const seen = [];
+    page.on("request", (r) => { if (r.url().includes("/api/v1/topology")) seen.push(r.url()); });
+    await logIn(page);
+    await page.goto(`/incidents/${DIAGNOSED_ID}`);
+    await page.getByRole("tab", { name: "Map", exact: true }).click();
+    await expect(page.locator('svg[aria-label^="System map"]')).toBeVisible();
+    expect(seen.some((u) => u.includes("incident_id"))).toBe(false);   // a viewer gets the plain map only
+  });
+
+  test("a refused overlay (403) falls back to the plain map (ACR-0017)", async ({ page, api }) => {
+    // The overlay is operator/approver only; if the API refuses it, the page must still show the plain system map
+    // instead of losing it (the API decides permissions, never the UI).
+    await api({ role: "operator", overrides: {
+      "GET /api/v1/topology": (route, request) => {
+        const overlay = new URL(request.url()).searchParams.get("incident_id");
+        return route.fulfill({ status: overlay ? 403 : 200, contentType: "application/json",
+          body: JSON.stringify(overlay ? { detail: "role may not read the incident overlay" } : sample("topology")) });
+      },
+    } });
+    await logIn(page);
+    await page.goto(`/incidents/${DIAGNOSED_ID}`);
+    await page.getByRole("tab", { name: "Map", exact: true }).click();
+    await expect(page.locator('svg[aria-label^="System map"]')).toBeVisible();
   });
 
   test("an unknown incident shows 'Incident not found'", async ({ page, api }) => {
@@ -152,8 +217,9 @@ test.describe("start an investigation (ACR-0012)", () => {
     await api({ role: "operator" });
     await logIn(page);
     const form = page.getByRole("form", { name: "Start an investigation" });
-    await form.getByLabel("Target").selectOption(TARGET);
-    await form.getByLabel("Check").check();
+    await form.getByLabel("Target").click();
+    await form.getByRole("option", { name: TARGET, exact: true }).click();
+    await form.getByRole("group", { name: "Kind" }).getByRole("button", { name: "Check" }).click();
     await form.getByLabel("Reason").fill("users report slowness");
     const sent = page.waitForRequest((r) => r.method() === "POST" && r.url().endsWith("/api/v1/investigations"));
     await form.getByRole("button", { name: "Start investigation" }).click();
@@ -176,7 +242,8 @@ test.describe("start an investigation (ACR-0012)", () => {
       body: '{"detail":"investigation quota reached (per_hour)"}' }) } });
     await logIn(page);
     const form = page.getByRole("form", { name: "Start an investigation" });
-    await form.getByLabel("Target").selectOption(TARGET);
+    await form.getByLabel("Target").click();
+    await form.getByRole("option", { name: TARGET, exact: true }).click();
     await form.getByRole("button", { name: "Start investigation" }).click();
     await expect(form.getByRole("alert")).toContainText("10 min");
   });

@@ -19,7 +19,7 @@ export default defineConfig({
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
   webServer: {
     command: `npx vite build --outDir dist-e2e --emptyOutDir && npx vite preview --outDir dist-e2e --port ${PORT} --strictPort --host 127.0.0.1`,
-    env: { VITE_ARGUS_MOCK: "0" },
+    env: { VITE_ARGUS_MOCK: "0", VITE_ARGUS_INSIGHTS: "1" },   // ACR-0017: build the map and metrics calls in
     url: `http://127.0.0.1:${PORT}`,
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,

@@ -1,5 +1,5 @@
-import { useState } from "react";
 import { clock, dateTime } from "../utils/format.js";
+import { formatMs, modelCalls, shortName, stages } from "../utils/incidentView.js";
 import { Card, LivePill } from "./ui.jsx";
 
 const LABELS = {
@@ -7,71 +7,51 @@ const LABELS = {
   request_approval: "Request approval", await_approval: "Await approval", precheck_action: "Precheck action", execute_write: "Execute write",
   verify: "Verify", record: "Record",
 };
-const STAGES = [
-  { label: "DETECT", nodes: ["detect"] },
-  { label: "RECALL", nodes: ["recall"] },
-  { label: "INVESTIGATE ⇄ ACT", nodes: ["investigate", "act"] },
-  { label: "RECORD", nodes: ["record"] },
-];
-const STAGE_TONE = {
-  done: "border-emerald-400/20 bg-emerald-400/10 text-emerald-300",
-  active: "border-accent/30 bg-accent/10 text-accent-hover",
-  pending: "border-line text-muted",
-};
-const PHASE_TONE = { enter: "bg-sky-400/10 text-sky-300", step: "bg-white/5 text-muted", exit: "bg-emerald-400/10 text-emerald-300" };
 
-// Reached = any of its nodes has an event. The last reached stage is active while the run is live.
-function stageStates(events, active) {
-  const reached = STAGES.map((s) => events.some((e) => s.nodes.includes(e.node)));
-  const last = reached.lastIndexOf(true);
-  return STAGES.map((_, i) => (!reached[i] ? "pending" : active && i === last ? "active" : "done"));
+function Reads({ reads, evidenceIds, onJump }) {
+  if (!reads.length) return null;
+  return (
+    <span className="mt-1 flex flex-wrap gap-x-3 gap-y-1">
+      {reads.map((r, i) => {
+        const label = `${r.capability}${r.target ? ` ${shortName(r.target)}` : ""}${r.status && r.status !== "ok" ? ` · ${r.status}` : ""}`;
+        return r.evidenceId && evidenceIds.has(r.evidenceId) ? (
+          <button key={i} type="button" onClick={() => onJump(r.evidenceId)} className="cursor-pointer font-mono text-xs text-accent-hover hover:underline">{label}</button>
+        ) : (
+          <span key={i} className="font-mono text-xs text-muted">{label}</span>
+        );
+      })}
+    </span>
+  );
 }
 
-export default function RunTimeline({ events, active, reconnecting }) {
-  const [open, setOpen] = useState(() => new Set());
-  const states = stageStates(events, active);
-  const toggle = (seq) => setOpen((prev) => { const next = new Set(prev); next.has(seq) ? next.delete(seq) : next.add(seq); return next; });
+// One row per stage of the run (a stage is a run of consecutive events of the same node).
+export default function RunTimeline({ incident, events, active, reconnecting, evidenceIds, onJump }) {
+  const list = stages(events);
+  const reads = list.reduce((n, s) => n + s.reads.length, 0);
+  const calls = modelCalls(incident);
+  const total = list.length ? list.at(-1).end - list[0].start : null;
+  const finished = ["Finished", Number.isFinite(total) && formatMs(total), `${reads} ${reads === 1 ? "read" : "reads"}`, calls === 0 ? "no AI calls" : calls > 0 ? `${calls} AI ${calls === 1 ? "call" : "calls"}` : null].filter(Boolean).join(" · ");
 
   return (
-    <Card title="Run timeline" right={active ? <LivePill live={!reconnecting} /> : <span className="text-xs text-muted">Finished</span>}>
-      <ol className="mb-4 flex flex-wrap items-center gap-2" aria-label="Run stages">
-        {STAGES.map((s, i) => (
-          <li key={s.label} className="flex items-center gap-2">
-            {i > 0 && <span className="text-muted" aria-hidden="true">→</span>}
-            <span className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium ${STAGE_TONE[states[i]]}`}>
-              {states[i] === "active" && <span className="size-1.5 animate-pulse rounded-full bg-current motion-reduce:animate-none" />}
-              {s.label}
-              <span className="sr-only"> ({states[i]})</span>
-            </span>
-          </li>
-        ))}
-      </ol>
-
-      {events.length === 0 ? (
+    <Card title="Run timeline" right={active ? <LivePill live={!reconnecting} /> : <span className="text-xs text-muted">{finished}</span>}>
+      {list.length === 0 ? (
         <p className="rounded-xl border border-dashed border-line px-4 py-6 text-center text-sm text-muted">
           {active ? "Waiting for the first event…" : "No events were recorded."}
         </p>
       ) : (
         <ol className="ml-2 border-l border-line">
-          {events.map((e) => {
-            const hasData = e.data && Object.keys(e.data).length > 0;
-            const panel = `event-data-${e.seq}`;
+          {list.map((s, i) => {
+            const running = active && !s.done;
+            const end = !active && i === list.length - 1;
             return (
-              <li key={e.seq} className="relative pb-3 pl-5 last:pb-0">
-                <span className={`absolute -left-[5px] top-1.5 size-2.5 rounded-full border border-card ${e.phase === "exit" ? "bg-emerald-400" : e.phase === "enter" ? "bg-sky-400" : "bg-zinc-500"}`} />
-                <div className="flex flex-wrap items-center gap-2 text-sm">
-                  <time dateTime={e.at} title={dateTime(e.at)} className="font-mono text-xs text-muted">{clock(e.at)}</time>
-                  <span className="font-medium">{LABELS[e.node] ?? e.node}</span>
-                  <span className={`rounded-md px-1.5 py-0.5 text-[11px] ${PHASE_TONE[e.phase] ?? "bg-white/5 text-muted"}`}>{e.phase}</span>
-                  {hasData && (
-                    <button aria-expanded={open.has(e.seq)} aria-controls={panel} onClick={() => toggle(e.seq)} className="cursor-pointer text-xs text-accent-hover hover:underline">
-                      Details
-                    </button>
-                  )}
-                </div>
-                {hasData && (
-                  <pre id={panel} hidden={!open.has(e.seq)} className="mt-2 overflow-x-auto rounded-lg bg-field p-3 text-xs text-[#d6dbe6]">{JSON.stringify(e.data, null, 2)}</pre>
-                )}
+              <li key={`${s.name}-${i}`} className="relative grid gap-x-3 gap-y-0.5 py-2 pl-5 text-sm md:grid-cols-[8rem_4.5rem_minmax(0,1fr)]">
+                <span className={`absolute -left-[5px] top-3.5 size-2.5 rounded-full border border-card ${running ? "animate-pulse bg-accent motion-reduce:animate-none" : end ? "bg-emerald-400" : "bg-sky-400"}`} />
+                <span className="font-medium" title={dateTime(s.at)}>{LABELS[s.name] ?? s.name}</span>
+                <span className="font-mono text-xs leading-5 text-muted"><time dateTime={s.at} title={clock(s.at)}>{running ? "running" : s.done ? formatMs(s.durationMs) : "—"}</time></span>
+                <span className="min-w-0 text-[#d6dbe6]">
+                  {s.summary}
+                  <Reads reads={s.reads} evidenceIds={evidenceIds} onJump={onJump} />
+                </span>
               </li>
             );
           })}

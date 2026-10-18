@@ -15,7 +15,7 @@ from threading import Lock, RLock
 from typing import Annotated, Literal
 
 import jwt
-from fastapi import Depends, FastAPI, Header, HTTPException, Request, status
+from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, status
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from pwdlib import PasswordHash
 from pydantic import BaseModel, ConfigDict
@@ -326,6 +326,31 @@ def build_api(app_ctx) -> FastAPI:
         if app_ctx.store.get_incident(incident_id) is None:
             raise HTTPException(404, "not found")
         return app_ctx.store.list_run_events(incident_id, after)
+
+    @api.get("/api/v1/topology", tags=["incidents"])
+    def topology(p: Annotated[Principal, Depends(current)],
+                 incident_id: Annotated[str | None, Query(pattern=r"^inc_[A-Za-z0-9_-]+$", max_length=64)] = None):
+        """ACR-0017: the system map: inventory targets, declared dependencies with their ports and networks, live state
+        from named signals and the dependency probe; with `incident_id` (operator/approver), the incident's target and
+        root cause from its stored evidence. Never VM addresses, Argus's internal endpoints or secrets."""
+        if incident_id is None:
+            return app_ctx.topology.view()
+        if p.role not in ("operator", "approver"):
+            raise HTTPException(status.HTTP_403_FORBIDDEN, "the incident overlay uses evidence: operator or approver")
+        inc = app_ctx.store.get_incident(incident_id)
+        if inc is None:
+            raise HTTPException(404, "not found")
+        return app_ctx.topology.view_for(inc)
+
+    @api.get("/api/v1/incidents/{incident_id}/metrics", tags=["incidents"])
+    def incident_metrics(incident_id: str, p: Annotated[Principal, Depends(current)],
+                         rng: Annotated[Literal["15m", "30m", "1h"], Query(alias="range")] = "30m"):
+        """ACR-0017: the incident's metric window, a fixed signal list per class on the incident's own host; no
+        PromQL or target from the browser; at most ~130 points per series; a missing sample is null."""
+        inc = app_ctx.store.get_incident(incident_id)
+        if inc is None:
+            raise HTTPException(404, "not found")
+        return app_ctx.incident_metrics.window(inc, rng)
 
     @api.get("/api/v1/evidence/{evidence_id}", tags=["incidents"])
     def evidence(evidence_id: str, p: Annotated[Principal, Depends(require("operator", "approver"))]):
