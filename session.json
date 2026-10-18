@@ -5,7 +5,7 @@
   "branch": "task/LF-3-cloud-connect",
   "base_commit": "d390e95cd01f7092abe78a6ba6affbb0a7dea978",
   "started_at": "2026-10-18T15:30:51+00:00",
-  "expires_at": "2026-10-18T16:30:51+00:00",
+  "expires_at": "2026-10-18T16:34:19+00:00",
   "released": false,
   "handoff": null,
   "took_over_from": {
@@ -22,7 +22,7 @@
       "branch": "task/LF-3-cloud-connect",
       "base_commit": "d390e95cd01f7092abe78a6ba6affbb0a7dea978",
       "started_at": "2026-10-18T15:30:51+00:00",
-      "expires_at": "2026-10-18T16:30:51+00:00",
+      "expires_at": "2026-10-18T16:34:19+00:00",
       "released": false,
       "handoff": null,
       "took_over_from": {
@@ -39,7 +39,7 @@
       "branch": "task/LF-3-cloud-connect",
       "base_commit": "d390e95cd01f7092abe78a6ba6affbb0a7dea978",
       "started_at": "2026-10-18T15:30:51+00:00",
-      "expires_at": "2026-10-18T16:30:51+00:00",
+      "expires_at": "2026-10-18T16:34:19+00:00",
       "released": false,
       "handoff": null,
       "took_over_from": {
