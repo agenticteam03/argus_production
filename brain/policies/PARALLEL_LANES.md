@@ -64,8 +64,9 @@ Three developers, but most work runs in a single line. Seen in the week of 2026-
   `config/inventory.yaml`, `config/signals.yaml`, `deploy/vm-095/compose.core.yml`, the migrations.
 - PRs are based on `main`. A stack (a PR on another PR's branch) is allowed only with a same-day review promise from
   the reviewer, and at most two deep.
-- **Reviews:** outside the fast-track windows (until 2026-10-12; 2026-10-14 to 2026-10-16) every merge needs a second person, so each working day has one
-  named reviewer (rotation). A PR waiting more than a day is the board's first item.
+- **Reviews:** a PR that meets the self-merge rule (`../agents/REVIEW_PROTOCOL.md`, from 2026-10-17) may be merged by
+  its author; every other merge needs a second person, so each working day has one named reviewer (rotation). A PR
+  waiting more than a day is the board's first item.
 
 ## The lanes, to start
 

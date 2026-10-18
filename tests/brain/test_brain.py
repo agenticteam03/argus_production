@@ -265,6 +265,63 @@ def test_check_main_honours_recorded_exceptions(tmp_path):
     assert brain.check_main(commits, {"x" * 40: _pr(1, "alice", "h1")}.get, lambda n: [], allowed) == []
 
 
+# --- self-merge (REVIEW_PROTOCOL.md "Self-merge"): green required checks, no protected path ---------------------------
+def _run(name, conclusion="success"):
+    return {"name": name, "status": "completed", "conclusion": conclusion}
+
+
+GREEN = [_run("test"), _run("frontend"), _run("main-guard", "skipped")]
+
+
+def test_a_self_merge_with_green_checks_and_ordinary_files_is_accepted():
+    pr = _pr(7, "alice", "h7")
+    assert brain.self_merge_problem(pr, GREEN, ["argus/application/topology.py", "tests/test_x.py"], []) is None
+    commits = [("x" * 40, 2), ("root" * 10, 0)]
+    assert brain.check_main(commits, {"x" * 40: pr}.get, lambda n: [], set(),
+                            lambda p: brain.self_merge_problem(p, GREEN, ["frontend/src/App.jsx"], [])) == []
+
+
+@pytest.mark.parametrize("checks, why", [
+    ([_run("test"), _run("frontend", "failure")], "frontend not success"),
+    ([_run("test")], "frontend missing"),
+    ([_run("test", "cancelled"), _run("frontend")], "test not success"),
+    ([], "test missing"),
+])
+def test_a_self_merge_needs_every_required_check_green_on_its_last_push(checks, why):
+    assert why in brain.self_merge_problem(_pr(7, "alice", "h7"), checks, ["argus/x.py"], [])
+
+
+@pytest.mark.parametrize("path", ["brain/architecture/changes/ACR-0099-x.md", "brain/policies/SECURITY.md",
+                                  "brain/agents/REVIEW_PROTOCOL.md", "brain/tools/brain.py", ".github/workflows/ci.yml",
+                                  "config/policy.yaml", "config/inventory.yaml", "deploy/ui/nginx/locations.conf",
+                                  "contracts/ui-api.json", "ops/local_ci.py", "brain/policies/main-exceptions.txt"])
+def test_a_self_merge_never_covers_a_protected_path(path):
+    why = brain.self_merge_problem(_pr(7, "alice", "h7"), GREEN, ["argus/x.py", path], [])
+    assert why and path in why and "teammate" in why
+
+
+def test_a_self_merge_with_too_many_files_to_check_is_refused():
+    files = [f"argus/f{i}.py" for i in range(brain.FILES_PAGE)]
+    assert "too many" in brain.self_merge_problem(_pr(7, "alice", "h7"), GREEN, files, [])
+
+
+def test_a_local_ci_pass_for_the_last_push_replaces_the_github_checks():
+    pr = _pr(7, "alice", "abc123")
+    good = [{"body": "LOCAL CI PASS abc123 (laptop, commit abc123)\n\nall steps pass"}]
+    assert brain.self_merge_problem(pr, [], ["argus/x.py"], good) is None
+    old = [{"body": "LOCAL CI PASS 999999 (laptop, commit 999999)"}]               # an earlier push
+    failed = [{"body": "LOCAL CI FAIL abc123 (laptop, commit abc123)"}]
+    assert brain.self_merge_problem(pr, [], ["argus/x.py"], old) is not None
+    assert brain.self_merge_problem(pr, [], ["argus/x.py"], failed) is not None
+
+
+def test_check_main_reports_why_a_self_merge_was_not_valid():
+    commits = [("x" * 40, 2), ("root" * 10, 0)]
+    problems = brain.check_main(commits, {"x" * 40: _pr(8, "bob", "h8")}.get, lambda n: [], set(),
+                                lambda p: brain.self_merge_problem(p, GREEN, ["config/policy.yaml"], []))
+    assert len(problems) == 1 and "PR #8 by bob" in problems[0] and "config/policy.yaml" in problems[0]
+
+
 def test_guard_push_refuses_main_only(monkeypatch, capsys):
     monkeypatch.setenv("PRE_COMMIT_REMOTE_BRANCH", "refs/heads/main")
     assert brain.main(["guard-push"]) == 1

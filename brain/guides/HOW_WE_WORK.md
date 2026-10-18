@@ -70,5 +70,6 @@ could lose data, expose a secret, or disturb the other Argus deployment on the V
 
 1. Never touch the other deployment on the VMs (`/opt/argus`, `/opt/argus-lab`, `wg0`, `labmvp`).
 2. Never put a secret in any file, commit or chat.
-3. Never push to `main` and never merge your own pull request — the next developer reviews it.
+3. Never push to `main`. Merge your own pull request only when it meets the self-merge rule (required checks green
+   on its last push, no protected path: `../agents/REVIEW_PROTOCOL.md`); otherwise the next developer reviews it.
 4. Never reboot a VM.

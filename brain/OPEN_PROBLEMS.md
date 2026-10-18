@@ -20,6 +20,7 @@ When a problem is fixed, set its status to `fixed` with the date, and add a jour
 | OP-010 | The db-probe cannot connect when every usable slot is taken, so `postgresql_connection_exhaustion` cannot fire at 100 % | **fixed** 2026-10-09 — SC-04 at 100 % DIAGNOSED from the pulled alert | 2026-10-08 |
 | **OP-011** | Two alerts on one target open two incidents: §6.4 correlation is not implemented | **fixed** 2026-10-09 — SC-03 on vm-166 gives one incident (ACR-0004) | 2026-10-09 |
 | OP-013 | D-003 was decided on the same cases the baseline's rules were written from: its 1.00 is an upper bound | open | 2026-10-13 |
+| **OP-014** | The self-merge rule relies on the tests: gaps where a green CI does not yet mean "safe to merge" | open — first three gaps in `task/TEST-HARDEN-1` | 2026-10-17 |
 
 ---
 
@@ -171,6 +172,65 @@ strategies, 5 trials each. Re-decide each class by §21.2 on those results, or p
 change (for example "within 0.10 of the baseline and hard 0").
 
 **Done when.** The held-out results are recorded and each class's strategy is re-decided in its own pull request.
+
+---
+
+## OP-014 — The self-merge rule relies on the tests
+
+**Status:** open · **Opened:** 2026-10-17 (the self-merge rule, `agents/REVIEW_PROTOCOL.md`) · **Owner:** the team
+
+**Problem.** Under the self-merge rule, a green `test` + `frontend` on the last push replaces a teammate's review for
+everything outside the protected paths. CI is already broad: Brain audit and lint, gitleaks over the full history,
+about 130 pytest files with a throwaway Postgres, the offline baseline evaluation and its safety cases (a planted
+secret never reaches the model, no cross-host read, no action), the write-gate standing test, the PromQL cases, and
+the frontend's ESLint, Vitest, build and Playwright. But a green CI does not yet cover:
+
+| # | Gap | Why it matters for self-merge |
+|---|---|---|
+| 1 | **Docker-gated tests are skipped in CI**: `ARGUS_TEST_DOCKER` is never set, so the credential-isolation check (`tests/test_tool_isolation.py`) and the real-Docker backup tests (`tests/test_db_backup.py`) never run there; the real-Nginx edge tests (`tests/test_acr0011_ui_edge.py`) run only if the runner has Docker | a change that breaks secret isolation or the public edge passes CI |
+| 2 | **No prompt-injection tests**, although §22.3 item 10 requires injection fixtures | a change to context assembly or redaction can let target text steer the model |
+| 3 | **A flaky timing test**: `tests/test_mcp_child.py::test_benchmark_compares_direct_and_mcp_on_the_same_read` (p95 < 100 ms) fails under load | a red-by-chance run blocks merges; people learn to ignore red |
+| 4 | **No check that new code is tested**: "red seen" is a written record only; there is no coverage measurement | an untested change merges green |
+| 5 | **The model's diagnosis quality is not in CI**: only the deterministic baseline runs offline; prompts, strategies and the class registry can lower the 0.97 unnoticed | a quality regression merges green |
+| 6 | **No static analysis or dependency audit** for Python, the frontend, the Dockerfiles, the shell scripts or the workflows | a vulnerable dependency or an obvious bug pattern merges green |
+| 7 | **The protected-path list is a deny list** (SLSA's threat model warns that path exemptions can be abused, e.g. code hidden in a "documentation" path) | a new enforcement-relevant file is self-mergeable until it is added to `SELF_MERGE_PROTECTED` |
+
+**Fix, in order.** (Online research, 2026-10-17: OpenSSF Scorecard checks, SLSA source-track discussion, mutation and
+diff-coverage gates, LLM injection regression testing, CI security scanners.)
+
+*Now — `task/TEST-HARDEN-1`:*
+1. Run the Docker tests in CI (`ARGUS_TEST_DOCKER=1` on the Linux runner, which has Docker) and make them required.
+2. Prompt-injection regression cases: instructions planted in container logs, a file read, an HTTP body and a peer
+   finding; assert they are wrapped as data, never change the class or the root cause, never add a tool call outside
+   the allowlist, and never reach the model unredacted. Fail the build on these objective signals.
+3. Make the timing test robust (compare medians with a margin, or move the p95 budget to an opt-in benchmark run).
+
+*Next — one PR each, each new job added to `SELF_MERGE_CHECKS` in the same PR:*
+4. **Coverage on changed lines:** `pytest-cov` + `diff-cover` (or `pytest-nlcov`) failing under 80 % of the PR's
+   changed lines; Vitest coverage thresholds for `frontend/`. A changed-lines gate never blocks on old, untested code.
+5. **Static analysis (SAST):** `ruff` for Python; `bandit` or `semgrep` (OWASP / Python rulesets) failing on high
+   severity. CodeQL code scanning is not available for private repositories on the free plan, so these run as
+   plain CI steps without SARIF upload.
+6. **Dependency audit:** `pip-audit` and `npm audit --audit-level=high` (or OSV-Scanner) on every PR; Dependabot
+   alerts on.
+7. **Workflow, image and script linting:** `zizmor` for `.github/workflows/`, `hadolint` for the Dockerfiles,
+   `shellcheck` for `ops/*.sh`, Trivy config/filesystem scan. **Pin every action by commit SHA**: the Trivy action
+   itself was compromised in March 2026, and pinned dependencies are an OpenSSF Scorecard check.
+8. **Model quality:** run the model evaluation (§21.2) on a schedule (weekly) and record the result; until then a
+   change under `argus/orchestration/`, `config/signals.yaml`, the class registry or the runbooks asks for a
+   teammate's review (REVIEW_PROTOCOL.md, "The tests this rule relies on").
+
+*Later:*
+9. **Mutation testing** (`mutmut`) on the safety-critical modules (`argus/policy/`, `application/invoke_capability.py`,
+   redaction), weekly, with a threshold that starts at today's score and only goes up.
+10. **Property-based tests** (Hypothesis) for redaction, target parsing and the policy engine.
+11. **LLM red-team scan** on a schedule (promptfoo for the application, garak for the model) next to the fixed
+    regression cases of step 2.
+12. **Accessibility checks** in Playwright (axe-core) on the main pages.
+13. **OpenSSF Scorecard** run monthly as a health signal for the repository's practices.
+
+**Done when.** Steps 1-8 are merged and required; the self-merge rule's protected-path list is reviewed again with
+them (gap 7). Steps 9-13 are tracked as tasks.
 
 ---
 

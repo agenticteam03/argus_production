@@ -59,7 +59,7 @@ If two files disagree, the higher authority wins and the lower one gets fixed in
 
 1. **One owner at a time** for the VMs: claim the session lease with `brain.py start`; release it at the end.
 2. **Work on a task branch**, never directly on `main`. Only a merged pull request changes the shared state.
-3. **Every pull request is reviewed and approved by the next developer** (AI-assisted, [`agents/REVIEW_PROTOCOL.md`](agents/REVIEW_PROTOCOL.md)). Nobody merges their own.
+3. **Every pull request is reviewed and approved by the next developer** (AI-assisted, [`agents/REVIEW_PROTOCOL.md`](agents/REVIEW_PROTOCOL.md)), **or self-merged by its author** when its required checks are green on its last push and it touches no protected path (the self-merge rule in the same file).
 4. **Tests run continuously**: red → green → full suite → CI on every push ([`policies/TDD.md`](policies/TDD.md)).
 5. **Commands for the VMs go into `execution/current/code.bash`**, with where, why, what changes, expected output and how to undo ([`policies/CODE_BASH.md`](policies/CODE_BASH.md)).
 6. **Never touch the protected objects** (the pre-existing WireGuard deployment, see [`infrastructure/environment.md`](infrastructure/environment.md)); run `nonint-check.sh` before and after every mutating VM step.
