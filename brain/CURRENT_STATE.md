@@ -7,6 +7,11 @@ shared-Brain setup B1–B8 under way (three developers).
 > The VMs are authoritative for what runs there: run `sudo bash /opt/argus-v18/app/ops/deploy.sh status` (or read
 > `/opt/argus-v18/DEPLOYED`) and the state probe before trusting this file.
 
+> **Update 2026-10-18 (`conantkd`, LF-3 step 03, OBSERVED):** **vm-095 runs `7e6e33c`** (the head of #156, deployed
+> minutes before `juanbetancurm` merged it as `f7df417`; vm-166 unchanged) and its worker exports filtered traces to
+> **Langfuse Cloud (EU)** (ACR-0013 and ACR-0016, architecture 1.8.16). The self-hosted Langfuse stack on vm-095 was
+> removed. The next deploy of `main` moves vm-095 to the merge commit. Evidence: `execution/history/LF-3/step-03/evidence.md`.
+>
 > **Update 2026-10-12 late (`conantkd`, roll-up, OBSERVED with `deploy.sh status`):** **both VMs run `main`
 > `244453b`** (#91-#95: OP-012, EVAL-3, T-0033), deployed by `juanbetancurm` in T-0033 step 2 after the AFTER-MERGE
 > of #88-#90 (`45dda69`). vm-095's agent, worker and scheduler on one image (backup, 20/20 db checks, `phase3_check`

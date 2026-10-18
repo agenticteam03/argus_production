@@ -104,6 +104,6 @@ measured self-hosted stack saturated Host A's disk. Accepted by juanbetancurm in
 
 - [x] Accepted in the PR review.
 - [x] `ARCHITECTURE.md` §18.5, §3.3 and the §17.2 credentials row updated with ACR-0013 and this ACR, version 1.8.16, changelog line.
-- [ ] vm-095: Cloud keys and `hosts.env`, worker and agent recreated; one trace seen in Langfuse Cloud with nothing
-      outside the allowlist; a run with Cloud unreachable still records and audits.
-- [ ] The stopped self-hosted stack and its volumes removed from vm-095.
+- [x] vm-095: Cloud keys and `hosts.env`, worker and agent recreated; one trace seen in Langfuse Cloud with nothing
+      outside the allowlist; a run with Cloud unreachable still records and audits (LF-3 step 03, 2026-10-18).
+- [x] The stopped self-hosted stack and its volumes removed from vm-095 (same session).
