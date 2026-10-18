@@ -83,16 +83,23 @@ it cannot be self-merged). A teammate may object in any PR; an objection goes to
 **The author may approve and merge their own pull request when all of these hold:**
 1. it is a pull request from a task branch (no direct push to `main`; the pre-push hook stays);
 2. **every required check is green on its last push:** CI jobs `test` and `frontend`. When CI does not run, a
-   `LOCAL CI PASS` comment for **that exact commit** (`python ops/local_ci.py --pr <n> --post`, no step `fail`)
-   replaces them, as in "When CI does not run";
+   `LOCAL CI PASS` comment for **that exact commit**, **posted by another developer** (`python ops/local_ci.py --pr
+   <n> --post`, no step `fail`), replaces them, as in "When CI does not run"; the author's own run does not count;
 3. the branch is up to date with `main` when it is merged ("Update branch", then wait for the checks again);
-4. it changes **none of the protected paths** below. Those still need a teammate's approval on the last push:
+4. it changes **none of the protected paths** below, under its new name or, for a renamed file, its old one. Those
+   still need a teammate's approval on the last push:
    - `brain/architecture/` (ARCHITECTURE.md and every ACR; a safety-principle change still needs its second approval);
-   - `brain/policies/SECURITY.md`, `brain/policies/GIT_WORKFLOW.md`, `brain/policies/main-exceptions.txt`,
-     `brain/agents/REVIEW_PROTOCOL.md`;
-   - the enforcement: `brain/tools/brain.py`, `.github/`, `.pre-commit-config.yaml`, `ops/local_ci.py`;
+   - `brain/policies/` and `brain/agents/` (the security, git and review rules; the agents' stop conditions and rails);
+   - the enforcement: `brain/tools/brain.py`, `.github/`, `.pre-commit-config.yaml`;
+   - `ops/` (`deploy.sh`, `nonint-check.sh`, `write-gate-check.sh` run as root on the VMs; `local_ci.py`);
    - safety data: `config/policy.yaml` (write gate, scope), `config/inventory.yaml` (host isolation);
+   - every deployed stack's compose file (`deploy/*/compose*.yml`: mounts, secrets, ports) and
+     `deploy/migrations/` (database roles);
    - the public surface: `deploy/ui/nginx/`, `contracts/`;
+   - the code that enforces the write gate and the rails (`argus/policy/`, `argus/application/invoke_capability.py`,
+     `argus/infrastructure/gate_report.py`, `argus/tooling/isolation_check.py`) and their tests (`tests/brain/`,
+     `tests/test_write_gate_standing.py`, `tests/test_write_gate_check.py`, `tests/test_tool_isolation.py`,
+     `tests/test_op014_prompt_injection.py`): a weakened rail test would keep CI green;
 5. it is merged with a merge commit, and the branch is not deleted (`GIT_WORKFLOW.md`).
 
 The author's agent should still run the review checklist above and post its report as a PR comment before the merge:
@@ -102,10 +109,12 @@ the tests check behaviour, the report catches scope, Brain and wording problems 
 `code.bash` step and `nonint-check.sh` before and after; a merge never deploys anything by itself.
 
 **How it is enforced:** `brain.py verify-main` (CI `main-guard`, `brain.py start`) accepts a PR without another
-developer's approval only when the GitHub check runs of its last push show `test` and `frontend` as `success` (or a
-`LOCAL CI PASS` comment names that commit) and none of its files is under a protected path; the list lives in
-`brain.py` (`SELF_MERGE_PROTECTED`) and must match this section. A PR with 100 files or more is never a valid
-self-merge (too many to check). No `main-exceptions.txt` line is needed.
+developer's approval only when all five conditions are measured true: the GitHub check runs of its last push show
+`test` and `frontend` as `success` (or another developer's `LOCAL CI PASS` comment names that commit); none of its
+files, new or old name, is under a protected path; its merge commit has two parents and main's commit before the merge
+is contained in the merged branch (up to date); and its branch still exists. The list lives in `brain.py`
+(`SELF_MERGE_PROTECTED`, `SELF_MERGE_PROTECTED_GLOBS`) and must match this section. A PR with 100 files or more is
+never a valid self-merge (too many to check). No `main-exceptions.txt` line is needed.
 
 **After the merge:** any teammate may review a merged PR with the same checklist; findings become a follow-up PR.
 

@@ -278,7 +278,7 @@ def test_a_self_merge_with_green_checks_and_ordinary_files_is_accepted():
     assert brain.self_merge_problem(pr, GREEN, ["argus/application/topology.py", "tests/test_x.py"], []) is None
     commits = [("x" * 40, 2), ("root" * 10, 0)]
     assert brain.check_main(commits, {"x" * 40: pr}.get, lambda n: [], set(),
-                            lambda p: brain.self_merge_problem(p, GREEN, ["frontend/src/App.jsx"], [])) == []
+                            lambda p, *_: brain.self_merge_problem(p, GREEN, ["frontend/src/App.jsx"], [])) == []
 
 
 @pytest.mark.parametrize("checks, why", [
@@ -294,10 +294,33 @@ def test_a_self_merge_needs_every_required_check_green_on_its_last_push(checks, 
 @pytest.mark.parametrize("path", ["brain/architecture/changes/ACR-0099-x.md", "brain/policies/SECURITY.md",
                                   "brain/agents/REVIEW_PROTOCOL.md", "brain/tools/brain.py", ".github/workflows/ci.yml",
                                   "config/policy.yaml", "config/inventory.yaml", "deploy/ui/nginx/locations.conf",
-                                  "contracts/ui-api.json", "ops/local_ci.py", "brain/policies/main-exceptions.txt"])
+                                  "contracts/ui-api.json", "ops/local_ci.py", "brain/policies/main-exceptions.txt",
+                                  # SELF-MERGE-2 (the #165 review): rails, root scripts, compose files, rail tests
+                                  "brain/agents/AGENT_PROTOCOL.md", "brain/policies/PARALLEL_LANES.md",
+                                  "ops/deploy.sh", "ops/nonint-check.sh", "ops/write-gate-check.sh",
+                                  "deploy/vm-095/compose.core.yml", "deploy/target/compose.target.yml",
+                                  "deploy/migrations/007_x.sql", "argus/policy/engine.py",
+                                  "argus/application/invoke_capability.py", "argus/infrastructure/gate_report.py",
+                                  "argus/tooling/isolation_check.py", "tests/brain/test_brain.py",
+                                  "tests/test_write_gate_standing.py", "tests/test_op014_prompt_injection.py"])
 def test_a_self_merge_never_covers_a_protected_path(path):
     why = brain.self_merge_problem(_pr(7, "alice", "h7"), GREEN, ["argus/x.py", path], [])
     assert why and path in why and "teammate" in why
+
+
+@pytest.mark.parametrize("path", ["argus/application/topology.py", "frontend/src/App.jsx", "deploy/ui/Dockerfile",
+                                  "tests/test_core.py", "brain/journal/entries/2026-10-18-x.md", "docs/INCIDENTS.md"])
+def test_ordinary_paths_stay_self_mergeable(path):
+    assert brain.self_merge_problem(_pr(7, "alice", "h7"), GREEN, [path], []) is None
+
+
+def test_a_renamed_protected_file_counts_under_its_old_name_too():
+    files = brain.changed_paths([{"filename": "docs/ARCHITECTURE.md",
+                                  "previous_filename": "brain/architecture/ARCHITECTURE.md"},
+                                 {"filename": "argus/x.py"}])
+    assert files == ["docs/ARCHITECTURE.md", "brain/architecture/ARCHITECTURE.md", "argus/x.py"]
+    why = brain.self_merge_problem(_pr(7, "alice", "h7"), GREEN, files, [])
+    assert why and "brain/architecture/ARCHITECTURE.md" in why
 
 
 def test_a_self_merge_with_too_many_files_to_check_is_refused():
@@ -305,21 +328,49 @@ def test_a_self_merge_with_too_many_files_to_check_is_refused():
     assert "too many" in brain.self_merge_problem(_pr(7, "alice", "h7"), GREEN, files, [])
 
 
-def test_a_local_ci_pass_for_the_last_push_replaces_the_github_checks():
+def test_a_local_ci_pass_for_the_last_push_by_another_developer_replaces_the_github_checks():
     pr = _pr(7, "alice", "abc123")
-    good = [{"body": "LOCAL CI PASS abc123 (laptop, commit abc123)\n\nall steps pass"}]
+    good = [{"user": {"login": "bob"}, "body": "LOCAL CI PASS abc123 (laptop, commit abc123)\n\nall steps pass"}]
     assert brain.self_merge_problem(pr, [], ["argus/x.py"], good) is None
-    old = [{"body": "LOCAL CI PASS 999999 (laptop, commit 999999)"}]               # an earlier push
-    failed = [{"body": "LOCAL CI FAIL abc123 (laptop, commit abc123)"}]
-    assert brain.self_merge_problem(pr, [], ["argus/x.py"], old) is not None
-    assert brain.self_merge_problem(pr, [], ["argus/x.py"], failed) is not None
+    own = [{"user": {"login": "alice"}, "body": "LOCAL CI PASS abc123 (laptop, commit abc123)"}]   # the author's
+    old = [{"user": {"login": "bob"}, "body": "LOCAL CI PASS 999999 (laptop, commit 999999)"}]     # an earlier push
+    failed = [{"user": {"login": "bob"}, "body": "LOCAL CI FAIL abc123 (laptop, commit abc123)"}]
+    for comments in (own, old, failed):
+        assert brain.self_merge_problem(pr, [], ["argus/x.py"], comments) is not None
+
+
+@pytest.mark.parametrize("kw, why", [
+    ({"merge_commit": False}, "merge commit"),
+    ({"up_to_date": False}, "up to date"),
+    ({"branch_kept": False}, "deleted"),
+])
+def test_a_self_merge_must_be_up_to_date_a_merge_commit_and_keep_its_branch(kw, why):
+    assert why in brain.self_merge_problem(_pr(7, "alice", "h7"), GREEN, ["argus/x.py"], [], **kw)
 
 
 def test_check_main_reports_why_a_self_merge_was_not_valid():
     commits = [("x" * 40, 2), ("root" * 10, 0)]
+    seen = []
     problems = brain.check_main(commits, {"x" * 40: _pr(8, "bob", "h8")}.get, lambda n: [], set(),
-                                lambda p: brain.self_merge_problem(p, GREEN, ["config/policy.yaml"], []))
+                                lambda p, sha, parents: seen.append((sha, parents)) or
+                                brain.self_merge_problem(p, GREEN, ["config/policy.yaml"], []))
     assert len(problems) == 1 and "PR #8 by bob" in problems[0] and "config/policy.yaml" in problems[0]
+    assert seen == [("x" * 40, 2)]                       # the merge commit and its parent count reach the check
+
+
+# --- open pull requests in `brain.py start`: drafts are tasks in progress, not review requests -----------------------
+def _open_pr(n, draft):
+    return {"number": n, "title": f"T-{n}", "author": {"login": "alice"}, "headRefName": f"task/T-{n}", "isDraft": draft}
+
+
+def test_draft_pull_requests_are_listed_as_work_in_progress_not_for_review():
+    lines = brain.format_prs([_open_pr(1, False), _open_pr(2, True)])
+    review = lines.index(next(ln for ln in lines if ln.startswith("Pull requests waiting for review")))
+    drafts = lines.index(next(ln for ln in lines if ln.startswith("Tasks in progress")))
+    assert "#1 " in lines[review + 1] and drafts > review + 1 and "#2 " in lines[drafts + 1]
+    only_drafts = brain.format_prs([_open_pr(2, True)])
+    assert only_drafts[0] == "Pull requests waiting for review: none" and "#2 " in only_drafts[-1]
+    assert brain.format_prs([]) == ["Pull requests waiting for review: none"]
 
 
 def test_guard_push_refuses_main_only(monkeypatch, capsys):
