@@ -236,11 +236,23 @@ def cmd_status(args) -> int:
     return 0
 
 
+def format_prs(prs: list[dict]) -> list[str]:
+    """The open pull requests: ready ones first (review these), drafts apart (a task in progress, GIT_WORKFLOW.md)."""
+    row = lambda pr: f"  #{pr['number']} {pr['title']} — by {pr['author']['login']} ({pr['headRefName']})"  # noqa: E731
+    ready = [pr for pr in prs if not pr.get("isDraft")]
+    drafts = [pr for pr in prs if pr.get("isDraft")]
+    lines = (["Pull requests waiting for review (REVIEW THESE FIRST — brain/agents/REVIEW_PROTOCOL.md):"]
+             + [row(pr) for pr in ready]) if ready else ["Pull requests waiting for review: none"]
+    if drafts:
+        lines += ["Tasks in progress (draft pull requests, not for review yet):"] + [row(pr) for pr in drafts]
+    return lines
+
+
 def print_prs() -> None:
     if os.environ.get("BRAIN_NO_GH"):
         return
     try:
-        p = subprocess.run(["gh", "pr", "list", "--state", "open", "--json", "number,title,author,headRefName"],
+        p = subprocess.run(["gh", "pr", "list", "--state", "open", "--json", "number,title,author,headRefName,isDraft"],
                            capture_output=True, text=True, encoding="utf-8", timeout=30)
     except (OSError, subprocess.TimeoutExpired):
         print("Pull requests: (gh not available — check GitHub)")
@@ -248,13 +260,7 @@ def print_prs() -> None:
     if p.returncode != 0:
         print("Pull requests: (gh failed — check GitHub)")
         return
-    prs = json.loads(p.stdout or "[]")
-    if not prs:
-        print("Pull requests waiting for review: none")
-        return
-    print("Pull requests waiting for review (REVIEW THESE FIRST — brain/agents/REVIEW_PROTOCOL.md):")
-    for pr in prs:
-        print(f"  #{pr['number']} {pr['title']} — by {pr['author']['login']} ({pr['headRefName']})")
+    print("\n".join(format_prs(json.loads(p.stdout or "[]"))))
 
 
 def cmd_start(args) -> int:
