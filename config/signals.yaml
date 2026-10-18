@@ -47,3 +47,17 @@ host_disk_used_ratio_mounts: 'max(1 - node_filesystem_avail_bytes{argus_host="$h
 # cAdvisor runs with its network metrics disabled (memory, deploy/monitoring/compose.monitoring.yml): no per-container
 # traffic until that is decided (T-0036 step 2).
 host_network_bytes_per_s: 'sum(rate(node_network_receive_bytes_total{argus_host="$host",device!~"lo|veth.*|docker.*|br-.*"}[3m]) + rate(node_network_transmit_bytes_total{argus_host="$host",device!~"lo|veth.*|docker.*|br-.*"}[3m]))'
+
+# ACR-0021 / T-0045 B1: where the UI draws its warning and critical lines (display values, not detection). `critical`
+# equals the detector's own threshold where a detector reads the signal (tests/test_t0045_b1_thresholds.py pins it).
+# direction `above`: worse as the value rises; `below`: worse as it falls. Validated at startup (a bad entry stops the API).
+thresholds:
+  host_cpu_busy_ratio:                {warning: 0.75, critical: 0.90, direction: above}
+  host_memory_available_ratio:        {warning: 0.25, critical: 0.10, direction: below}
+  host_disk_used_ratio:               {warning: 0.75, critical: 0.90, direction: above}
+  restarts_10m:                       {warning: 2,    critical: 3,    direction: above}
+  container_cpu_quota_used_ratio_5m:  {warning: 0.70, critical: 0.80, direction: above}
+  container_cpu_throttled_ratio_5m:   {warning: 0.25, critical: 0.50, direction: above}
+  db_connection_usage:                {warning: 0.75, critical: 0.90, direction: above}
+  http_gateway_error_ratio_5m:        {warning: 0.10, critical: 0.50, direction: above}
+  host_disk_used_ratio_5m:            {warning: 0.85, critical: 0.90, direction: above}

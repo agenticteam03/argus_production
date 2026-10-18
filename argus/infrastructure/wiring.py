@@ -124,6 +124,7 @@ class App:
     llm_configured: bool
     incident_metrics: Any = None        # ACR-0017: the metric window around an incident (the UI's charts)
     topology: Any = None                # ACR-0017: the system map (inventory, signals, an incident's evidence)
+    thresholds: Any = None              # ACR-0021: the UI's warning and critical lines (signals.yaml `thresholds:`)
 
 
 def _credentials(s: Settings, inventory: YamlInventory, require: bool, errors: list[str],
@@ -152,6 +153,21 @@ def load_routing(config_dir: Path):
     if not path.exists():
         return Routing()
     return Routing.from_data(yaml.safe_load(path.read_text(encoding="utf-8")), {c.family for c in CLASSES})
+
+
+def read_signals(config_dir: Path) -> dict:
+    """`config/signals.yaml`: the PromQL templates by signal name. Its optional `thresholds:` map (ACR-0021, the UI's
+    warning and critical lines) is never a template, so it is not returned here (`load_thresholds`)."""
+    data = yaml.safe_load((config_dir / "signals.yaml").read_text(encoding="utf-8"))
+    data.pop("thresholds", None)
+    return data
+
+
+def load_thresholds(config_dir: Path, signals: set[str]):
+    """ACR-0021: the `thresholds:` map of signals.yaml, validated against the named signals (ValueError)."""
+    from argus.application.thresholds import Thresholds
+    data = yaml.safe_load((config_dir / "signals.yaml").read_text(encoding="utf-8"))
+    return Thresholds.from_data(data.get("thresholds"), signals)
 
 
 def load_ui_signals(config_dir: Path, signals: set[str]):
@@ -199,7 +215,7 @@ def tools_dispatcher(s: Settings):
     holding the executor tokens. No database, no model key, no runbooks."""
     inv_text = (s.config_dir / "inventory.yaml").read_text(encoding="utf-8")
     inventory = YamlInventory(inv_text)
-    signals = yaml.safe_load((s.config_dir / "signals.yaml").read_text(encoding="utf-8"))
+    signals = read_signals(s.config_dir)
     policy = yaml.safe_load((s.config_dir / "policy.yaml").read_text(encoding="utf-8"))
     errors: list[str] = []
     creds = _credentials(s, inventory, True, errors)
@@ -212,7 +228,7 @@ def tools_dispatcher(s: Settings):
 
 def make_metrics(s: Settings, inventory: YamlInventory) -> PrometheusMetrics:
     """The detectors' MetricsPort, for a process that does not `build` (the scheduler: alert correlation, §6.4)."""
-    signals = yaml.safe_load((s.config_dir / "signals.yaml").read_text(encoding="utf-8"))
+    signals = read_signals(s.config_dir)
     return PrometheusMetrics(inventory, signals, s.metrics_max_staleness_s)
 
 
@@ -238,7 +254,7 @@ def build(settings: Settings | None = None, llm=None, metrics=None, executors: E
     s = settings or Settings()
     inv_text = (s.config_dir / "inventory.yaml").read_text(encoding="utf-8")
     pol_text = (s.config_dir / "policy.yaml").read_text(encoding="utf-8")
-    signals = yaml.safe_load((s.config_dir / "signals.yaml").read_text(encoding="utf-8"))
+    signals = read_signals(s.config_dir)
     inventory = YamlInventory(inv_text)
     policy = PolicyEngine(yaml.safe_load(pol_text), pol_text)
     specs = build_catalog()
@@ -253,6 +269,11 @@ def build(settings: Settings | None = None, llm=None, metrics=None, executors: E
     ui_signals = None                                # ACR-0017: the incident charts' signal list, validated likewise
     try:
         ui_signals = load_ui_signals(s.config_dir, set(signals))
+    except ValueError as e:
+        errors.append(str(e))
+    thresholds = None                                # ACR-0021: the gauges' lines, validated likewise
+    try:
+        thresholds = load_thresholds(s.config_dir, set(signals))
     except ValueError as e:
         errors.append(str(e))
     for spec in specs:
@@ -337,4 +358,4 @@ def build(settings: Settings | None = None, llm=None, metrics=None, executors: E
     return App(settings=s, store=store, inventory=inventory, policy=policy, runner=runner, catalogue=catalogue,
                metrics=metrics, jwt_key=jwt_key, alertmanager_token=s.secret("alertmanager_token"), llm_configured=llm_configured,
                incident_metrics=IncidentMetrics(metrics, ui_signals),
-               topology=Topology(inventory, metrics, store, s.home_host))
+               topology=Topology(inventory, metrics, store, s.home_host), thresholds=thresholds)
