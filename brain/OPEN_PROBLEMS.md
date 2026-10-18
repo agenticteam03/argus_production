@@ -21,6 +21,8 @@ When a problem is fixed, set its status to `fixed` with the date, and add a jour
 | **OP-011** | Two alerts on one target open two incidents: §6.4 correlation is not implemented | **fixed** 2026-10-09 — SC-03 on vm-166 gives one incident (ACR-0004) | 2026-10-09 |
 | OP-013 | D-003 was decided on the same cases the baseline's rules were written from: its 1.00 is an upper bound | open | 2026-10-13 |
 | **OP-014** | The self-merge rule relies on the tests: gaps where a green CI does not yet mean "safe to merge" | open — first three gaps in `task/TEST-HARDEN-1` | 2026-10-17 |
+| **OP-015** | ARCHITECTURE §14 says the approval/action machinery "exists from the start"; the code has none of it | open — implemented by ACR-0019 (phase 18) if accepted; until then the text must say "designed, not built" | 2026-10-18 |
+| **OP-016** | `policies/SECURITY.md` lists "the team's shared Argus password"; §17.3 and ACR-0011 require one account per person | open — fixed in phase 15 | 2026-10-18 |
 
 ---
 
@@ -231,6 +233,47 @@ diff-coverage gates, LLM injection regression testing, CI security scanners.)
 
 **Done when.** Steps 1-8 are merged and required; the self-merge rule's protected-path list is reviewed again with
 them (gap 7). Steps 9-13 are tracked as tasks.
+
+---
+
+## OP-015 — §14's approval and action machinery is described as built, but is not
+
+**Status:** open · **Opened:** 2026-10-18 (the NEXT-PHASE proposal) · **Found by:** `juanbetancurm` (+ agent)
+
+**Problem.** ARCHITECTURE §14 says: "In this release no write capability is released, but the machinery, its tables
+and its tests exist from the start so that the first release changes no core code." `IMPLEMENTATION_PLAN.md` phase 9
+lists "HITL against a **fake** action endpoint" and the phase is at 90 %. The code has none of it:
+- no `action_proposal`, `approval`, `notification_outbox`, `resume_intent`, `action` or `target_hold` table in
+  `deploy/migrations/`;
+- no `capabilities/write_contract.py`;
+- no approval or hold route in `argus/adapters/inbound/http.py`;
+- no fake action gateway;
+- the UI's `decideApproval` answers 403 by design.
+
+What exists is the closed write gate and its standing test (T-0031).
+
+**Fix.** If ACR-0019 is accepted, phase 18 builds the machinery against a fake gateway. Until then, the next
+ARCHITECTURE change touching §14 states "designed, not built", and phase 9's line in the plan drops the HITL item.
+
+**Done when.** The §14.4 failure-injection and §22.2 binding suites run in CI, or the text no longer claims they
+exist.
+
+---
+
+## OP-016 — `SECURITY.md` lists a shared team password
+
+**Status:** open · **Opened:** 2026-10-18 · **Found by:** `juanbetancurm` (+ agent)
+
+**Problem.** `policies/SECURITY.md`'s secrets table has a row "The team's shared Argus password | each developer's
+password manager". ARCHITECTURE §17.3 (ACR-0011) says "Every login reachable from the Internet is one account per
+person (no shared password)", and the review of ACR-0011 required it. A shared credential also makes an approval or
+a terminal session impossible to attribute (ACR-0018, ACR-0019, ACR-0020).
+
+**Fix.** In phase 15: confirm on vm-095 that every login is personal (a read-only query of the `principal` table's
+ids and kinds; `argus user` has only `add` and `disable`), disable any shared account (`argus user disable`), and replace the row with "Each developer's Argus password | their password manager; an Argon2 hash in
+Postgres".
+
+**Done when.** The row is replaced and no shared account exists.
 
 ---
 
