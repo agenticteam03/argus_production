@@ -9,7 +9,7 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25          # OP-014: the Docker tests build the agent image and start throwaway Postgres containers
     services:
       postgres:
         image: postgres:16-alpine
@@ -23,6 +23,9 @@ jobs:
           --health-interval 5s --health-timeout 5s --health-retries 12
     env:
       ARGUS_TEST_PG_OWNER_DSN: "host=localhost port=5432 dbname=argus user=argus_owner"
+      # OP-014: the runner has Docker, so the credential-isolation, real-backup and real-Nginx edge tests run here too
+      # instead of being skipped (the self-merge rule relies on them).
+      ARGUS_TEST_DOCKER: "1"
     steps:
       - uses: actions/checkout@v4
         with:

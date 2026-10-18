@@ -8,6 +8,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import re
 import threading
 import uuid
 from contextvars import ContextVar
@@ -28,6 +29,14 @@ log = logging.getLogger("argus.runner")
 # OP-009: set by the worker when its claim on the running incident is lost. Per run (a context variable), so one
 # runner object can serve several runs; LangGraph copies the context into the threads that run its nodes.
 _CANCEL: ContextVar[threading.Event | None] = ContextVar("argus_run_cancel", default=None)
+
+# §10.8 / OP-014: evidence and passages are data inside <evidence> / <passage> tags. A tag written inside that text (a
+# log line with "</evidence>", a body with '<passage ...>') must not end or open a block, so its "<" is escaped.
+_DATA_TAG = re.compile(r"<(?=\s*/?\s*(?:evidence|passage|reported)\b)", re.I)
+
+
+def as_data(text: str) -> str:
+    return _DATA_TAG.sub("&lt;", text)
 
 
 def allowed_values(inventory, scope) -> dict[str, dict[str, list]]:
@@ -299,21 +308,21 @@ class SkeletonRunner:
         parts.append("targets in scope: " + ", ".join(str(t) for t in view.scope))
         pinned = getattr(self.knowledge, "pinned_text", "")
         if pinned and view.incident_class:
-            parts.append(f'<passage runbook="RUNBOOK-CONVENTIONS" pinned="true">\n{pinned}\n</passage>')
+            parts.append(f'<passage runbook="RUNBOOK-CONVENTIONS" pinned="true">\n{as_data(pinned)}\n</passage>')
         for p in view.passages:
             parts.append(f'<passage runbook="{p.runbook_id}" version="{p.runbook_version}" status="{p.runbook_status}" '
-                         f'section="{p.section}">\n{p.text}\n</passage>')
+                         f'section="{p.section}">\n{as_data(p.text)}\n</passage>')
         bodies = {r.evidence_id: r for r in self.memory.get_evidence([e.evidence_id for e in view.evidence[-4:]])}
         for e in view.evidence:
             rec = bodies.get(e.evidence_id)
             if rec is None:
-                parts.append(f'<evidence id="{e.evidence_id}" status="{e.status}">{e.model_text}</evidence>')
+                parts.append(f'<evidence id="{e.evidence_id}" status="{e.status}">{as_data(e.model_text)}</evidence>')
                 continue
-            body = json.dumps(rec.values, default=str)[:1800]
+            body = as_data(json.dumps(rec.values, default=str)[:1800])
             parts.append(f'<evidence id="{rec.evidence_id}" kind="{rec.kind}" capability="{rec.capability}" '
                          f'source="{rec.executor}@{rec.host}" collected_at="{rec.collected_at.isoformat()}" '
                          f'source_time="{rec.source_time.isoformat() if rec.source_time else "unknown"}" '
-                         f'status="{rec.status}" partial="{rec.partial}">\n{rec.model_text}\n{body}\n</evidence>')
+                         f'status="{rec.status}" partial="{rec.partial}">\n{as_data(rec.model_text)}\n{body}\n</evidence>')
         for ex, cat in sorted(view.down_executors.items()):
             parts.append(f"UNAVAILABLE: executor {ex} is {cat} in this incident; its tools will fail again. "
                          "Do not call them; use other evidence or escalate.")
