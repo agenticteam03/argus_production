@@ -1,8 +1,10 @@
-# CI on every push to any branch (except the lease branch) and on every pull request.
+# CI once per change: on every pull request (opened, and each push to its branch) and on every push to main (where
+# main-guard runs). A push to a task branch is not a second trigger: every task branch has a pull request from its
+# first push (a draft until it is ready, GIT_WORKFLOW.md), so it already runs as `pull_request`.
 name: ci
 on:
   push:
-    branches-ignore: [session]
+    branches: [main]
   pull_request:
 permissions:
   contents: read
