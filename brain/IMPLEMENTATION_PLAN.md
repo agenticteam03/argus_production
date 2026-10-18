@@ -28,10 +28,20 @@ calls); the phases below replace each simplification.
 | 12 | End-to-end tests | every scenario through the CLI | quality claims need repeated runs | ✅ 100 % | the scenario runner `ops/e2e/run.py` (T-0023): every scenario five runs on the VMs. SC-01 to SC-08 (E2E-1 to E2E-6); H-1/H-2, SC-09, SC-10, SC-11 and the identity proof 5/5, SC-12 4/5 with the miss read (E2E-8 step 2, 2026-10-13, #134 in review; SC-12's expectation follows the host probe, E2E-9, #135 in review). The model evaluation (55 cases × 5 trials) on `main` `d34f0cb`: 0.97 (267/275) after EVAL-6; the capabilities of T-0036 to T-0040 are offered to no class, so they do not change it yet |
 | 13 | Failure & recovery | behaviour under real faults | failures become escalations, never crashes | ✅ 95 % | all four faults done on the VMs: worker killed mid-run (T-0014), Postgres restart (T-0030), Prometheus down on one host (T-0032), token rotation without a restart (T-0033); a host's lost monitoring now alarms (T-0035 heartbeat). Open: the first real `db_probe` rotation on vm-166 (T-0041, script merged) |
 | 14 | Optional | swap-ability experiments | prove a new executor needs no core change | ⬜ 0 % | `ssh_verbs` executor, only if time allows |
+| 15 | Foundations (next phase) | documentation fixes (OP-015, OP-016), `SELF_MERGE_PROTECTED` extended, OP-014 steps 4–8 in CI | green tests must mean "safe" before anything acts | ⬜ planned | [NEXT-PHASE](tasks/current/NEXT-PHASE-supervised-remediation.md), after the proposal is approved |
+| 16 | Operator access and audit | per-person accounts, WebAuthn, step-up, revocable sessions, permissions, audit chain off-host, private path | an approval or a shell is only as trustworthy as the identity and the record behind it | ⬜ planned | ACR-0018 (`proposed`) |
+| 17 | Suggestions | runbook Actions section, `next_actions`, the UI "Next steps" card | the fix comes from the runbook, not from the model's free text | ⬜ planned | ACR-0019 (`proposed`) |
+| 18 | Supervised actions, offline | §14 tables, nodes, write contract, failure-injection and binding suites against a fake gateway | the machinery exists and is tested before any route | ⬜ planned | ACR-0019 |
+| 19 | Approvals and executor | approvals in the UI (private path, step-up), holds, emergency stop, `argus-actor`, action gateway + socket proxy | the executor never sees the model | ⬜ planned | ACR-0019 |
+| 20 | First released action | `container.start` on `vm-166/container:argus-lab-cache` (SC-03), lab only | a reviewed, verified, reversible first write | ⬜ planned | ACR-0019, its own release PR |
+| 21 | Operator terminal | broker, SSH CA, per-person accounts, recording off-host, incident linking | manual repair from the UI, recorded, humans only | ⬜ planned | ACR-0020 (`proposed`) |
 
 **Order of the remaining work (2026-10-13):** offer the new capabilities (T-0036 to T-0040) to their classes, each
 with evaluation cases → the evaluation again on `main` → the small open items (OP-004 and OP-008 first `--apply`, the
 first `db_probe` rotation T-0041, T-0016's Playwright tests) → 14 only if time allows.
+
+**Next phase (proposed 2026-10-18, not yet approved):** 15 → 16 → 18 → 19 → 20 is the critical path; 17 and 21 run
+in parallel once 16 is deployed. Nothing in 16–21 starts before the NEXT-PHASE proposal and its ACRs are accepted.
 
 **Scenarios on the real VMs:** every scenario (H-1/H-2, SC-01 to SC-12, the identity proof) five runs through the
 runner, NO INTERFERENCE after every run (Phase 12). SC-12 4/5, its miss read (E2E-8 step 2).

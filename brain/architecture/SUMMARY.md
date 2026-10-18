@@ -17,6 +17,17 @@ A two-page orientation. The full, authoritative text is [`ARCHITECTURE.md`](ARCH
 | **JWT for humans** | operators log in (one user per developer); no write capability is released | §7, §17 |
 | **Deterministic before AI** | a healthy check, an unsupported report or stale metrics make **no** model call | §9, §10 |
 
+## Proposed, not applied (under team review)
+
+The architecture above is unchanged until these are accepted and applied with their first code
+([NEXT-PHASE](../tasks/current/NEXT-PHASE-supervised-remediation.md)):
+
+| ACR | Proposes |
+|---|---|
+| [ACR-0018](changes/ACR-0018-operator-access-and-audit.md) | operator access and audit: one account per person, WebAuthn, step-up, revocable sessions, explicit permissions, an audit hash chain copied off Host A, privileged routes on a private path |
+| [ACR-0019](changes/ACR-0019-human-approved-remediation.md) | human-approved remediation: actions from runbook menus, a frozen proposal approved by a human, an executor (`argus-actor`) that never sees the model, an exact-route gateway, lab targets only, verification |
+| [ACR-0020](changes/ACR-0020-operator-terminal.md) | an operator terminal: a recorded, human-only shell from the UI through a broker with an SSH CA; Argus never uses it |
+
 ## Deployment shape (as built)
 
 - **Host A = `vm-095`:** the agent (API on `127.0.0.1:18000`, Postgres without a host port), plus light target services.
