@@ -30,6 +30,7 @@ from __future__ import annotations
 
 import argparse
 import datetime as dt
+import fnmatch
 import ipaddress
 import json
 import os
@@ -631,26 +632,50 @@ def read_exceptions(root: Path) -> set[int]:
 SELF_MERGE_CHECKS = ("test", "frontend")
 SELF_MERGE_PROTECTED = (
     "brain/architecture/",                                   # ARCHITECTURE.md and the ACRs
-    "brain/policies/SECURITY.md", "brain/policies/GIT_WORKFLOW.md", "brain/policies/main-exceptions.txt",
-    "brain/agents/REVIEW_PROTOCOL.md", "brain/tools/brain.py", ".github/", ".pre-commit-config.yaml",
-    "ops/local_ci.py",                                       # the enforcement and the merge check itself
+    "brain/policies/", "brain/agents/",                      # security, git and review rules; stop conditions, rails
+    "brain/tools/brain.py", ".github/", ".pre-commit-config.yaml",   # the enforcement and the merge check itself
+    "ops/",                                                  # deploy, nonint-check, write-gate-check (root on the VMs), local CI
     "config/policy.yaml", "config/inventory.yaml",           # write gate, scope, host isolation
-    "deploy/ui/nginx/", "contracts/",                        # the public edge and the UI contract
+    "deploy/ui/nginx/", "contracts/", "deploy/migrations/",  # the public edge, the UI contract, database roles
+    "argus/policy/", "argus/application/invoke_capability.py", "argus/infrastructure/gate_report.py",
+    "argus/tooling/isolation_check.py",                      # the code that enforces the write gate and the rails
+    "tests/brain/", "tests/test_write_gate_standing.py", "tests/test_write_gate_check.py",
+    "tests/test_tool_isolation.py", "tests/test_op014_prompt_injection.py",   # the tests of those rails
 )
+SELF_MERGE_PROTECTED_GLOBS = ("deploy/*/compose*.yml",)      # mounts, secrets, ports of every deployed stack
 FILES_PAGE = 100
 
 
-def self_merge_problem(pr: dict, checks: list[dict], files: list[str], comments: list[dict]) -> str | None:
+def is_protected(path: str) -> bool:
+    return path.startswith(SELF_MERGE_PROTECTED) or any(fnmatch.fnmatchcase(path, g) for g in SELF_MERGE_PROTECTED_GLOBS)
+
+
+def changed_paths(files: list[dict]) -> list[str]:
+    """Every path a pull request touches: the new name and, for a rename, the old one (a protected file moved out of a
+    protected folder is still a change to a protected file)."""
+    return [p for f in files for p in (f.get("filename"), f.get("previous_filename")) if p]
+
+
+def self_merge_problem(pr: dict, checks: list[dict], files: list[str], comments: list[dict], *,
+                       up_to_date: bool = True, merge_commit: bool = True, branch_kept: bool = True) -> str | None:
     """None when a pull request without another developer's approval meets the self-merge conditions; otherwise why
-    not. checks: the check runs of its last push; files: the paths it changes; comments: its conversation comments."""
+    not. checks: the check runs of its last push; files: the paths it changes (`changed_paths`); comments: its
+    conversation comments; up_to_date / merge_commit / branch_kept: rules 3 and 5 as measured on the merge."""
     if len(files) >= FILES_PAGE:
         return f"changes {len(files)} or more files, too many to check for protected paths"
-    touched = sorted(f for f in files if f.startswith(SELF_MERGE_PROTECTED))
+    touched = sorted({f for f in files if is_protected(f)})
     if touched:
         return "touches " + ", ".join(touched[:3]) + (" and more" if len(touched) > 3 else "") + ", which needs a teammate"
-    head = pr["head"]["sha"]
-    if any(c.get("body", "").startswith("LOCAL CI PASS ") and f"commit {head}" in c.get("body", "") for c in comments):
-        return None                                          # REVIEW_PROTOCOL.md "When CI does not run"
+    if not merge_commit:
+        return "not merged with a merge commit (squash or rebase)"
+    if not up_to_date:
+        return "the branch was not up to date with main when it was merged"
+    if not branch_kept:
+        return "its branch was deleted"
+    head, author = pr["head"]["sha"], pr["user"]["login"]
+    if any(c.get("body", "").startswith("LOCAL CI PASS ") and f"commit {head}" in c.get("body", "")
+           and (c.get("user") or {}).get("login") not in (None, author) for c in comments):
+        return None                                          # REVIEW_PROTOCOL.md "When CI does not run": a non-author's run
     runs = [r for r in checks if r.get("name") in SELF_MERGE_CHECKS]
     missing = [n for n in SELF_MERGE_CHECKS if not any(r.get("name") == n for r in runs)]
     failed = sorted({r["name"] for r in runs if r.get("conclusion") != "success"})
@@ -662,8 +687,8 @@ def self_merge_problem(pr: dict, checks: list[dict], files: list[str], comments:
 
 def check_main(commits: list[tuple[str, int]], pr_for, reviews_for, allowed: set[int], self_merge=None) -> list[str]:
     """commits: (sha, number of parents) along main's first-parent line. pr_for(sha) -> PR dict or None;
-    reviews_for(n) -> review dicts; self_merge(pr) -> None when the PR meets the self-merge conditions, else why not
-    (without self_merge only approvals count). Returns the violations (empty = rule kept)."""
+    reviews_for(n) -> review dicts; self_merge(pr, sha, parents) -> None when the PR meets the self-merge conditions,
+    else why not (without self_merge only approvals count). Returns the violations (empty = rule kept)."""
     problems = []
     for sha, parents in commits:
         if parents == 0:
@@ -679,7 +704,7 @@ def check_main(commits: list[tuple[str, int]], pr_for, reviews_for, allowed: set
                  for r in reviews_for(n))
         if ok:
             continue
-        why = self_merge(pr) if self_merge else "no self-merge check"
+        why = self_merge(pr, sha, parents) if self_merge else "no self-merge check"
         if why is not None:
             problems.append(f"{sha[:7]}: PR #{n} by {author} merged without an approval of its last push by "
                             f"another developer, and not a valid self-merge: {why}")
@@ -704,12 +729,21 @@ def verify_main(ref: str) -> list[str]:
                if p.get("merge_commit_sha") == sha]
         return prs[0] if prs else None
 
-    def self_merge(pr):
+    def self_merge(pr, sha, parents):
         n, head = pr["number"], pr["head"]["sha"]
         checks = (gh_json(f"repos/{{owner}}/{{repo}}/commits/{head}/check-runs?per_page=100") or {}).get("check_runs", [])
-        files = [f["filename"] for f in gh_json(f"repos/{{owner}}/{{repo}}/pulls/{n}/files?per_page={FILES_PAGE}") or []]
+        files = changed_paths(gh_json(f"repos/{{owner}}/{{repo}}/pulls/{n}/files?per_page={FILES_PAGE}") or [])
         comments = gh_json(f"repos/{{owner}}/{{repo}}/issues/{n}/comments?per_page=100") or []
-        return self_merge_problem(pr, checks, files, comments)
+        merge_commit = parents == 2
+        # rule 3: main's commit before the merge (first parent) is contained in the merged branch (second parent)
+        up_to_date = merge_commit and git("merge-base", f"{sha}^1", f"{sha}^2", check=False) == git(
+            "rev-parse", f"{sha}^1", check=False)
+        try:
+            branch_kept = bool(gh_json(f"repos/{{owner}}/{{repo}}/branches/{pr['head']['ref']}"))
+        except (BrainError, KeyError):
+            branch_kept = False
+        return self_merge_problem(pr, checks, files, comments, up_to_date=up_to_date, merge_commit=merge_commit,
+                                  branch_kept=branch_kept)
 
     return check_main(commits, pr_for, lambda n: gh_json(f"repos/{{owner}}/{{repo}}/pulls/{n}/reviews"),
                       read_exceptions(repo_root()), self_merge)
