@@ -6,8 +6,12 @@
   "base_commit": "77002a7ac0adcc255d088af2827597fa85ddc1a4",
   "started_at": "2026-10-19T13:28:04+00:00",
   "expires_at": "2026-10-19T15:50:54+00:00",
-  "released": false,
-  "handoff": null,
+  "released": true,
+  "handoff": {
+    "note": "DEPLOY-176 not run: vm-095 still on 19b1085, main is 77002a7 (B1, B2, B4 + CI). Nothing changed on either VM. Next: deploy agent/worker/scheduler (no migration) once #175 merges, so B3 goes in the same deploy; if #181 merges first, db-migrate (007) before the image.",
+    "branch": "task/DEPLOY-176-record",
+    "at": "2026-10-19T14:48:53+00:00"
+  },
   "vms": {
     "vm-095": {
       "holder": "conantkd",
@@ -17,8 +21,12 @@
       "base_commit": "77002a7ac0adcc255d088af2827597fa85ddc1a4",
       "started_at": "2026-10-19T13:28:04+00:00",
       "expires_at": "2026-10-19T15:50:54+00:00",
-      "released": false,
-      "handoff": null
+      "released": true,
+      "handoff": {
+        "note": "DEPLOY-176 not run: vm-095 still on 19b1085, main is 77002a7 (B1, B2, B4 + CI). Nothing changed on either VM. Next: deploy agent/worker/scheduler (no migration) once #175 merges, so B3 goes in the same deploy; if #181 merges first, db-migrate (007) before the image.",
+        "branch": "task/DEPLOY-176-record",
+        "at": "2026-10-19T14:48:53+00:00"
+      }
     },
     "vm-166": {
       "holder": "conantkd",
@@ -28,8 +36,12 @@
       "base_commit": "77002a7ac0adcc255d088af2827597fa85ddc1a4",
       "started_at": "2026-10-19T13:28:04+00:00",
       "expires_at": "2026-10-19T15:50:54+00:00",
-      "released": false,
-      "handoff": null
+      "released": true,
+      "handoff": {
+        "note": "DEPLOY-176 not run: vm-095 still on 19b1085, main is 77002a7 (B1, B2, B4 + CI). Nothing changed on either VM. Next: deploy agent/worker/scheduler (no migration) once #175 merges, so B3 goes in the same deploy; if #181 merges first, db-migrate (007) before the image.",
+        "branch": "task/DEPLOY-176-record",
+        "at": "2026-10-19T14:48:53+00:00"
+      }
     }
   }
 }
