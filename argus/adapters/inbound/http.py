@@ -10,7 +10,7 @@ import math
 import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor, wait
-from datetime import timedelta
+from datetime import datetime, timedelta
 from threading import Lock, RLock
 from typing import Annotated, Literal
 
@@ -30,6 +30,9 @@ INVESTIGATE_WRITES = {("POST", "/api/v1/investigations")}   # the one non-GET of
 SCOPES = {"read", "investigate"}        # what a login may ask for; none = a full token (loopback only)
 
 log = logging.getLogger("argus.api")
+
+# A host's heartbeat renews every 60-75 s (T-0035, measured on Alertmanager): older than twice that is stale.
+HEARTBEAT_STALE_S = 150
 hasher = PasswordHash.recommended()
 oauth2 = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/token")
 
@@ -250,7 +253,7 @@ def build_api(app_ctx) -> FastAPI:
         # proxy timeout): a host still reading is `available: false`, so one slow host never hides the other.
         with host_metrics_lock:
             if host_metrics_cache["rows"] is not None and time.monotonic() - host_metrics_cache["at"] < 20:
-                return host_metrics_cache["rows"]
+                return [with_context(r) for r in host_metrics_cache["rows"]]
             reads = {}
             for target in sorted((t.ref for t in app_ctx.inventory.targets() if t.ref.kind == "host"), key=str):
                 read = host_metrics_reads.get(target)
@@ -262,7 +265,30 @@ def build_api(app_ctx) -> FastAPI:
         rows = [f.result() if f.done() else host_row(t, {}, None) for t, f in reads.items()]
         with host_metrics_lock:
             host_metrics_cache.update(at=time.monotonic(), rows=rows)
-        return rows
+        return [with_context(r) for r in rows]
+
+    def with_context(row: dict) -> dict:
+        """ACR-0021: the gauges' warning and critical lines, and the monitoring heartbeat's age, computed per answer
+        (the 20 s cache holds only the readings). A heartbeat nobody has recorded is null, never fresh."""
+        out = {**row, "thresholds": host_thresholds(), "heartbeat_age_s": None, "heartbeat_stale": None}
+        try:
+            beat = (app_ctx.store.monitoring_state(row["host"]) or {}).get("last_beat_at")
+            if beat:
+                age = max(0, round((utcnow() - datetime.fromisoformat(beat)).total_seconds()))
+                out.update(heartbeat_age_s=age, heartbeat_stale=age > HEARTBEAT_STALE_S)
+        except Exception:                                  # a store hiccup leaves the heartbeat unknown, not the answer
+            log.exception("heartbeat read failed for %s", row.get("host"))
+        return out
+
+    def host_thresholds() -> dict:
+        """The three gauge fields' lines (memory is shown as used, so its `available` lines are flipped)."""
+        th, out = app_ctx.thresholds, {}
+        for field, signal, flip in (("cpu_busy_ratio", "host_cpu_busy_ratio", False),
+                                    ("memory_used_ratio", "host_memory_available_ratio", True),
+                                    ("disk_used_ratio", "host_disk_used_ratio", False)):
+            t = th.get(signal) if th else None
+            out[field] = (t.complement() if flip else t).as_dict() if t else None
+        return out
 
     def forget_read(target, future) -> None:
         with host_metrics_lock:

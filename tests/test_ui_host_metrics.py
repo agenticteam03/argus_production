@@ -49,9 +49,9 @@ def test_host_metrics_requires_auth_and_does_not_fail_all_hosts_when_one_is_stal
                                                "scope": "read"}).json()["access_token"]
     rows = api.get("/api/v1/host-metrics", headers={"Authorization": f"Bearer {token}"}).json()
     assert rows[0]["available"] is True
-    assert rows[1] == {"host": "vm-166", "target": "vm-166/host:vm-166", "available": False,
-                       "observed_at": None, "values": {"cpu_busy_ratio": None,
-                                                     "memory_used_ratio": None, "disk_used_ratio": None}}
+    assert {k: v for k, v in rows[1].items() if k not in ("thresholds", "heartbeat_age_s", "heartbeat_stale")} == {
+        "host": "vm-166", "target": "vm-166/host:vm-166", "available": False, "observed_at": None,
+        "values": {"cpu_busy_ratio": None, "memory_used_ratio": None, "disk_used_ratio": None}}   # + ACR-0021 fields
 
 
 def test_host_metrics_reuses_a_short_snapshot_for_concurrent_dashboard_clients(make_app):

@@ -1,9 +1,28 @@
 [
   {
     "available": true,
+    "heartbeat_age_s": null,
+    "heartbeat_stale": null,
     "host": "vm-095",
-    "observed_at": "2026-10-14T12:05:39.828072+00:00",
+    "observed_at": "2026-10-18T22:13:02.340693+00:00",
     "target": "vm-095/host:vm-095",
+    "thresholds": {
+      "cpu_busy_ratio": {
+        "critical": 0.9,
+        "direction": "above",
+        "warning": 0.75
+      },
+      "disk_used_ratio": {
+        "critical": 0.9,
+        "direction": "above",
+        "warning": 0.75
+      },
+      "memory_used_ratio": {
+        "critical": 0.9,
+        "direction": "above",
+        "warning": 0.75
+      }
+    },
     "values": {
       "cpu_busy_ratio": 0.25,
       "disk_used_ratio": 0.7,
@@ -12,9 +31,28 @@
   },
   {
     "available": true,
+    "heartbeat_age_s": null,
+    "heartbeat_stale": null,
     "host": "vm-166",
-    "observed_at": "2026-10-14T12:05:39.828072+00:00",
+    "observed_at": "2026-10-18T22:13:02.340693+00:00",
     "target": "vm-166/host:vm-166",
+    "thresholds": {
+      "cpu_busy_ratio": {
+        "critical": 0.9,
+        "direction": "above",
+        "warning": 0.75
+      },
+      "disk_used_ratio": {
+        "critical": 0.9,
+        "direction": "above",
+        "warning": 0.75
+      },
+      "memory_used_ratio": {
+        "critical": 0.9,
+        "direction": "above",
+        "warning": 0.75
+      }
+    },
     "values": {
       "cpu_busy_ratio": 0.8,
       "disk_used_ratio": 0.9,
