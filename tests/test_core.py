@@ -78,6 +78,9 @@ class FakeMetrics:
     def range(self, *a, **k):
         return []
 
+    def dependency_probes(self, target):
+        return {}
+
 
 @pytest.fixture()
 def make_app(tmp_path, monkeypatch):

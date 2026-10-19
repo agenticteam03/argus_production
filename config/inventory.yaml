@@ -32,12 +32,16 @@ targets:
     mounts: ["/", "/srv/argus-lab-fill"]
   - ref: vm-166/container:argus-lab-worker        # SC-01 OOM restart loop
   - ref: vm-166/container:argus-lab-nginx         # SC-08 (T-0029): a reverse proxy in front of a slow upstream
+    profile: scenario
     depends_on: [vm-166/container:argus-lab-slow]
     http_endpoints: ["http://argus-lab-nginx:8080/"]  # probed by the exporter (T-0029): 502/504 = a gateway error
   - ref: vm-166/container:argus-lab-slow          # SC-08: answers after DELAY_S, longer than nginx's proxy_read_timeout
+    profile: scenario
     tcp_ports: [8080]
   - ref: vm-166/container:argus-lab-burner        # SC-06 (T-0028): a busy loop under a 0.3-core CPU quota
+    profile: scenario
   - ref: vm-166/container:argus-lab-filler        # SC-05: fills /srv/argus-lab-fill (the lab filesystem)
+    profile: scenario
     depends_on: [vm-166/host:vm-166]              # writes to the host's lab filesystem: in a host incident's scope (§5)
   - ref: vm-166/container:argus-lab-api           # SC-03 victim of its dependency
     depends_on: [vm-166/container:argus-lab-cache]
@@ -45,13 +49,16 @@ targets:
   - ref: vm-166/container:argus-lab-cache
     tcp_ports: [6379]
   - ref: vm-166/container:argus-lab-client        # SC-07 victim: cannot reach its backend (only on argus-lab-app)
+    profile: scenario
     depends_on: [vm-166/container:argus-lab-backend]
     networks: [argus-lab-app]                     # E2E-2: its assigned network (container.status compares)
   - ref: vm-166/container:argus-lab-backend       # SC-07: healthy, but only on argus-lab-iso (the wrong network)
+    profile: scenario
     tcp_ports: [8080]
     networks: [argus-lab-app]                     # E2E-2: assigned to the lab's app network, like its client
   - ref: vm-166/container:argus-lab-db            # T-0019 / SC-04: lab PostgreSQL, TESTING ONLY (see compose.lab.yml)
     database: {dbname: argus_lab, port: 5432}     # read by argus-v18-db-probe with the argus_monitor role
     tcp_ports: [5432]
   - ref: vm-166/container:argus-lab-leaker        # SC-04 (T-0020): leaks idle-in-transaction sessions on argus-lab-db
+    profile: scenario
     depends_on: [vm-166/container:argus-lab-db]
