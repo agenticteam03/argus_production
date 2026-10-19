@@ -1,6 +1,9 @@
 # CI once per change: on every pull request (opened, and each push to its branch) and on every push to main (where
 # main-guard runs). A push to a task branch is not a second trigger: every task branch has a pull request from its
 # first push (a draft until it is ready, GIT_WORKFLOW.md), so it already runs as `pull_request`.
+# CI-COST: `test` and `frontend` run on pull requests only. A merge needs them green on the PR's last push with the
+# branch up to date with main (REVIEW_PROTOCOL.md), so running them again on main tested the same code; main runs
+# main-guard alone. A new push to a pull request cancels that PR's run still in progress (only the last push counts).
 name: ci
 on:
   push:
@@ -8,8 +11,12 @@ on:
   pull_request:
 permissions:
   contents: read
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 jobs:
   test:
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 25          # OP-014: the Docker tests build the agent image and start throwaway Postgres containers
     services:
@@ -55,6 +62,7 @@ jobs:
   # T-0016: the web UI in frontend/ — unit tests and the production build on every push.
   # Acceptance (Playwright) and contract checks join this job when they exist (T-0016 steps 2-3).
   frontend:
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     defaults:
