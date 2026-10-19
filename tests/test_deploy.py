@@ -54,7 +54,8 @@ def env(tmp_path, monkeypatch):
 
 
 def deploy(env, *args: str, who: str = "alice") -> subprocess.CompletedProcess:
-    e = dict(os.environ, ARGUS_DEPLOY_HOME=env["home"].as_posix(), ARGUS_DEPLOY_REPO=env["origin"].as_posix())
+    e = dict(os.environ, ARGUS_DEPLOY_HOME=env["home"].as_posix(), ARGUS_DEPLOY_REPO=env["origin"].as_posix(),
+             ARGUS_DOCKER="no-such-docker-binary")                  # never the machine's own Docker (B7's record)
     return subprocess.run([BASH, SCRIPT.as_posix(), *args, "--as", who], env=e, capture_output=True, text=True)
 
 
@@ -164,6 +165,33 @@ def test_status_lists_the_argus_programs_and_the_command_each_runs(env):
     argus = [ln for ln in r.stdout.splitlines() if ln.startswith("argus: ")]
     assert [ln.split()[1] for ln in argus] == ["argus-v18-agent", "argus-v18-worker", "argus-v18-scheduler"]
     assert "argus api" in argus[0] and "argus worker" in argus[1]
+
+
+def test_a_deploy_asks_the_running_agent_to_record_the_deploy_event(env):
+    """ACR-0021 (T-0045 B7): after the checkout, before the verdict line, the agent records the deploy event."""
+    log = env["tmp"] / "docker-args.txt"
+    script = env["tmp"] / "record-docker.sh"
+    script.write_bytes(b'#!/usr/bin/env bash\necho "$@" >> ' + log.as_posix().encode() + b"\n")
+    e = dict(os.environ, ARGUS_DEPLOY_HOME=env["home"].as_posix(), ARGUS_DEPLOY_REPO=env["origin"].as_posix(),
+             ARGUS_DOCKER=f"bash {script.as_posix()}")
+    r = subprocess.run([BASH, SCRIPT.as_posix(), "init", "main", "--as", "alice"], env=e, capture_output=True,
+                       text=True)
+    assert r.returncode == 0, r.stdout + r.stderr
+    sha = deployed(env)["commit"]
+    assert log.read_text().split() == ["exec", "argus-v18-agent", "argus", "deploy", "record", "--commit", sha,
+                                       "--ref", "main", "--as", "alice"]
+    assert "deploy event recorded" in r.stdout
+    assert r.stdout.strip().splitlines()[-1].startswith("DEPLOY OK")        # the verdict stays the last line
+
+
+def test_a_deploy_event_that_cannot_be_recorded_never_stops_the_deploy(env):
+    e = dict(os.environ, ARGUS_DEPLOY_HOME=env["home"].as_posix(), ARGUS_DEPLOY_REPO=env["origin"].as_posix(),
+             ARGUS_DOCKER="no-such-docker-binary")
+    r = subprocess.run([BASH, SCRIPT.as_posix(), "init", "main", "--as", "alice"], env=e, capture_output=True,
+                       text=True)
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert "deploy event NOT recorded here" in r.stdout and "argus deploy record --commit" in r.stdout
+    assert r.stdout.strip().splitlines()[-1].startswith("DEPLOY OK")
 
 
 def test_status_without_docker_says_so_instead_of_claiming_ok(env):

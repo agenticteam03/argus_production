@@ -106,4 +106,14 @@ hint '^(services/target/|deploy/target/)' "target services: cd $APP/deploy/targe
 hint '^deploy/monitoring/' "monitoring: cd $APP/deploy/monitoring && sudo docker compose --env-file <vm>.env -f compose.monitoring.yml -f <compose.loopback.yml|compose.core-join.yml> up -d"
 hint '^config/' "config (read at start): restart argus-v18-agent argus-v18-worker argus-v18-scheduler after reviewing the change"
 hint '^deploy/scheduler/' "schedules (read at start): sudo docker restart argus-v18-scheduler after reviewing the change"
+# ACR-0021 (T-0045 B7): the incident charts' deploy events. The running agent records it in its own database (its
+# ARGUS_HOME_HOST is this host). Never fatal: on a host without the agent, or on the deploy that first brings the verb
+# (the old image is still running), it is recorded after the rebuild with the same command (see the step's code.bash).
+D="${ARGUS_DOCKER:-docker}"
+if $D exec argus-v18-agent argus deploy record --commit "$SHA" --ref "$REF" --as "$WHO" </dev/null >/dev/null 2>&1; then
+  echo "deploy event recorded (argus-v18-agent)"
+else
+  echo "deploy event NOT recorded here (no running argus-v18-agent with 'argus deploy record'); after the rebuild:"
+  echo "  sudo docker exec argus-v18-agent argus deploy record --commit $SHA --ref $REF --as $WHO"
+fi
 echo "DEPLOY OK: ${SHA:0:12} ($REF) on $(hostname)"

@@ -54,7 +54,7 @@ on. Anything else can change without notice.
     independent `null` values when missing; the UI never treats missing data as zero. Each host also carries the lines to draw (`thresholds`, memory as *used*) and its heartbeat age (ACR-0021). Host A = `vm-095`, Host T =
     `vm-166`. The chat answers these bounded metric questions directly. An explicit "Investigate Host T" uses
     the existing investigation route and links to the incident; it does not claim the investigation finished.
-11. **Incident metrics** (ACR-0017): `GET /api/v1/incidents/{id}/metrics?range=15m|30m|1h` returns the charts around
+11. **Incident metrics** (ACR-0017): `GET /api/v1/incidents/{id}/metrics?range=15m|30m|1h|6h|24h` returns the charts around
     one incident. The browser chooses only the range; the server picks a fixed list of named signals for the
     incident's class (`config/ui-incident-signals.yaml`), reads them on the incident's host only, and returns at most
     ~130 points per series. `null` is a missing sample (draw a gap, never 0); `fired: true` marks the detector's
@@ -62,8 +62,11 @@ on. Anything else can change without notice.
     `restarts`, `cpu`, `latency`, `health`, `disk`, `database`, `network`, `other`), `thresholds` (`{warning, critical,
     direction}` scaled like the values, or `null`) and `detector_threshold` (the line at which Argus opens the
     incident, on the `fired` series, else `null`); at the top `incident_from` and `incident_to` (`null` while open),
-    `events` (`[{at, kind, label}]`: `restart`, `oom_kill`, `alert_fired`, `alert_resolved`; `deploy` later) and a
-    template `summary` (never a model call).
+    `events` (`[{at, kind, label}]`: `restart`, `oom_kill`, `alert_fired`, `alert_resolved`, `deploy`) and a
+    template `summary` (never a model call). T-0045 B7 adds `ranges_available` (the ranges this route accepts) and,
+    per series, `baseline`: `{p50, p95, from, to}` of the same signal over the 24 h that end an hour before the
+    incident opened, scaled like the values, or `null` when under half of that window has samples (draw no band,
+    never a guessed one). A `deploy` event's label names the ref and the short commit (`Deployed main (dfa7332)`).
 12. **System map** (ACR-0017): `GET /api/v1/topology` returns `hosts` (`role`: `argus` or `monitored`), `nodes` (one
     per inventory target; `target` is the exact text incidents use, so the UI marks the root cause and the affected
     target itself; `status` is `running`, `restarting`, `unhealthy`, `stopped` or `unknown`; `info` is a list of
@@ -91,7 +94,7 @@ on. Anything else can change without notice.
 | `GET /api/v1/escalations` | any role | the escalations Argus raised to humans | [`escalations.json`](../contracts/samples/escalations.json) |
 | `GET /api/v1/targets` | any role | the inventory's targets: `target`, `host`, `kind`, `name` (ACR-0012) | [`targets.json`](../contracts/samples/targets.json) |
 | `GET /api/v1/host-metrics` | any authenticated role | current CPU, memory and root-disk ratios for the inventory's host targets, plus `observed_at` and `available` (proposed ACR-0014); per host the gauges' `thresholds` (`cpu_busy_ratio`, `memory_used_ratio`, `disk_used_ratio`, each `{warning, critical, direction}`) and the monitoring heartbeat's `heartbeat_age_s` and `heartbeat_stale` (both `null` when no heartbeat is recorded; stale = older than 150 s) (ACR-0021, T-0045 B1) | [`host-metrics.json`](../contracts/samples/host-metrics.json) |
-| `GET /api/v1/incidents/{id}/metrics?range=30m` | any authenticated role | `incident_id`, `range`, `from`, `to`, `step_s`, `series[]` of `{key, title, unit, max, fired, kind, thresholds, detector_threshold, points: [[time, value or null]]}`, `incident_from`, `incident_to`, `events[]`, `summary` (ACR-0017, ACR-0021) | [`incident-metrics.json`](../contracts/samples/incident-metrics.json) |
+| `GET /api/v1/incidents/{id}/metrics?range=30m` | any authenticated role | `incident_id`, `range`, `from`, `to`, `step_s`, `ranges_available`, `series[]` of `{key, title, unit, max, fired, kind, thresholds, detector_threshold, baseline, points: [[time, value or null]]}`, `incident_from`, `incident_to`, `events[]`, `summary` (ACR-0017, ACR-0021) | [`incident-metrics.json`](../contracts/samples/incident-metrics.json) |
 | `GET /api/v1/topology[?incident_id=<id>]` | any authenticated role; the `incident_id` overlay for operator/approver | `observed_at`, `hosts[]`, `nodes[]`, `edges[]` (nodes add `health`, `idle`, `networks`, `problems`, `role`; edges add `id`, `kind`, `checked_at`, `latency_ms`, `reason`; ACR-0021) (and `incident_id` with the overlay) (ACR-0017) | [`topology.json`](../contracts/samples/topology.json), [`topology-incident.json`](../contracts/samples/topology-incident.json) |
 | `POST /api/v1/investigations` | operator, approver; full or **investigate** token | `incident_id`, `status`, `duplicate` (202); quotas for an investigate token (ACR-0012) | [`investigation.json`](../contracts/samples/investigation.json) |
 | `GET /api/v1/target-metrics?target=<host/kind:name>&range=15m` | any authenticated role | one inventory target's recent signals (ACR-0021): `target`, `range` (`15m` or `1h`), `from`, `to`, `step_s`, `series[]` of `{key, kind, title, unit, max, thresholds, points: [[time, value or null]]}`; a container gives CPU quota used and memory, a host CPU, memory used and disk used; `404` for a target not in `/api/v1/targets`, `422` for a bad range; shared for 30 s | [`target-metrics.json`](../contracts/samples/target-metrics.json) |

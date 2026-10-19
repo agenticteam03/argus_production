@@ -399,7 +399,7 @@ def build_api(app_ctx) -> FastAPI:
 
     @api.get("/api/v1/incidents/{incident_id}/metrics", tags=["incidents"])
     def incident_metrics(incident_id: str, p: Annotated[Principal, Depends(current)],
-                         rng: Annotated[Literal["15m", "30m", "1h"], Query(alias="range")] = "30m"):
+                         rng: Annotated[Literal["15m", "30m", "1h", "6h", "24h"], Query(alias="range")] = "30m"):
         """ACR-0017: the incident's metric window, a fixed signal list per class on the incident's own host; no
         PromQL or target from the browser; at most ~130 points per series; a missing sample is null."""
         inc = app_ctx.store.get_incident(incident_id)

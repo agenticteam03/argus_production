@@ -1,6 +1,6 @@
 """ACR-0017: the metric window around an incident, for the UI's charts (`GET /api/v1/incidents/{id}/metrics`).
 
-The browser chooses only the range (15m, 30m or 1h before the incident). The signals come from a fixed list per
+The browser chooses only the range (15m, 30m, 1h, 6h or 24h before the incident). The signals come from a fixed list per
 incident class (`config/ui-incident-signals.yaml`), read through the MetricsPort on the incident's own host only.
 At most ~130 points per series: the step grows for a long incident. A missing sample is `None` (a gap, never 0), and
 a series that cannot be read is all gaps; the others still answer. One shared answer per (incident, range): 30 s
@@ -10,6 +10,11 @@ ACR-0021 (T-0045 B2) adds, all optional for a client: per series its `kind`, the
 scaled like the values and the detector's own line (`detector_threshold`); at the top the incident band
 (`incident_from`, `incident_to`), the `events` (container restarts, OOM kills, alert fired / resolved) and a template
 `summary` filled with numbers from the series (never a model call).
+
+T-0045 B7 adds the 6h and 24h ranges (`ranges_available`), a `baseline` per series (p50 and p95 of the same signal over
+the 24 h that end an hour before the incident opened, scaled like the values; null when under half of that window has
+samples or it cannot be read; read once per incident and signal) and `deploy` events (the `deploy_event` rows of the
+incident's host inside the window; the label names the ref and short commit, never who deployed).
 """
 from __future__ import annotations
 
@@ -23,10 +28,14 @@ from typing import Any, Callable
 from argus.domain.model import Incident, TargetRef
 from argus.ports.ports import MetricsPort, MetricsUnavailable, StaleMetrics
 
-RANGES = {"15m": 15, "30m": 30, "1h": 60}
+RANGES = {"15m": 15, "30m": 30, "1h": 60, "6h": 360, "24h": 1440}
 MAX_POINTS = 130
 MIN_STEP_S = 30
 TAIL = timedelta(minutes=2)                 # the window ends a little after the incident closed
+BASELINE_MINUTES = 1440                     # B7: the 24 h ...
+BASELINE_LEAD = timedelta(hours=1)          # ... that end an hour before the incident opened (its run-up excluded)
+BASELINE_STEP_S = 300
+BASELINE_MIN_COVERAGE = 0.5                 # fewer samples than half the window: no baseline (unknown, not calm)
 TOP_KEYS = {"default", "classes"}
 SERIES_KEYS = {"signal", "title", "scope", "unit", "scale", "max", "fired", "kind"}
 KINDS = ("memory", "restarts", "cpu", "latency", "health", "disk", "database", "network", "other")
@@ -109,6 +118,7 @@ class IncidentMetrics:
         self.store, self.thresholds = store, thresholds
         self.ttl_open_s, self.ttl_closed_s = ttl_open_s, ttl_closed_s
         self._cache: dict[tuple[str, str], tuple[float, dict]] = {}
+        self._baselines: dict[tuple[str, str, float], dict | None] = {}     # fixed per incident: kept, bounded
         self._lock = threading.Lock()
 
     def window(self, inc: Incident, rng: str) -> dict:
@@ -157,25 +167,54 @@ class IncidentMetrics:
         for spec in self.signal_list.for_class(inc.incident_class):
             slots = slots_of(host if spec.scope == "host" else inc.target, spec.signal)
             line = self.thresholds.get(spec.signal) if self.thresholds else None
+            baseline = self._baseline(host if spec.scope == "host" else inc.target, spec.signal, inc.opened_at,
+                                      spec.scale)
             scaled = (None if line is None else
                       {"warning": round(line.warning * spec.scale, 6), "critical": round(line.critical * spec.scale, 6),
                        "direction": line.direction})
             series.append({"key": spec.signal, "title": spec.title, "unit": spec.unit, "max": spec.max,
                            "fired": spec.fired, "kind": spec.kind, "thresholds": scaled,
                            "detector_threshold": scaled["critical"] if scaled and spec.fired else None,
+                           "baseline": baseline,
                            "points": [[_iso(first + i * step), None if i not in slots else round(slots[i] * spec.scale, 6)]
                                       for i in range(count)]})
 
         def at(i: int) -> str:
             return _iso(first + i * step)
 
-        events = self._counter_events(inc, slots_of, at) + self._alert_events(inc, first, end.timestamp())
+        events = (self._counter_events(inc, slots_of, at) + self._alert_events(inc, first, end.timestamp())
+                  + self._deploy_events(inc, first, end.timestamp()))
         events.sort(key=lambda e: e["at"])
         closed = inc.closed_at
-        return {"incident_id": inc.id, "range": rng, "from": _iso(first), "to": _iso(end.timestamp()),
+        return {"incident_id": inc.id, "range": rng, "ranges_available": list(RANGES),
+                "from": _iso(first), "to": _iso(end.timestamp()),
                 "step_s": step, "incident_from": _iso(inc.opened_at.timestamp()),
                 "incident_to": _iso(closed.timestamp()) if closed else None,
                 "summary": summarize(inc.incident_class, series), "events": events, "series": series}
+
+    def _baseline(self, target: TargetRef, signal: str, opened_at: datetime, scale: float) -> dict | None:
+        """B7: p50 / p95 of `signal` over the 24 h ending an hour before `opened_at`; None when under half of that window
+        has samples or the read fails (unknown, never a made-up normal). Read once per (target, signal, incident start)."""
+        end = datetime.fromtimestamp(math.floor((opened_at - BASELINE_LEAD).timestamp()), timezone.utc)
+        key = (str(target), signal, end.timestamp())
+        with self._lock:
+            if key in self._baselines:
+                return _scaled(self._baselines[key], scale)
+        try:
+            raw = self.metrics.range(target, signal, BASELINE_MINUTES, BASELINE_STEP_S, end=end)
+        except (MetricsUnavailable, StaleMetrics, ValueError):
+            raw = []
+        values = sorted(v for _, v in raw if math.isfinite(v))
+        expected = BASELINE_MINUTES * 60 // BASELINE_STEP_S + 1
+        found = None
+        if values and len(values) >= BASELINE_MIN_COVERAGE * expected:
+            found = {"p50": _quantile(values, 0.5), "p95": _quantile(values, 0.95),
+                     "from": _iso(end.timestamp() - BASELINE_MINUTES * 60), "to": _iso(end.timestamp())}
+        with self._lock:
+            if len(self._baselines) > 2000:                # a bound: incidents are few, but never unbounded
+                self._baselines.clear()
+            self._baselines[key] = found
+        return _scaled(found, scale)
 
     @staticmethod
     def _counter_events(inc: Incident, slots_of, at) -> list[dict]:
@@ -209,6 +248,27 @@ class IncidentMetrics:
                 if when is not None and start <= when.timestamp() <= stop:
                     out.append({"at": _iso(when.timestamp()), "kind": kind, "label": f"Alert {name} {verb}"})
         return out
+
+    def _deploy_events(self, inc: Incident, start: float, stop: float) -> list[dict]:
+        """B7: deploys of the incident's host inside the window (`deploy_event`, written by `argus deploy record`)."""
+        if self.store is None or not hasattr(self.store, "deploy_events"):
+            return []
+        frm, to = (datetime.fromtimestamp(x, timezone.utc) for x in (start, stop))
+        return [{"at": _iso(e["at"].timestamp()), "kind": "deploy", "label": f"Deployed {e['ref']} ({e['commit'][:7]})"}
+                for e in self.store.deploy_events(inc.target.host, frm, to)]
+
+
+def _scaled(baseline: dict | None, scale: float) -> dict | None:
+    return None if baseline is None else {**baseline, "p50": round(baseline["p50"] * scale, 6),
+                                          "p95": round(baseline["p95"] * scale, 6)}
+
+
+def _quantile(ordered: list[float], q: float) -> float:
+    """Linear interpolation between the closest ranks (Prometheus' quantile_over_time does the same)."""
+    pos = (len(ordered) - 1) * q
+    lo = math.floor(pos)
+    hi = min(lo + 1, len(ordered) - 1)
+    return ordered[lo] + (ordered[hi] - ordered[lo]) * (pos - lo)
 
 
 # --- the summary: a template per class and per fired state, filled with numbers from the series -----------------------

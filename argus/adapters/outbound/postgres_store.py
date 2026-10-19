@@ -175,6 +175,17 @@ class PostgresStore:
         self._q("INSERT INTO monitoring_state (host, state, updated_at) VALUES (%s, %s, now()) "
                 "ON CONFLICT (host) DO UPDATE SET state = EXCLUDED.state, updated_at = now()", (host, Jsonb(state)))
 
+    def add_deploy_event(self, host: str, commit: str, ref: str, actor: str, at: datetime) -> None:
+        """ACR-0021 (T-0045 B7): a deploy of `commit` to `host` (`argus deploy record`); insert-only (migration 008)."""
+        self._q("INSERT INTO deploy_event (host, commit_sha, ref, actor, at) VALUES (%s, %s, %s, %s, %s)",
+                (host, commit, ref, actor, at))
+
+    def deploy_events(self, host: str, start: datetime, end: datetime) -> list[dict[str, Any]]:
+        """The host's deploys from `start` to `end`, oldest first."""
+        rows = self._q("SELECT commit_sha, ref, actor, at FROM deploy_event WHERE host = %s AND at >= %s AND at <= %s "
+                       "ORDER BY at, id", (host, start, end))
+        return [{"commit": r[0], "ref": r[1], "actor": r[2], "at": r[3]} for r in rows]
+
     def close_queued_incident(self, incident_id: str, outcome: str, diagnosis: str, closed_at: datetime) -> bool:
         """Close an incident no worker has claimed (T-0026). False when it is no longer queued (claimed meanwhile)."""
         patch = {"status": "closed", "outcome": outcome, "diagnosis": diagnosis,
@@ -335,6 +346,10 @@ CHECKS_SQL: list[tuple[str, str, bool]] = [
     ("occurrence's incident cannot change", "UPDATE alert_occurrence SET incident_id = 'inc_x' "
                                             "WHERE identity = 'alert:dbcheck'", False),
     ("DELETE alert occurrence refused", "DELETE FROM alert_occurrence WHERE identity = 'alert:dbcheck'", False),
+    ("insert deploy event (ACR-0021, migration 008)", "INSERT INTO deploy_event (host, commit_sha, ref, actor, at) "
+                                                      "VALUES ('vm-095', 'abcdef1', 'dbcheck', 'dbcheck', now())", True),
+    ("deploy event is insert-only (UPDATE refused)", "UPDATE deploy_event SET ref = 'x' WHERE ref = 'dbcheck'", False),
+    ("deploy event is insert-only (DELETE refused)", "DELETE FROM deploy_event WHERE ref = 'dbcheck'", False),
     ("runtime role is not superuser", "DO $$ BEGIN IF (SELECT rolsuper FROM pg_roles WHERE rolname = current_user) "
                                       "THEN RAISE EXCEPTION 'superuser'; END IF; END $$", True),
 ]
