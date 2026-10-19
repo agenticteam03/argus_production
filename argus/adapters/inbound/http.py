@@ -18,7 +18,7 @@ import jwt
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, status
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from pwdlib import PasswordHash
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from argus.application.alerts import HandleAlertNotification
 from argus.application.incident_view import build_verdict
@@ -40,18 +40,23 @@ hasher = PasswordHash.recommended()
 oauth2 = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/token")
 
 
+INCIDENT_ID = r"^inc_[A-Za-z0-9_-]+$"   # an incident id in a request (never a path or free text)
+
+
 class InvestigationIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
     target: str
     reason: str = ""
     request_kind: Literal["check", "report"] = "report"
     idempotency_key: str | None = None
+    parent_id: str | None = Field(None, pattern=INCIDENT_ID, max_length=64)   # ACR-0021 B5: the incident re-checked
 
 
 def new_incident(target: TargetRef, trigger: TriggerKind, request: RequestKind, reason: str,
-                 principal: str | None, trigger_id: str) -> Incident:
+                 principal: str | None, trigger_id: str, parent_id: str | None = None) -> Incident:
     return Incident(id=f"inc_{uuid.uuid4().hex[:12]}", target=target, trigger_kind=trigger, request_kind=request,
-                    reason=reason[:2000], principal=principal, trigger_id=trigger_id, opened_at=utcnow())
+                    reason=reason[:2000], principal=principal, trigger_id=trigger_id, opened_at=utcnow(),
+                    parent_id=parent_id)
 
 
 class LoginLimiter:
@@ -224,10 +229,13 @@ def build_api(app_ctx) -> FastAPI:
             target = TargetRef.parse(body.target)
         except ValueError as e:
             raise HTTPException(422, str(e))
+        # ACR-0021 B5: a re-check names an existing incident (every role reads every incident, so it is readable)
+        if body.parent_id is not None and app_ctx.store.get_incident(body.parent_id) is None:
+            raise HTTPException(422, "parent_id: no such incident")
         access = request.state.access
         edge, address = origin(request)
         how = {"access": access, "via": "edge" if edge else "loopback", "client": address,
-               "target": str(target), "request_kind": body.request_kind}
+               "target": str(target), "request_kind": body.request_kind, "parent_id": body.parent_id}
         with quota_lock:                                    # concurrent POSTs cannot all pass the same last free slot
             if access == "investigate":                     # ACR-0012: the UI's token is limited; a full one is not
                 refused = over_quota(p.id, body.idempotency_key)
@@ -237,7 +245,7 @@ def build_api(app_ctx) -> FastAPI:
                                         f"investigation quota reached ({refused[0]}); try again later",
                                         headers={"Retry-After": str(refused[1])})
             inc = new_incident(target, TriggerKind.manual, RequestKind(body.request_kind), body.reason, p.id,
-                               body.idempotency_key or f"manual:{uuid.uuid4().hex}")
+                               body.idempotency_key or f"manual:{uuid.uuid4().hex}", body.parent_id)
             inc, duplicate = app_ctx.store.create_incident(inc, body.idempotency_key)
         audit_access("investigation.requested", p.id, {**how, "incident_id": inc.id, "duplicate": duplicate})
         return {"incident_id": inc.id, "status": inc.status, "duplicate": duplicate}
@@ -323,11 +331,14 @@ def build_api(app_ctx) -> FastAPI:
         return host_row(target, values, snapshot.observed_at.isoformat() if snapshot.observed_at else None)
 
     @api.get("/api/v1/incidents", tags=["incidents"])
-    def incidents(p: Annotated[Principal, Depends(current)], limit: int = 30):
+    def incidents(p: Annotated[Principal, Depends(current)], limit: int = 30,
+                  parent_id: Annotated[str | None, Query(pattern=INCIDENT_ID, max_length=64)] = None):
+        """`parent_id` (ACR-0021 B5): only the re-checks of that incident, newest first."""
         return [{"id": i.id, "target": str(i.target), "status": i.status, "outcome": i.outcome,
                  "class": i.incident_class, "strategy": i.strategy, "opened_at": i.opened_at,
-                 "root_cause_target": i.root_cause_target}
-                for i in app_ctx.store.list_incidents(min(limit, s.incidents_limit_cap))]   # ACR-0011: capped
+                 "root_cause_target": i.root_cause_target, "parent_id": i.parent_id}
+                for i in app_ctx.store.list_incidents(min(limit, s.incidents_limit_cap),   # ACR-0011: capped
+                                                      parent_id=parent_id)]
 
     @api.get("/api/v1/incidents/{incident_id}", tags=["incidents"])
     def incident(incident_id: str, p: Annotated[Principal, Depends(current)]):

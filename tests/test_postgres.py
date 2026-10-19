@@ -69,6 +69,29 @@ def test_incident_lifecycle_and_forward_only(store):
         store.update_incident(inc)                         # a closed incident never reopens
 
 
+def test_recheck_lineage_migration_007(runtime_dsn, store):
+    """ACR-0021 (T-0045 B5): a re-check names an existing parent (foreign key), is listed by it newest first, and the
+    link never changes (the forward-only trigger)."""
+    import psycopg
+    parent = _incident(minutes_ago=30)
+    store.create_incident(parent, None)
+    first, second = _incident(minutes_ago=20), _incident(minutes_ago=10)
+    for child in (first, second):
+        child.parent_id = parent.id
+        store.create_incident(child, None)
+    assert [i.id for i in store.list_incidents(10, parent_id=parent.id)] == [second.id, first.id]
+    assert store.get_incident(first.id).parent_id == parent.id
+    orphan = _incident()
+    orphan.parent_id = "inc_nosuchparent"
+    with pytest.raises(psycopg.Error, match="foreign key"):
+        store.create_incident(orphan, None)
+    with psycopg.connect(runtime_dsn, autocommit=True) as c:
+        with pytest.raises(psycopg.Error, match="immutable"):
+            c.execute("UPDATE incident SET parent_id = NULL WHERE id = %s", (first.id,))
+        with pytest.raises(psycopg.Error, match="immutable"):
+            c.execute("UPDATE incident SET parent_id = %s WHERE id = %s", (first.id, parent.id))
+
+
 def test_worker_lease(store):
     """T-0014: a claim is a lease; only expired claims go back to the queue (tests/test_worker_lease.py, SQLite)."""
     from argus.domain.model import IncidentStatus, utcnow

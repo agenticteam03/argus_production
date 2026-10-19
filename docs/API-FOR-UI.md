@@ -41,7 +41,10 @@ on. Anything else can change without notice.
 7. **Starting an investigation** (ACR-0012): `POST /api/v1/investigations` with `{"target", "request_kind": "check" |
    "report", "reason"}`, the target taken from `GET /api/v1/targets` (never free text). With an investigate token
    the API applies quotas: 10 an hour and 2 queued per account, 20 queued in all. Over one, 429 with `Retry-After`
-   (seconds). Show a "Start" control only when `/me` lists `start_investigation`.
+   (seconds). Show a "Start" control only when `/me` lists `start_investigation`. A re-check adds `"parent_id":
+   "<incident id>"` (ACR-0021): the incident it re-checks, which must exist (else 422, nothing created); quotas are
+   the same. Every incident (list row and detail) carries `parent_id` (`null` when it re-checks nothing), and
+   `GET /api/v1/incidents?parent_id=<id>` lists that incident's re-checks, newest first.
 8. **`limit` is capped by the server** (200 by default, `ARGUS_INCIDENTS_LIMIT_CAP`); asking for more returns at most
    that many.
 9. **The runbooks are not an API route:** the edge serves `/runbooks/index.json` and `/runbooks/RB-*.md` only to a
@@ -130,7 +133,8 @@ One row of `GET /api/v1/incidents`:
 ```json
 {"id": "inc_7e49840f50fa", "target": "vm-166/container:argus-lab-worker", "status": "closed",
  "outcome": "diagnosed", "class": "container_restart_loop", "strategy": "model_loop",
- "opened_at": "2026-10-06T15:45:55.575099+00:00", "root_cause_target": "vm-166/container:argus-lab-worker"}
+ "opened_at": "2026-10-06T15:45:55.575099+00:00", "root_cause_target": "vm-166/container:argus-lab-worker",
+ "parent_id": null}
 ```
 
 One timeline event (`GET /api/v1/incidents/{id}/events`):
