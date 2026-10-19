@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | `in progress` — B1 (#173, #177), B2 (#174) and B4 (#176) merged; B3 in review (#175); B5 in draft (#181); B6 to B8 open. [ACR-0021](../../architecture/changes/ACR-0021-ui-insights-v2.md) is accepted by one teammate; its least-privilege approval is pending, so **B6 waits** for it (see "Order and dependencies") |
+| Status | `in progress` — B1 to B5 merged (#173, #177, #174, #175, #176, #181; follow-up #185) and applied to `ARCHITECTURE.md` (1.8.18); B6 in review (#184, target-metrics); B7 and B8 open. [ACR-0021](../../architecture/changes/ACR-0021-ui-insights-v2.md) is accepted with its least-privilege approval (#182) |
 | Phase | 10 — output modes (the UI) |
 | Architecture | ACR-0021 (`accepted`, applied after B4), extending ACR-0017 |
 | Branch | one branch per step: `task/T-0045-b<n>-<slug>` |
