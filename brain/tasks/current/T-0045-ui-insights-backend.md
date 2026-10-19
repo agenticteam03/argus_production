@@ -2,9 +2,9 @@
 
 | Field | Value |
 |---|---|
-| Status | `proposed` — specification only; implementation starts when [ACR-0021](../../architecture/changes/ACR-0021-ui-insights-v2.md) is accepted |
+| Status | `in progress` — B1 merged (#173, #177); B2 to B4 in review (#174 to #176); B5 to B8 open. [ACR-0021](../../architecture/changes/ACR-0021-ui-insights-v2.md) is accepted, so B5 to B7 may start (see "Order and dependencies") |
 | Phase | 10 — output modes (the UI) |
-| Architecture | ACR-0021 (`proposed`), extending ACR-0017 |
+| Architecture | ACR-0021 (`accepted`, applied after B4), extending ACR-0017 |
 | Branch | one branch per step: `task/T-0045-b<n>-<slug>` |
 | Owner | backend lanes (`juanbetancurm`, `conantkd`) + agent; the frontend counterpart is `juanes6554`'s (T-0016) |
 | Needs the VM lease | only for the deployment of each step (both leases: the agent image changes) |
@@ -255,9 +255,11 @@ logged-in read through the edge showing the new fields and no address).
 - Scheduled edge checks (`topology_check`); this task uses the exporter's existing probes.
 - The terminal ticket route (ACR-0020).
 
-## Open decisions (for the review of ACR-0021)
+## Open decisions (answered at the acceptance of ACR-0021, its §5)
 
-1. The initial thresholds in B1: agree, or tune per host?
-2. The `idle` list: exactly the scenario-only containers of `ops/e2e/scenarios.yaml`?
-3. The link warning latency (default 100 ms) and the heartbeat staleness (2 × interval).
-4. The baseline window (24 h ending 1 h before the incident) and its cost on the lab Prometheus.
+1. The initial thresholds in B1: **the spec's values** (B1, #173); `unit` and `scale` optional (#177).
+2. The `idle` list: **the seven scenario-only containers of vm-166** (`profile: scenario`, B3).
+3. The link warning latency: **100 ms**, per target `link_warning_ms` (B3). The heartbeat staleness: **150 s**, pinned
+   by a test to the scheduler's schedule (#177).
+4. The baseline window (24 h ending 1 h before the incident) and its cost on the lab Prometheus: **still open**,
+   decided in B7.
