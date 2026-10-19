@@ -7,12 +7,12 @@ next free number.
 
 | Field | Value |
 |---|---|
-| Status | `proposed` |
+| Status | `accepted` (not yet applied to `ARCHITECTURE.md`: see §6) |
 | Proposed by | juanbetancurm (+ agent) · 2026-10-18 |
-| Accepted by | pending |
-| Second approval (safety principle only) | **required**: least privilege (two new routes on the public edge) |
+| Accepted by | `conantkd` and `juanes6554`, by their approvals of the acceptance pull request (`task/ACR-0021-accepted`), which merges only with both · 2026-10-19 |
+| Second approval (safety principle only) | **required**: least privilege (two new routes on the public edge); given by the second of the two approvals above |
 | Architecture version | the next free version when applied |
-| Task / PR | T-0045 · PR (this proposal) |
+| Task / PR | T-0045 · #172 (proposed) · `task/ACR-0021-accepted` (accepted) |
 
 ## 1. Detect and explain
 
@@ -111,9 +111,25 @@ at) written by `ops/deploy.sh` through a new CLI verb `argus deploy record`.
 
 ## 5. Decision
 
-Proposed. The implementation steps, contracts and tests are in T-0045.
+Proposed in #172. **Accepted** with the two approvals of the acceptance pull request: one teammate's, plus a second
+one for least privilege (the two public routes). The implementation steps, contracts and tests are in T-0045.
+
+Answers to T-0045's open decisions, from the steps already built and reviewed:
+1. **Thresholds:** the spec's initial values, shipped in B1 (#173). `unit` and `scale` are optional (#177).
+2. **`idle`:** the seven scenario-only containers of vm-166 (`profile: scenario`, B3, #175).
+3. **Link warning:** 100 ms by default, `link_warning_ms` per target (B3). **Heartbeat staleness:** 150 s, pinned by a
+   test to the scheduler's schedule (#177).
+4. **Baseline window:** still open; it is decided in B7.
+
+**Before acceptance**, B1 to B4 were built under T-0045's "Order and dependencies" (additive fields, no new route, no
+migration): B1 in #173 and #177 (merged), B2 to B4 in #174 to #176. B5 to B7 start once this record is accepted.
 
 ## 6. Applied
+
+The text of `ARCHITECTURE.md` is applied in **one** pull request, once B4 has merged. That pull request covers what
+is then built (§5.8 `severity`, §8.1 `dependency_probes`, the §7.1 fields of the topology, incident metrics,
+host-metrics and incident routes) and bumps the version. B6 adds the two new routes' rows and `locations.conf`, and
+B5/B7 the §16 migration. Until then, the difference is recorded in `SUMMARY.md` ("Known differences").
 
 - [ ] `ARCHITECTURE.md` updated (§5.8, §7.1, §8.1, §16, changelog), version bumped
 - [ ] `contracts/ui-api.json`, samples, `docs/API-FOR-UI.md`, `locations.conf`
