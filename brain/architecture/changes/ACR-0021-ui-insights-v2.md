@@ -7,12 +7,12 @@ next free number.
 
 | Field | Value |
 |---|---|
-| Status | `accepted` (not yet applied to `ARCHITECTURE.md`: see §6) |
+| Status | `accepted` by one teammate; **the least-privilege approval is pending** (B6 waits for it). Not yet applied to `ARCHITECTURE.md` (§6) |
 | Proposed by | juanbetancurm (+ agent) · 2026-10-18 |
-| Accepted by | `conantkd` and `juanes6554`, by their approvals of the acceptance pull request (`task/ACR-0021-accepted`), which merges only with both · 2026-10-19 |
-| Second approval (safety principle only) | **required**: least privilege (two new routes on the public edge); given by the second of the two approvals above |
+| Accepted by | `conantkd`, approving #180 · 2026-10-19. #180 was merged at conantkd's request before `juanes6554`'s approval (corrected in `task/ACR-0021-record`) |
+| Second approval (safety principle only) | **required**: least privilege (two new routes on the public edge). **Pending:** `juanes6554`, by approving `task/ACR-0021-record`. B6 does not start before it |
 | Architecture version | the next free version when applied |
-| Task / PR | T-0045 · #172 (proposed) · `task/ACR-0021-accepted` (accepted) |
+| Task / PR | T-0045 · #172 (proposed) · #180 (accepted by one teammate) · `task/ACR-0021-record` (the least-privilege approval) |
 
 ## 1. Detect and explain
 
