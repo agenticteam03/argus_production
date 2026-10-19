@@ -580,6 +580,68 @@
         ]
       }
     },
+    "/api/v1/target-metrics": {
+      "get": {
+        "description": "ACR-0021 (T-0045 B6): one inventory target's recent signals for the UI's drawer, a fixed series list per\nkind on that target's own host; no PromQL from the browser; at most ~130 points per series; missing is null.",
+        "operationId": "target_metrics_route_api_v1_target_metrics_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "target",
+            "required": true,
+            "schema": {
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9_.-]+/[a-z_]+:[A-Za-z0-9_.-]+$",
+              "title": "Target",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "range",
+            "required": false,
+            "schema": {
+              "default": "15m",
+              "enum": [
+                "15m",
+                "1h"
+              ],
+              "title": "Range",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Target Metrics Route",
+        "tags": [
+          "metrics"
+        ]
+      }
+    },
     "/api/v1/targets": {
       "get": {
         "description": "ACR-0012: the inventory's targets for a UI's target list (refs only: no address, port or credential).",
