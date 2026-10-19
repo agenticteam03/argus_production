@@ -50,7 +50,8 @@ host_network_bytes_per_s: 'sum(rate(node_network_receive_bytes_total{argus_host=
 
 # ACR-0021 / T-0045 B1: where the UI draws its warning and critical lines (display values, not detection). `critical`
 # equals the detector's own threshold where a detector reads the signal (tests/test_t0045_b1_thresholds.py pins it).
-# direction `above`: worse as the value rises; `below`: worse as it falls. Validated at startup (a bad entry stops the API).
+# direction `above`: worse as the value rises; `below`: worse as it falls. Optional `unit` (text) and `scale` (> 0) are
+# display hints passed through to the answer. Validated at startup (a bad entry stops the API).
 thresholds:
   host_cpu_busy_ratio:                {warning: 0.75, critical: 0.90, direction: above}
   host_memory_available_ratio:        {warning: 0.25, critical: 0.10, direction: below}

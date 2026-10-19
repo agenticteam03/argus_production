@@ -149,3 +149,30 @@ def test_host_metrics_answer_holds_no_address_or_url(make_app):
     for token in re.findall(r"\d+\.\d+\.\d+\.\d+", text):
         with pytest.raises(ValueError):
             ipaddress.ip_address(token)
+
+
+# --- review of #173 (juanbetancurm): optional `unit` and `scale`; the heartbeat staleness tied to the scheduler ---------
+def test_unit_and_scale_are_optional_fields_kept_in_the_answer():
+    th = Thresholds.from_data({"host_cpu_busy_ratio": {"warning": 0.75, "critical": 0.9, "direction": "above",
+                                                       "unit": "%", "scale": 100}}, set(TEMPLATES))
+    line = th.get("host_cpu_busy_ratio")
+    assert (line.unit, line.scale) == ("%", 100)
+    assert line.as_dict() == {"warning": 0.75, "critical": 0.9, "direction": "above", "unit": "%", "scale": 100}
+    assert line.complement().as_dict()["unit"] == "%" and line.complement().scale == 100
+    plain = Thresholds.from_data({"restarts_10m": {"warning": 2, "critical": 3, "direction": "above"}}, set(TEMPLATES))
+    assert set(plain.get("restarts_10m").as_dict()) == {"warning", "critical", "direction"}     # absent stays absent
+
+
+@pytest.mark.parametrize("extra, why", [({"unit": 3}, "unit"), ({"unit": ""}, "unit"), ({"scale": "x"}, "scale"),
+                                        ({"scale": 0}, "scale"), ({"scale": -1}, "scale"), ({"scale": True}, "scale")])
+def test_a_bad_unit_or_scale_is_refused(extra, why):
+    with pytest.raises(ValueError, match=why):
+        Thresholds.from_data({"restarts_10m": {"warning": 2, "critical": 3, "direction": "above", **extra}}, set(TEMPLATES))
+
+
+def test_the_heartbeat_staleness_sits_between_two_reconcile_ticks_and_the_scheduler_loss():
+    """`heartbeat_stale` warns after two missed reconcile ticks and before the scheduler declares the host's monitoring
+    lost (`stale_after_s`), so a change to deploy/scheduler/schedules.yaml that crosses it turns this test red."""
+    from argus.adapters.inbound.http import HEARTBEAT_STALE_S
+    rec = yaml.safe_load((ROOT / "deploy" / "scheduler" / "schedules.yaml").read_text(encoding="utf-8"))["reconcile_firing_alerts"]
+    assert 2 * rec["every_s"] <= HEARTBEAT_STALE_S < rec["monitoring_heartbeat"]["stale_after_s"]

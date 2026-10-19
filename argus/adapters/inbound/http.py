@@ -31,7 +31,8 @@ SCOPES = {"read", "investigate"}        # what a login may ask for; none = a ful
 
 log = logging.getLogger("argus.api")
 
-# A host's heartbeat renews every 60-75 s (T-0035, measured on Alertmanager): older than twice that is stale.
+# A host's heartbeat renews every 60-75 s (T-0035, measured on Alertmanager): older than twice that is stale. It sits
+# between two reconcile ticks and the scheduler's loss (`stale_after_s`, deploy/scheduler/schedules.yaml); a test pins it.
 HEARTBEAT_STALE_S = 150
 hasher = PasswordHash.recommended()
 oauth2 = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/token")

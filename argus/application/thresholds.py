@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from numbers import Real
 
 DIRECTIONS = ("above", "below")
-FIELDS = {"warning", "critical", "direction"}
+FIELDS = {"warning", "critical", "direction", "unit", "scale"}
 
 
 @dataclass(frozen=True)
@@ -18,14 +18,18 @@ class Threshold:
     warning: float
     critical: float
     direction: str                      # "above": worse as the value rises; "below": worse as it falls
+    unit: str | None = None             # optional display hints, passed through as given (absent stays absent)
+    scale: float | None = None
 
     def as_dict(self) -> dict:
-        return {"warning": self.warning, "critical": self.critical, "direction": self.direction}
+        out = {"warning": self.warning, "critical": self.critical, "direction": self.direction}
+        out.update({k: v for k, v in (("unit", self.unit), ("scale", self.scale)) if v is not None})
+        return out
 
     def complement(self) -> "Threshold":
         """The same lines for 1 - value (an available ratio shown as a used ratio)."""
         flipped = "below" if self.direction == "above" else "above"
-        return Threshold(round(1 - self.warning, 10), round(1 - self.critical, 10), flipped)
+        return Threshold(round(1 - self.warning, 10), round(1 - self.critical, 10), flipped, self.unit, self.scale)
 
 
 def _number(v) -> bool:
@@ -61,11 +65,18 @@ class Thresholds:
             if bad:
                 problems.append(f"{name}: {' and '.join(bad)} must be a number")
                 continue
+            unit, scale = entry.get("unit"), entry.get("scale")
+            if unit is not None and (not isinstance(unit, str) or not unit.strip()):
+                problems.append(f"{name}: unit must be a non-empty text")
+                continue
+            if scale is not None and (not _number(scale) or scale <= 0):
+                problems.append(f"{name}: scale must be a positive number")
+                continue
             w, c, d = entry["warning"], entry["critical"], entry["direction"]
             if (d == "above" and w > c) or (d == "below" and w < c):
                 problems.append(f"{name}: warning {w} is past critical {c} for direction {d}")
                 continue
-            out[name] = Threshold(w, c, d)
+            out[name] = Threshold(w, c, d, unit, scale)
         if problems:
             raise ValueError("signals.yaml thresholds: " + "; ".join(problems))
         return cls(out)
