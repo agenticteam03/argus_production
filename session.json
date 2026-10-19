@@ -5,7 +5,7 @@
   "branch": "task/EVAL-offers",
   "base_commit": "5761f56aa349ab0333aec2225f83b1da65f80bf7",
   "started_at": "2026-10-19T10:14:46+00:00",
-  "expires_at": "2026-10-19T13:15:19+00:00",
+  "expires_at": "2026-10-19T14:23:47+00:00",
   "released": false,
   "handoff": null,
   "vms": {
@@ -16,7 +16,7 @@
       "branch": "task/EVAL-offers",
       "base_commit": "5761f56aa349ab0333aec2225f83b1da65f80bf7",
       "started_at": "2026-10-19T10:14:46+00:00",
-      "expires_at": "2026-10-19T13:15:19+00:00",
+      "expires_at": "2026-10-19T14:23:47+00:00",
       "released": false,
       "handoff": null
     },
