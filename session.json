@@ -1,47 +1,35 @@
 {
   "holder": "conantkd",
-  "session_id": "6acdd0bc30fb",
+  "session_id": "da7842d3a746",
   "task": "DEPLOY-176",
-  "branch": "task/DEPLOY-176-record",
-  "base_commit": "77002a7ac0adcc255d088af2827597fa85ddc1a4",
-  "started_at": "2026-10-19T13:28:04+00:00",
-  "expires_at": "2026-10-19T15:50:54+00:00",
-  "released": true,
-  "handoff": {
-    "note": "DEPLOY-176 not run: vm-095 still on 19b1085, main is 77002a7 (B1, B2, B4 + CI). Nothing changed on either VM. Next: deploy agent/worker/scheduler (no migration) once #175 merges, so B3 goes in the same deploy; if #181 merges first, db-migrate (007) before the image.",
-    "branch": "task/DEPLOY-176-record",
-    "at": "2026-10-19T14:48:53+00:00"
-  },
+  "branch": "task/ACR-0021-apply",
+  "base_commit": "c123a4a4ea3b1733c0d41d76de079f1cda0309e1",
+  "started_at": "2026-10-19T18:21:35+00:00",
+  "expires_at": "2026-10-19T19:21:35+00:00",
+  "released": false,
+  "handoff": null,
   "vms": {
     "vm-095": {
       "holder": "conantkd",
-      "session_id": "6acdd0bc30fb",
+      "session_id": "da7842d3a746",
       "task": "DEPLOY-176",
-      "branch": "task/DEPLOY-176-record",
-      "base_commit": "77002a7ac0adcc255d088af2827597fa85ddc1a4",
-      "started_at": "2026-10-19T13:28:04+00:00",
-      "expires_at": "2026-10-19T15:50:54+00:00",
-      "released": true,
-      "handoff": {
-        "note": "DEPLOY-176 not run: vm-095 still on 19b1085, main is 77002a7 (B1, B2, B4 + CI). Nothing changed on either VM. Next: deploy agent/worker/scheduler (no migration) once #175 merges, so B3 goes in the same deploy; if #181 merges first, db-migrate (007) before the image.",
-        "branch": "task/DEPLOY-176-record",
-        "at": "2026-10-19T14:48:53+00:00"
-      }
+      "branch": "task/ACR-0021-apply",
+      "base_commit": "c123a4a4ea3b1733c0d41d76de079f1cda0309e1",
+      "started_at": "2026-10-19T18:21:35+00:00",
+      "expires_at": "2026-10-19T19:21:35+00:00",
+      "released": false,
+      "handoff": null
     },
     "vm-166": {
       "holder": "conantkd",
-      "session_id": "6acdd0bc30fb",
+      "session_id": "da7842d3a746",
       "task": "DEPLOY-176",
-      "branch": "task/DEPLOY-176-record",
-      "base_commit": "77002a7ac0adcc255d088af2827597fa85ddc1a4",
-      "started_at": "2026-10-19T13:28:04+00:00",
-      "expires_at": "2026-10-19T15:50:54+00:00",
-      "released": true,
-      "handoff": {
-        "note": "DEPLOY-176 not run: vm-095 still on 19b1085, main is 77002a7 (B1, B2, B4 + CI). Nothing changed on either VM. Next: deploy agent/worker/scheduler (no migration) once #175 merges, so B3 goes in the same deploy; if #181 merges first, db-migrate (007) before the image.",
-        "branch": "task/DEPLOY-176-record",
-        "at": "2026-10-19T14:48:53+00:00"
-      }
+      "branch": "task/ACR-0021-apply",
+      "base_commit": "c123a4a4ea3b1733c0d41d76de079f1cda0309e1",
+      "started_at": "2026-10-19T18:21:35+00:00",
+      "expires_at": "2026-10-19T19:21:35+00:00",
+      "released": false,
+      "handoff": null
     }
   }
 }
