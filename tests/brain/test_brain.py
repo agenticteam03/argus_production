@@ -358,6 +358,90 @@ def test_check_main_reports_why_a_self_merge_was_not_valid():
     assert seen == [("x" * 40, 2)]                       # the merge commit and its parent count reach the check
 
 
+# --- an update that only brings in main keeps the approval (REVIEW_PROTOCOL.md) ----------------------------------------
+def test_check_main_keeps_an_approval_when_only_main_was_merged_in_after_it():
+    commits = [("o" * 40, 2), ("root" * 10, 0)]
+    prs = {"o" * 40: _pr(4, "bob", "h4-new")}
+    reviews = {4: [_review("alice", "APPROVED", "h4-old")]}
+    asked = []
+    keeps = lambda approved, pr, sha: asked.append((approved, pr["number"], sha)) or approved == "h4-old"  # noqa: E731
+    assert brain.check_main(commits, prs.get, reviews.get, set(), keeps_approval=keeps) == []
+    assert asked == [("h4-old", 4, "o" * 40)]
+    assert len(brain.check_main(commits, prs.get, reviews.get, set(), keeps_approval=lambda *_: False)) == 1
+    reviews[4] = [_review("bob", "APPROVED", "h4-old")]                 # still never the author's own approval
+    assert len(brain.check_main(commits, prs.get, reviews.get, set(), keeps_approval=keeps)) == 1
+
+
+def _commit(repo: Path, name: str, text: str, msg: str) -> str:
+    (repo / name).write_bytes(text.encode())
+    run(repo, "add", name)
+    run(repo, "commit", "-q", "-m", msg)
+    return run(repo, "rev-parse", "HEAD")
+
+
+@pytest.fixture()
+def pr_branch(repos):
+    """bob's task branch with one approved commit; main has moved on since (a.md on the branch, m.md on main)."""
+    repo = repos["bob"]
+    run(repo, "checkout", "-q", "-b", "task/T-1")
+    approved = _commit(repo, "a.md", "one\ntwo\nthree\n", "the approved work")
+    run(repo, "checkout", "-q", "main")
+    _commit(repo, "m.md", "main moved on\n", "someone else's merge")
+    run(repo, "checkout", "-q", "task/T-1")
+    return repo, approved
+
+
+def test_a_clean_merge_of_main_keeps_the_approval(pr_branch, monkeypatch):
+    repo, approved = pr_branch
+    monkeypatch.chdir(repo)
+    run(repo, "merge", "-q", "--no-edit", "main")                       # what "Update branch" does
+    head = run(repo, "rev-parse", "HEAD")
+    assert brain.only_main_merged_since(approved, head, run(repo, "rev-parse", "main"))
+    assert brain.only_main_merged_since(approved, approved, run(repo, "rev-parse", "main"))
+
+
+def test_a_new_commit_after_the_approval_needs_a_new_one(pr_branch, monkeypatch):
+    repo, approved = pr_branch
+    monkeypatch.chdir(repo)
+    run(repo, "merge", "-q", "--no-edit", "main")
+    head = _commit(repo, "a.md", "one\ntwo\nfour\n", "a change after the approval")
+    assert not brain.only_main_merged_since(approved, head, run(repo, "rev-parse", "main"))
+
+
+def test_a_merge_with_an_extra_edit_needs_a_new_approval(pr_branch, monkeypatch):
+    repo, approved = pr_branch
+    monkeypatch.chdir(repo)
+    run(repo, "merge", "-q", "--no-commit", "main")
+    (repo / "a.md").write_bytes(b"one\ntwo\nchanged inside the merge\n")
+    run(repo, "add", "a.md")
+    run(repo, "commit", "-q", "--no-edit")
+    head = run(repo, "rev-parse", "HEAD")
+    assert not brain.only_main_merged_since(approved, head, run(repo, "rev-parse", "main"))
+
+
+def test_a_resolved_conflict_needs_a_new_approval(pr_branch, monkeypatch):
+    repo, approved = pr_branch
+    monkeypatch.chdir(repo)
+    run(repo, "checkout", "-q", "main")
+    _commit(repo, "a.md", "one\ntwo\nmain's three\n", "main edits the same lines")
+    run(repo, "checkout", "-q", "task/T-1")
+    subprocess.run(["git", "merge", "--no-edit", "main"], cwd=repo, capture_output=True)    # conflicts
+    (repo / "a.md").write_bytes(b"one\ntwo\nthree\n")                  # resolved by keeping the branch's side
+    run(repo, "add", "a.md")
+    run(repo, "commit", "-q", "--no-edit")
+    head = run(repo, "rev-parse", "HEAD")
+    assert not brain.only_main_merged_since(approved, head, run(repo, "rev-parse", "main"))
+
+
+def test_a_rewritten_branch_needs_a_new_approval(pr_branch, monkeypatch):
+    repo, approved = pr_branch
+    monkeypatch.chdir(repo)
+    run(repo, "reset", "-q", "--hard", "main")
+    head = _commit(repo, "a.md", "one\ntwo\nthree\n", "the same text, a new history")
+    assert not brain.only_main_merged_since(approved, head, run(repo, "rev-parse", "main"))
+    assert not brain.only_main_merged_since("0" * 40, head, run(repo, "rev-parse", "main"))
+
+
 # --- open pull requests in `brain.py start`: drafts are tasks in progress, not review requests -----------------------
 def _open_pr(n, draft):
     return {"number": n, "title": f"T-{n}", "author": {"login": "alice"}, "headRefName": f"task/T-{n}", "isDraft": draft}
