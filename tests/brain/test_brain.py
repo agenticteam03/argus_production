@@ -442,6 +442,62 @@ def test_a_rewritten_branch_needs_a_new_approval(pr_branch, monkeypatch):
     assert not brain.only_main_merged_since("0" * 40, head, run(repo, "rev-parse", "main"))
 
 
+def test_a_clean_merge_of_another_branch_needs_a_new_approval(pr_branch, monkeypatch):
+    """Only a merge with main keeps the approval: a branch that is not main brings code nobody approved, even when git
+    merges it without a conflict (#183's open case)."""
+    repo, approved = pr_branch
+    monkeypatch.chdir(repo)
+    run(repo, "checkout", "-q", "-b", "side", "main")
+    _commit(repo, "s.md", "never reviewed\n", "work on another branch")
+    run(repo, "checkout", "-q", "task/T-1")
+    run(repo, "merge", "-q", "--no-edit", "side")                       # clean: s.md is new
+    head = run(repo, "rev-parse", "HEAD")
+    assert not brain.only_main_merged_since(approved, head, run(repo, "rev-parse", "main"))
+
+
+def test_main_merged_into_another_branch_first_still_needs_a_new_approval(pr_branch, monkeypatch):
+    """The same code through a branch that merged main first: every merge after the approval must take main itself."""
+    repo, approved = pr_branch
+    monkeypatch.chdir(repo)
+    run(repo, "checkout", "-q", "-b", "side", approved)
+    _commit(repo, "s.md", "never reviewed\n", "work on another branch")
+    run(repo, "merge", "-q", "--no-edit", "main")
+    run(repo, "checkout", "-q", "task/T-1")
+    run(repo, "merge", "-q", "--no-edit", "side")                       # a fast-forward
+    head = run(repo, "rev-parse", "HEAD")
+    assert not brain.only_main_merged_since(approved, head, run(repo, "rev-parse", "main"))
+
+
+# --- gh_json: one retry for a short or failed `gh api` answer (main-guard's "unexpected end of JSON input") ----------
+class _Done:
+    def __init__(self, code: int, out: str, err: str = ""):
+        self.returncode, self.stdout, self.stderr = code, out, err
+
+
+def test_gh_json_retries_a_truncated_answer(monkeypatch):
+    answers = [_Done(0, '[{"number": 1'), _Done(0, '[{"number": 1}]')]
+    monkeypatch.setattr(brain.subprocess, "run", lambda *a, **k: answers.pop(0))
+    monkeypatch.setattr(brain.time, "sleep", lambda s: None)
+    assert brain.gh_json("repos/o/r/pulls") == [{"number": 1}]
+    assert answers == []
+
+
+def test_gh_json_retries_a_failed_call_then_gives_up(monkeypatch):
+    calls = []
+    monkeypatch.setattr(brain.subprocess, "run", lambda *a, **k: calls.append(a) or _Done(1, "", "HTTP 502"))
+    monkeypatch.setattr(brain.time, "sleep", lambda s: None)
+    with pytest.raises(brain.BrainError, match="HTTP 502"):
+        brain.gh_json("repos/o/r/pulls")
+    assert len(calls) == brain.GH_TRIES
+
+
+def test_gh_json_does_not_retry_a_good_answer(monkeypatch):
+    calls = []
+    monkeypatch.setattr(brain.subprocess, "run", lambda *a, **k: calls.append(a) or _Done(0, "null"))
+    assert brain.gh_json("repos/o/r/pulls") is None
+    assert len(calls) == 1
+
+
 # --- open pull requests in `brain.py start`: drafts are tasks in progress, not review requests -----------------------
 def _open_pr(n, draft):
     return {"number": n, "title": f"T-{n}", "author": {"login": "alice"}, "headRefName": f"task/T-{n}", "isDraft": draft}
@@ -779,3 +835,12 @@ def test_lint_still_refuses_a_summary_edit_made_during_a_merge_of_main(repos, mo
     capsys.readouterr()
     assert brain.main(["lint"]) == 1
     assert "brain/NEXT_STEP.md: a task branch does not edit the shared summaries" in capsys.readouterr().out
+
+
+def test_gh_json_raises_a_404_at_once(monkeypatch):
+    calls = []
+    monkeypatch.setattr(brain.subprocess, "run",
+                        lambda *a, **k: calls.append(a) or _Done(1, "", "gh: Branch not found (HTTP 404)"))
+    with pytest.raises(brain.BrainError, match="HTTP 404"):
+        brain.gh_json("repos/o/r/branches/gone")
+    assert len(calls) == 1
