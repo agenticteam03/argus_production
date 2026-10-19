@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any, Literal, Protocol
+from typing import Any, Literal, NamedTuple, Protocol
 
 from pydantic import BaseModel
 
@@ -28,11 +28,21 @@ class AlertSourcePort(Protocol):
     def active_alerts(self, host: str) -> list[AlertNotification]: ...
 
 
+class ProbeSample(NamedTuple):
+    """One dependency probe of an owner (ACR-0021): success 1 / 0 (None = missing or stale), the answer time in seconds
+    (None = unknown) and the sample time."""
+    success: float | None
+    duration_s: float | None
+    at: datetime
+
+
 class MetricsPort(Protocol):
     def snapshot(self, target: TargetRef, signals: set[str]) -> MetricSnapshot: ...
     # `end` (ACR-0017): the window ends then (None = now); an incident's chart ends at its close, not today
     def range(self, target: TargetRef, signal: str, minutes: int, step_s: int,
               end: datetime | None = None) -> list[tuple[float, float]]: ...
+    # ACR-0021: the owner's probes, one per declared dependency (by the dependency's container name); {} = none known
+    def dependency_probes(self, target: TargetRef) -> dict[str, ProbeSample]: ...
 
 
 # --- LLM (provider-neutral) ------------------------------------------------------------------

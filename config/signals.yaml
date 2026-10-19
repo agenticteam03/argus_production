@@ -5,6 +5,10 @@ oom_killed:            'argus_container_oom_killed{argus_host="$host",container=
 last_exit_code:        'argus_container_last_exit_code{argus_host="$host",container="$name"}'
 health_unhealthy:      'argus_container_health_unhealthy{argus_host="$host",container="$name"}'
 dependency_probe_min:  'min(argus_probe_success{argus_host="$host",owner="$name"})'
+# ACR-0021: the exporter's probe of each declared dependency of the owner (one series per `dependency`), read by the
+# topology's links only (MetricsPort.dependency_probes); never a detector signal.
+dependency_probe_success:     'argus_probe_success{argus_host="$host",owner="$name"}'
+dependency_probe_duration_s:  'argus_probe_duration_seconds{argus_host="$host",owner="$name"}'
 container_memory_bytes: 'argus_container_memory_bytes{argus_host="$host",container="$name"}'
 container_restart_count: 'argus_container_restart_count{argus_host="$host",container="$name"}'
 # T-0020 (db-probe /metrics): ordinary-slot usage sustained for 5 minutes (RB-004 calibration default); unknown

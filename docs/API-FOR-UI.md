@@ -67,6 +67,13 @@ on. Anything else can change without notice.
     label/value facts) and `edges` (`state` `ok`, `broken`, `unknown` or `read`, with the dependency's `port`).
     Add `?incident_id=<id>` (operator/approver) for the incident's target and root cause as the incident saw them:
     their real networks, and "no shared network" on their link.
+    ACR-0021 adds, all optional for a client: per node `health` (`healthy`, `degraded`, `failed`, `unknown`, `idle`),
+    `idle` (a scenario-only lab container that is not running), `networks` (declared; at the incident with the
+    overlay), `problems[]` (`{kind, severity, summary, signal, value, threshold, unit}`) and, with the overlay, `role`
+    (`root_cause`, `affected`, `on_path`, else `null`); per edge an `id`, a `kind` (`dependency` or `argus_reads`), the
+    state of **that** dependency's probe (`ok`, `slow`, `broken`, `unknown`, `read`), `checked_at` (when Argus read the
+    probe's value, not when the probe ran), `latency_ms` and
+    `reason`; and, with the overlay, `cause_path` (the node ids from the target to the root cause; `[]` without one).
 
 ## Routes
 
@@ -82,7 +89,7 @@ on. Anything else can change without notice.
 | `GET /api/v1/targets` | any role | the inventory's targets: `target`, `host`, `kind`, `name` (ACR-0012) | [`targets.json`](../contracts/samples/targets.json) |
 | `GET /api/v1/host-metrics` | any authenticated role | current CPU, memory and root-disk ratios for the inventory's host targets, plus `observed_at` and `available` (proposed ACR-0014); per host the gauges' `thresholds` (`cpu_busy_ratio`, `memory_used_ratio`, `disk_used_ratio`, each `{warning, critical, direction}`) and the monitoring heartbeat's `heartbeat_age_s` and `heartbeat_stale` (both `null` when no heartbeat is recorded; stale = older than 150 s) (ACR-0021, T-0045 B1) | [`host-metrics.json`](../contracts/samples/host-metrics.json) |
 | `GET /api/v1/incidents/{id}/metrics?range=30m` | any authenticated role | `incident_id`, `range`, `from`, `to`, `step_s`, `series[]` of `{key, title, unit, max, fired, kind, thresholds, detector_threshold, points: [[time, value or null]]}`, `incident_from`, `incident_to`, `events[]`, `summary` (ACR-0017, ACR-0021) | [`incident-metrics.json`](../contracts/samples/incident-metrics.json) |
-| `GET /api/v1/topology[?incident_id=<id>]` | any authenticated role; the `incident_id` overlay for operator/approver | `observed_at`, `hosts[]`, `nodes[]`, `edges[]` (and `incident_id` with the overlay) (ACR-0017) | [`topology.json`](../contracts/samples/topology.json), [`topology-incident.json`](../contracts/samples/topology-incident.json) |
+| `GET /api/v1/topology[?incident_id=<id>]` | any authenticated role; the `incident_id` overlay for operator/approver | `observed_at`, `hosts[]`, `nodes[]`, `edges[]` (nodes add `health`, `idle`, `networks`, `problems`, `role`; edges add `id`, `kind`, `checked_at`, `latency_ms`, `reason`; ACR-0021) (and `incident_id` with the overlay) (ACR-0017) | [`topology.json`](../contracts/samples/topology.json), [`topology-incident.json`](../contracts/samples/topology-incident.json) |
 | `POST /api/v1/investigations` | operator, approver; full or **investigate** token | `incident_id`, `status`, `duplicate` (202); quotas for an investigate token (ACR-0012) | [`investigation.json`](../contracts/samples/investigation.json) |
 | `GET /api/v1/target-metrics?target=<host/kind:name>&range=15m` | any authenticated role | one inventory target's recent signals (ACR-0021): `target`, `range` (`15m` or `1h`), `from`, `to`, `step_s`, `series[]` of `{key, kind, title, unit, max, thresholds, points: [[time, value or null]]}`; a container gives CPU quota used and memory, a host CPU, memory used and disk used; `404` for a target not in `/api/v1/targets`, `422` for a bad range; shared for 30 s | [`target-metrics.json`](../contracts/samples/target-metrics.json) |
 
