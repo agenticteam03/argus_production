@@ -166,9 +166,20 @@
       "policy_rule": null
     }
   ],
+  "cause": {
+    "confidence": 0.9,
+    "confidence_label": "High",
+    "kind": "restart_loop",
+    "statement": "OOM-killed by its 64 MiB memory limit",
+    "target": "vm-166/container:argus-lab-worker"
+  },
+  "cause_path": [
+    "vm-166/container:argus-lab-worker"
+  ],
   "closed_at": "2026-10-06T15:45:55.868900Z",
   "confidence": "high",
   "diagnosis": "OOM-killed by its 64 MiB memory limit",
+  "duration_ms": 87,
   "evidence": [
     {
       "caller": "alice",
@@ -223,22 +234,39 @@
       "target": "vm-166/container:argus-lab-worker"
     }
   ],
+  "evidence_highlights": [
+    {
+      "evidence_id": "ev_f5de798421654c48",
+      "stance": "supports",
+      "text": "vm-166/container:argus-lab-worker: state=restarting health=none restarts=7 oom_killed=True exit_code=137 started_at=unknown memory_limit_bytes=67108864 cpu_limit_cores=unknown networks=unknown id=aaa111"
+    },
+    {
+      "evidence_id": "ev_45ed7debb7264c5a",
+      "stance": "supports",
+      "text": "vm-166/container:argus-lab-worker: last 1 log lines"
+    }
+  ],
   "findings": [
     "container_restart_loop: 5 restarts in the last 10 minutes",
     "container_restart_loop: last exit OOMKilled=True",
     "container_restart_loop: last exit code=137",
     "container_restart_loop: killed by the kernel OOM killer at its container memory limit (out of memory)"
   ],
+  "hypotheses": [],
   "id": "inc_7e49840f50fa",
   "incident_class": "container_restart_loop",
+  "next_actions": [],
+  "not_checked": [],
   "opened_at": "2026-10-06T15:45:55.575099Z",
   "outcome": "diagnosed",
   "principal": "alice",
   "reason": "UI contract sample",
   "request_kind": "report",
   "root_cause_target": "vm-166/container:argus-lab-worker",
+  "severity": "critical",
   "status": "closed",
   "strategy": "model_loop",
+  "summary": "Restart loop on argus-lab-worker: 5 restarts in the last 10 minutes",
   "target": "vm-166/container:argus-lab-worker",
   "trigger_id": "manual:5433729544f1447db3eb64013d943949",
   "trigger_kind": "manual"

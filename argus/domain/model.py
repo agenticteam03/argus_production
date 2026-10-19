@@ -238,6 +238,7 @@ class IncidentClassSpec(BaseModel):
     strategy: str
     tool_tags: set[str]
     max_steps: int = 8
+    severity: Literal["critical", "warning"] = "critical"   # ACR-0021: how the UI rates a diagnosed incident of this class
     detector: Any                             # Callable[[MetricSnapshot], DetectorResult], pure
 
 
