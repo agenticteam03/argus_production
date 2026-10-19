@@ -1903,3 +1903,1105 @@ the scheduler alike (fail closed: an invalid file stops the scheduler as it stop
 `by_family` entry, so the route on the VMs stays `channel:operators`.
 Consequences: vm-095's scheduler gets it at the next AFTER-MERGE; no migration, no Prometheus change.
 References: [task](../tasks/completed/T-0035-monitoring-heartbeat.md).
+
+## 2026-10-13 — E2E-8 step 2: every scenario five times; Phase 12 closed
+
+Type: test
+Who: conantkd (+ agent)
+Context: Phase 12 needs five runs of every scenario through the runner. SC-01 … SC-08 had them; H-1/H-2, SC-09 …
+SC-12 and the identity proof had one run each (LGS). Step 1 (#131) put SC-10, SC-12 and ID-1 in the catalogue.
+Decision / result: both VMs on `main` `ad72617` (#132). Batch 1: H-1, H-2, SC-09, SC-11 5/5 each. Batch 2: SC-10 5/5
+(blind spot, RB-014, no model call), ID-1 5/5 (each host's own root cause), SC-12 4/5. 0 errors, NO INTERFERENCE
+after every run. SC-12 run 1 was `diagnosed`: with the read gateway down the model read the host probe's kernel OOM
+records and named the worker correctly; the "never `diagnosed`" expectation predates the host probe.
+Consequences: Phase 12 done (every miss read). SC-12's expectation is corrected in its own task (option a: `diagnosed`
+only with no successful read of the stopped gateway and the right root cause). A pre-gate on a 10-minute restart
+window makes each SC-01-based run last ~11 min.
+References: [task](../tasks/current/E2E-8-phase12-close.md),
+[evidence](../execution/history/E2E-8/step-02/evidence.md).
+
+## 2026-10-13 — E2E-9: SC-12 accepts a diagnosis made without the stopped gateway
+
+Type: test
+Who: conantkd (+ agent)
+Context: E2E-8 step 2, SC-12 run 1 FAIL: `diagnosed` through the host probe's kernel OOM records while the read gateway
+was stopped, a correct and evidenced diagnosis. The expectation predated the host probe.
+Decision / result: option (a). The runner's `if_diagnosed: {root_cause, executor_down}` passes a `diagnosed` only with
+the right root cause, no successful read through the stopped executor and one successful read through another; SC-12
+uses it with `docker_read`.
+Consequences: SC-12 run 1 of E2E-8 would pass under the new rule; the next SC-12 runs are graded with it.
+References: [task](../tasks/current/E2E-9-sc12-host-probe.md).
+
+## 2026-10-13 — T-0016: the incident page reads again, the colours breathe, and the Vitest run closes
+
+Type: fix
+Who: juanes6554 (+ agent)
+Context: after the real-API run, the incident detail page rendered only the page gradient — an audit entry's `detail` is
+a JSON object on the real API but a string in the demo fixtures, so React threw and, with no error boundary, the whole
+app unmounted. With that fixed, the owner found the page dense (values truncated, a wall of JSON in the audit), and the
+status colours, muted a turn earlier, now looked grey. The Vitest suite had been deferred every turn and never run.
+Decision / result: `utils/format.js` gained `auditDetail()` (object → JSON text) and a new per-route `ErrorBoundary`
+keeps a future render error from blanking the app; the status shades' chroma is raised in `frontend/src/index.css`
+(same hues, still below Tailwind's defaults, so class names and layout are untouched); the incident page no longer
+truncates fact values, gets a little more rhythm and dividers, and puts each audit entry's JSON behind the same
+"Details" toggle the evidence list already uses. The deferred suite then ran: one red (`tokenExpiry` was module-private
+in `sessionStore.js` while its test imported it), fixed by exporting the helper → **12 files / 70 tests green**,
+`vite build` 351 modules.
+Consequences: a render error now shows an error card instead of a blank page; the audit trail stays scannable; the
+red/green that four earlier units had deferred is now closed. Reviewer: the only new interaction is the audit
+"Details" toggle — say the word to show the detail inline again.
+References: [task](../tasks/current/T-0016-frontend.md), [API-FOR-UI](../../docs/API-FOR-UI.md).
+
+## 2026-10-13 — T-0016: reload keeps the session; the incident list pages 30 at a time
+
+Type: feature
+Who: juanes6554 (+ agent)
+Context: after the real-API run worked, a page reload ended the session (the previous turn had persisted only the
+mock session, leaving the real token in memory only), and the incidents page showed the newest 30 with no way to see
+more.
+Decision / result: `mockSessionStore.js` became `sessionStore.js`, storing `{ user, token, expiresAt }` in
+`sessionStorage` (never `localStorage`/cookies/URL); `httpAuthAdapter` saves the token at login, restores it on load,
+and clears it on sign-out and on `401`, and `expiresAt` takes the earlier of `VITE_ARGUS_SESSION_TTL_MIN` and the
+token's own JWT `exp`. **Rule 4 is amended deliberately** ("in memory only" → "never `localStorage`/cookies/URL; may
+be in this tab's `sessionStorage`"), because the owner wants a reload to keep the login; the rule was changed in the
+task file and `frontend/README.md`. The incident list fetches the newest rows once (up to 1000; the API has no
+`offset` and no total) and shows 30 at a time with a **Show more** button plus a line giving the visible count and the
+real total (`src/utils/paging.js`).
+Consequences: a real session now survives a reload in the same tab, bounded by the token's expiry; a proper server
+page cursor + total still needs a contract change (recorded in `frontend/README.md`). Reviewer: this changes a
+documented security rule — say the word to revert to a memory-only token.
+References: [task](../tasks/current/T-0016-frontend.md).
+
+## 2026-10-13 — T-0016: the #137 review follow-ups
+
+Type: fix
+Who: conantkd (+ agent)
+Context: review of #137 (`juanes6554`), approved and merged with two small findings left for a follow-up.
+Decision / result: `frontend/vite.config.js`: the dev server's `fs.allow` entry `"../../../argus/runbooks"` pointed
+outside the repository (dead: `searchForWorkspaceRoot` already covered the repo root); it now names
+`argus/runbooks` resolved from the config file itself, and the file ends with a newline. The task file's bullet
+"rule 4 is exactly as written" is marked as superseded by the rule 4 amendment (accepted in the #137 review).
+Consequences: none at run time: the dev server still serves the runbooks (200) and refuses a file outside the
+workspace (403); the production build is unchanged.
+References: [task](../tasks/current/T-0016-frontend.md), PR #137.
+
+## 2026-10-13 — ACR-0011 proposed: the read-only UI on public HTTPS (Nginx on vm-095:443)
+
+Type: architecture proposal
+Who: conantkd (+ agent)
+Context: the team wants users to open the UI in a browser without an SSH account. It decided on Nginx on vm-095:443,
+Argus's own login with read tokens, no mandatory second gate, and no ngrok or Cloudflare Tunnel.
+Decision / result: ACR-0011 `proposed` (second approval required: least privilege and secrets). Read-only facts seen
+on vm-095:
+- nothing listens on :80/:443;
+- the host `INPUT` chain accepts only tcp/22, and Docker-published ports bypass it, so the rule goes in `DOCKER-USER`;
+- vm-095 has no public address on its interfaces;
+- the login has no rate limit and no audit of failed logins, although §17.3 promises both;
+- a login without `scope=read` gets a full token;
+- `limit` is uncapped;
+- a real-mode build ships the runbooks and the mock adapter's demo password;
+- all three human principals are `operator`.
+
+The ACR proposes:
+- a contract allowlist at Nginx;
+- read-only logins through the edge;
+- login rate limits and an audit of failed logins;
+- runbooks served only after login;
+- Let's Encrypt with a renewal timer;
+- a rollback that leaves the SSH path intact.
+
+T-0016 gets a proposed step 4 (4a–4f) next to the current one.
+Consequences: nothing is built before the acceptance and the pending data (domain, public address, who opens 443/80,
+DNS administration, certificate choice, the user accounts).
+References: [ACR-0011](../architecture/changes/ACR-0011-public-https-ui.md),
+[T-0016](../tasks/current/T-0016-frontend.md).
+
+## 2026-10-13 — T-0041: the first real db_probe rotation; OP-004 / OP-008 dry runs for review
+
+Type: operation
+Who: conantkd (+ agent)
+Context: closing Phases 9 and 13. T-0041's script (#126) was merged; one real rotation on vm-166 was left. OP-004 and
+OP-008 wait for a teammate's review of their dry runs before the first `--apply`.
+Decision / result: `rotate-token.sh db_probe` on vm-166: both copies (service and Prometheus) `804c84827c26`, `up` back
+to 1 with no alert; the agent's copy on vm-095 replaced (hashes equal), `database.health` ok again without a worker
+restart. Dry runs on `main`: OP-004 nothing older than 30 days; OP-008 would remove 9 of 16 dumps, the newest verified.
+NO INTERFERENCE on both VMs.
+Consequences: Phase 13's last item done. OP-004 and OP-008 `--apply` wait for the teammate review of the evidence.
+References: [rotation](../execution/history/T-0041/step-02/evidence.md),
+[dry runs](../execution/history/OP-004/step-03/evidence.md).
+
+## 2026-10-13 — D-003 decided: `dependency_unavailable` and `nginx_upstream_failure` run the baseline
+
+Type: decision
+Who: juanbetancurm (+ agent)
+Context: §21.2: a class keeps a model strategy only if it matches or beats the deterministic baseline on the
+evaluation cases. D-003 was pending since T-0025; E2E-8 step 2 had to finish first, so that its runs did not mix two
+registries.
+Decision / result: counted on all of a class's cases (ambiguous ones included), 5 trials: dependency 0.90 vs 1.00 and
+nginx 0.92 vs 1.00 switch to `baseline`; health keeps `model_loop` (0.97 vs 0.83: the baseline diagnoses
+`ambiguous-health-no-cause`); restart loop, disk, CPU, Postgres and the blind spot keep theirs. The new capabilities
+stay offered to no class.
+Consequences: those two classes no longer call the model; an incident their rules do not decide escalates. Needs an
+AFTER-MERGE (worker) and a check on the VMs: SC-03 and SC-07 (dependency), SC-08 (nginx). OP-013: re-decide with
+held-out cases.
+References: [D-003](../OPEN_PROBLEMS.md), `tests/test_d003_class_registry.py`.
+
+## 2026-10-14 — EVAL-search-logs: search_logs offered to health_check_failed is not used; the error pattern fixed
+
+Type: evaluation (+ fix)
+Who: conantkd (+ agent)
+Context: T-0037 step 3: offer `container.search_logs` to a class with an evaluation batch. `health_check_failed` was
+chosen: the class with the most room, and a targeted read where the broad snapshot had lowered it (EVAL-snapshot).
+Decision / result: measured on vm-095 from a local branch, 55 cases × 5 trials:
+- overall 0.98 (270/275) against `main`'s 0.97 re-graded;
+- health 0.92 against 0.96;
+- **the tool was used in 1 of 30 health runs**, so the differences are noise of 5 trials.
+
+It is not offered. The cases' logs are 2–3 lines, and the tail already returns them, so log tools need long-log cases
+before they can be measured. Found on the way, and fixed in the gateway with tests (red seen): the `error` pattern
+missed exception class names (`KeyError`, `ValueError`, `RuntimeException`) and plurals, so a real search answered
+"0 matched" for a log with a `KeyError`.
+Consequences: the fix reaches the VMs when the target services are rebuilt at the next AFTER-MERGE. The offer, the
+replay change and the search fixtures are not merged. On vm-095 the image `argus-v18-agent:evalsl` and `/tmp/evalsl`
+are left, used by no service.
+References: [evidence](../execution/history/EVAL-search-logs/step-01/evidence.md),
+[T-0037](../tasks/current/T-0037-docker-read-verbs.md).
+
+## 2026-10-14 — A second fast-track window proposed (2026-10-14 to 2026-10-16)
+
+Type: process proposal
+Who: conantkd (+ agent)
+Context: the fast-track of `REVIEW_PROTOCOL.md` expired on 2026-10-12. Since then, small changes (records, a
+one-line gateway fix with its tests: #138, #141) wait a day or more for a review.
+Decision / result: proposed a second window, 2026-10-14 to 2026-10-16 inclusive, with the same people and conditions.
+Review correction (PR #142): juanbetancurm requested an end date of 2026-10-16 inclusive, the delivery date.
+All seven files now use that date; the people, conditions and approval requirement are unchanged.
+The conditions:
+- a task branch;
+- CI green and up to date;
+- the agent's review report posted;
+- the PR's own line in `main-exceptions.txt`;
+- never a safety principle, an ACR or the enforcement.
+
+The window exists only if a teammate approves this pull request, which is not fast-tracked because it changes the
+rule. Any teammate's objection ends it. Updated together: `REVIEW_PROTOCOL.md`, `GIT_WORKFLOW.md`, the header of
+`main-exceptions.txt`, `PARALLEL_LANES.md`, `CURRENT_STATE.md`, T-0016's note.
+Consequences: nothing in `brain.py` or CI changes (no date is coded there). Until the approval, #138 and #141 follow
+the normal review.
+References: [`REVIEW_PROTOCOL.md`](../agents/REVIEW_PROTOCOL.md).
+
+## 2026-10-14 — ACR-0011 built in #144: the public UI edge, offline (4a–4c)
+
+Type: feature (API, frontend, deployment files)
+Who: conantkd (+ agent)
+Context: `conantkd` asked to build ACR-0011 as if accepted. It has one approval (`juanes6554`, #140); the second
+approval is still required (least privilege and secrets). #144 therefore cannot merge before both approvals, and
+nothing is deployed.
+Decision / result:
+- **API:** edge logins are read-only; failed logins are audited and limited per username and address, with a
+  lockout; `limit` is capped.
+- **Frontend:** the runbooks load from the edge after login, and the real bundle has none.
+- **The edge** `argus-v18-ui`:
+  - Nginx without root, in `loopback` and `public` modes;
+  - the contract allowlist, limits and security headers;
+  - `/runbooks/` checked against `/api/v1/me`;
+  - certbot with a renewal timer, `DOCKER-USER` connection limits, and `nonint-check` aware of its ports.
+- **Documents:** ARCHITECTURE 1.8.10, `environment.md`, `SECURITY.md` and `API-FOR-UI.md` updated.
+- **Verified:** with the real Nginx image (tests and a local run of the built image in both modes).
+
+Two differences from the ACR text, recorded in its §9:
+- the `DOCKER-USER` rule is a per-address connection limit, because Docker already restricts a published port to its
+  container;
+- `nonint-check` needed a port exclusion, not a firewall one.
+Consequences: the root `.dockerignore` is new (the build context no longer sends `node_modules`, `.venv`, `.git`).
+4d (vm-095 loopback) needs the lease; 4e needs ACR-0011 §8's data.
+References: [ACR-0011](../architecture/changes/ACR-0011-public-https-ui.md),
+[T-0016](../tasks/current/T-0016-frontend.md).
+
+## 2026-10-14 — T-0016 4d: the UI edge on vm-095's loopback, in front of the real API
+
+Type: deployment (loopback only)
+Who: conantkd (+ agent)
+Context: ACR-0011 is built in #144 but not accepted yet (one approval of two), so 4d deploys the task branch and no
+public port.
+Decision / result:
+- **Deployed:** vm-095 on `task/T-0016-playwright` `d5d992c`, with the agent recreated (20/20, 55/55, WRITE GATE
+  CLOSED) and `argus-v18-ui` healthy on `127.0.0.1:18010`.
+- **The curl matrix through the tunnel:** allowed and refused routes as designed; runbooks 401 without a valid
+  token; security headers; no mock or runbook in the bundle.
+- **Logins:** Nginx's rate limit stops a burst, and the API locks a username after 5 failures (429, `Retry-After`),
+  audited `via: edge`.
+- NO INTERFERENCE on both VMs.
+
+Consequences:
+- The audited client address is Docker's bridge gateway behind the userland proxy, so the per-address limit is
+  shared by every tunnel user. Check it on the public port before 4e: publishing in host mode, or disabling the
+  userland proxy, is a host decision because the protected deployment shares the daemon.
+- vm-095 stays on the branch until #144's AFTER-MERGE (rollback: `deploy.sh main`, compose down).
+
+References: [evidence](../execution/history/T-0016/step-04d/evidence.md).
+
+## 2026-10-14 — T-0016: Playwright acceptance tests, the read-only guard, the contract check and ESLint
+
+Type: tests (frontend)
+Who: conantkd (+ agent)
+Context: T-0016's open items since step 3: the acceptance tests, the read-only network guard, the
+`contracts/ui-api.json` check, and the linter of its test table.
+Decision / result:
+- **Acceptance tests:** nine Playwright tests on the real-mode build, with the API faked from `contracts/samples/`.
+- **The guard:** in every test, any non-`GET` API call except the login, or any other origin, fails the test.
+- **The contract check:** a Vitest test runs the real adapters and requires every route, method and query parameter
+  to be declared in the contract.
+- **ESLint:** 0 errors.
+- **CI job `frontend`:** lint, unit, build, then Playwright.
+- **Fixed on the way:** the restricted notice named an "admins" role that Argus does not have.
+Consequences: a UI change that writes, calls another origin or uses an undeclared route now fails CI. The CI job
+installs Chromium (`npx playwright install --with-deps chromium`).
+References: [T-0016](../tasks/current/T-0016-frontend.md).
+
+## 2026-10-14 — T-0016: a real build without mock code; a gentler polling budget
+
+Type: feature (frontend)
+Who: conantkd (+ agent)
+Context: ACR-0011 found that a real-mode build ships the mock adapters (the demo password) and that the UI polls
+the 1-vCPU VM every 5 s for up to 1000 incidents. Neither waits for the ACR's second approval.
+Decision / result:
+- `"sideEffects": ["**/*.css"]` in `frontend/package.json` lets the real build drop the mock modules. A test builds
+  in real mode and greps the bundle.
+- The dashboard and the incident list poll every 30 s, both paused while the tab is hidden; the list asks for at most
+  200 incidents.
+- The intervals live in `src/utils/polling.js`.
+Consequences: a demo build is unchanged. The runbooks still ship in the bundle until Nginx's checked `/runbooks/`
+exists (ACR-0011, after its second approval).
+References: [T-0016](../tasks/current/T-0016-frontend.md), [ACR-0011](../architecture/changes/ACR-0011-public-https-ui.md).
+
+## 2026-10-14 — T-0016 4e: the read-only UI is public on vm-095 (HTTPS, a Let's Encrypt IP certificate)
+
+Type: deployment (public)
+Who: conantkd (+ agent)
+Context: the team wants the UI reachable from a browser without SSH. ACR-0011 is built in #144 with one approval of
+two. The OCI rule for 443/80 was opened by the team.
+
+Decisions (`conantkd`): deploy with one approval (the team assumes the second); a certificate for the IP address (no
+domain); the shared `operator` accounts stay for now, an accepted risk.
+
+Result:
+- vm-095 on `task/T-0016-playwright` `8ee48c4`.
+- `argus-v18-ui` public on 443/80: uid 101, read-only, `DOCKER-USER` connection limits.
+- A Let's Encrypt `shortlived` certificate for the address, certbot 5.8.0 `--ip-address`, renewed by a timer at 3
+  days or less.
+- **Verified from the Internet:** a trusted chain; HTTP→HTTPS; the headers; the allowlist (`/docs` and
+  `POST /investigations` 404); the API and the runbooks 401 without a token; the real client address in the audit.
+- NO INTERFERENCE on both VMs. The address is kept out of Git.
+
+Consequences:
+- The Argus login is on the Internet. It is protected by read-only edge tokens, the per-username lockout, the
+  per-address limits and the audit, but the accounts are shared.
+- vm-095 runs the branch until #144's AFTER-MERGE.
+
+References: [evidence](../execution/history/T-0016/step-04e/evidence.md),
+[ACR-0011](../architecture/changes/ACR-0011-public-https-ui.md).
+
+## 2026-10-14 — ACR-0012 proposed: the UI may start an investigation
+
+Type: architecture proposal
+Who: conantkd (+ agent)
+Context: the UI is public and read-only (ACR-0011). Starting an investigation still needs the CLI or Swagger, so SSH.
+Facts read for the proposal:
+- `POST /api/v1/investigations` has no limit at all, neither per principal nor on the queue;
+- only a full token can call it;
+- an investigation costs about 3.5 model calls and 3.8 reads;
+- the UI's accounts are shared.
+
+Decision / result: ACR-0012 `proposed`. It needs a second approval (least privilege). It proposes:
+- **A third token kind `investigate`:** every GET plus `POST /api/v1/investigations` only.
+- **The edge:** it may issue such tokens and proxy that one POST under its own rate limit.
+- **Server quotas:** 10/h and 2 queued per principal, 20 queued in all; alerts are never blocked.
+- **A target list instead of free text:** `GET /api/v1/targets`.
+- **The UI:** a Diagnose button shown only when `/me` lists the action.
+
+Consequences: nothing is built. The team decides on per-person accounts before enabling it on the public UI.
+References: [ACR-0012](../architecture/changes/ACR-0012-ui-start-investigation.md).
+
+## 2026-10-14 — AFTER-MERGE: both VMs on main; the public edge's 502 after an agent recreate, fixed
+
+Type: deployment + fix
+Who: conantkd (+ agent)
+Context: #141, #144–#147 merged.
+- vm-166 was on `main` `ad72617`.
+- vm-095 was on the T-0016 branch (the public UI edge).
+
+Decision / result:
+- **Both VMs on `main` `ccc810e`**:
+  - the read gateway with #141's `error` pattern;
+  - the agent with D-003 (`dependency_unavailable` and `nginx_upstream_failure` on `baseline`): 20/20, 55/55,
+    WRITE GATE CLOSED;
+  - NO INTERFERENCE on both.
+- **Found:** the public UI's API answered **502** after the agent was recreated, because Nginx had resolved the name
+  once at start. Restored by a reload within about 2 minutes.
+- **Fixed:** the upstream re-resolves through Docker's DNS (`resolver 127.0.0.11`, `server … resolve`), with a test
+  on real Nginx (red, then green). Deployed on vm-095: a later agent recreate without a reload kept the API
+  answering. Docker happened to reuse the address that time, so the test is the proof.
+
+Consequences: every deployment of the agent recreates it, so without the fix the public UI would have broken on
+each AFTER-MERGE.
+References: [evidence](../execution/history/AFTER-MERGE-main-2026-10-14/step-01/evidence.md).
+
+## 2026-10-14 — ACR-0012 built on a local branch: the UI may start an investigation
+
+Type: feature (API, edge, frontend)
+Who: conantkd (+ agent)
+Context: ACR-0012 is proposed (#147 merged the record, not its acceptance). `conantkd` asked to build it without a
+PR yet, on `task/ACR-0012-impl`.
+Decision / result:
+- **The `investigate` token:** every GET and `POST /api/v1/investigations` only. The edge issues `read` or
+  `investigate`, never full.
+- **Quotas for investigate tokens:** 10 an hour and 2 queued per account, 20 queued in all, answering 429 with
+  `Retry-After`.
+- **`GET /api/v1/targets`.**
+- **The audit:** `investigation.requested` and `investigation.quota_refused`.
+- **The contract and the edge:** one POST location with its own limit.
+- **The UI:** a form on the dashboard, "Investigate again" on an incident, shown only when `/me` allows it, and a
+  guard that allows that one POST only then.
+- ARCHITECTURE 1.8.11 applied on the branch.
+
+**One difference from the ACR, recorded in its §7:** the quotas apply to investigate tokens only. A full token is
+loopback only (the CLI and the E2E runner) and is not limited.
+
+Consequences: nothing deployed; the public UI still runs read-only `main`. Before enabling it in public, the shared
+`operator` accounts mean an investigation cannot be attributed to a person (ACR-0012 §4).
+References: [ACR-0012](../architecture/changes/ACR-0012-ui-start-investigation.md),
+[T-0016](../tasks/current/T-0016-frontend.md).
+
+## 2026-10-14 — T-0016 / PR #151 host metrics
+
+### Scope
+
+The user requested operational dashboard metrics and a chat answer to “Check Host T memory usage”, plus a way to
+start an investigation from chat. Proposed ACR-0014 accompanies the implementation in PR #151; independent review
+is required for the added public read route. No VM was touched.
+
+### Local evidence
+
+- Red: `tests/test_ui_host_metrics.py` failed with 404; the frontend parser/sample tests failed on missing modules.
+- The API now reads only fixed host signals already present in the catalogue, through MetricsPort.
+- The UI distinguishes an immediate named metric read from a queued full investigation, and links the latter to
+  its incident. Missing metric data is never presented as zero.
+- Green: host-metrics API tests (3); UI contract (3); edge allowlist tests (Docker-backed checks skipped on this
+  Windows host); frontend Vitest 91/91, Chromium acceptance 16/16, Vite build and ESLint (0 errors, 14 existing
+  fast-refresh warnings), Brain lint. `git diff --check` clean.
+- Full Python suite reached 100% but returned seven failures, all in `tests/test_t0033_rotate_token_script.py`:
+  WSL cannot start `/bin/bash` on this Windows host (`execvpe(/bin/bash) failed: No such file or directory`). The
+  affected shell script and test were not changed. The targeted API/contract/edge checks pass; Linux CI remains
+  the authoritative full-suite result after the push.
+
+## 2026-10-14 — OP-004 and OP-008: the approved applies on vm-095, run without a Brain lease
+
+Type: VM operation record
+Who: conantkd (run on the VM) + agent (record)
+Context: juanbetancurm approved in PR #138 one OP-008 `prune --apply` with `KEEP=7` and one OP-004 `--apply` at 30
+days, with the daily timer off.
+Decision / result: a fresh backup first (`VERIFY OK: 13 tables, 29001 rows match`).
+- OP-008: the dry run and the apply named the same 12 backup sets (the approved 9 plus 3 that aged out since), and
+  7 sets remain, the newest verified among them.
+- OP-004: dry run and apply both `threads=0 checkpoints=0 blobs=0 writes=0`: no final incident is 30 days old yet.
+- NO INTERFERENCE.
+
+**Deviation:** no Brain lease was claimed. The lease of AFTER-MERGE-main was released at 06:59Z, and the run was
+about 16:25Z. `/opt/argus-v18/SESSION` on vm-095 still named conantkd from that morning, so the scripts' marker check
+passed. Nobody else held a lease at the time, so there was no conflict. The marker check proves only that the last
+session was yours, not that you hold the lease now: claim with `brain.py start` and rewrite the marker every session.
+Consequences: OP-004 has no apply left until its timer is decided. OP-008 still needs `sha256sum -c` on the newest
+verified dump after the prune (reviewer's after-check), at the next VM session with a lease.
+References: [`OP-004/step-04`](../execution/history/OP-004/step-04/evidence.md),
+[`OP-008/step-03`](../execution/history/OP-008/step-03/evidence.md), PR #138.
+
+## 2026-10-14 - LF-2: proposed Langfuse agent observability architecture
+
+Type: architecture proposal
+Who: conantkd (+ agent)
+Context: the user selected Langfuse on the Argus VM, chose separate databases initially, left Argus PostgreSQL reuse open if performance requires it, and requested that ACR-0013 cover the full agent observability integration.
+Decision / result: proposed a six-service Langfuse stack on Host A and optional, filtered OTLP spans from the Argus worker for investigation attempts, graph nodes, model and capability calls. No raw evidence, prompts or secrets are exported by default. Telemetry failure does not block investigations or audit. Langfuse starts with its own PostgreSQL service; the existing Argus server is a gated separate-database fallback. No deployment or architecture version change in PR #150.
+References: [task](../tasks/current/LF-2-langfuse-db-architecture.md), [ACR](../architecture/changes/ACR-0013-langfuse-agent-observability.md).
+
+## 2026-10-14 — LF-3 local implementation
+
+Status: work in progress on an isolated local branch. The Argus worker emits bounded metadata-only OTLP spans; the
+Agent page shows recent run activity and trace correlation IDs from the existing read-only API. A private six-service
+Langfuse Compose stack and VM acceptance procedure are prepared. No PR, push or VM execution is part of this session.
+
+## 2026-10-14 — DEPLOY-151: vm-095 on main 37822c9 (the UI starts investigations, host metrics)
+
+Type: deployment
+Who: juanbetancurm (+ agent)
+Context: #151 (ACR-0012 and ACR-0014) and #153 merged; conantkd was busy, so juanbetancurm deployed vm-095 with
+conantkd's AFTER-MERGE blocks.
+Decision / result: vm-095 on `main` `37822c9`: backup, agent, worker and scheduler on one image (20/20, 55/55, WRITE
+GATE CLOSED), the UI edge rebuilt in public mode; the new routes answer 401 without a login, `/docs` 404, NO
+INTERFERENCE. In the browser, after a new login, the investigation form and live host metrics work; a report on an
+absent container ended `undiagnosable` with an evidence pack, as designed. The same day, SC-07 through the alert path
+was diagnosed by the baseline (D-003) with no request and no model call.
+Consequences: a session from before a UI deployment must log in again to get the investigate token. Follow-ups: the
+quota test from the UI; the outdated "Read-only in this release" note for operators.
+References: [evidence](../execution/history/DEPLOY-151/step-01/evidence.md).
+
+## 2026-10-14 — T-0044: propose evaluating a locally-hosted Weaviate for hybrid runbook retrieval behind `KnowledgePort` (ACR-0015)
+
+Type: architecture proposal
+Who: juanes6554 (+ agent)
+Context: runbook recall is pure TF-IDF at `k=3` (§21.2 target recall@3 ≥ 0.9); the lab wants a stronger retriever and a
+TF-IDF-vs-RAG comparison. A vector store was forbidden by §15.3, so the change is proposed as ACR-0015 before any code.
+Decision / result: ACR-0015 (proposed) — §15.3 "no vector store" becomes "a hybrid (BM25 + a vector store) behind
+`KnowledgePort`, selected by `ARGUS_RETRIEVAL`"; the store under evaluation is **Weaviate run locally** (open source,
+self-hosted on Host A as its own container, no managed/cloud API and no API key), recorded in a §16.1 row; §21.2
+"TF-IDF recall@3 ≥ 0.9" becomes the baseline the Weaviate hybrid must beat. This pull request is the ACR and its
+documentation only; `juanes6554` hands the evaluation, the code and the deployment to a teammate.
+Consequences: a new `argus-v18-*` Weaviate container to operate locally (port, network, resource limits); only the
+embeddings provider is called externally at index time; the index is derived and rebuildable, so nothing in the
+evidence/audit path is affected; the agent changes nothing until the implementation lands and `ARGUS_RETRIEVAL=hybrid`
+is set.
+References: [task](../tasks/current/T-0044-rag-pgvector.md), [ACR-0015](../architecture/changes/ACR-0015-rag-hybrid-retrieval.md).
+
+## 2026-10-15 — T-0016 / the incident and dashboard visual redesign
+
+### Scope
+
+`juanes6554` redesigned the UI with Claude (outside the repo) and asked his agent to test it, document it and open
+its pull request. The change is **frontend-only** (`frontend/`): no `argus/`, no `contracts/`, no
+`.github/workflows/`. The incident page is reorganised into tabs (**Incident & Diagnosis**, optional **Map** and
+**Metrics**, **Runtime Timeline**, **Evidence**, **Audit**), the dashboard shows a load level per host metric, and
+the form/list controls are themed. The **Map** and **Metrics** tabs read two routes Argus does not serve yet
+(`GET /api/v1/topology`, `GET /api/v1/incidents/{id}/metrics`): the HTTP adapter calls them only with
+`VITE_ARGUS_INSIGHTS=1` (off by default) and the page hides the tabs until they answer, so a normal build never
+requests a missing route. The request and the exact shapes are in `frontend/BACKEND-REQUESTS.md`.
+
+### Local evidence
+
+- Red: `npm run e2e` → **5 failed** against the redesign (stale assertions: `selectOption` on a control that is now
+  a custom combobox, `.check()` on a button group, `"60.0%"` exact-matched before the value gained its
+  screen-reader level suffix, and the evidence/timeline assertions before those sections moved into tabs).
+- Green: `npm run e2e` → **17/17** (the 5 updated, plus one new test that the page groups its sections into tabs and
+  that Map/Metrics appear only when their routes answer); `npm test` → **23 files / 127 tests** (two new unit files,
+  `components/SystemMap.test.js` and `components/RunbooksRead.test.js`); `npm run lint` → 0 errors (20 existing
+  fast-refresh warnings); `npm run build` → green.
+- No VM was touched; no lease was needed (code-only, no VM change). `VITE_ARGUS_INSIGHTS` is unset in the e2e build,
+  so the read-only network guard confirms the app still sends only GETs (plus the login/investigation POSTs allowed
+  by ACR-0012).
+- The Brain is updated on the branch: `tasks/current/T-0016-frontend.md` (status + the new evidence bullet) and this
+  entry.
+
+## 2026-10-15 — ACR-0017 proposed: system map and incident metrics routes for the UI
+
+Type: architecture (proposal)
+Who: juanbetancurm (+ agent)
+Context: the UI redesign (#158) draws a system map and charts around an incident, hidden in a real build until the
+API serves them; `frontend/BACKEND-REQUESTS.md` lists the two routes.
+Decision / result: ACR-0017 proposes `GET /api/v1/topology` (inventory targets, declared dependencies with their
+ports, Docker networks and live state from the dependency probe and named signals; an `incident_id` overlay from the
+incident's stored evidence, operator/approver only) and `GET /api/v1/incidents/{id}/metrics?range=15m|30m|1h`
+(a fixed signal list per class, the incident's host only, at most ~130 points per series), plus an optional `end`
+on `MetricsPort.range`. Never VM addresses, Argus's internal endpoints or secrets. No new host read.
+Consequences: needs a teammate's acceptance and the second approval (least privilege, host isolation) before the
+implementing PRs merge.
+References: [ACR-0017](../architecture/changes/ACR-0017-ui-topology-and-incident-metrics.md),
+`frontend/BACKEND-REQUESTS.md`.
+
+## 2026-10-15 — LF-3 step 02: vm-095 on main 5d4b347; the self-hosted Langfuse failed its capacity gate; ACR-0016 proposes Langfuse Cloud (EU)
+
+Type: deployment + architecture proposal
+Who: conantkd (+ agent)
+Context: #152 (ACR-0013's tracing code, off by default) and #154 merged. ACR-0013 put six Langfuse services on vm-095
+and made enablement wait for a capacity gate.
+Decision / result: vm-095 moved to `main` `5d4b347` (backup, one image for agent/worker/scheduler, 20/20, 55/55, WRITE
+GATE CLOSED, UI healthy, NO INTERFERENCE). The Langfuse stack started (health 200 in about 60 s, about 2.1 GiB) and the
+worker's tracing was switched on, but about 15 minutes later a ClickHouse merge was OOM-killed at its 768 MiB limit and
+the host's disk saturated (I/O pressure 99 %, load 176). Argus stayed up but slowed. The stack was stopped (volumes
+kept), tracing rolled back and the keys removed; Argus recovered within a minute. The worker reaches Langfuse Cloud
+(4.59, EU and US). ACR-0016 proposes the EU Cloud with the same allowlisted spans; the endpoint becomes a worker-only
+compose setting (`ARGUS_TRACING_ENDPOINT`, default the private stack).
+Consequences: no tracing on vm-095 until ACR-0016 is decided. Two lessons for code.bash: vm-095's `install` is uutils
+(refuses a numeric owner: use `umask` + `chown`), and compose names the Langfuse containers
+`argus-v18-langfuse-argus-v18-langfuse-<service>-1` (stop them by service name). vm-166's `argus-lab-cache` was found
+stopped (since about 22:07, not by this session) and left as found.
+References: [evidence](../execution/history/LF-3/step-02/evidence.md),
+[ACR-0016](../architecture/changes/ACR-0016-langfuse-cloud.md).
+
+## 2026-10-16 — ACR-0017 step 1: the incident metrics route (`GET /api/v1/incidents/{id}/metrics`)
+
+Type: implementation
+Who: juanbetancurm (+ agent)
+Context: ACR-0017 (accepted in #159, `juanes6554`) gives the UI's Metrics tab and "Around the incident" card their
+data. The API's `PrometheusMetrics.range` was a stub ("history is served by the metrics.* capabilities").
+Decision / result: `GET /api/v1/incidents/{id}/metrics?range=15m|30m|1h` for any authenticated role. A fixed signal
+list per class in `config/ui-incident-signals.yaml` (validated at startup like `routing.yaml`; `default` for an
+incident without a class), read with `MetricsPort.range` on the incident's host only; the window runs from
+`opened_at − range` to `closed_at + 2 min` (or now); at most ~130 points per series (the step grows); `null` for a
+missing sample; a series that cannot be read is all gaps and the others still answer; one shared answer per
+(incident, range) for 30 s while open, 10 min once closed. `MetricsPort.range` gains an optional `end`, and
+`PrometheusMetrics.range` is implemented (`query_range`). Contract, sample, the edge's allowlist, `API-FOR-UI.md` and
+ARCHITECTURE 1.8.14 updated.
+Consequences: the frontend can call the route once deployed (`VITE_ARGUS_INSIGHTS=1`, `juanes6554`). The topology
+route of ACR-0017 is the next step.
+References: [ACR-0017](../architecture/changes/ACR-0017-ui-topology-and-incident-metrics.md),
+`tests/test_acr0017_incident_metrics.py`.
+
+## 2026-10-16 — ACR-0017 step 2: the system map (`GET /api/v1/topology`)
+
+Type: implementation
+Who: juanbetancurm (+ agent)
+Context: the second route of ACR-0017, for the UI's Map tab, "Where it broke" card and Dashboard live map. Stacked on
+the incident-metrics PR (#160), which touches the same files.
+Decision / result: `GET /api/v1/topology` for any authenticated role, and `?incident_id=<id>` for operator/approver.
+Nodes from the inventory (one per target), edges from the declared `depends_on` with the dependency's port; status
+from `restarts_10m` and `health_unhealthy`; the edge's state from `dependency_probe_min` (`ok`/`broken`; `unknown`
+when there is no sample, the dependency has no TCP port, or an owner with several dependencies fails: the probe's
+minimum names none). A host whose Prometheus cannot be reached makes all its targets `unknown`. The overlay takes the
+incident's target and root cause from their stored `container.status` evidence: state (exited → stopped), real
+networks, restarts, memory limit, exit code, OOM; their link becomes "no shared network" when their networks do not
+meet (SC-07). `ARGUS_HOME_HOST` (vm-095 in `deploy/vm-095/compose.core.yml`) marks Argus's host and its reads.
+Never VM addresses, Argus's internal endpoints or secrets (a test scans both answers); no new read on the hosts;
+shared for 20 s (the overlay 10 min once the incident is closed).
+Consequences: with #160, both routes of ACR-0017 exist; after the deployment `juanes6554` connects the frontend.
+References: [ACR-0017](../architecture/changes/ACR-0017-ui-topology-and-incident-metrics.md),
+`tests/test_acr0017_topology.py`.
+
+## 2026-10-16 — DEPLOY-161: vm-095 on main 0b3b4e8 (ACR-0017: incident metrics and the system map)
+
+Type: deployment
+Who: juanbetancurm (+ agent)
+Context: #160 and #161 (ACR-0017) merged; deployed after the class demo so the demo ran on the version it was
+rehearsed on.
+Decision / result: vm-095 on `main` `0b3b4e8`: backup, agent, worker and scheduler on one image (20/20, 55/55, WRITE
+GATE CLOSED, `ARGUS_HOME_HOST` vm-095), the UI edge rebuilt in public mode. Without a login both new routes answer 401
+through the edge; logged in, the map (15 nodes, 6 edges), one incident's metrics (67 points) and the incident overlay
+answer 200, with no address in any answer. LAB BASELINE OK and NO INTERFERENCE on both hosts. On the way: the deploy
+needed both leases (PARALLEL_LANES.md), SC-01's worker left running by the demo was removed on vm-166, and an empty
+marker on vm-095 made the first attempts skip themselves; the blocks now check the marker without `exit`.
+Consequences: the frontend can switch the Map and Metrics tabs on (`VITE_ARGUS_INSIGHTS=1`). Check both labs before
+a deploy that follows a demo or a scenario run.
+References: [evidence](../execution/history/DEPLOY-161/step-01/evidence.md),
+[ACR-0017](../architecture/changes/ACR-0017-ui-topology-and-incident-metrics.md).
+
+## 2026-10-16 — T-0016: the frontend connection to ACR-0017's map and metrics routes
+
+Type: implementation
+Who: juanes6554 (+ agent)
+Context: ACR-0017's two read routes were deployed in DEPLOY-161 (agent on main `0b3b4e8`). The 2026-10-15 redesign
+(#158) had drawn the Map and Metrics tabs, but the real adapter called only the plain topology, never the
+`?incident_id=` overlay; the Dashboard had no map; and neither route was exercised by the contract test. The
+backend author asked for the wiring plus the two calls in the contract tests.
+Decision / result: `httpArgusAdapter.getTopology(incidentId)` sends `?incident_id=` and reads `VITE_ARGUS_INSIGHTS`
+per call (so a test can turn it on without reloading the module); `useTopology(incidentId)` refetches on the id and,
+if the overlay is refused (403 — the API allows operators and approvers only), falls back to the plain map, because
+the API decides permissions, never the UI (ACR-0001). `IncidentDetail` asks for the overlay for operators and
+approvers; `Dashboard` gained the live **System map** card; `SystemMap` gained a first-class **`unknown`** node and
+edge state so an unknown edge is never drawn as the green **ok** (the real samples are all `unknown`), a shared
+`MapLegend`, and a read-only `SystemMapCard`; the mock adapter mirrors the overlay call. Nothing is requested unless
+`VITE_ARGUS_INSIGHTS=1` (off by default), and the hooks hide what they cannot draw, so an older API is unaffected.
+Care points honoured: a `null` metric sample stays a gap and `fired` stays red (already in `MetricChart`); the SC-07
+"no shared network" link now shows because the overlay is fetched; no IPs/URLs/secrets (server-side).
+Consequences: the two Map/Metrics tabs, the "Where it broke" card and the Dashboard map are now fed by the real
+routes; a real-mode click-through on vm-095 and the deploy build passing the flag remain.
+References: [ACR-0017](../architecture/changes/ACR-0017-ui-topology-and-incident-metrics.md),
+`frontend/BACKEND-REQUESTS.md`, `brain/tasks/current/T-0016-frontend.md`.
+
+## 2026-10-16 — T-0016: the UI image is built with the Map and Metrics calls on
+
+Type: implementation
+Who: conantkd (+ agent)
+Context: PR #163 wired the frontend to ACR-0017's routes behind `VITE_ARGUS_INSIGHTS=1`, and its review left one
+follow-up: the deploy build did not pass the flag, so the real UI image would still hide both tabs. The Nginx edge
+already serves `GET /api/v1/topology` and `GET /api/v1/incidents/{id}/metrics`.
+Decision / result: `deploy/ui/Dockerfile` sets `ENV VITE_ARGUS_INSIGHTS=1` next to `VITE_ARGUS_MOCK=0`. Reversal:
+remove the line and rebuild; the UI hides the tabs again (ACR-0017, "How to reverse it").
+Consequences: nothing changes on vm-095 until the image is rebuilt and the UI edge redeployed; the real-mode
+click-through (Map, Metrics, Dashboard map, operator overlay) is still to be done by a person after that.
+References: [ACR-0017](../architecture/changes/ACR-0017-ui-topology-and-incident-metrics.md), PR #163,
+`brain/tasks/current/T-0016-frontend.md`.
+
+## 2026-10-17 — TEST-HARDEN-1: Docker tests in CI, prompt-injection cases (and the escape they found), a robust timing test
+
+Type: implementation
+Who: juanbetancurm (+ agent)
+Context: the self-merge rule (`task/SELF-MERGE-rule`, OP-014) relies on a green CI meaning "safe to merge". OP-014
+lists where it does not yet; this pull request closes its first three gaps.
+Decision / result:
+- **Docker tests in CI.** `ci.yml` sets `ARGUS_TEST_DOCKER=1` on the `test` job (the Linux runner has Docker; timeout
+  15 → 25 min), so the credential-isolation check of the agent image, the real-Docker backup tests and the real-Nginx
+  edge tests run instead of being skipped. `ops/local_ci.py` sets it too when Docker is present, as `ci.yml` does.
+- **Prompt-injection regression cases** (`tests/test_op014_prompt_injection.py`, replayed offline through the real
+  wiring from `restart-oom-01` with instructions planted in the worker's logs). They found a real defect: target text
+  could write a literal `</evidence>` (or open a `<passage …>`) into the model's context and so end its data block
+  early, against §10.8. `orchestration/runner.py` now escapes the `<` of `evidence` / `passage` / `reported` tags in
+  every piece of untrusted text it puts in the context (`as_data`). A model that obeys an injection with a write tool
+  or with a root cause outside the scope is refused, no action happens, and a planted secret still never reaches it.
+- **The flaky timing test.** `test_benchmark_compares_direct_and_mcp_on_the_same_read` asserted the 100 ms OD-3
+  verdict on 4 samples, which fails on a loaded machine. It now checks the mechanics (both ways measured, every read
+  ok, a verdict printed); the budget rule stays in `test_benchmark_verdict`, and the real budget is measured on vm-095.
+Consequences: the agent image changes (the context escape), so vm-095's agent, worker and scheduler need a redeploy
+after the merge (both leases). The PR touches `.github/` and `ops/local_ci.py`, so it needs a teammate's approval.
+References: OP-014 (`brain/OPEN_PROBLEMS.md`, added by `task/SELF-MERGE-rule`), ARCHITECTURE §10.8 and §22.3 item 10.
+
+## 2026-10-17 — SELF-MERGE: authors may merge their own pull requests when the required checks are green
+
+Type: decision
+Who: juanbetancurm (+ agent)
+Context: the temporary fast-track windows (2026-10-05 to 2026-10-12, 2026-10-14 to 2026-10-16) showed that small,
+well-tested pull requests waited a day or more for a review. The team wants a standing rule instead of windows.
+Decision / result: a standing **self-merge** rule in `agents/REVIEW_PROTOCOL.md`: the author may approve and merge
+their own pull request when the CI jobs `test` and `frontend` are green on its last push (or a `LOCAL CI PASS`
+comment names that commit), the branch is up to date with `main`, and it changes none of the protected paths
+(architecture and ACRs, the security and review rules, the enforcement, `config/policy.yaml`, `config/inventory.yaml`,
+the public edge, the UI contract). `brain.py verify-main` (`main-guard`) now checks those conditions through the
+GitHub API (`self_merge_problem`, `SELF_MERGE_PROTECTED`), so a valid self-merge needs no `main-exceptions.txt` line.
+The rule starts when a teammate approves this pull request: it changes the enforcement, so it cannot be self-merged.
+Consequences: the review protocol, `GIT_WORKFLOW.md`, `AGENT_PROTOCOL.md`, `PARALLEL_LANES.md`, `HOW_WE_WORK.md`,
+`START_HERE.md` and the Brain README say the same. The gaps where a green CI does not yet mean "safe to merge", and
+the checks to add, are OP-014; the first three (Docker tests in CI, prompt-injection cases, the flaky timing test) go
+in `task/TEST-HARDEN-1`. VM changes still need their lease, `code.bash` and `nonint-check.sh`.
+References: [review protocol](../agents/REVIEW_PROTOCOL.md), [OP-014](../OPEN_PROBLEMS.md).
+
+## 2026-10-18 — LF-3 step 03: vm-095's worker exports to Langfuse Cloud (EU), ACR-0016 applied
+
+Type: deployment
+Who: conantkd (+ agent)
+Context: ACR-0013 and ACR-0016 were accepted in the review of #156 (juanbetancurm); this push applies them
+(`ARCHITECTURE.md` 1.8.16, Hobby plan with two named users) and records the deployment.
+Decision / result: vm-095 runs 7e6e33c (the head of #156, deployed before its merge because the compose line for
+`ARGUS_TRACING_ENDPOINT` is only there). The worker traces to Cloud: a healthy check and an SC-02 crash loop produced
+traces whose attributes are exactly the allowlist (no input or output); with Cloud unreachable SC-02 still passed, one
+dropped-telemetry line, same duration, full audit. The self-hosted stack, its volumes, images and secrets were
+removed. The team keeps option C (no prompts, results or tool arguments in Langfuse; audit in Argus).
+Consequences: operators open the trace from the incident view; the Agent page shows only the trace id. Takeover of an
+EXPIRED lease of juanbetancurm (DEPLOY-164) on both VMs. The next deploy of `main` replaces 7e6e33c.
+References: [evidence](../execution/history/LF-3/step-03/evidence.md),
+[ACR-0016](../architecture/changes/ACR-0016-langfuse-cloud.md).
+
+## 2026-10-18 — DEPLOY-166: vm-095 on main 19b1085 (#165 self-merge rule, #166 prompt-injection escape)
+
+Type: deployment
+Who: conantkd (+ agent)
+Context: #166 (TEST-HARDEN-1) and #165 (SELF-MERGE) were approved by conantkd and merged the same day; #166 changes
+the agent image (the model context now escapes `evidence` / `passage` / `reported` tags in untrusted text).
+Decision / result: vm-095 moved from `7e6e33c` to `main` `19b1085` (backup, nothing to migrate, agent, worker and
+scheduler rebuilt on one image, 20/20, 55/55, WRITE GATE CLOSED, tracing to Langfuse Cloud still on, NO
+INTERFERENCE). The first image build failed on a transient PyPI timeout and changed nothing; the second passed.
+Consequences: the scheduler is now on the same image as the agent and worker (it had an older one since 2026-10-16).
+vm-166 was not changed. The follow-ups on the self-merge rule that conantkd left in the review of #165 (renamed files,
+unprotected safety paths, who may post `LOCAL CI PASS`, the two unchecked rules) are still open.
+References: [evidence](../execution/history/DEPLOY-166/step-01/evidence.md).
+
+## 2026-10-18 — CI-ONE-RUN: one CI run per push, and a draft pull request from a task branch's first push
+
+Type: implementation
+Who: juanbetancurm (+ agent)
+Context: `ci.yml` ran on every `push` to any branch **and** on every `pull_request`, so each push to a branch with an
+open pull request started two identical runs (seen on #165 and #166: a `push` run and a `pull_request` run of the same
+commit, each with `test` and `frontend`). `GIT_WORKFLOW.md` asked for a push after every checkpoint "so CI runs", but
+opened the pull request only when the task was complete, so the `push` trigger was what tested work in progress.
+Decision / result:
+- `ci.yml` triggers on `pull_request` and on `push` to `main` only (`main-guard` needs that one). Same jobs and steps.
+- **New rule (`GIT_WORKFLOW.md` step 3):** every task branch has a pull request from its first push, opened as a draft
+  (`gh pr create --draft`) and marked ready (`gh pr ready`) when the task is complete. Drafts run the same
+  `pull_request` CI, so work in progress is still tested, once per push.
+- `brain.py start` / `status` list draft pull requests apart, as tasks in progress, not under "waiting for review"
+  (`format_prs`).
+- The merge check and `brain.py verify-main` read the check runs of the pull request's head commit, which the
+  `pull_request` run reports; `policies/TDD.md` (stage 5) and the Brain README follow.
+Consequences: half the CI runs for the same checks; the board shows which tasks are in progress.
+References: [git workflow](../policies/GIT_WORKFLOW.md), [TDD policy](../policies/TDD.md).
+
+## 2026-10-18 — SELF-MERGE-2: the four gaps conantkd found in the self-merge rule
+
+Type: implementation
+Who: juanbetancurm (+ agent)
+Context: `conantkd` approved #165 (the self-merge rule) with four follow-ups: a renamed file escapes the protected-path
+check; safety-relevant paths are not protected; anyone, including the author, can post the `LOCAL CI PASS` that
+replaces CI; rules 3 (up to date) and 5 (merge commit, branch kept) are only text.
+Decision / result: `brain.py verify-main` closes all four.
+- **Renames:** `changed_paths` adds `previous_filename`, so a protected file moved out of a protected folder still
+  counts as a protected change.
+- **More protected paths:** all of `brain/policies/` and `brain/agents/`, `ops/`, `deploy/*/compose*.yml`,
+  `deploy/migrations/`, the code that enforces the write gate and the rails (`argus/policy/`,
+  `invoke_capability.py`, `gate_report.py`, `isolation_check.py`) and their tests (`tests/brain/`, the write-gate,
+  tool-isolation and prompt-injection tests).
+- **`LOCAL CI PASS`:** it counts only when posted by a developer other than the PR's author.
+- **Rules 3 and 5, measured:** the merge commit must have two parents, main's commit before the merge must be in the
+  merged branch, and the branch must still exist.
+`agents/REVIEW_PROTOCOL.md` lists the same paths and conditions. Ordinary paths (application code, the frontend,
+`deploy/ui/Dockerfile`, ordinary tests, journal entries, docs) stay self-mergeable.
+Consequences: more PRs need a teammate (every `ops/` or rail-test change). When CI does not run, a self-merge needs a
+teammate's local CI run.
+References: [review protocol](../agents/REVIEW_PROTOCOL.md), the review of #165.
+
+## 2026-10-18 — T-0045 proposed: the backend for the redesigned UI's charts, map and verdict (ACR-0021)
+
+Type: decision (proposed)
+Who: juanbetancurm (+ agent)
+Context: the redesigned UI prototype ("ui-graphs": verdict card, ECharts charts with thresholds and events, 2D/3D map
+with live health, dashboard fleet view) needs fields the API does not serve. A review of the code against the draft
+plan found: the target exporter already exports `argus_probe_success` and `argus_probe_duration_seconds` per
+`owner` and `dependency`, but the topology reads only the per-owner minimum (an owner with two dependencies shows both
+links `unknown`); `series.key` is the signal name and the topology's time field is `observed_at`, so the plan adds
+fields (`kind`) instead of renaming.
+Decision / result: proposed [ACR-0021](../architecture/changes/ACR-0021-ui-insights-v2.md) (new fields on the
+ACR-0017 routes, two new routes `GET /api/v1/overview` and `GET /api/v1/target-metrics`, one `MetricsPort` method,
+migration 007) and [T-0045](../tasks/current/T-0045-ui-insights-backend.md), the step-by-step specification
+(B1–B8) with the ground truth, contracts, rules and tests an agent implements from.
+Consequences: no code changes in this PR. B1–B4 need no new route; B5–B7 need the ACR accepted (migration, routes).
+References: [ACR-0021](../architecture/changes/ACR-0021-ui-insights-v2.md),
+[T-0045](../tasks/current/T-0045-ui-insights-backend.md), ACR-0017.
+
+## 2026-10-18 — NEXT-PHASE proposal: human-approved remediation, an operator terminal, operator access and audit, more autonomous investigation
+
+Type: decision (proposed)
+Who: juanbetancurm and conantkd (+ agents)
+Context: Argus diagnoses and recommends; humans repair outside it. The team wants supervised remediation, with a human
+operator as the final approver. ARCHITECTURE §14 designs Argus-executed actions but none of it is built (OP-015); the
+access model was designed for a read-only UI (password, non-revocable tokens, a shared password still listed in
+`SECURITY.md`, OP-016). Two proposals existed: this one (security, terminal, responsibility) and `conantkd`'s "Argus
+actúa" (catalogue, cards, colours, prediction, judge, memory, research, scenarios). This PR merges them.
+Decision / result: proposed, for team review before any implementation:
+- [ACR-0018](../architecture/changes/ACR-0018-operator-access-and-audit.md): one account per person, WebAuthn,
+  step-up, revocable sessions, explicit permissions, an audit hash chain copied off Host A, privileged routes only on
+  a private path;
+- [ACR-0019](../architecture/changes/ACR-0019-human-approved-remediation.md): a closed catalogue; service and
+  action cards; cited grounds with a computed basis (model-only becomes a suggestion); risk colours that only go up; a
+  mandatory prediction and alternatives; a judge that can only make it stricter; a human approves the frozen proposal;
+  the worker executes (dispatch reads only frozen rows); verification of the prediction; a memory of verified actions;
+  shadow mode for later autonomy; scenario answer keys; lab targets only;
+- [ACR-0020](../architecture/changes/ACR-0020-operator-terminal.md): a recorded, human-only terminal through a
+  broker with an SSH CA; "Insert" limited to what the cards allow;
+- [ACR-0022](../architecture/changes/ACR-0022-autonomous-investigation.md): open investigations, follow-up checks,
+  new reads, a curated reference corpus and isolated research, all reads and suggestions only.
+The plan (phases 15–23, lanes, gates, open decisions) is the task file
+[NEXT-PHASE](../tasks/current/NEXT-PHASE-supervised-remediation.md).
+Consequences: nothing changes in the code, the configuration or on the VMs. Earned autonomy, more action families
+(PostgreSQL, configuration, rollback, Linux, generated tools) and other runtimes are deferred to later ACRs.
+References: [task](../tasks/current/NEXT-PHASE-supervised-remediation.md), OP-015, OP-016.
+
+## 2026-10-18 — T-0045 B1: thresholds in the signal catalogue; host-metrics thresholds and heartbeat
+
+Type: implementation
+Who: conantkd (+ agent)
+Context: the redesigned UI draws warning and critical lines on its gauges and charts; the API served only the values.
+Step B1 of [T-0045](../tasks/current/T-0045-ui-insights-backend.md) (no new route, so it does not wait for ACR-0021).
+Decision / result:
+- `config/signals.yaml` gains an optional `thresholds:` map (`warning`, `critical`, `direction`) for nine signals, validated at
+  startup by `argus/application/thresholds.py` (unknown signal, non-number, bad direction, warning past critical, unknown
+  field: the API refuses to start). `read_signals` keeps it out of the PromQL templates.
+- `GET /api/v1/host-metrics`: each row adds `thresholds` for `cpu_busy_ratio`, `memory_used_ratio` (the available-ratio lines
+  flipped to used: 0.75 / 0.90) and `disk_used_ratio`, plus `heartbeat_age_s` and `heartbeat_stale` from the stored
+  monitoring state (`last_beat_at`). Stale = older than 150 s, twice the 60-75 s renewal measured in T-0035. No heartbeat
+  recorded = `null` for both, never fresh. Computed per answer, outside the 20 s reading cache.
+- Open decision 3 of T-0045 (heartbeat staleness) is answered with 150 s; the initial thresholds are the spec's table.
+Consequences: additive fields only; the UI ignores them until it reads them. `critical` equals each detector's threshold,
+pinned by a test, so a detector change that is not mirrored in `signals.yaml` turns CI red.
+References: [ACR-0021](../architecture/changes/ACR-0021-ui-insights-v2.md), `docs/API-FOR-UI.md`.
+
+## 2026-10-18 — T-0045 B1 follow-up: the two code notes from the review of #173
+
+Type: implementation
+Who: conantkd (+ agent)
+Context: `juanbetancurm` approved #173 (B1) with three non-blocking notes. Notes 1 and 2 are code; note 3 (the status line of
+[T-0045](../tasks/current/T-0045-ui-insights-backend.md)) is his follow-up.
+Decision / result:
+- **Note 1, `unit` and `scale`:** the threshold entries of `config/signals.yaml` now accept the optional `unit` (non-empty text) and
+  `scale` (a positive number) the spec allows, validated like the rest. They are display hints: kept in the answer when given, absent
+  when not (the shipped entries set neither, so no answer changes), and carried through the memory flip.
+- **Note 2, the 150 s heartbeat staleness:** kept as a constant, now pinned by a test to the scheduler's configuration
+  (`deploy/scheduler/schedules.yaml`): it must be at least two reconcile ticks (`every_s`, 60) and below the loss threshold
+  (`stale_after_s`, 180). A schedule change that crosses it turns CI red. Deriving it at runtime was not chosen: the API does not read
+  the scheduler's file today, and the test keeps the two in step without a new dependency.
+Consequences: no change to any answer with the shipped configuration.
+References: review of #173; the B1 entry above (2026-10-18, "T-0045 B1").
+
+## 2026-10-18 — CI-COST: main runs main-guard alone; a new push cancels the PR's run in progress
+
+Type: decision
+Who: conantkd (+ agent)
+Context: the organisation's GitHub Actions minutes went past the plan's 3000 included minutes in October (about 3700
+used). Each PR push costs about 6 minutes (`test` and `frontend`) and each merge about 9 more on `main` (the same two
+jobs again, plus `main-guard`); 38 runs on 2026-10-18 alone, several of them for a PR pushed twice in a row.
+Decision / result: two changes in `.github/workflows/ci.yml`.
+- **`test` and `frontend` run on pull requests only.** A merge already needs both green on the PR's last push with the
+  branch up to date with `main` (REVIEW_PROTOCOL.md), so the run on `main` tested the same code. A push to `main` now
+  runs `main-guard` alone (about 3 minutes instead of 9).
+- **`concurrency`:** one group per pull request; a new push cancels that PR's run still in progress (its result no
+  longer counts, only the last push does). Runs on `main` are never cancelled, so every merge gets its `main-guard`.
+Consequences: about 6 minutes saved per merge, plus the unfinished part of every superseded PR run. A cancelled run
+shows "cancelled", not failed. What `main` no longer gets is a second run of the tests after the merge commit; a
+check on `main` itself stays available with `python ops/local_ci.py --main`. Changing `.github/` is a protected path:
+this needs a teammate's approval.
+References: [REVIEW_PROTOCOL.md](../agents/REVIEW_PROTOCOL.md).
+
+## 2026-10-18 — T-0045 B2: incident metrics with kind, thresholds, events, the incident band and a summary
+
+Type: implementation
+Who: conantkd (+ agent)
+Context: step B2 of [T-0045](../tasks/current/T-0045-ui-insights-backend.md); builds on B1 (thresholds, #173).
+Decision / result:
+- `config/ui-incident-signals.yaml`: every entry has a `kind` (`memory`, `restarts`, `cpu`, `latency`, `health`, `disk`,
+  `database`, `network`, `other`), validated (default `other`).
+- `GET /api/v1/incidents/{id}/metrics`: per series `kind`, `thresholds` (B1's lines scaled like the values) and
+  `detector_threshold` (the scaled critical line, on the `fired` series only); at the top `incident_from`, `incident_to`
+  (`null` while open), `events` and a template `summary`.
+- Events: `restart` where `container_restart_count` rises and `oom_kill` where `oom_killed` goes 0 to 1 (container targets
+  only; read even when the class chart does not draw them; a failed read leaves no event, not a broken answer);
+  `alert_fired` / `alert_resolved` from the incident's `alert_occurrence` rows that fall inside the window. `deploy` waits
+  for B6. A first sample already at 1 is not a new OOM.
+- Summary: one template per class and per fired state (`SUMMARIES`), filled with the extreme of the judged series;
+  an unreadable series says the state is unknown, never healthy. No address, URL or model text.
+Consequences: additive; the UI ignores the new fields until it reads them. Up to two extra range reads per container
+incident, inside the existing 30 s / 10 min shared cache.
+References: [ACR-0021](../architecture/changes/ACR-0021-ui-insights-v2.md), `docs/API-FOR-UI.md`.
+
+## 2026-10-18 — T-0045 B4: the incident verdict fields
+
+Type: implementation
+Who: conantkd (+ agent)
+Context: step B4 of [T-0045](../tasks/current/T-0045-ui-insights-backend.md). The UI's verdict card needs a summary, a severity, a cause with
+a confidence, the top evidence, what could not be checked and the path to the cause; the incident route served only the raw record.
+Decision / result:
+- `IncidentClassSpec.severity` (`critical`; `warning` for `monitoring_blind_spot`).
+- `argus/application/incident_view.py::build_verdict`: a pure function of the incident, its class, its evidence, the evidence the conclusion cites
+  (the `incident.recorded` audit event) and the declared dependencies. `GET /api/v1/incidents/{id}` adds `severity`, `summary`, `cause`,
+  `evidence_highlights`, `not_checked`, `cause_path`, `duration_ms`, `next_actions` (`[]`), `hypotheses` (`[]`) for every role.
+- Severity: the class's; `warning` for `undiagnosable` / `unsupported_escalated`; `ok` for `no_incident`; `null` while no class is known.
+- Summary: `<problem> on <name>: <first finding>` for a diagnosis (the runner's `<class>: ` prefix stripped), else the first sentence of the
+  diagnosis, else a sentence per outcome. Cause: confidence 0.9 / 0.6 / 0.3 and its label; `null` without a root cause.
+- `not_checked`: each evidence with a status other than `ok`, each missing signal, and `metrics · stale or unavailable` (the exception text is not repeated).
+- A viewer's `evidence_highlights` is `[]` (its view carries no evidence text); the other fields carry no evidence text.
+- `cause_path` is a small BFS over the declared dependencies, the same rule as the topology's (B3, #175); the two can share one function
+  once both are merged.
+Consequences: additive; two more store reads per incident view (evidence and audit were already read for operators).
+References: [ACR-0021](../architecture/changes/ACR-0021-ui-insights-v2.md), `docs/API-FOR-UI.md`.
+
+## 2026-10-18 — T-0045 B3: topology with box health, problems, one state per dependency link, roles and the cause path
+
+Type: implementation
+Who: conantkd (+ agent)
+Context: step B3 of [T-0045](../tasks/current/T-0045-ui-insights-backend.md); builds on B1's thresholds (#173). Until now an
+owner with two dependencies showed both links `unknown` (the topology read only the per-owner minimum of the probe).
+Decision / result:
+- `MetricsPort.dependency_probes(target) -> {dependency: ProbeSample(success, duration_s, at)}`; the Prometheus adapter reads the
+  exporter's `argus_probe_success` and `argus_probe_duration_seconds` through two new catalogue signals
+  (`dependency_probe_success`, `dependency_probe_duration_s`), on the target's own host; older than `max_staleness_s` is missing.
+  No exporter change. Every fake returns `{}`.
+- Inventory: optional `profile: scenario` (the seven scenario-only containers of vm-166: nginx, slow, burner, filler, leaker, client,
+  backend) and `link_warning_ms`, both validated.
+- Nodes: `health`, `idle`, `networks`, `problems` (restarts and CPU quota against B1's lines, an unhealthy check as a warning,
+  memory against the limit from the incident's evidence, `stale_metrics` for a running box with no fresh sample), `role`.
+- Edges: `id`, `kind` (`dependency` | `argus_reads`), the state of that dependency's probe (`ok`, `slow` above 100 ms or the owner's
+  `link_warning_ms`, `broken`, `unknown`), `checked_at` (the read time: an instant query stamps the evaluation time, not
+  the probe's; review of #175), `latency_ms`, `reason`. "No shared network" still overrides.
+  With no per-dependency sample and a single dependency, the old per-owner minimum still decides.
+- With `incident_id`: `cause_path` (BFS over declared dependencies; `[target]` if it is its own cause; `[]` without a cause).
+- Decisions taken here: memory problems warn at 80 % and are critical at 90 % of the limit (no B1 line exists for memory);
+  CPU-quota problems are shown in percent; a restarting box is `degraded` even below the restart warning (the spec's rule).
+Consequences: additive; two more reads per container with dependencies in the 20 s shared build (cache unchanged); the memory and
+quota signals join the per-container snapshot.
+References: [ACR-0021](../architecture/changes/ACR-0021-ui-insights-v2.md), `docs/API-FOR-UI.md`.
+
+## 2026-10-19 — ACR-0021 accepted: the backend for the redesigned UI may continue past B4
+
+Type: decision
+Who: juanbetancurm (+ agent); accepted by the two approvals of this pull request
+Context: [ACR-0021](../architecture/changes/ACR-0021-ui-insights-v2.md) was proposed in #172 with
+[T-0045](../tasks/current/T-0045-ui-insights-backend.md). B1 to B4 add fields only, so they were built before acceptance
+(B1 merged in #173 and #177; B2 to B4 in review in #174 to #176). B5 (migration 007), B6 (the two new public routes) and B7
+wait for acceptance. The T-0045 status line said the whole task waited, which disagreed with its own order section.
+Decision / result:
+- ACR-0021 is `accepted` by `conantkd` and `juanes6554` through their approvals of this pull request, the second one
+  for least privilege (two new routes on the public edge). It merges only with both.
+- T-0045's four open decisions are answered from the reviewed steps: the spec's thresholds; the seven scenario-only
+  containers are `idle`; links warn above 100 ms (`link_warning_ms` per target); the heartbeat is stale after 150 s. The
+  baseline window stays open until B7.
+- `ARCHITECTURE.md` is applied in one pull request once B4 has merged; until then `SUMMARY.md` records the difference.
+- The T-0045 status line now says `in progress` and agrees with its order section.
+Consequences: B5 to B7 may start. No code, configuration or deployment changes in this pull request.
+References: #172, #173, #177, #174, #175, #176.
+
+## 2026-10-19 — EVAL-offers: the unoffered capabilities measured; ACR-0023 proposed; four replay fixes; long-log cases
+
+Type: evaluation
+Who: conantkd (+ agent, unattended overnight on vm-095)
+Context: `cpu_history`, `disk_history`, `request_path`, `search_logs` and `baseline` are offered to no class until an
+evaluation batch measures them. One batch per offer, each the base plus one tag, 61 cases × 5 trials.
+Decision / result:
+- No capability is offered to a class. `cpu_history` and `disk_history` are used and change nothing; `request_path`
+  0.72 → 0.74; `search_logs` is called in 4 of 50 health runs; `baseline` in 1 of 25 cpu runs. Health alone moves
+  between 0.66 and 0.82 in batches that do not touch it, so a class-level number is read with the mechanism.
+- Proposed: [ACR-0023](../architecture/changes/ACR-0023-log-read-pattern-matches.md). `container.logs` also
+  brings the last 30 min's lines that match a named failure pattern and are not in its tail. Measured (H1): it changes
+  the evidence of 3 cases; in `health-api-vm166-01-longlog` 1/5 → 5/5, every diagnosis citing the line outside the
+  tail. The agent finds a buried cause without a runbook telling it to search.
+- The replay now answers like the gateway in four places: an earlier metric window is its own fixture (it was the
+  current one), a fixture is stamped with the time it is read (a fixed date read as a week-old sample), `/connectivity`
+  is built from the two status fixtures, and a long log answers `logs`, `logs_window` and `search`. Two vm-166 health
+  cases answered their own health URL with 200 against their health check; they now agree.
+- 6 `-longlog` twins of the health cases (the cause outside the log's tail) and derived cpu and disk history fixtures.
+- The OpenAI account ran out of credits during one batch; it and a partial one were discarded and rerun.
+- Also here (asked by conantkd): `main-guard` gets `checks: read`. It has been red on every push to `main` since #177,
+  the first self-merge: `verify-main` reads the commit's check runs to validate a self-merge and got
+  `Resource not accessible by integration (HTTP 403)`. A permission gap, not a broken review rule.
+Consequences: with ACR-0023 accepted, each log read makes up to 6 more gateway requests and carries up to 6 more
+redacted lines; architecture 1.8.17. The evaluation has 61 cases; `ambiguous-health-no-cause-longlog` joins
+`BASELINE_MISSES`.
+References: [evidence](../execution/history/EVAL-offers/step-01/evidence.md).
+
+## 2026-10-19 — T-0045 B5: re-check lineage (`parent_id`, migration 007)
+
+Type: implementation
+Who: juanbetancurm (+ agent)
+Context: the redesigned UI offers "Re-check" on an incident and shows the re-checks under it; the API had no link between
+the two. Step B5 of [T-0045](../tasks/current/T-0045-ui-insights-backend.md), which waits for ACR-0021's acceptance
+(PR #180) because it adds a migration and a query parameter.
+Decision / result:
+- `POST /api/v1/investigations` accepts an optional `parent_id` (`^inc_[A-Za-z0-9_-]+$`, at most 64 characters). It must
+  name an existing incident, else 422 and nothing is created. Every role reads every incident, so "readable by the caller"
+  is "exists". The `investigation.requested` audit records it. Quotas are unchanged: a re-check is a manual incident.
+- The incident keeps `parent_id`; the detail and every list row return it (`null` when it re-checks nothing).
+  `GET /api/v1/incidents?parent_id=<id>` lists that incident's re-checks, newest first; a malformed id is 422.
+- Postgres: `deploy/migrations/007_incident_parent.sql` adds `incident.parent_id` (foreign key to `incident.id`, indexed
+  with `opened_at`) and extends the forward-only trigger: the parent never changes, like the other identity columns. No
+  new grant. Two new `db-check` checks: a missing parent and a changed parent are both refused. `import_sqlite` copies
+  the column when the old file has it.
+- SQLite: an older file gains the column at start, like `claimed_by`.
+Consequences: additive fields only. The UI ignores them until it reads them. Deploying needs `ops/db-migrate.sh` (007)
+before the new image.
+References: [ACR-0021](../architecture/changes/ACR-0021-ui-insights-v2.md), `docs/API-FOR-UI.md`.
+
+## 2026-10-19 — ACR-0021: the acceptance record corrected (the least-privilege approval is pending)
+
+Type: decision
+Who: conantkd (+ agent)
+Context: #180 recorded ACR-0021 as accepted by `conantkd` and `juanes6554` and said it would merge only with both
+approvals. conantkd asked to merge it with conantkd's approval only; it merged that way (comment on #180). The record then
+named an approval that had not been given.
+Decision / result:
+- ACR-0021's rows now say what happened: accepted by `conantkd` (#180); the second approval, required for least privilege
+  (two new routes on the public edge, B6), is **pending** and is `juanes6554`'s approval of this pull request.
+- T-0045's status line is brought up to date: B1, B2 and B4 merged; B3 in review (#175); B5 in draft (#181); B6 waits
+  for the least-privilege approval.
+Consequences: B5 (migration, no public route) and B7 are not affected by the pending approval; B6 does not start until
+this pull request is approved and merged.
+References: #180, [ACR-0021](../architecture/changes/ACR-0021-ui-insights-v2.md).
+
+## 2026-10-19 — Review rule: an update that only brings in main keeps the approval
+
+Type: decision
+Who: juanbetancurm (+ agent)
+Context: a pull request merges only when it is up to date with `main` and approved on its last push. Every merge puts
+the other open pull requests behind, and "Update branch" is a new push, so their approvals stopped counting. #174 and
+#176 were approved and fell behind when #178 merged; updating them would have needed a new review although their code
+had not changed (in the end they were merged without the update).
+The T-0045 steps all touch `contracts/`, a protected path, so the self-merge rule does not help them.
+Decision / result:
+- An approval stays valid after later pushes when each commit after the approved one is a merge with `main` that git
+  made without a conflict (its tree is git's automatic merge of its parents). A resolved conflict, any extra edit, any
+  other commit or a rewritten branch needs a new approval. CI green on the last push and up to date are unchanged.
+- `brain.py verify-main` (CI `main-guard`, `brain.py start`) checks it with `only_main_merged_since` and
+  `git merge-tree --write-tree`; `check_main` takes it as `keeps_approval`.
+- `REVIEW_PROTOCOL.md`: the rule, why, and how it is enforced; `GIT_WORKFLOW.md`: the "Never" line refers to it.
+Consequences: the reviewer can update an approved pull request and merge it without a new review round. It changes
+the enforcement, so it starts when a teammate approves this pull request.
+References: `brain/agents/REVIEW_PROTOCOL.md`, `brain/tools/brain.py`.
+
+## 2026-10-19 — ACR-0021 applied to ARCHITECTURE.md as built through B5 (1.8.18)
+
+Type: decision
+Who: conantkd (+ agent)
+Context: ACR-0021 is accepted (#180) with its least-privilege approval (#182). §6 asked for one pull request that
+applies the text once B4 had merged. B1 to B5 are now merged (#173, #177, #174, #175, #176, #181).
+Decision / result:
+- `ARCHITECTURE.md` 1.8.17 → 1.8.18. It describes only what is built:
+  - §5.8: `IncidentClassSpec.severity`;
+  - §7.1, host metrics: thresholds and the heartbeat age;
+  - §7.1, incident metrics: `kind`, thresholds, the incident window, events from counters and alert occurrences, and a
+    summary, with "not yet" for `baseline`, `deploy` events and the 6h/24h ranges;
+  - §7.1, topology: per-node health, problems, roles and the cause path, and one state per dependency link, with
+    `checked_at` as the read time;
+  - §7.1, incidents: the verdict fields, `parent_id` on the incident and the list, and `parent_id` on a new
+    investigation;
+  - §8.1: `MetricsPort.dependency_probes`;
+  - §16.1: `incident.parent_id` (migration 007).
+- Left for their steps: the two new routes and `locations.conf` (B6, #184), and `baseline`, `deploy` events and the
+  `deploy_event` migration (B7). Each adds its own text and bumps the version.
+- ACR-0021's rows now say the least-privilege approval was given (#182) and the text is applied. `SUMMARY.md`'s
+  "Known differences" row is resolved, and T-0045's status line is current.
+Consequences: documentation only; no code, configuration or deployment change.
+References: [ACR-0021](../architecture/changes/ACR-0021-ui-insights-v2.md), #180, #182, #181.
+
+## 2026-10-19 — DEPLOY-176: vm-095 on main dfa7332 (T-0045 B1 to B5, migration 007, ACR-0023)
+
+Type: deployment
+Who: conantkd (+ agent)
+Context: since `19b1085` (DEPLOY-166), the following merged:
+- T-0045 B1 to B5: thresholds and heartbeat (#173, #177), incident metrics (#174), topology (#175), the verdict (#176),
+  re-check lineage with migration 007 (#181);
+- ACR-0023, the log read with pattern matches (#179).
+
+The rest is CI and Brain.
+Decision / result:
+- vm-095 moved from `19b1085` to `main` `dfa7332`:
+  - backup taken;
+  - **migration 007 applied before the new image**;
+  - agent, worker and scheduler rebuilt on one image;
+  - checks: 22/22, 55/55, WRITE GATE CLOSED, LAB BASELINE OK, NO INTERFERENCE.
+- vm-166 was not changed.
+Consequences:
+- The UI's new fields (thresholds, heartbeat, chart context, map health and links, the verdict, `parent_id`) are
+  served on vm-095.
+- `container.logs` now brings pattern matches from outside the tail.
+- The deploy of `77002a7` prepared earlier the same day was not run (not authorized then); nothing changed on the VMs.
+References: [evidence](../execution/history/DEPLOY-176/step-01/evidence.md).
+
+## 2026-10-19 — T-0045 B6: `GET /api/v1/target-metrics` and `GET /api/v1/overview`
+
+Type: implementation
+Who: juanbetancurm (+ agent)
+Context: the redesigned UI has a dashboard and, for one box of the map, a drawer with its recent charts. Step B6 of
+[T-0045](../tasks/current/T-0045-ui-insights-backend.md) adds the two routes. `/target-metrics` was built first (it
+depended on no open pull request); `/overview` after B3 (#175) and B4 (#176) merged. ACR-0021's least-privilege
+approval for the two public-edge routes was given by `juanes6554` on #182.
+Decision / result:
+- `GET /api/v1/target-metrics?target=<host/kind:name>&range=15m|1h` (`argus/application/target_metrics.py`): a fixed
+  series list per kind, read with `MetricsPort.range` on the target's own host only. A container gives
+  `container_cpu_quota_used_ratio_5m` and `container_memory_bytes`. A host gives `host_cpu_busy_ratio`,
+  `host_memory_used_ratio` (1 - the available ratio, its lines flipped as in `/host-metrics`) and
+  `host_disk_used_ratio`. Another kind gives no series yet. Each series carries `kind`, `unit`, `max` and the B1
+  `thresholds` (or `null`); at most ~130 points; missing is `null`, an unreadable series is all gaps. Shared 30 s per
+  (target, range). A target not in the inventory is 404; a malformed target or another range is 422 before any read.
+- `GET /api/v1/overview` (`argus/application/overview.py`): `status` (the worst open severity, `ok` when nothing is
+  open), `open_incidents` by severity, the 5 newest open incidents (severity and summary from B4; `info` while the class
+  is unknown; `next_action` `null` until B4's `next_actions` are filled), `hosts` (the `/host-metrics` rows: one shared
+  20 s snapshot for both routes), `fleet` (boxes by B3 `health`), `links` (`ok`/`total` of the declared dependencies),
+  `last_closed_at`. Built from the newest `incidents_limit_cap` incidents and the topology and host-metrics snapshots:
+  no new host read, no executor call. Shared 15 s.
+- Any authenticated role for both; no PromQL, address or internal URL in or out.
+- Edge: `location = /api/v1/target-metrics` and `location = /api/v1/overview` (GET only, rate-limited); the contract,
+  two samples and `API-FOR-UI.md`.
+- Built in `build_api` from the existing metrics port, thresholds, store and topology, so `wiring.py` is unchanged.
+- `ARCHITECTURE.md` 1.8.18 → 1.8.19: the two §7.1 rows, the public-edge paragraph and the changelog; ACR-0021's
+  rows say applied through B6. The `GET /api/v1/incidents` row loses filters the route never had (`limit` and
+  `parent_id` only).
+Consequences: two more public read routes; the browser chooses only an inventory target and one of two ranges.
+References: [ACR-0021](../architecture/changes/ACR-0021-ui-insights-v2.md), `docs/API-FOR-UI.md`.
+
+## 2026-10-19 — T-0045 B5 follow-up: `db-check` proves migration 007; SQLite's missing foreign key written down
+
+Type: implementation
+Who: conantkd (+ agent)
+Context: the review of #181 (B5, merged) left two non-blocking notes. The two new `db-check` refusals also "passed" on a
+database without migration 007: the column is missing, the statement fails, and a failure counts as refused. SQLite
+enforces no foreign key for `parent_id`.
+Decision / result:
+- `CHECKS_SQL` gains a read that must succeed, `re-check lineage column present (migration 007)`, before the two
+  refusals. `argus db check` now fails on a database that lacks 007, so the refusals prove the protection. The count
+  goes from 22 to 23.
+- `sqlite_store.py` says where a re-check's parent is checked: by the API only (SQLite runs without
+  `PRAGMA foreign_keys`, and an added column has no `REFERENCES`); in Postgres by 007's foreign key.
+- Not changed: `parent_id` is also kept inside `body`, and the trigger guards only the column; no code changes it.
+Consequences: a deploy record shows 23 database checks once B5 is on a VM.
+References: #181, [T-0045](../tasks/current/T-0045-ui-insights-backend.md).

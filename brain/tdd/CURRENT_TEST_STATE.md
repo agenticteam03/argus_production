@@ -2,6 +2,159 @@
 
 **Last updated:** 2026-10-12 (roll-up) · **Commit:** `main` after #96 (`817d88f`)
 
+`test_db_check_proves_the_column_before_counting_its_refusals` (new, red seen first). The Postgres check
+(`test_database_guarantees_check`) runs the new read in CI. Full offline suite green.
+
+`tests/test_t0045_b6_target_metrics.py` and `tests/test_t0045_b6_overview.py` (new, red seen first: the modules did not
+exist); the edge matrix and the UI contract list both routes; `tests/test_ui_access.py` passes `/target-metrics` its
+required `target` (a read token reads every GET route); `contracts/ui-api.json` regenerated and
+`contracts/samples/target-metrics.json` and `overview.json` added (the other samples untouched).
+
+No code change in this record. CI on `main` at `dfa7332`: `main-guard` success.
+
+No code change. `brain.py lint` and `audit` run in the commit hook.
+
+Six new tests in `tests/brain/test_brain.py`, red seen first (the function did not exist): `check_main` keeps an
+approval only through `keeps_approval` and never the author's own; with real git repositories, a clean merge of main
+keeps it; a later commit, an edit inside the merge, a resolved conflict and a rewritten branch do not.
+
+No code change (documentation only).
+
+`tests/test_t0045_b5_recheck_lineage.py` (new, red seen first) and `test_recheck_lineage_migration_007` in
+`tests/test_postgres.py`, run on a local throwaway Postgres 16 with the other Postgres tests. `contracts/ui-api.json`
+regenerated; `incident.json` and `incidents.json` samples gain `parent_id`. Offline suite green locally (965 passed, 24 skipped; `tests/brain` 81 passed, with one git test that
+hangs on the laptop deselected; CI runs it).
+
+`tests/test_evaluation.py`: five new tests; `tests/test_acr0023_log_matches.py`: five (two red first, three guard what
+must not change); `test_resume_inside_evidence_pack_does_not_repeat_completed_reads` now compares reads with their
+parameters. Full offline suite green on the final commit.
+
+No code change (documentation only).
+
+`tests/test_t0045_b3_topology.py` (new; red seen first: `ProbeSample` did not exist); `contracts/samples/topology*.json`
+regenerated. Full offline suite green.
+
+`tests/test_t0045_b4_incident_verdict.py` (new; red seen first: `incident_view` did not exist). `contracts/samples/incident.json` gains the new
+fields (its ids unchanged). Full offline suite green.
+
+`tests/test_t0045_b2_incident_metrics.py` (new; red seen first: `KINDS` did not exist); `test_acr0017_incident_metrics.py`
+(the series key set gains three fields); `contracts/samples/incident-metrics.json` regenerated. Full offline suite green.
+
+No code change. The workflow is checked by its own run on this PR (`test` and `frontend` start; `main-guard` is
+skipped). `brain.py lint` green.
+
+`tests/test_t0045_b1_thresholds.py`: three new tests (red seen first for `unit` / `scale`: `Threshold` had no such fields; the bad
+values were refused only as unknown fields). Full offline suite green.
+
+`tests/test_t0045_b1_thresholds.py` (new, red seen first: the module did not exist), `tests/test_ui_host_metrics.py` (one
+equality now ignores the new fields), `contracts/samples/host-metrics.json` regenerated. Full offline suite green.
+
+No code change (documentation only).
+
+No code change (specification only).
+
+`tests/brain/test_brain.py`: red seen (21 failures against the previous `brain.py`: the new protected paths, the
+rename, the author's `LOCAL CI PASS`, the three measured rules, the `(pr, sha, parents)` call); green after. New:
+ordinary paths stay self-mergeable. `brain.py verify-main --ref origin/main` with the new code: see the PR.
+
+`tests/brain/test_brain.py::test_draft_pull_requests_are_listed_as_work_in_progress_not_for_review` (new). This pull
+request's own CI is the check for the trigger: one run (`pull_request`) per push.
+
+No code change in this record. CI on `main` at `19b1085`: `test`, `frontend` and `main-guard` success.
+
+No code change in this push (the Brain only). The existing tracing and compose tests were green on the PR.
+
+`tests/brain/test_brain.py`: 6 new test functions (19 cases) for the self-merge check (green checks and ordinary files accepted; each
+required check missing or not `success` refused; every protected path refused; 100 or more files refused; a
+`LOCAL CI PASS` for the last push accepted, for an earlier push or a `FAIL` refused; `check_main` reports why).
+
+Red seen: `test_injected_text_cannot_close_its_evidence_tag` (5 `</evidence>` for 4 blocks) and
+`test_injected_text_cannot_open_a_fake_runbook_passage` (`<passage runbook=\"RB-999` in the context) before the
+escape; both green after it. The three other injection cases were green before (guards that keep them so).
+
+`tests/test_acr0011_ui_edge.py::test_the_dockerfile_builds_the_map_and_metrics_calls_in`: red seen (no flag in the
+Dockerfile), green after the line.
+
+`frontend/`: `npm test` 23 files / 131 tests (the contract test now calls both routes plus the overlay; two new
+adapter tests; two new map-style tests), `npx playwright test` 21/21 (5 new ACR-0017 tests: Map/Metrics tabs,
+Dashboard map, operator overlay, viewer plain map, refused-overlay fallback), `npm run lint` 0 errors,
+`npm run build` green. Red seen: the new contract/style/overlay assertions and the 5 new e2e tests before the
+wiring.
+
+No code change.
+
+`tests/test_acr0017_topology.py`: 13 (red seen: 13 of 13 before the code). Full suite in the PR.
+
+`tests/test_acr0017_incident_metrics.py`: 17 (red seen: 16 of 17 before the code). Full suite in the PR.
+
+One new test, `test_the_worker_alone_takes_the_tracing_endpoint_private_by_default` (red seen: `KeyError:
+'ARGUS_TRACING_ENDPOINT'`); the tracing and compose tests green.
+
+No code change.
+
+- `frontend` scope: unit 127/127, acceptance 17/17, ESLint 0 errors, Vite build green.
+- The Python suite is not affected by this change (frontend-only); Linux CI's `test` job remains the authority.
+
+No code and no tests in this step (architecture proposal + documentation). The existing suite is untouched.
+
+No code change.
+
+Focused Langfuse exporter and graph-runner tests passed after the model-span addition.
+The model-span test was red before implementation. The Agent summary unit test, frontend lint of new files, and
+production build passed. The browser-rendered desktop demo was inspected from a local offline preview. Full backend
+verification remains pending because automatic approval review exhausted its usage limit while authorizing execution
+in the isolated worktree. VM ingestion and capacity validation await a lease.
+
+Documentation-only proposal. Brain lint, audit and PR CI verify the record. LF-1 startup and one native OTLP batch were observed; full coexistence remains unverified after a concurrent Argus recreation.
+
+No code change. brain.py lint and audit run at commit.
+
+- `tests/test_acr0012_investigate.py` 16 (12 red seen); edge tests 29; contract 3.
+- Frontend: unit 85, acceptance 14 (stable four times), lint 0 errors.
+
+`tests/test_acr0011_ui_edge.py`: 25 (1 new, red seen).
+
+No code change.
+
+No code change in this step beyond `ops/ui-cert.sh` and the timer (in #144).
+
+`npm test`: 14 files, 74 tests (2 new files, both red seen). No backend change.
+
+`npm test`: 15 files, 76 tests; `npm run e2e`: 9 passed (three runs in a row); `npm run lint`: 0 errors.
+
+No code change in this step.
+
+- New: `tests/test_acr0011_edge_login.py` (10, red seen) and `tests/test_acr0011_ui_edge.py` (24; Docker).
+- Frontend: `npm test` 80, `npm run e2e` 10, `npm run lint` 0 errors.
+
+No code change. Review correction: brain.py lint and audit clean; git diff --check clean.
+The full pytest suite is being checked before the review is requested again.
+
+`tests/test_t0037_docker_read_verbs.py`: 11 new pattern cases; red on `main`'s pattern (4 failed), green with the fix
+(23 passed).
+
+`tests/test_d003_class_registry.py`: 4 (red seen: 2 of 4 on the old registry). `test_evaluation.py` and
+`test_knowledge_runbook.py` adjusted (a baseline class makes no model call; the branch-runbook test pins its class to
+`model_loop`).
+
+No code change.
+
+No code change.
+
+`npm test`: 12 files, 70 tests passed; `npm run build`: 351 modules. No backend change.
+
+Frontend only, Vitest run deferred (as asked): `sessionStore.test.js` (renamed; token round-trip + JWT-`exp`), the
+`httpAuthAdapter`/`httpArgusAdapter` session cases, and the new `paging.test.js`. `npm test` is still to run before
+any merge.
+
+`npm test` (frontend): **12 files, 70 tests passed**; `vite build`: 351 modules. Red seen this run:
+`sessionStore.test.js` → `TypeError: tokenExpiry is not a function` (a module-private helper, exported in `1c6b7da`).
+This closes the deferred red/green of the four 2026-10-13 units.
+
+`tests/test_e2e9_sc12_host_probe.py`: 10 (red seen). Runner tests: 60 passed.
+
+No code change. The runner's results stay outside the repository (`e2e8-batch-1.jsonl`, `e2e8-batch-2.jsonl`).
+
 `tests/test_t0035_monitoring_heartbeat.py`: 3 new tests (red seen): the `platform` route, the default when only
 another family has one, and `load_routing` (a file with a `platform` route, no file, an unknown family refused).
 
