@@ -233,6 +233,7 @@
   "incident_class": "container_restart_loop",
   "opened_at": "2026-10-06T15:45:55.575099Z",
   "outcome": "diagnosed",
+  "parent_id": null,
   "principal": "alice",
   "reason": "UI contract sample",
   "request_kind": "report",
