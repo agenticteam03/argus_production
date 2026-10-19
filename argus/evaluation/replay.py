@@ -80,6 +80,9 @@ class CaseMetrics:
     def range(self, *a, **k) -> list:
         return []
 
+    def dependency_probes(self, target) -> dict:
+        return {}
+
 
 class RecordingLLM:
     """Passes every request to the model and keeps its whole text (the hard check looks for planted secrets)."""

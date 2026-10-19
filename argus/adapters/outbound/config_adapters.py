@@ -13,7 +13,7 @@ import httpx
 import yaml
 
 from argus.domain.model import HostInfo, MetricSnapshot, Passage, TargetInfo, TargetRef
-from argus.ports.ports import MetricsUnavailable, StaleMetrics
+from argus.ports.ports import MetricsUnavailable, ProbeSample, StaleMetrics
 
 
 # --- Inventory ----------------------------------------------------------------------------------
@@ -32,12 +32,19 @@ class YamlInventory:
                     raise ValueError(f"inventory target {ref}: mount {m!r} is not a plain absolute path")
             if ref.host not in self._hosts:
                 raise ValueError(f"inventory target {ref} names unknown host {ref.host}")
+            if t.get("profile") not in (None, "scenario"):
+                raise ValueError(f"inventory target {ref}: profile must be 'scenario', not {t['profile']!r}")
+            warn = t.get("link_warning_ms")
+            if warn is not None and (isinstance(warn, bool) or not isinstance(warn, (int, float)) or warn <= 0):
+                raise ValueError(f"inventory target {ref}: link_warning_ms must be a positive number")
             self._targets[ref] = TargetInfo(ref=ref, scope=t.get("scope", "lab"),
                                             depends_on=[TargetRef.parse(d) for d in t.get("depends_on", [])],
                                             http_endpoints=t.get("http_endpoints", []),
                                             tcp_ports=t.get("tcp_ports", []), mounts=t.get("mounts", []),
                                             networks=t.get("networks", []),
-                                            database=(t.get("database") or {}).get("dbname"))
+                                            database=(t.get("database") or {}).get("dbname"),
+                                            profile=t.get("profile"),
+                                            link_warning_ms=None if warn is None else float(warn))
         for info in self._targets.values():
             for d in info.depends_on:
                 if d not in self._targets:
@@ -143,6 +150,36 @@ class PrometheusMetrics:
         if not result:
             return []
         return [(float(t), float(v)) for t, v in result[0]["values"]]
+
+    def dependency_probes(self, target: TargetRef) -> dict[str, ProbeSample]:
+        """ACR-0021: the owner's probes by dependency, from the target exporter's own `argus_probe_success` and
+        `argus_probe_duration_seconds` (catalogue signals), on the target's own host. A sample older than
+        `max_staleness_s` is missing (success None), never 0. An instant query stamps a value with the evaluation time,
+        not the sample's (as `snapshot`): against a real Prometheus `at` is the read time and the age check does not
+        trigger; a stopped exporter still reads as missing through Prometheus' staleness markers (5-minute lookback)."""
+        base, now = self._url(target.host), time.time()
+        found: dict[str, dict[str, tuple[float, float]]] = {}
+        for field, signal in (("success", "dependency_probe_success"), ("duration", "dependency_probe_duration_s")):
+            expr = Template(self.signals[signal]).substitute(host=target.host, name=target.name, mounts="")
+            try:
+                r = httpx.get(f"{base}/api/v1/query", params={"query": expr}, timeout=8)
+                r.raise_for_status()
+            except httpx.HTTPError as e:
+                raise MetricsUnavailable(f"prometheus at {base}: {type(e).__name__}") from e
+            for series in r.json().get("data", {}).get("result", []):
+                dep = (series.get("metric") or {}).get("dependency")
+                if dep:
+                    found.setdefault(dep, {})[field] = (float(series["value"][0]), float(series["value"][1]))
+        out: dict[str, ProbeSample] = {}
+        for dep, parts in found.items():
+            stamps = [ts for ts, _ in parts.values()]
+            at = datetime.fromtimestamp(max(stamps), timezone.utc)
+            fresh = now - max(stamps) <= self.max_staleness_s
+            ok = parts.get("success")
+            took = parts.get("duration")
+            out[dep] = ProbeSample(ok[1] if ok and fresh and now - ok[0] <= self.max_staleness_s else None,
+                                   took[1] if took and now - took[0] <= self.max_staleness_s else None, at)
+        return out
 
 
 # --- Knowledge ---------------------------------------------------------------------------------
