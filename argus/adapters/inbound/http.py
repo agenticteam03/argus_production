@@ -21,6 +21,8 @@ from pwdlib import PasswordHash
 from pydantic import BaseModel, ConfigDict, Field
 
 from argus.application.alerts import HandleAlertNotification
+from argus.application.incident_view import build_verdict
+from argus.detectors.classes import CLASSES
 from argus.domain.model import (AlertNotification, AuditRecord, Incident, IncidentStatus, Principal, RequestKind,
                                 TargetRef, TriggerKind, utcnow)
 from argus.ports.ports import MetricsUnavailable, StaleMetrics
@@ -345,7 +347,14 @@ def build_api(app_ctx) -> FastAPI:
             raise HTTPException(404, "not found")
         view = inc.model_dump(mode="json")
         view["target"] = str(inc.target)
-        if p.role in ("operator", "approver"):
+        operator = p.role in ("operator", "approver")
+        # ACR-0021 (T-0045 B4): the verdict card's fields, derived from the store alone; a viewer's carry no evidence text
+        view.update(build_verdict(
+            inc, next((c for c in CLASSES if c.name == inc.incident_class), None), app_ctx.store.list_evidence(incident_id),
+            [e for a in app_ctx.store.list_for(incident_id) if a.event == "incident.recorded"
+             for e in (a.detail or {}).get("cited") or []],
+            {str(t.ref): [str(d) for d in t.depends_on] for t in app_ctx.inventory.targets()}, operator))
+        if operator:
             view["evidence"] = [{"evidence_id": e.evidence_id, "kind": e.kind, "capability": e.capability,
                                  "target": e.target, "executor": e.executor, "status": e.status,
                                  "caller": e.caller, "collected_at": e.collected_at, "source_time": e.source_time,

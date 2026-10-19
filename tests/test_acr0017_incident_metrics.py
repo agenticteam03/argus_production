@@ -100,7 +100,8 @@ def test_the_series_come_from_the_class_list_and_the_detector_signal_is_fired(ma
     fired = [s["key"] for s in body["series"] if s["fired"]]
     assert fired == ["dependency_probe_min"]
     for s in body["series"]:
-        assert set(s) == {"key", "title", "unit", "max", "fired", "points"}
+        assert set(s) == {"key", "title", "unit", "max", "fired", "points",
+                         "kind", "thresholds", "detector_threshold"}      # + ACR-0021 (T-0045 B2)
 
 
 def test_an_incident_without_a_class_gets_the_host_series_only(make_app):

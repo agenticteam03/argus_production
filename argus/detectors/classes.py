@@ -165,6 +165,7 @@ CLASSES: list[IncidentClassSpec] = [
     # T-0027: a host that lost part of its telemetry is a blind spot before it is anything else (unknown first).
     IncidentClassSpec(name="monitoring_blind_spot", family="platform", target_kinds={"host"},
                       required_signals={"scrape_targets_down"}, runbook_ids=["RB-014"], strategy="evidence_pack",
+                      severity="warning",
                       tool_tags={"host", "container", "logs"}, detector=monitoring_blind_spot),
     IncidentClassSpec(name="cpu_saturation", family="saturation", target_kinds={"container"},
                       required_signals={"container_cpu_throttled_ratio_5m", "container_cpu_quota_used_ratio_5m"},

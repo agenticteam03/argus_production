@@ -58,7 +58,12 @@ on. Anything else can change without notice.
     one incident. The browser chooses only the range; the server picks a fixed list of named signals for the
     incident's class (`config/ui-incident-signals.yaml`), reads them on the incident's host only, and returns at most
     ~130 points per series. `null` is a missing sample (draw a gap, never 0); `fired: true` marks the detector's
-    signal; `max` and `unit` are optional.
+    signal; `max` and `unit` are optional. ACR-0021 adds, all optional for a client: per series `kind` (`memory`,
+    `restarts`, `cpu`, `latency`, `health`, `disk`, `database`, `network`, `other`), `thresholds` (`{warning, critical,
+    direction}` scaled like the values, or `null`) and `detector_threshold` (the line at which Argus opens the
+    incident, on the `fired` series, else `null`); at the top `incident_from` and `incident_to` (`null` while open),
+    `events` (`[{at, kind, label}]`: `restart`, `oom_kill`, `alert_fired`, `alert_resolved`; `deploy` later) and a
+    template `summary` (never a model call).
 12. **System map** (ACR-0017): `GET /api/v1/topology` returns `hosts` (`role`: `argus` or `monitored`), `nodes` (one
     per inventory target; `target` is the exact text incidents use, so the UI marks the root cause and the affected
     target itself; `status` is `running`, `restarting`, `unhealthy`, `stopped` or `unknown`; `info` is a list of
@@ -73,13 +78,13 @@ on. Anything else can change without notice.
 | `POST /api/v1/auth/token` | anyone with a login | a bearer token; form fields `username`, `password`, `scope=read` | [`login.json`](../contracts/samples/login.json) |
 | `GET /api/v1/me` | any token | user, role, `access` (`read`/`full`), `actions` | [`me.json`](../contracts/samples/me.json) |
 | `GET /api/v1/incidents?limit=30` | any role | the latest incidents, newest first | [`incidents.json`](../contracts/samples/incidents.json) |
-| `GET /api/v1/incidents/{id}` | any role; `evidence` and `audit` only for operator/approver | one incident with its diagnosis | [`incident.json`](../contracts/samples/incident.json) |
+| `GET /api/v1/incidents/{id}` | any role; `evidence` and `audit` only for operator/approver | one incident with its diagnosis and, derived from the stored record (never a model call), the verdict card's fields (ACR-0021): `severity` (`critical`, `warning`, `ok`, or `null` while unknown), `summary`, `cause` (`{target, kind, statement, confidence 0.9 / 0.6 / 0.3, confidence_label}` or `null`), `evidence_highlights[]` (up to 3 cited, `{evidence_id, text, stance}`; empty for a viewer), `not_checked[]`, `cause_path[]`, `duration_ms` (`null` while open), `next_actions[]` and `hypotheses[]` (both `[]` for now) | [`incident.json`](../contracts/samples/incident.json) |
 | `GET /api/v1/incidents/{id}/events?after=0` | any role | the run's timeline, one event per node phase; poll with `after=<last seq>` | [`events.json`](../contracts/samples/events.json) |
 | `GET /api/v1/evidence/{id}` | operator, approver | one evidence record with its SHA-256 | [`evidence.json`](../contracts/samples/evidence.json) |
 | `GET /api/v1/escalations` | any role | the escalations Argus raised to humans | [`escalations.json`](../contracts/samples/escalations.json) |
 | `GET /api/v1/targets` | any role | the inventory's targets: `target`, `host`, `kind`, `name` (ACR-0012) | [`targets.json`](../contracts/samples/targets.json) |
 | `GET /api/v1/host-metrics` | any authenticated role | current CPU, memory and root-disk ratios for the inventory's host targets, plus `observed_at` and `available` (proposed ACR-0014); per host the gauges' `thresholds` (`cpu_busy_ratio`, `memory_used_ratio`, `disk_used_ratio`, each `{warning, critical, direction}`) and the monitoring heartbeat's `heartbeat_age_s` and `heartbeat_stale` (both `null` when no heartbeat is recorded; stale = older than 150 s) (ACR-0021, T-0045 B1) | [`host-metrics.json`](../contracts/samples/host-metrics.json) |
-| `GET /api/v1/incidents/{id}/metrics?range=30m` | any authenticated role | `incident_id`, `range`, `from`, `to`, `step_s`, `series[]` of `{key, title, unit, max, fired, points: [[time, value or null]]}` (ACR-0017) | [`incident-metrics.json`](../contracts/samples/incident-metrics.json) |
+| `GET /api/v1/incidents/{id}/metrics?range=30m` | any authenticated role | `incident_id`, `range`, `from`, `to`, `step_s`, `series[]` of `{key, title, unit, max, fired, kind, thresholds, detector_threshold, points: [[time, value or null]]}`, `incident_from`, `incident_to`, `events[]`, `summary` (ACR-0017, ACR-0021) | [`incident-metrics.json`](../contracts/samples/incident-metrics.json) |
 | `GET /api/v1/topology[?incident_id=<id>]` | any authenticated role; the `incident_id` overlay for operator/approver | `observed_at`, `hosts[]`, `nodes[]`, `edges[]` (and `incident_id` with the overlay) (ACR-0017) | [`topology.json`](../contracts/samples/topology.json), [`topology-incident.json`](../contracts/samples/topology-incident.json) |
 | `POST /api/v1/investigations` | operator, approver; full or **investigate** token | `incident_id`, `status`, `duplicate` (202); quotas for an investigate token (ACR-0012) | [`investigation.json`](../contracts/samples/investigation.json) |
 
