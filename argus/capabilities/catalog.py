@@ -143,10 +143,41 @@ def container_resources(args: NoArgs, target: TargetRef, info, client) -> Capabi
                                    "cpu_percent": "percent of one CPU"})
 
 
+# ACR-0023: the gateway's named patterns a log read scans beyond its tail (`restart` left out: ordinary lifecycle lines)
+LOG_SCAN = ("error", "timeout", "refused", "oom", "disk_full", "auth")
+LOG_SCAN_LINES = 6
+
+
+def _log_matches(target: TargetRef, tail: set[str], client) -> tuple[dict[str, int], list[str]]:
+    """The window's lines (30 min, at most 500) that match a named pattern and are NOT in the tail: counts per pattern
+    and the last few lines, deduplicated. A failed or unexpected search adds nothing (the tail still answers)."""
+    counts, found = {}, []
+    for pattern in LOG_SCAN:
+        try:
+            d = client.get(f"/containers/{target.name}/search", {"pattern": pattern, "minutes": 30})
+        except ExecutorError:
+            continue
+        if not isinstance(d, dict) or not isinstance(d.get("lines"), list):
+            continue
+        outside = [str(x) for x in d["lines"] if str(x) not in tail]
+        if outside:
+            counts[pattern] = len(outside)
+            found += [x for x in outside[-2:] if x not in found]
+    return counts, found[-LOG_SCAN_LINES:]
+
+
 def container_logs(args: LogsArgs, target: TargetRef, info, client) -> CapabilityResult:
     d = client.get(f"/containers/{target.name}/logs", {"tail": args.tail})
     lines = d.get("lines", [])
-    return CapabilityResult(values=d, model_text=f"{target}: last {len(lines)} log lines",
+    text = f"{target}: last {len(lines)} log lines"
+    counts, found = _log_matches(target, {str(x) for x in lines}, client)
+    if counts:
+        # in the text, not only the values: the model sees the values of the last few reads only, cut to a length
+        text += ("; earlier in the last 30 min, not in these lines: "
+                 + ", ".join(f"{p}×{n}" for p, n in counts.items()) + ": "
+                 + " | ".join(repr(x[:200]) for x in found))
+        d = {"earlier_matches": {"counts": counts, "lines": found}, **d}
+    return CapabilityResult(values=d, model_text=text,
                             source_time=_ts(d.get("collected_at")), partial=bool(d.get("truncated")),
                             coverage=f"last {args.tail} lines requested")
 

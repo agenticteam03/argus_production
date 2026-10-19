@@ -106,6 +106,7 @@ jobs:
     permissions:
       contents: read
       pull-requests: read
+      checks: read            # a self-merge is valid only with green CI: verify-main reads the commit's check runs
     steps:
       - uses: actions/checkout@v4
         with:

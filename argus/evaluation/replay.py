@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import dataclasses
 import os
+import re
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -17,6 +18,18 @@ from argus.ports.ports import StaleMetrics
 from argus.tooling.executors import ExecutorRegistry
 
 EXECUTORS = ("docker_read", "host_probe", "network_probe", "db_probe", "prometheus")
+
+# The target service's named log patterns (services/target/service.py, not in the agent image); a test keeps them equal.
+LOG_PATTERNS = {
+    "error": re.compile(r"(?i)(error|exception)s?\b|\b(traceback|fatal|panic)\b"),
+    "timeout": re.compile(r"(?i)\b(timed? ?out|timeout|deadline exceeded)\b"),
+    "refused": re.compile(r"(?i)\b(connection refused|refused|unreachable|no route to host)\b"),
+    "oom": re.compile(r"(?i)\b(out of memory|oom|cannot allocate memory|memoryerror)\b"),
+    "disk_full": re.compile(r"(?i)\b(no space left on device|disk full|enospc)\b"),
+    "auth": re.compile(r"(?i)\b(unauthori[sz]ed|forbidden|authentication failed|permission denied)\b"),
+    "restart": re.compile(r"(?i)\b(starting|started|shutting down|shutdown|terminated|sigterm|exiting)\b"),
+}
+LOG_ROUTES = ("logs", "logs_window", "search")
 
 
 @dataclass
@@ -40,7 +53,8 @@ class CaseRun:
 
 class FixtureExecutor:
     """Answers a read from the case: `fixtures["path?k=v"]` (its parameters, sorted), else `fixtures[path]`, else
-    `fixtures["*"]`; `{error: <category>}` fails the read, as the target service would."""
+    `fixtures["*"]`; `{error: <category>}` fails the read, as the target service would. A container's long log,
+    `/containers/<name>/log` {lines}, answers its `logs`, `logs_window` and `search` routes as the gateway does."""
 
     def __init__(self, answers: dict[str, Any]):
         self.answers = answers
@@ -51,19 +65,73 @@ class FixtureExecutor:
             answer = self.answers[keyed]
         elif path in self.answers:
             answer = self.answers[path]
+        elif self._derived(path, params or {}) is not None:
+            answer = self._derived(path, params or {})
         elif "*" in self.answers:
             answer = self.answers["*"]
         else:
             raise ExecutorError("not_found", f"{path}: not found")       # as a target service says it
         if isinstance(answer, dict) and set(answer) == {"error"}:
             raise ExecutorError(str(answer["error"]), f"{path}: {answer['error']}")
+        if isinstance(answer, dict) and answer.get("collected_at"):
+            # EVAL-offers: collected now, as the snapshot and the histories (a fixed fixture date read as a week-old
+            # sample beside them); the case's own answer is not changed
+            answer = {**answer, "collected_at": utcnow().isoformat()}
         return answer
 
-    def range(self, signal: str, target: TargetRef, minutes: int, step_s: int, **params) -> list[tuple[float, float]]:
+    def _derived(self, path: str, params: dict) -> dict | None:
+        return self._connectivity(params) if path == "/connectivity" else self._from_log(path, params)
+
+    def _connectivity(self, params: dict) -> dict | None:
+        """EVAL-offers: `/connectivity` from the two containers' status fixtures, as the gateway builds it from their
+        inspect (Docker's `Running` is true while running, restarting or paused); a side without status: None."""
+        sides = {}
+        for role in ("from", "to"):
+            name = str(params.get(role) or "")
+            st = self.answers.get(f"/containers/{name}/status")
+            if not name or not isinstance(st, dict):
+                return None
+            sides[role] = {"name": name, "running": str(st.get("state")) in ("running", "restarting", "paused"),
+                           "networks": sorted(st.get("networks") or [])}
+        return {**sides, "shared": sorted(set(sides["from"]["networks"]) & set(sides["to"]["networks"])),
+                "collected_at": None}
+
+    def _from_log(self, path: str, params: dict) -> dict | None:
+        """EVAL-offers: the gateway's log routes over the case's long log (`_window_logs` keeps at most 500 lines)."""
+        base, _, route = path.rpartition("/")
+        log = self.answers.get(base + "/log") if route in LOG_ROUTES else None
+        if not isinstance(log, dict):
+            return None
+        lines = [str(x) for x in log.get("lines") or []]
+        window, cut = lines[-500:], len(lines) > 500
+        if route == "logs":
+            tail = max(1, min(200, int(params.get("tail", 50))))
+            return {"lines": lines[-tail:], "truncated": False, "collected_at": None}
+        minutes = int(params.get("minutes", 30))
+        if route == "logs_window":
+            return {"lines": window, "minutes": minutes, "stream": params.get("stream", "both"), "truncated": cut,
+                    "collected_at": None}
+        pattern = LOG_PATTERNS.get(str(params.get("pattern")))
+        if pattern is None:
+            return None
+        hits = [ln for ln in window if pattern.search(ln)]
+        return {"pattern": params["pattern"], "matched": len(hits), "lines": hits[-50:], "minutes": minutes,
+                "truncated": cut or len(hits) > 50, "collected_at": None}
+
+    def range(self, signal: str, target: TargetRef, minutes: int, step_s: int, end_offset_s: int = 0,
+              **params) -> list[tuple[float, float]]:
         """Metric history (the prometheus executor): `fixtures.prometheus.range.<signal>` as [seconds before now,
-        value] pairs, cut to the window asked; none = no samples (the capability answers NO DATA, unknown)."""
+        value] pairs, cut to the window asked; none = no samples (the capability answers NO DATA, unknown). A window
+        ending `end_offset_s` ago (T-0038) reads `range_earlier.<offset>.<signal>`, [seconds before that end, value];
+        never the current series (EVAL-offers: "now" and "earlier" were the same points)."""
         now = time.time()
-        points = (self.answers.get("range") or {}).get(signal) or []
+        if end_offset_s:
+            earlier = (self.answers.get("range_earlier") or {})
+            series = earlier.get(int(end_offset_s)) or earlier.get(str(int(end_offset_s))) or {}
+            points = series.get(signal) or []
+            now -= int(end_offset_s)
+        else:
+            points = (self.answers.get("range") or {}).get(signal) or []
         return [(now + float(dt), float(v)) for dt, v in points if -float(dt) <= minutes * 60]
 
 
@@ -79,6 +147,9 @@ class CaseMetrics:
 
     def range(self, *a, **k) -> list:
         return []
+
+    def dependency_probes(self, target) -> dict:
+        return {}
 
 
 class RecordingLLM:

@@ -106,6 +106,7 @@ class Incident(BaseModel):
     findings: list[str] = []
     opened_at: datetime
     closed_at: datetime | None = None
+    parent_id: str | None = None          # ACR-0021 (T-0045 B5): the incident this one re-checks; never changes
 
 
 # ---------------------------------------------------------------------------------------------
@@ -268,6 +269,8 @@ class TargetInfo(BaseModel):
     mounts: list[str] = []
     networks: list[str] = []             # E2E-2: the networks a container is assigned to (inventory `networks`)
     database: str | None = None          # dbname read by the db-probe (inventory `database`)
+    profile: str | None = None           # ACR-0021: "scenario" = a lab container that only runs during a scenario
+    link_warning_ms: float | None = None  # ACR-0021: a dependency answer slower than this is `slow` (default 100 ms)
 
 
 # ---------------------------------------------------------------------------------------------

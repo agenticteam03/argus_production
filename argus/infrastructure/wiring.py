@@ -358,4 +358,4 @@ def build(settings: Settings | None = None, llm=None, metrics=None, executors: E
     return App(settings=s, store=store, inventory=inventory, policy=policy, runner=runner, catalogue=catalogue,
                metrics=metrics, jwt_key=jwt_key, alertmanager_token=s.secret("alertmanager_token"), llm_configured=llm_configured,
                incident_metrics=IncidentMetrics(metrics, ui_signals, store=store, thresholds=thresholds),
-               topology=Topology(inventory, metrics, store, s.home_host), thresholds=thresholds)
+               topology=Topology(inventory, metrics, store, s.home_host, thresholds=thresholds), thresholds=thresholds)
