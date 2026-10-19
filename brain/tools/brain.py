@@ -691,10 +691,35 @@ def self_merge_problem(pr: dict, checks: list[dict], files: list[str], comments:
     return None
 
 
-def check_main(commits: list[tuple[str, int]], pr_for, reviews_for, allowed: set[int], self_merge=None) -> list[str]:
+def git_ok(*args: str) -> bool:
+    return subprocess.run(["git", *args], capture_output=True).returncode == 0
+
+
+def only_main_merged_since(approved: str, head: str, main: str) -> bool:
+    """REVIEW_PROTOCOL.md, "An update that only brings in main": True when every commit after `approved` up to `head`
+    that is not on `main` (main before the pull request merged) is a merge with main that git made without a conflict
+    (its tree is git's automatic merge of its two parents), so the author's code is still the approved code."""
+    if approved == head:
+        return True
+    if not git_ok("merge-base", "--is-ancestor", approved, head):
+        return False                                   # the approved commit is unknown or no longer in the branch
+    for c in git("rev-list", head, f"^{approved}", f"^{main}").splitlines():
+        parents = git("rev-list", "--parents", "-n", "1", c).split()[1:]
+        if len(parents) != 2 or not any(git_ok("merge-base", "--is-ancestor", p, main) for p in parents):
+            return False                               # a commit of the author's, or a merge of something but main
+        p = subprocess.run(["git", "merge-tree", "--write-tree", *parents], capture_output=True)
+        if p.returncode != 0 or p.stdout.decode("utf-8", "replace").split()[:1] != [git("rev-parse", f"{c}^{{tree}}")]:
+            return False                               # a conflict resolved by hand, or an edit inside the merge
+    return True
+
+
+def check_main(commits: list[tuple[str, int]], pr_for, reviews_for, allowed: set[int], self_merge=None,
+               keeps_approval=None) -> list[str]:
     """commits: (sha, number of parents) along main's first-parent line. pr_for(sha) -> PR dict or None;
     reviews_for(n) -> review dicts; self_merge(pr, sha, parents) -> None when the PR meets the self-merge conditions,
-    else why not (without self_merge only approvals count). Returns the violations (empty = rule kept)."""
+    else why not (without self_merge only approvals count); keeps_approval(approved_sha, pr, sha) -> True when only
+    main was merged into the branch after that approval (without it only an approval of the last push counts).
+    Returns the violations (empty = rule kept)."""
     problems = []
     for sha, parents in commits:
         if parents == 0:
@@ -706,10 +731,12 @@ def check_main(commits: list[tuple[str, int]], pr_for, reviews_for, allowed: set
         n, author, head = pr["number"], pr["user"]["login"], pr["head"]["sha"]
         if n in allowed:
             continue
-        ok = any(r.get("state") == "APPROVED" and r["user"]["login"] != author and r.get("commit_id") == head
-                 for r in reviews_for(n))
-        if ok:
+        approvals = [r.get("commit_id") for r in reviews_for(n)
+                     if r.get("state") == "APPROVED" and r["user"]["login"] != author]
+        if head in approvals:
             continue
+        if keeps_approval and any(c and keeps_approval(c, pr, sha) for c in approvals):
+            continue                                   # only main merged in since the approval (REVIEW_PROTOCOL.md)
         why = self_merge(pr, sha, parents) if self_merge else "no self-merge check"
         if why is not None:
             problems.append(f"{sha[:7]}: PR #{n} by {author} merged without an approval of its last push by "
@@ -751,8 +778,11 @@ def verify_main(ref: str) -> list[str]:
         return self_merge_problem(pr, checks, files, comments, up_to_date=up_to_date, merge_commit=merge_commit,
                                   branch_kept=branch_kept)
 
+    def keeps_approval(approved, pr, sha):
+        return only_main_merged_since(approved, pr["head"]["sha"], git("rev-parse", f"{sha}^1"))
+
     return check_main(commits, pr_for, lambda n: gh_json(f"repos/{{owner}}/{{repo}}/pulls/{n}/reviews"),
-                      read_exceptions(repo_root()), self_merge)
+                      read_exceptions(repo_root()), self_merge, keeps_approval)
 
 
 def cmd_verify_main(args) -> int:
