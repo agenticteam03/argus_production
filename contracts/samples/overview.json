@@ -1,0 +1,84 @@
+{
+  "fleet": {
+    "degraded": 0,
+    "failed": 1,
+    "healthy": 3,
+    "idle": 7,
+    "unknown": 4
+  },
+  "hosts": [
+    {
+      "available": true,
+      "heartbeat_age_s": null,
+      "heartbeat_stale": null,
+      "host": "vm-095",
+      "observed_at": "2026-10-19T16:54:25.196875+00:00",
+      "target": "vm-095/host:vm-095",
+      "thresholds": {
+        "cpu_busy_ratio": {
+          "critical": 0.9,
+          "direction": "above",
+          "warning": 0.75
+        },
+        "disk_used_ratio": {
+          "critical": 0.9,
+          "direction": "above",
+          "warning": 0.75
+        },
+        "memory_used_ratio": {
+          "critical": 0.9,
+          "direction": "above",
+          "warning": 0.75
+        }
+      },
+      "values": {
+        "cpu_busy_ratio": 0.25,
+        "disk_used_ratio": 0.7,
+        "memory_used_ratio": 0.6
+      }
+    },
+    {
+      "available": true,
+      "heartbeat_age_s": null,
+      "heartbeat_stale": null,
+      "host": "vm-166",
+      "observed_at": "2026-10-19T16:54:25.196875+00:00",
+      "target": "vm-166/host:vm-166",
+      "thresholds": {
+        "cpu_busy_ratio": {
+          "critical": 0.9,
+          "direction": "above",
+          "warning": 0.75
+        },
+        "disk_used_ratio": {
+          "critical": 0.9,
+          "direction": "above",
+          "warning": 0.75
+        },
+        "memory_used_ratio": {
+          "critical": 0.9,
+          "direction": "above",
+          "warning": 0.75
+        }
+      },
+      "values": {
+        "cpu_busy_ratio": 0.8,
+        "disk_used_ratio": 0.9,
+        "memory_used_ratio": 0.6
+      }
+    }
+  ],
+  "last_closed_at": "2026-10-19T16:54:25.082741+00:00",
+  "latest_open": [],
+  "links": {
+    "ok": 0,
+    "total": 5
+  },
+  "observed_at": "2026-10-19T16:54:25.219354+00:00",
+  "open_incidents": {
+    "critical": 0,
+    "info": 0,
+    "warning": 0
+  },
+  "status": "ok"
+}

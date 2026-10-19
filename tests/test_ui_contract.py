@@ -28,7 +28,8 @@ UI_ROUTES = [("post", "/api/v1/auth/token"), ("get", "/api/v1/me"), ("get", "/ap
              ("get", "/api/v1/evidence/{evidence_id}"), ("get", "/api/v1/escalations"),
              ("post", "/api/v1/investigations"), ("get", "/api/v1/targets"),
              ("get", "/api/v1/host-metrics"), ("get", "/api/v1/incidents/{incident_id}/metrics"),
-             ("get", "/api/v1/topology"), ("get", "/api/v1/target-metrics")]
+             ("get", "/api/v1/topology"), ("get", "/api/v1/target-metrics"),
+             ("get", "/api/v1/overview")]
 PASSWORD = "a-long-password"
 SC03 = "vm-166/container:argus-lab-worker"          # OOM restart loop, diagnosed
 UNSUPPORTED = "vm-095/container:argus-lab-worker"   # healthy metrics + report -> unsupported, escalated
@@ -118,7 +119,8 @@ def scripted_run(make_app) -> dict[str, object]:
            "topology": api.get("/api/v1/topology", headers=read).json(),
            "topology-incident": api.get("/api/v1/topology", params={"incident_id": inc}, headers=read).json(),
            "target-metrics": api.get("/api/v1/target-metrics", params={"target": SC03, "range": "15m"},   # ACR-0021
-                                     headers=read).json()}
+                                     headers=read).json(),
+           "overview": api.get("/api/v1/overview", headers=read).json()}                     # ACR-0021
     # ACR-0012: what the UI does with an investigate token (after the others, so they keep their content)
     inv = api.post("/api/v1/auth/token", data={"username": "alice", "password": PASSWORD, "scope": "investigate"})
     out["investigation"] = api.post("/api/v1/investigations", json={"target": SC03, "reason": "from the UI",
