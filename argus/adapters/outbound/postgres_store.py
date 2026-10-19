@@ -314,6 +314,8 @@ CHECKS_SQL: list[tuple[str, str, bool]] = [
     ("DELETE audit refused", "DELETE FROM audit WHERE audit_id = 'aud_dbcheck'", False),
     ("DELETE incident refused", "DELETE FROM incident WHERE id = 'inc_dbcheck'", False),
     ("closed incident cannot reopen", "UPDATE incident SET status = 'queued' WHERE id = 'inc_dbcheck'", False),
+    # without migration 007 the two refusals below would "pass" on a missing column: this read proves it is there
+    ("re-check lineage column present (migration 007)", "SELECT parent_id FROM incident LIMIT 0", True),
     ("re-check of a missing incident refused (ACR-0021)", "INSERT INTO incident (id, target, status, opened_at, body, "
                                                          "parent_id) VALUES ('inc_dbcheck2', 'vm-095/container:dbcheck',"
                                                          " 'queued', now(), '{}', 'inc_nosuch')", False),

@@ -56,7 +56,9 @@ class SqliteStore:
         self._db = sqlite3.connect(path, check_same_thread=False, isolation_level=None)
         self._db.executescript(SCHEMA)
         cols = {r[1] for r in self._db.execute("PRAGMA table_info(incident)")}
-        for col in ("claimed_by", "claimed_until", "parent_id"):  # T-0014, ACR-0021 B5: files created before them
+        # T-0014, ACR-0021 B5: files created before them. SQLite enforces no foreign key here (no `PRAGMA foreign_keys`,
+        # and an added column has no REFERENCES): a re-check's parent is checked by the API only (Postgres: 007's key)
+        for col in ("claimed_by", "claimed_until", "parent_id"):
             if col not in cols:
                 self._db.execute(f"ALTER TABLE incident ADD COLUMN {col} TEXT")
         self._db.execute("CREATE INDEX IF NOT EXISTS incident_parent ON incident(parent_id, opened_at)")
