@@ -1,7 +1,7 @@
 # Argus — Production Architecture Specification
 
 **Document type:** consolidated target architecture and implementation blueprint ·
-**Version:** 1.8.16 (2026-10-18, ACR-0013 and ACR-0016 Langfuse Cloud tracing; 1.8.15 2026-10-16, ACR-0017 topology; 1.8.14 2026-10-16, ACR-0017 incident metrics; 1.8.12 2026-10-14, ACR-0014; 1.8.11 2026-10-14, ACR-0012; 1.8.10 2026-10-14, ACR-0011; 1.8.8 2026-10-12, ACR-0009; 1.8.7 2026-10-12, ACR-0008; 1.8.6 2026-10-11, ACR-0007; 1.8.5 2026-10-09, ACR-0005; 1.8.4 2026-10-09, ACR-0004; 1.8.3 2026-10-08, ACR-0003; 1.8.2 2026-10-09, ACR-0002; 1.8.1 2026-10-06, ACR-0001; base 1.8.0 of 30 September 2026, sanitized for the shared repository 2026-10-02) · **Audience:** engineers and AI coding agents implementing
+**Version:** 1.8.17 (2026-10-19, ACR-0023 log pattern matches; 1.8.16 2026-10-18, ACR-0013 and ACR-0016 Langfuse Cloud tracing; 1.8.15 2026-10-16, ACR-0017 topology; 1.8.14 2026-10-16, ACR-0017 incident metrics; 1.8.12 2026-10-14, ACR-0014; 1.8.11 2026-10-14, ACR-0012; 1.8.10 2026-10-14, ACR-0011; 1.8.8 2026-10-12, ACR-0009; 1.8.7 2026-10-12, ACR-0008; 1.8.6 2026-10-11, ACR-0007; 1.8.5 2026-10-09, ACR-0005; 1.8.4 2026-10-09, ACR-0004; 1.8.3 2026-10-08, ACR-0003; 1.8.2 2026-10-09, ACR-0002; 1.8.1 2026-10-06, ACR-0001; base 1.8.0 of 30 September 2026, sanitized for the shared repository 2026-10-02) · **Audience:** engineers and AI coding agents implementing
 Argus from an empty repository.
 
 
@@ -1702,7 +1702,7 @@ the rollout (`MAX_TOOL_LEVEL`, §13.1).
 | `get_container_list` | `container.list` | `docker_read` | in-scope containers only |
 | `get_container_status` | `container.status` | `docker_read` | state, exit code, OOMKilled, restart count, health; redacted inspect |
 | `get_container_resources` | `container.resources` | `docker_read` | `stats?stream=false`; usage vs limits |
-| `get_container_logs` | `container.logs` | `docker_read` | tail-bounded, redacted |
+| `get_container_logs` | `container.logs` | `docker_read` | tail-bounded, redacted; plus the lines of the last 30 min (at most the gateway's 500) that match a named failure pattern (`error`, `timeout`, `refused`, `oom`, `disk_full`, `auth`) and are not in the tail: counts per pattern and the last 6 lines (ACR-0023) |
 | `check_container_health` | `container.health` | `docker_read` | Docker health-check state and last results |
 | `get_container_restart_count` | `container.restart_count` | `docker_read` | |
 | `get_host_cpu` | `host.cpu` | `host_probe` | |
@@ -2955,3 +2955,4 @@ erDiagram
 | 1.8.14 | 2026-10-16 | `GET /api/v1/incidents/{id}/metrics`: an incident's metric window for the UI's charts, any authenticated role, through the public edge; `range` 15m/30m/1h; a fixed signal list per class (`config/ui-incident-signals.yaml`); the incident's host only; ≤ ~130 points per series; missing is null; `MetricsPort.range` gains an optional `end` (§7.1, §8.1). The topology route of the same ACR follows in its own version | [ACR-0017](changes/ACR-0017-ui-topology-and-incident-metrics.md) |
 | 1.8.15 | 2026-10-16 | `GET /api/v1/topology`: the system map for any authenticated role, through the public edge: inventory targets, declared dependencies with their ports and networks, live state from named signals and the dependency probe; an `incident_id` overlay (operator/approver) from the incident's stored status evidence; never VM addresses, Argus's internal endpoints or secrets; `ARGUS_HOME_HOST` (§7.1) | [ACR-0017](changes/ACR-0017-ui-topology-and-incident-metrics.md) |
 | 1.8.16 | 2026-10-18 | the worker exports filtered OTLP spans to Langfuse Cloud (EU) through `ARGUS_TRACING_ENDPOINT`, with the Langfuse key pair in worker-only files; the self-hosted stack stays as the alternative for a host with headroom; telemetry never replaces audit (§3.3, §17.2, §18.5) | [ACR-0013](changes/ACR-0013-langfuse-agent-observability.md), [ACR-0016](changes/ACR-0016-langfuse-cloud.md) |
+| 1.8.17 | 2026-10-19 | `container.logs` also brings the last 30 min's lines that match a named failure pattern and are not in its tail (counts and the last 6 lines), through the gateway's existing `search` route (§12.2) | [ACR-0023](changes/ACR-0023-log-read-pattern-matches.md) |

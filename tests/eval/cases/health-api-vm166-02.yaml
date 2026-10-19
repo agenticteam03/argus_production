@@ -206,6 +206,12 @@ fixtures:
     /tcp?host=argus-lab-cache&port=8080:
       ok: true
       duration_ms: 2
+    # EVAL-offers: the allowlisted health URL answers as the case's own health check says (the '*' answer
+    # said 200, which contradicted it)
+    /http?url=http://argus-lab-api:8080/health:
+      status: null
+      error: timed out
+      duration_ms: 5000
     '*':
       ok: true
       addresses:

@@ -223,7 +223,8 @@ def _ids(*categories: str) -> list[str]:
 # failing health check even when nothing says why. These two cases show it; the model is measured against both.
 # disk-filler-stopped-with-history: the baseline names only a RUNNING writer; a stopped one whose logs show it filled
 # the mount is still the cause (the model must read that history), so the baseline escalates there
-BASELINE_MISSES = {"restart-exit0-job-01", "ambiguous-health-no-cause", "disk-filler-stopped-with-history"}
+BASELINE_MISSES = {"restart-exit0-job-01", "ambiguous-health-no-cause", "disk-filler-stopped-with-history",
+                   "ambiguous-health-no-cause-longlog"}     # EVAL-offers: its long-log twin, the same story
 
 
 @pytest.mark.parametrize("cid", sorted(BASELINE_MISSES))
@@ -353,6 +354,94 @@ def test_a_fixture_can_answer_per_parameter_before_the_plain_path(ev):
     assert fx.get("/dns", {"name": "argus-lab-backend"})["ok"] is False
     assert fx.get("/dns", {"name": "argus-lab-cache"})["ok"] is True
     assert fx.get("/tcp", {"host": "x", "port": 1}) == {"ok": True}
+
+
+def test_an_earlier_window_is_answered_from_its_own_fixture_never_from_the_current_one(ev):
+    """EVAL-offers: `compare_incident_baseline` asks the same signal for a window ending `end_offset_s` ago. The replay
+    answered the current series for it, so "now" and "24 h earlier" were always equal. An earlier window comes from
+    `range_earlier.<offset seconds>.<signal>`; none = no samples (NO DATA, unknown)."""
+    from argus.domain.model import TargetRef
+    from argus.evaluation.replay import FixtureExecutor
+    t = TargetRef.parse("vm-166/container:argus-lab-api")
+    fx = FixtureExecutor({"range": {"container_cpu_cores": [[-60, 0.25], [0, 0.25]]},
+                          "range_earlier": {86400: {"container_cpu_cores": [[-60, 0.05], [0, 0.05]]}}})
+    assert [v for _, v in fx.range("container_cpu_cores", t, 30, 60)] == [0.25, 0.25]
+    assert [v for _, v in fx.range("container_cpu_cores", t, 30, 60, end_offset_s=86400)] == [0.05, 0.05]
+    assert fx.range("container_cpu_cores", t, 30, 60, end_offset_s=3600) == []
+    assert fx.range("container_memory_bytes", t, 30, 60, end_offset_s=86400) == []
+
+
+def test_a_fixture_read_is_stamped_now_like_every_other_read_of_the_run(ev):
+    """EVAL-offers: 48 fixture answers carry `collected_at: 2026-10-12T06:00`, while the snapshot and the histories are
+    stamped at run time; the model saw a week between two reads of one incident and escalated on the "mismatch"
+    (E1, cpu-api-bound t5). A read answered by the replay is collected now; an answer without a time stays without."""
+    from datetime import datetime, timedelta, timezone
+    from argus.evaluation.replay import FixtureExecutor
+    fx = FixtureExecutor({"/cpu": {"cpu_busy_percent": 12, "collected_at": "2026-10-12T06:00:00+00:00"},
+                          "/load": {"load1": 0.2, "collected_at": None}})
+    got = datetime.fromisoformat(fx.get("/cpu")["collected_at"])
+    assert abs(got - datetime.now(timezone.utc)) < timedelta(seconds=5)
+    assert fx.get("/load")["collected_at"] is None
+    assert fx.answers["/cpu"]["collected_at"] == "2026-10-12T06:00:00+00:00"     # the case itself is not changed
+
+
+def test_connectivity_comes_from_the_two_status_fixtures_when_the_case_does_not_answer_it(ev):
+    """EVAL-offers (E3): `trace_request_path` reads `network.connectivity`; the health cases have both containers'
+    status (with their networks) but no `/connectivity` answer, so the read failed and the model was told the hop was
+    "not ok". The gateway builds the answer from the two containers' inspect; the replay builds it from the two status
+    fixtures (Docker's `Running` is true while running, restarting or paused). An explicit answer still wins."""
+    from argus.evaluation.replay import FixtureExecutor
+    st = lambda state, nets: {"state": state, "networks": nets, "collected_at": None}
+    fx = FixtureExecutor({"/containers/api/status": st("running", ["app"]),
+                          "/containers/cache/status": st("running", ["app", "db"]),
+                          "/containers/job/status": st("exited", ["other"])})
+    got = fx.get("/connectivity", {"from": "api", "to": "cache"})
+    assert got["from"] == {"name": "api", "running": True, "networks": ["app"]}
+    assert got["to"] == {"name": "cache", "running": True, "networks": ["app", "db"]} and got["shared"] == ["app"]
+    gone = fx.get("/connectivity", {"from": "api", "to": "job"})
+    assert gone["to"]["running"] is False and gone["shared"] == []
+    with pytest.raises(Exception):
+        fx.get("/connectivity", {"from": "api", "to": "nobody"})         # no status for one side: not found, as before
+    own = FixtureExecutor({"/connectivity?from=api&to=cache": {"shared": []},
+                           "/containers/api/status": st("running", ["app"]),
+                           "/containers/cache/status": st("running", ["app"])})
+    assert own.get("/connectivity", {"from": "api", "to": "cache"}) == {"shared": []}
+
+
+def test_a_case_log_answers_the_tail_the_window_and_the_search_like_the_gateway(ev):
+    """EVAL-offers: a case's logs were 2-3 lines, so the tail returned them all and a log search could not be measured.
+    A long log is one fixture, `/containers/<name>/log` {lines}; the replay answers `logs` (the last `tail` lines),
+    `logs_window` (at most the last 500) and `search` (the gateway's named patterns, the last 50 hits) from it, unless
+    the case answers that route itself."""
+    from argus.evaluation.replay import FixtureExecutor
+    lines = [f"GET /items 200 {i}ms" for i in range(300)]
+    lines[100] = "KeyError: 'FEATURE_FLAGS' in settings.load()"
+    fx = FixtureExecutor({"/containers/api/log": {"lines": lines},
+                          "/containers/api/health": {"status": "unhealthy"}})
+    tail = fx.get("/containers/api/logs", {"tail": 50})
+    assert tail["lines"] == lines[-50:] and not any("KeyError" in x for x in tail["lines"])
+    hit = fx.get("/containers/api/search", {"pattern": "error", "minutes": 30})
+    assert hit["matched"] == 1 and hit["lines"] == [lines[100]] and hit["pattern"] == "error"
+    assert fx.get("/containers/api/search", {"pattern": "oom", "minutes": 30})["matched"] == 0
+    assert len(fx.get("/containers/api/logs_window", {"minutes": 30, "stream": "both"})["lines"]) == 300
+    assert fx.get("/containers/api/health") == {"status": "unhealthy"}
+    with pytest.raises(Exception):
+        fx.get("/containers/other/logs", {"tail": 50})          # another container's log is never this one's
+
+
+def test_the_replay_searches_with_the_gateways_own_patterns(ev, tmp_path, monkeypatch):
+    """The replay's copy of the named patterns is the target service's (`services/target/service.py`), which the agent
+    image does not ship: a pattern changed in one place and not the other turns this red."""
+    import importlib.util
+    from argus.evaluation.replay import LOG_PATTERNS
+    cfg = tmp_path / "target.json"
+    cfg.write_bytes(b'{"host":"vm-166","containers":["argus-lab-api"]}')
+    monkeypatch.setenv("ROLE", "docker_read")
+    monkeypatch.setenv("TA_CONFIG", str(cfg))
+    spec = importlib.util.spec_from_file_location("target_eval", ROOT / "services/target/service.py")
+    svc = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(svc)
+    assert {k: p.pattern for k, p in LOG_PATTERNS.items()} == {k: p.pattern for k, p in svc.LOG_PATTERNS.items()}
 
 
 def test_an_unscripted_read_never_tells_the_model_it_is_a_test(ev):
