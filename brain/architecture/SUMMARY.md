@@ -48,4 +48,4 @@ These are recorded here so nobody "fixes" one side silently. Each will be resolv
 | Tools process (§12) | stdio MCP tools child under UID `argus-tools` | direct in-process provider | plan Phase 4 |
 | api / worker / scheduler | separate processes | one agent container, no scheduler; interrupted runs are not resumed automatically yet | plan Phase 9 (next: T-0014) |
 | Runbooks (§2.4) | reviewed copy in the code repository (`argus/runbooks/`) | **resolved by D-002 (2026-10-02):** in `argus/runbooks/`; the VM still mounts the old copy until the next agent redeploy | — |
-| UI insights (§7.1 UI routes) | ACR-0017's fields only | ACR-0021 (`accepted`) fields built ahead of the text: host-metrics `thresholds` and heartbeat age (B1, #173, #177); more with B2 to B4 | ACR-0021 is applied to `ARCHITECTURE.md` in one pull request once B4 has merged (T-0045) |
+| UI insights (§7.1 UI routes) | ACR-0017's fields only | **resolved (2026-10-19):** ACR-0021 as built through B5 is applied in ARCHITECTURE 1.8.18; B6 and B7 apply their own parts | — |
