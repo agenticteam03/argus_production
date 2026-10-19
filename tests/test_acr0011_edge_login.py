@@ -131,7 +131,7 @@ def test_the_incident_list_limit_is_capped_server_side(ui, monkeypatch):
     app, _, client = ui
     token = login(client, scope="read").json()["access_token"]
     asked = []
-    monkeypatch.setattr(app.store, "list_incidents", lambda limit: asked.append(limit) or [])
+    monkeypatch.setattr(app.store, "list_incidents", lambda limit, parent_id=None: asked.append(limit) or [])
     client.get("/api/v1/incidents?limit=1000", headers={"Authorization": f"Bearer {token}"})
     client.get("/api/v1/incidents?limit=30", headers={"Authorization": f"Bearer {token}"})
     assert asked == [200, 30]

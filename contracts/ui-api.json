@@ -87,6 +87,19 @@
             ],
             "title": "Idempotency Key"
           },
+          "parent_id": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "pattern": "^inc_[A-Za-z0-9_-]+$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent Id"
+          },
           "reason": {
             "default": "",
             "title": "Reason",
@@ -306,6 +319,7 @@
     },
     "/api/v1/incidents": {
       "get": {
+        "description": "`parent_id` (ACR-0021 B5): only the re-checks of that incident, newest first.",
         "operationId": "incidents_api_v1_incidents_get",
         "parameters": [
           {
@@ -316,6 +330,24 @@
               "default": 30,
               "title": "Limit",
               "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "parent_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 64,
+                  "pattern": "^inc_[A-Za-z0-9_-]+$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Parent Id"
             }
           }
         ],

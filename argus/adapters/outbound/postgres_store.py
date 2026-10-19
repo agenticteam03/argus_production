@@ -51,10 +51,10 @@ class PostgresStore:
 
     # --- incidents -------------------------------------------------------------------------------
     def create_incident(self, incident: Incident, idempotency_key: str | None) -> tuple[Incident, bool]:
-        row = self._q("INSERT INTO incident (id, target, status, opened_at, idempotency_key, body) "
-                      "VALUES (%s, %s, %s, %s, %s, %s) ON CONFLICT (idempotency_key) DO NOTHING RETURNING id",
+        row = self._q("INSERT INTO incident (id, target, status, opened_at, idempotency_key, body, parent_id) "
+                      "VALUES (%s, %s, %s, %s, %s, %s, %s) ON CONFLICT (idempotency_key) DO NOTHING RETURNING id",
                       (incident.id, str(incident.target), incident.status, incident.opened_at, idempotency_key,
-                       Jsonb(incident.model_dump(mode="json"))))
+                       Jsonb(incident.model_dump(mode="json")), incident.parent_id))
         if row:
             return incident, False
         existing = self._q("SELECT body FROM incident WHERE idempotency_key = %s", (idempotency_key,))
@@ -68,8 +68,12 @@ class PostgresStore:
         self._q("UPDATE incident SET status = %s, body = %s WHERE id = %s",
                 (incident.status, Jsonb(incident.model_dump(mode="json")), incident.id))
 
-    def list_incidents(self, limit: int = 50) -> list[Incident]:
-        rows = self._q("SELECT body FROM incident ORDER BY opened_at DESC LIMIT %s", (limit,))
+    def list_incidents(self, limit: int = 50, parent_id: str | None = None) -> list[Incident]:
+        if parent_id is not None:                                # ACR-0021 B5: the re-checks of one incident
+            rows = self._q("SELECT body FROM incident WHERE parent_id = %s ORDER BY opened_at DESC LIMIT %s",
+                           (parent_id, limit))
+        else:
+            rows = self._q("SELECT body FROM incident ORDER BY opened_at DESC LIMIT %s", (limit,))
         return [Incident.model_validate(r[0]) for r in rows]
 
     def claim_next_queued(self, worker_id: str = "local", lease_s: int = 300) -> Incident | None:
@@ -268,9 +272,12 @@ def import_sqlite(sqlite_path: str, store: PostgresStore) -> dict[str, int]:
                 n += cur.rowcount
         counts[table] = n
 
-    copy("incident", "SELECT id, target, status, opened_at, idempotency_key, body FROM incident",
-         "INSERT INTO incident (id, target, status, opened_at, idempotency_key, body) VALUES (%s,%s,%s,%s,%s,%s)",
-         lambda r: (r[0], r[1], r[2], r[3], r[4], Jsonb(json.loads(r[5]))))
+    has_parent = any(c[1] == "parent_id" for c in src.execute("PRAGMA table_info(incident)"))
+    copy("incident", "SELECT id, target, status, opened_at, idempotency_key, body, "         # oldest first: a parent
+         + ("parent_id" if has_parent else "NULL") + " FROM incident ORDER BY opened_at",  # exists before its re-check
+         "INSERT INTO incident (id, target, status, opened_at, idempotency_key, body, parent_id) "
+         "VALUES (%s,%s,%s,%s,%s,%s,%s)",
+         lambda r: (r[0], r[1], r[2], r[3], r[4], Jsonb(json.loads(r[5])), r[6]))
     copy("evidence", "SELECT evidence_id, incident_id, collected_at, sha256, body FROM evidence",
          "INSERT INTO evidence (evidence_id, incident_id, collected_at, host, executor, sha256, body) "
          "VALUES (%s,%s,%s,%s,%s,%s,%s)",
@@ -307,6 +314,11 @@ CHECKS_SQL: list[tuple[str, str, bool]] = [
     ("DELETE audit refused", "DELETE FROM audit WHERE audit_id = 'aud_dbcheck'", False),
     ("DELETE incident refused", "DELETE FROM incident WHERE id = 'inc_dbcheck'", False),
     ("closed incident cannot reopen", "UPDATE incident SET status = 'queued' WHERE id = 'inc_dbcheck'", False),
+    ("re-check of a missing incident refused (ACR-0021)", "INSERT INTO incident (id, target, status, opened_at, body, "
+                                                         "parent_id) VALUES ('inc_dbcheck2', 'vm-095/container:dbcheck',"
+                                                         " 'queued', now(), '{}', 'inc_nosuch')", False),
+    ("an incident's parent cannot change (ACR-0021)", "UPDATE incident SET parent_id = 'inc_dbcheck' "
+                                                      "WHERE id = 'inc_dbcheck'", False),
     ("evidence without a SHA-256 refused", "INSERT INTO evidence (evidence_id, incident_id, collected_at, sha256, body) "
                                            "VALUES ('ev_dbcheck2', 'inc_dbcheck', now(), 'nothash', '{}')", False),
     ("DDL refused (CREATE TABLE)", "CREATE TABLE dbcheck_x (i int)", False),

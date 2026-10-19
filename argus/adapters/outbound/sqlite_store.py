@@ -16,7 +16,8 @@ SCHEMA = """
 PRAGMA journal_mode=WAL;
 CREATE TABLE IF NOT EXISTS incident (
   id TEXT PRIMARY KEY, target TEXT NOT NULL, status TEXT NOT NULL, opened_at TEXT NOT NULL,
-  idempotency_key TEXT UNIQUE, body TEXT NOT NULL, claimed_by TEXT, claimed_until TEXT);
+  idempotency_key TEXT UNIQUE, body TEXT NOT NULL, claimed_by TEXT, claimed_until TEXT,
+  parent_id TEXT REFERENCES incident(id));
 CREATE INDEX IF NOT EXISTS incident_status ON incident(status, opened_at);
 CREATE TABLE IF NOT EXISTS evidence (
   evidence_id TEXT PRIMARY KEY, incident_id TEXT NOT NULL, collected_at TEXT NOT NULL,
@@ -55,9 +56,10 @@ class SqliteStore:
         self._db = sqlite3.connect(path, check_same_thread=False, isolation_level=None)
         self._db.executescript(SCHEMA)
         cols = {r[1] for r in self._db.execute("PRAGMA table_info(incident)")}
-        for col in ("claimed_by", "claimed_until"):              # T-0014: files created before the worker lease
+        for col in ("claimed_by", "claimed_until", "parent_id"):  # T-0014, ACR-0021 B5: files created before them
             if col not in cols:
                 self._db.execute(f"ALTER TABLE incident ADD COLUMN {col} TEXT")
+        self._db.execute("CREATE INDEX IF NOT EXISTS incident_parent ON incident(parent_id, opened_at)")
         if "resolved_at" not in {r[1] for r in self._db.execute("PRAGMA table_info(alert_occurrence)")}:
             self._db.execute("ALTER TABLE alert_occurrence ADD COLUMN resolved_at TEXT")     # T-0026 (migration 005)
 
@@ -72,9 +74,10 @@ class SqliteStore:
                 row = self._q("SELECT body FROM incident WHERE idempotency_key=?", (idempotency_key,))
                 if row:
                     return Incident.model_validate_json(row[0][0]), True
-            self._q("INSERT INTO incident(id,target,status,opened_at,idempotency_key,body) VALUES (?,?,?,?,?,?)",
+            self._q("INSERT INTO incident(id,target,status,opened_at,idempotency_key,body,parent_id) "
+                    "VALUES (?,?,?,?,?,?,?)",
                     (incident.id, str(incident.target), incident.status, incident.opened_at.isoformat(),
-                     idempotency_key, incident.model_dump_json()))
+                     idempotency_key, incident.model_dump_json(), incident.parent_id))
             return incident, False
 
     def get_incident(self, incident_id: str) -> Incident | None:
@@ -85,8 +88,12 @@ class SqliteStore:
         self._q("UPDATE incident SET status=?, body=? WHERE id=?",
                 (incident.status, incident.model_dump_json(), incident.id))
 
-    def list_incidents(self, limit: int = 50) -> list[Incident]:
-        rows = self._q("SELECT body FROM incident ORDER BY opened_at DESC LIMIT ?", (limit,))
+    def list_incidents(self, limit: int = 50, parent_id: str | None = None) -> list[Incident]:
+        if parent_id is not None:                                # ACR-0021 B5: the re-checks of one incident
+            rows = self._q("SELECT body FROM incident WHERE parent_id=? ORDER BY opened_at DESC LIMIT ?",
+                           (parent_id, limit))
+        else:
+            rows = self._q("SELECT body FROM incident ORDER BY opened_at DESC LIMIT ?", (limit,))
         return [Incident.model_validate_json(r[0]) for r in rows]
 
     def claim_next_queued(self, worker_id: str = "local", lease_s: int = 300) -> Incident | None:

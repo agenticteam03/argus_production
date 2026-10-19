@@ -106,6 +106,7 @@ class Incident(BaseModel):
     findings: list[str] = []
     opened_at: datetime
     closed_at: datetime | None = None
+    parent_id: str | None = None          # ACR-0021 (T-0045 B5): the incident this one re-checks; never changes
 
 
 # ---------------------------------------------------------------------------------------------
