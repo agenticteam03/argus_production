@@ -7,6 +7,11 @@ shared-Brain setup B1–B8 under way (three developers).
 > The VMs are authoritative for what runs there: run `sudo bash /opt/argus-v18/app/ops/deploy.sh status` (or read
 > `/opt/argus-v18/DEPLOYED`) and the state probe before trusting this file.
 
+> **Update 2026-10-19 (`conantkd`, DEPLOY-176, OBSERVED with `deploy.sh status`):** **vm-095 runs `main` `dfa7332`**
+> (T-0045 B1 to B5: thresholds, heartbeat, chart context, map health and links, the verdict, re-check lineage;
+> ACR-0023 log pattern matches). The database is at **migration 007** (`incident.parent_id`). Agent, worker and
+> scheduler on one image; vm-166 unchanged (`ccc810e`). Evidence: `execution/history/DEPLOY-176/step-01/evidence.md`.
+
 > **Update 2026-10-18 (`conantkd`, DEPLOY-166, OBSERVED with `deploy.sh status`):** **vm-095 runs `main` `19b1085`**
 > (#165 self-merge rule, #166 prompt-injection escape in the agent image; agent, worker and scheduler on one image;
 > vm-166 unchanged, `ccc810e`). Its worker exports filtered traces to **Langfuse Cloud (EU)** (ACR-0013 and ACR-0016,
