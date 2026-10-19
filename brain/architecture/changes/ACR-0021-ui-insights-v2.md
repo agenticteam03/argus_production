@@ -7,12 +7,12 @@ next free number.
 
 | Field | Value |
 |---|---|
-| Status | `accepted` by one teammate; **the least-privilege approval is pending** (B6 waits for it). Not yet applied to `ARCHITECTURE.md` (§6) |
+| Status | `accepted`; **applied** as built through B5 (ARCHITECTURE 1.8.18); B6 and B7 add their parts when they merge (§6) |
 | Proposed by | juanbetancurm (+ agent) · 2026-10-18 |
-| Accepted by | `conantkd`, approving #180 · 2026-10-19. #180 was merged at conantkd's request before `juanes6554`'s approval (corrected in `task/ACR-0021-record`) |
-| Second approval (safety principle only) | **required**: least privilege (two new routes on the public edge). **Pending:** `juanes6554`, by approving `task/ACR-0021-record`. B6 does not start before it |
-| Architecture version | the next free version when applied |
-| Task / PR | T-0045 · #172 (proposed) · #180 (accepted by one teammate) · `task/ACR-0021-record` (the least-privilege approval) |
+| Accepted by | `conantkd`, approving #180 · 2026-10-19. #180 was merged at conantkd's request before `juanes6554`'s approval; #182 recorded that |
+| Second approval (safety principle only) | least privilege (two new routes on the public edge): **given** by `juanes6554`, approving #182 · 2026-10-19 |
+| Architecture version | 1.8.17 → 1.8.18 (B1 to B5); B6 and B7 bump it again |
+| Task / PR | T-0045 · #172 (proposed) · #180 (accepted) · #182 (least-privilege approval) · `task/ACR-0021-apply` (applied) |
 
 ## 1. Detect and explain
 
@@ -131,7 +131,9 @@ is then built (§5.8 `severity`, §8.1 `dependency_probes`, the §7.1 fields of 
 host-metrics and incident routes) and bumps the version. B6 adds the two new routes' rows and `locations.conf`, and
 B5/B7 the §16 migration. Until then, the difference is recorded in `SUMMARY.md` ("Known differences").
 
-- [ ] `ARCHITECTURE.md` updated (§5.8, §7.1, §8.1, §16, changelog), version bumped
-- [ ] `contracts/ui-api.json`, samples, `docs/API-FOR-UI.md`, `locations.conf`
-- [ ] journal entry
+- [x] `ARCHITECTURE.md` updated as built through B5 (§5.8, §7.1, §8.1, §16.1, changelog), version 1.8.18
+      (`task/ACR-0021-apply`). Left for their steps: the two route rows and `locations.conf` (B6); `baseline`, `deploy`
+      events, the 6h/24h ranges and the `deploy_event` migration (B7)
+- [x] `contracts/ui-api.json`, samples, `docs/API-FOR-UI.md`: with each step (B1 to B5)
+- [x] journal entry (`2026-10-19-ACR-0021-applied.md`)
 - [ ] the ACR, the architecture change and the first code that needs it are in the same pull request
