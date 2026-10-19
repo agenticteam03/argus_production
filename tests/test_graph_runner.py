@@ -147,7 +147,7 @@ def test_resume_inside_evidence_pack_does_not_repeat_completed_reads(make_app, m
         app.runner.run(inc.id)
     done = app.runner.run(inc.id)
     assert done.outcome == IncidentOutcome.unsupported_escalated
-    assert len(FakeTargetAgent.calls) == len(set(FakeTargetAgent.calls)) >= 3   # every read exactly once
+    assert len(FakeTargetAgent.reads) == len(set(FakeTargetAgent.reads)) >= 3   # every read exactly once
 
 
 # --- OP-006: the LangGraph recursion limit follows the step and read budgets ------------------------------------

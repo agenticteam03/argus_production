@@ -25,6 +25,7 @@ RUNBOOKS = ROOT / "argus" / "runbooks"          # the reviewed runbook library (
 class FakeTargetAgent:
     """Answers like target-agent, per host. Records which host was called."""
     calls: list[tuple[str, str]] = []
+    reads: list[tuple[str, str, tuple]] = []            # with the parameters: a log read searches one path per pattern
     data = {
         "http://argus-v18-tunnel:18701": {
             "/containers/argus-lab-worker/status": {"id": "aaa111", "state": "restarting", "health": "none", "restart_count": 7,
@@ -49,6 +50,7 @@ class FakeTargetAgent:
 
     def get(self, path, params=None):
         FakeTargetAgent.calls.append((self.url, path))
+        FakeTargetAgent.reads.append((self.url, path, tuple(sorted((params or {}).items()))))
         if self.kind == "host_probe":
             return {"total_mib": 5800, "available_mib": 4000, "cpu_busy_percent": 12, "load1": 0.2, "cpus": 1}
         if self.kind == "network_probe":
@@ -80,7 +82,7 @@ class FakeMetrics:
 @pytest.fixture()
 def make_app(tmp_path, monkeypatch):
     monkeypatch.setenv("ARGUS_JWT_KEY", "x" * 40)
-    FakeTargetAgent.calls = []
+    FakeTargetAgent.calls, FakeTargetAgent.reads = [], []
 
     def _make(llm=None, metrics=None):
         reg = ExecutorRegistry()
