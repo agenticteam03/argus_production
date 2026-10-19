@@ -79,8 +79,10 @@ def test_read_token_can_use_every_get_route(ui):
     read = bearer(login(api, "alice", "read").json()["access_token"])
     gets = [rt.path for rt in api.app.routes if "GET" in getattr(rt, "methods", set()) and rt.path.startswith("/api/")]
     assert "/api/v1/incidents" in gets
+    params = {"/api/v1/target-metrics": {"target": TARGET}}                 # its one required parameter (ACR-0021)
     for path in gets:
-        res = api.get(path.replace("{incident_id}", inc).replace("{evidence_id}", "ev_missing"), headers=read)
+        res = api.get(path.replace("{incident_id}", inc).replace("{evidence_id}", "ev_missing"), headers=read,
+                      params=params.get(path))
         assert res.status_code in (200, 404), (path, res.status_code)          # never 401/403 for a read token
 
 

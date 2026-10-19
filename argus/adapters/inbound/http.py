@@ -144,6 +144,10 @@ def build_api(app_ctx) -> FastAPI:
     host_metrics_reads: dict = {}        # host target → its in-flight read
     host_metrics_pool = ThreadPoolExecutor(max_workers=4, thread_name_prefix="host-metrics")
     api.state.host_metrics_budget_s = 20.0
+    from argus.application.target_metrics import TargetMetrics
+    target_metrics = TargetMetrics(app_ctx.metrics, app_ctx.thresholds)   # ACR-0021: one shared answer per API
+    from argus.application.overview import Overview
+    overview = Overview(app_ctx.store, app_ctx.topology, lambda: host_metrics_rows(), limit=s.incidents_limit_cap)
     quota_lock = Lock()                  # ACR-0012: quota check and incident creation are one step (one API process)
     limiter = LoginLimiter(s.login_max_per_user, s.login_max_per_address, s.login_window_s)
     api.state.login_limiter = limiter
@@ -259,6 +263,10 @@ def build_api(app_ctx) -> FastAPI:
     @api.get("/api/v1/host-metrics", tags=["metrics"])
     def host_metrics(p: Annotated[Principal, Depends(current)]):
         """Only named host signals already in the catalogue; no browser-supplied target or PromQL."""
+        return host_metrics_rows()
+
+    def host_metrics_rows() -> list[dict]:
+        """The host-metrics answer, shared with `/api/v1/overview` (ACR-0021): one 20 s snapshot for both."""
         # The lock guards only the cache and the in-flight reads, never Prometheus I/O. Hosts are read in parallel, at
         # most one read per host at a time, and the answer waits at most `host_metrics_budget_s` (under the edge's 30 s
         # proxy timeout): a host still reading is `available: false`, so one slow host never hides the other.
@@ -398,6 +406,27 @@ def build_api(app_ctx) -> FastAPI:
         if inc is None:
             raise HTTPException(404, "not found")
         return app_ctx.incident_metrics.window(inc, rng)
+
+    @api.get("/api/v1/target-metrics", tags=["metrics"])
+    def target_metrics_route(p: Annotated[Principal, Depends(current)],
+                             target: Annotated[str, Query(pattern=r"^[A-Za-z0-9_.-]+/[a-z_]+:[A-Za-z0-9_.-]+$",
+                                                          max_length=128)],
+                             rng: Annotated[Literal["15m", "1h"], Query(alias="range")] = "15m"):
+        """ACR-0021 (T-0045 B6): one inventory target's recent signals for the UI's drawer, a fixed series list per
+        kind on that target's own host; no PromQL from the browser; at most ~130 points per series; missing is null."""
+        try:
+            ref = TargetRef.parse(target)
+        except ValueError:
+            raise HTTPException(404, "not found") from None
+        if app_ctx.inventory.target(ref) is None:
+            raise HTTPException(404, "not found")
+        return target_metrics.window(ref, rng)
+
+    @api.get("/api/v1/overview", tags=["metrics"])
+    def overview_route(p: Annotated[Principal, Depends(current)]):
+        """ACR-0021 (T-0045 B6): the dashboard in one answer, from the stored incidents and the shared topology and
+        host-metrics snapshots; no new host read, no executor call; one shared answer for 15 s."""
+        return overview.view()
 
     @api.get("/api/v1/evidence/{evidence_id}", tags=["incidents"])
     def evidence(evidence_id: str, p: Annotated[Principal, Depends(require("operator", "approver"))]):

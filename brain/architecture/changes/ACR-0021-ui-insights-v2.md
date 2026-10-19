@@ -7,12 +7,12 @@ next free number.
 
 | Field | Value |
 |---|---|
-| Status | `accepted`; **applied** as built through B5 (ARCHITECTURE 1.8.18); B6 and B7 add their parts when they merge (§6) |
+| Status | `accepted`; **applied** as built through B6 (ARCHITECTURE 1.8.19); B7 adds its part when it merges (§6) |
 | Proposed by | juanbetancurm (+ agent) · 2026-10-18 |
 | Accepted by | `conantkd`, approving #180 · 2026-10-19. #180 was merged at conantkd's request before `juanes6554`'s approval; #182 recorded that |
 | Second approval (safety principle only) | least privilege (two new routes on the public edge): **given** by `juanes6554`, approving #182 · 2026-10-19 |
-| Architecture version | 1.8.17 → 1.8.18 (B1 to B5); B6 and B7 bump it again |
-| Task / PR | T-0045 · #172 (proposed) · #180 (accepted) · #182 (least-privilege approval) · `task/ACR-0021-apply` (applied) |
+| Architecture version | 1.8.17 → 1.8.18 (B1 to B5) → 1.8.19 (B6); B7 bumps it again |
+| Task / PR | T-0045 · #172 (proposed) · #180 (accepted) · #182 (least-privilege approval) · `task/ACR-0021-apply` (applied) · #184 (B6) |
 
 ## 1. Detect and explain
 
@@ -132,7 +132,7 @@ host-metrics and incident routes) and bumps the version. B6 adds the two new rou
 B5/B7 the §16 migration. Until then, the difference is recorded in `SUMMARY.md` ("Known differences").
 
 - [x] `ARCHITECTURE.md` updated as built through B5 (§5.8, §7.1, §8.1, §16.1, changelog), version 1.8.18
-      (`task/ACR-0021-apply`). Left for their steps: the two route rows and `locations.conf` (B6); `baseline`, `deploy`
+      (`task/ACR-0021-apply`). B6's two route rows and `locations.conf`: #184 (1.8.19). Left for B7: `baseline`, `deploy`
       events, the 6h/24h ranges and the `deploy_event` migration (B7)
 - [x] `contracts/ui-api.json`, samples, `docs/API-FOR-UI.md`: with each step (B1 to B5)
 - [x] journal entry (`2026-10-19-ACR-0021-applied.md`)

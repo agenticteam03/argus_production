@@ -194,6 +194,8 @@ def test_nginx_accepts_the_configuration(edge):
     ("GET", "/api/v1/incidents/inc_1/events?after=0", 200), ("GET", "/api/v1/evidence/ev_1", 200),
     ("GET", "/api/v1/escalations", 200), ("POST", "/api/v1/auth/token", 200),
     ("POST", "/api/v1/investigations", 200), ("GET", "/api/v1/targets", 200),   # ACR-0012
+    ("GET", "/api/v1/target-metrics?target=vm-166/host:vm-166&range=15m", 200),   # ACR-0021
+    ("POST", "/api/v1/target-metrics", 403), ("GET", "/api/v1/overview", 200), ("POST", "/api/v1/overview", 403),
     ("GET", "/api/v1/investigations", 403), ("DELETE", "/api/v1/incidents/inc_1", 403),
     ("POST", "/api/v1/me", 403), ("GET", "/api/v1/auth/token", 403), ("GET", "/docs", 404),
     ("GET", "/openapi.json", 404), ("GET", "/api/v1/approvals", 404), ("GET", "/metrics", 200),
