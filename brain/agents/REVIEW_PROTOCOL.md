@@ -31,19 +31,41 @@ A pull request that meets the **self-merge** conditions below may instead be mer
 
 GitHub cannot block a merge for us, so the rule is enforced by the team and checked by tools:
 - **before merging** (the reviewer, or the author under the self-merge rule, checks it in the PR page): the PR has an
-  **Approve** from someone other than its author, given **after the last push**, or it meets every self-merge
-  condition below; CI is green (or, when CI does not run, a `LOCAL CI PASS` comment for that push: see below); the
-  branch is up to date with `main` ("Update branch" if not);
+  **Approve** from someone other than its author, given **after the last push** (or before pushes that only brought
+  in `main`: see "An update that only brings in main" below), or it meets every self-merge condition below; CI is
+  green (or, when CI does not run, a `LOCAL CI PASS` comment for that push: see below); the branch is up to date with
+  `main` ("Update branch" if not);
 - **on your laptop:** the pre-push hook refuses `git push` to `main`;
 - **after merging:** `brain.py verify-main` checks that every commit on `main` came from a PR approved on its last push
-  by someone other than its author, or from a valid self-merge (its required checks green on its last push and no
-  protected path changed) — CI runs it on every push to `main` (job `main-guard`, red = rule broken) and
-  `brain.py start` warns at the start of every session;
+  (or before pushes that only brought in `main`) by someone other than its author, or from a valid self-merge (its
+  required checks green on its last push and no protected path changed) — CI runs it on every push to `main` (job
+  `main-guard`, red = rule broken) and `brain.py start` warns at the start of every session;
 - the only other exceptions are listed in [`../policies/main-exceptions.txt`](../policies/main-exceptions.txt).
 
 If `main-guard` is red: stop and tell the team; the fix is a follow-up PR that gets the missing review (never a
 force push). Nobody merges their own pull request unless it meets the self-merge rule below. If A works again before
 anyone reviewed, A continues on the same branch.
+
+## An update that only brings in main (standing rule, proposed 2026-10-19)
+
+**Why:** a pull request must be up to date with `main` when it merges, so every merge puts the other open pull
+requests behind; updating them was a new push, and their approvals no longer counted. With several approved pull
+requests open, each merge sent the others back for a new review, although nobody changed their code.
+
+**The rule:** an approval stays valid after later pushes when **each commit after the approved one is a merge with
+`main` that git made without a conflict**, so the author's code is still the code that was approved. "Update branch"
+on the PR page makes exactly such a commit. CI must still be green on the last push, and the branch up to date.
+
+**Needs a new approval:** any other commit after the approval; a merge in which a conflict was resolved (by anyone,
+the author or the reviewer); a merge with any edit beyond git's automatic merge; a rewritten branch (force push).
+
+**How it is enforced:** `brain.py verify-main` accepts an approval of an earlier commit only when that commit is still
+in the branch and every later commit not on `main` has two parents, one of them on `main`, and a tree equal to git's
+automatic merge of the two (`git merge-tree --write-tree`), which fails on any conflict. Otherwise the pull request
+counts as unapproved, as before.
+
+**Decided by** `juanbetancurm` on 2026-10-19. It changes the enforcement, so it starts when a teammate approves the
+pull request that adds it.
 
 ## When CI does not run (local CI)
 
