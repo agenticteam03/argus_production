@@ -13,7 +13,7 @@ from typing import Any
 from psycopg.types.json import Jsonb
 from psycopg_pool import ConnectionPool
 
-from argus.domain.model import AuditRecord, EvidenceRecord, Incident, IncidentStatus, TargetRef, utcnow
+from argus.domain.model import AuditRecord, EvidenceRecord, Incident, TargetRef, utcnow
 
 
 class PostgresStore:

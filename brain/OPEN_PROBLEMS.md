@@ -23,6 +23,7 @@ When a problem is fixed, set its status to `fixed` with the date, and add a jour
 | **OP-014** | The self-merge rule relies on the tests: gaps where a green CI does not yet mean "safe to merge" | open — first three gaps in `task/TEST-HARDEN-1` | 2026-10-17 |
 | **OP-015** | ARCHITECTURE §14 says the approval/action machinery "exists from the start"; the code has none of it | open — implemented by ACR-0019 (phase 18) if accepted; until then the text must say "designed, not built" | 2026-10-18 |
 | **OP-016** | `policies/SECURITY.md` lists "the team's shared Argus password"; §17.3 and ACR-0011 require one account per person | open — fixed in phase 15 | 2026-10-18 |
+| **OP-017** | The frontend's dependencies have known advisories: React Router (production, moderate), Vite, Vitest and esbuild (dev tooling, up to critical); every fix is a major upgrade | open — CI now fails on a high advisory in a production dependency (OP-014 step 6) | 2026-10-20 |
 
 ---
 
@@ -212,12 +213,18 @@ diff-coverage gates, LLM injection regression testing, CI security scanners.)
    changed lines; Vitest coverage thresholds for `frontend/`. A changed-lines gate never blocks on old, untested code.
 5. **Static analysis (SAST):** `ruff` for Python; `bandit` or `semgrep` (OWASP / Python rulesets) failing on high
    severity. CodeQL code scanning is not available for private repositories on the free plan, so these run as
-   plain CI steps without SARIF upload.
+   plain CI steps without SARIF upload. *Done 2026-10-20 (`task/OP-014-5-static-analysis`):* `ruff` (default rules, E731 ignored)
+   and `bandit` at high severity on `argus/`, `services/` and `ops/`, both clean; bandit's 20 medium findings were
+   reviewed (SQL built from constant table names and placeholders, the API's bind address, allowlisted URL reads) and
+   are not a gate yet.
 6. **Dependency audit:** `pip-audit` and `npm audit --audit-level=high` (or OSV-Scanner) on every PR; Dependabot
-   alerts on.
+   alerts on. *Done 2026-10-20 for Python and the UI's production dependencies* (steps in the
+   `test` and `frontend` jobs, so `SELF_MERGE_CHECKS` is unchanged); the dev tooling's advisories are OP-017.
 7. **Workflow, image and script linting:** `zizmor` for `.github/workflows/`, `hadolint` for the Dockerfiles,
    `shellcheck` for `ops/*.sh`, Trivy config/filesystem scan. **Pin every action by commit SHA**: the Trivy action
-   itself was compromised in March 2026, and pinned dependencies are an OpenSSF Scorecard check.
+   itself was compromised in March 2026, and pinned dependencies are an OpenSSF Scorecard check. *Pinning done 2026-10-20
+   (`task/OP-014-7-pin-actions`):* the four actions by commit SHA, and the gitleaks download checked against its
+   published SHA-256. `zizmor`, `hadolint`, `shellcheck` and Trivy remain.
 8. **Model quality:** run the model evaluation (§21.2) on a schedule (weekly) and record the result; until then a
    change under `argus/orchestration/`, `config/signals.yaml`, the class registry or the runbooks asks for a
    teammate's review (REVIEW_PROTOCOL.md, "The tests this rule relies on").
@@ -280,6 +287,34 @@ ids and kinds; `argus user` has only `add` and `disable`), disable any shared ac
 Postgres".
 
 **Done when.** The row is replaced and no shared account exists.
+
+---
+
+## OP-017 — The frontend's dependencies have known advisories
+
+**Status:** open · **Opened:** 2026-10-20 (OP-014 step 6, `npm audit`) · **Found by:** `conantkd` (+ agent) ·
+**Owner:** the frontend lane (T-0016)
+
+**Problem.** `npm audit` in `frontend/` on 2026-10-20 reports the following. Python: `pip-audit` found nothing.
+
+| Package | Severity | Shipped in the UI image? | Advisory | Fix |
+|---|---|---|---|---|
+| `react-router`, `react-router-dom` 6.x | moderate | **yes** | open redirect via a backslash in `<Link>` / `useNavigate` (GHSA-wrjc-x8rr-h8h6); a constructor injection in SSR hydration (GHSA-337j-9hxr-rhxg; the UI has no SSR) | `react-router-dom` 7.18.4 (major) |
+| `vite` 5.x, `esbuild` ≤ 0.24.2 | high, moderate | no (build and dev server only) | path traversal in optimized deps `.map` handling; any site can query the dev server | `vite` 8.3.4 (major) |
+| `vitest` 3.x, `@vitest/mocker`, `tinypool` | critical | no (tests only) | prototype pollution to code execution in worker options; file read via a redirect mock | `vitest` 5.0.5 (major) |
+
+**Why it matters.** The built UI is static files served by nginx: only React Router ships. The UI does not navigate to
+user-supplied URLs, so its open redirect is not reachable today. The tooling advisories matter on a developer's
+laptop (`npm run dev`, the dev server) and in CI.
+
+**Fix.**
+1. Done (OP-014 step 6): CI's `frontend` job runs `npm audit --omit=dev --audit-level=high`, and `test` runs
+   `pip-audit`. A new high advisory in what ships fails the build.
+2. In the frontend lane: upgrade `react-router-dom` to 7, then `vite` and `vitest` together. Each is a major upgrade,
+   with the Vitest and Playwright suites as the check.
+3. Then raise the npm gate to every dependency (`npm audit --audit-level=high`, dev included).
+
+**Done when.** `npm audit --audit-level=high` passes on the whole tree and CI runs it.
 
 ---
 
