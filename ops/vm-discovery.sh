@@ -11,6 +11,7 @@ set -u
 export LC_ALL=C
 T=15
 HOSTS_ENV=${ARGUS_HOSTS_ENV:-/opt/argus-v18/hosts.env}   # VM-local, never committed (template: deploy/hosts.env.example)
+# shellcheck source=/dev/null   # hosts.env exists only on the VMs
 [ -r "$HOSTS_ENV" ] && . "$HOSTS_ENV"
 V95="${ARGUS_VM095_PRIVATE_IP:-unset}"; V166="${ARGUS_VM166_PRIVATE_IP:-unset}"
 PEERS="$V95 $V166"                                # private IPs of VM 0.95 and VM 0.166

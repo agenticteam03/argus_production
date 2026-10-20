@@ -45,3 +45,4 @@ pr 147  2026-10-14  juanbetancurm  fast-track: ACR-0012 proposed (the UI may sta
 pr 148  2026-10-14  conantkd  fast-track: AFTER-MERGE record (both VMs on main) and the UI edge resolver fix (a recreated agent gave 502)
 pr 149  2026-10-14  conantkd  fast-track: the missing fast-track line for #147 (documentation only)
 pr 158  2026-10-15  juanes6554  fast-track: T-0016 incident-page and dashboard redesign (frontend only; tests, docs; Map/Metrics wait on two read routes)
+pr 212  2026-10-20  conantkd  retroactive: self-merged one push behind main (#207 merged during its CI; no overlap: OP-002 section and a journal entry only); content reviewed in this exception's PR

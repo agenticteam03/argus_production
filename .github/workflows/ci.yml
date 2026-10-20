@@ -40,6 +40,7 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262   # v4.4.0
         with:
           fetch-depth: 0
+          persist-credentials: false   # OP-014 step 7 (zizmor): no git token left in .git for later steps
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065   # v5.6.0
         with:
           python-version: "3.12"
@@ -56,8 +57,14 @@ jobs:
           echo "5bc41815076e6ed6ef8fbecc9d9b75bcae31f39029ceb55da08086315316e3ba  gitleaks.tar.gz" | sha256sum -c -
           tar -xzf gitleaks.tar.gz gitleaks
           ./gitleaks detect --source . --no-banner --redact
-      - name: Tests (offline + Postgres + brain.py)
-        run: pytest -q -rs
+      # OP-014 step 4: the suite runs under coverage, and the PR's changed lines in argus/ and services/ must be at
+      # least 80 % covered (diff-cover against main). Old, untested code never blocks: only the lines the PR changes.
+      - name: Tests (offline + Postgres + brain.py) with coverage
+        run: |
+          pip install "pytest-cov==6.0.0" "diff-cover==9.2.0"
+          pytest -q -rs --cov=argus --cov=services --cov-report=xml
+      - name: Coverage on changed lines (diff-cover, 80 %)
+        run: diff-cover coverage.xml --compare-branch=origin/main --fail-under=80
       # OP-014 step 6: a known vulnerability in an installed Python package fails the build (the project itself is
       # editable, not on PyPI, so it is skipped). A step of this job, not a new job: SELF_MERGE_CHECKS stays as is.
       - name: Dependency audit (pip-audit)
@@ -76,6 +83,24 @@ jobs:
           pip install "ruff==0.8.6" "bandit==1.8.0"
           ruff check argus services ops
           bandit -q -r argus services ops -lll
+      # OP-014 step 7: the workflows (zizmor), the Dockerfiles (hadolint, and Trivy's configuration scan at high and
+      # critical, exceptions in .trivyignore.yaml; both binaries checked against their published SHA-256) and the
+      # shell scripts run as root on the VMs (shellcheck, warnings fail). Trivy as a binary, never its action (the
+      # action was compromised in March 2026).
+      - name: Workflow, image and script linting (zizmor, hadolint, shellcheck)
+        run: |
+          pip install "zizmor==1.31.1" "shellcheck-py==0.11.0.1"
+          zizmor --offline .github/workflows/
+          curl -sSfL -o hadolint https://github.com/hadolint/hadolint/releases/download/v2.12.0/hadolint-Linux-x86_64
+          echo "56de6d5e5ec427e17b74fa48d51271c7fc0d61244bf5c90e828aab8362d55010  hadolint" | sha256sum -c -
+          chmod +x hadolint
+          ./hadolint Dockerfile deploy/ui/Dockerfile deploy/vm-095/tunnel/Dockerfile services/target/Dockerfile
+          shellcheck -S warning ops/*.sh
+          curl -sSfL -o trivy.tar.gz https://github.com/aquasecurity/trivy/releases/download/v0.75.0/trivy_0.75.0_Linux-64bit.tar.gz
+          echo "c6e65abddb348e25f10549df887045629cf28cc72453cd1c63acb717316b3f3f  trivy.tar.gz" | sha256sum -c -
+          tar -xzf trivy.tar.gz trivy
+          ./trivy config --quiet --exit-code 1 --severity HIGH,CRITICAL --ignorefile .trivyignore.yaml \
+            --skip-dirs frontend/node_modules .
 
   # T-0016: the web UI in frontend/ — unit tests and the production build on every push.
   # Acceptance (Playwright) and contract checks join this job when they exist (T-0016 steps 2-3).
@@ -88,6 +113,8 @@ jobs:
         working-directory: frontend
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262   # v4.4.0
+        with:
+          persist-credentials: false   # OP-014 step 7 (zizmor)
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020   # v4.4.0
         with:
           node-version: "24"
@@ -133,6 +160,7 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262   # v4.4.0
         with:
           fetch-depth: 0
+          persist-credentials: false   # OP-014 step 7 (zizmor): no git token left in .git for later steps
       - name: Review rule on main
         env:
           GH_TOKEN: ${{ github.token }}

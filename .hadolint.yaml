@@ -1,0 +1,6 @@
+# OP-014 step 7: hadolint for the Dockerfiles (CI, `test` job).
+# DL3008 / DL3018 (pin apt / apk package versions): not pinned on purpose. The base images are pinned by tag, and a
+# pinned distro package version disappears from the mirror after a security update, which breaks the build.
+ignored:
+  - DL3008
+  - DL3018
