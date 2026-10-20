@@ -251,7 +251,7 @@ them (gap 7). Steps 9-13 are tracked as tasks.
 
 ## OP-015 — §14's approval and action machinery is described as built, but is not
 
-**Status:** open · **Opened:** 2026-10-18 (the NEXT-PHASE proposal) · **Found by:** `juanbetancurm` (+ agent)
+**Status:** fixed 2026-10-20 (`task/PHASE-15-foundations`: the text no longer claims it; ARCHITECTURE 1.8.21) · **Opened:** 2026-10-18 (the NEXT-PHASE proposal) · **Found by:** `juanbetancurm` (+ agent)
 
 **Problem.** ARCHITECTURE §14 says: "In this release no write capability is released, but the machinery, its tables
 and its tests exist from the start so that the first release changes no core code." `IMPLEMENTATION_PLAN.md` phase 9
@@ -269,13 +269,14 @@ What exists is the closed write gate and its standing test (T-0031).
 ARCHITECTURE change touching §14 states "designed, not built", and phase 9's line in the plan drops the HITL item.
 
 **Done when.** The §14.4 failure-injection and §22.2 binding suites run in CI, or the text no longer claims they
-exist.
+exist. *Done 2026-10-20 the second way:* §14 says "designed, not built" (1.8.21), and the plan's phase 9 and its
+"Escalation / approval" exit line no longer list HITL against a fake endpoint (it is phase 18).
 
 ---
 
 ## OP-016 — `SECURITY.md` lists a shared team password
 
-**Status:** open · **Opened:** 2026-10-18 · **Found by:** `juanbetancurm` (+ agent)
+**Status:** fixed 2026-10-20 (`task/PHASE-15-foundations`: the row is replaced; no shared account on vm-095) · **Opened:** 2026-10-18 · **Found by:** `juanbetancurm` (+ agent)
 
 **Problem.** `policies/SECURITY.md`'s secrets table has a row "The team's shared Argus password | each developer's
 password manager". ARCHITECTURE §17.3 (ACR-0011) says "Every login reachable from the Internet is one account per
@@ -286,7 +287,11 @@ a terminal session impossible to attribute (ACR-0018, ACR-0019, ACR-0020).
 ids and kinds; `argus user` has only `add` and `disable`), disable any shared account (`argus user disable`), and replace the row with "Each developer's Argus password | their password manager; an Argon2 hash in
 Postgres".
 
-**Done when.** The row is replaced and no shared account exists.
+**Done when.** The row is replaced and no shared account exists. *Row replaced 2026-10-20* ("Each developer's Argus
+password (one account per person, no shared login)"); the read-only `principal` query on vm-095 (run by `conantkd`, ids, kinds, roles and
+`disabled` only) lists five principals, all `human` and each one person's: `conantkd`, `juanbetancurm`,
+`juanes6554` (operators, enabled), `conantkd-viewer` (the temporary viewer of the D.4 check) and `olav`, both
+disabled. No shared account, so nothing to disable.
 
 ---
 
