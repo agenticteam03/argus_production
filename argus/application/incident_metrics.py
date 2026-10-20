@@ -194,7 +194,8 @@ class IncidentMetrics:
 
     def _baseline(self, target: TargetRef, signal: str, opened_at: datetime, scale: float) -> dict | None:
         """B7: p50 / p95 of `signal` over the 24 h ending an hour before `opened_at`; None when under half of that window
-        has samples or the read fails (unknown, never a made-up normal). Read once per (target, signal, incident start)."""
+        has samples or the read fails (unknown, never a made-up normal). Read once per (target, signal, incident start);
+        a failed read is not kept, so the next answer tries again."""
         end = datetime.fromtimestamp(math.floor((opened_at - BASELINE_LEAD).timestamp()), timezone.utc)
         key = (str(target), signal, end.timestamp())
         with self._lock:
@@ -203,7 +204,7 @@ class IncidentMetrics:
         try:
             raw = self.metrics.range(target, signal, BASELINE_MINUTES, BASELINE_STEP_S, end=end)
         except (MetricsUnavailable, StaleMetrics, ValueError):
-            raw = []
+            return None                                    # not kept: one Prometheus hiccup must not hide the band
         values = sorted(v for _, v in raw if math.isfinite(v))
         expected = BASELINE_MINUTES * 60 // BASELINE_STEP_S + 1
         found = None

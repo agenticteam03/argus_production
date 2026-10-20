@@ -97,6 +97,21 @@ def test_the_baseline_is_null_when_its_read_fails_and_the_chart_still_answers(ma
     assert s["baseline"] is None and any(v is not None for _, v in s["points"])
 
 
+def test_a_failed_baseline_read_is_not_kept_and_the_next_answer_reads_it_again(make_app):
+    from argus.ports.ports import MetricsUnavailable
+    down = [True]
+
+    def flaky(i):
+        if down[0]:
+            raise MetricsUnavailable("prometheus down")
+        return 7.0
+    app = make_app(metrics=BaselineMetrics(flaky))
+    inc = _incident(app)
+    assert _series(_get(app, inc, "15m"), "container_memory_bytes")["baseline"] is None
+    down[0] = False
+    assert _series(_get(app, inc, "1h"), "container_memory_bytes")["baseline"] is not None
+
+
 def test_the_baseline_is_read_once_per_incident_whatever_the_range(make_app):
     metrics = BaselineMetrics(lambda i: 7.0)
     app = make_app(metrics=metrics)
