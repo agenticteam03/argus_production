@@ -5,12 +5,12 @@ it as a separate track; this ACR is that track. **Reads and records only.**
 
 | Field | Value |
 |---|---|
-| Status | `proposed` |
+| Status | `accepted` with the approval of `task/ACR-0025-accepted` (§5); it merges only with it. Not applied: that is T-0046 L1 |
 | Proposed by | juanbetancurm (+ agent) · 2026-10-20 |
-| Accepted by | pending |
+| Accepted by | a teammate approving `task/ACR-0025-accepted` (`conantkd` approved the proposal as recorded in #202, 2026-10-20) |
 | Second approval (safety principle only) | not required (no safety principle touched: see §4) |
 | Architecture version | the next free version when applied |
-| Task / PR | [T-0046](../../tasks/current/T-0046-live-dependency-graph.md) · PR (this one) |
+| Task / PR | [T-0046](../../tasks/current/T-0046-live-dependency-graph.md) · #202 (proposed) · `task/ACR-0025-accepted` (accepted) |
 
 ## 1. Detect and explain
 
@@ -133,7 +133,13 @@ Undeclared connections seen on the hosts ("observed but not declared": needs per
 
 ## 5. Decision
 
-Pending.
+Proposed in #202, where `conantkd`'s review asked for eight changes (Level 2 with its own tag, host dependencies never
+probed, an unreadable Prometheus skipping that host's tick, the scheduler's new read named, the next free migration
+number, ARCHITECTURE applied with the first code, a class-registry change never self-merged) and approved the text as
+recorded. **Accepted as written** with the approval of `task/ACR-0025-accepted`. No safety principle is touched (§4),
+so no second approval is needed.
+
+Next: T-0046 L1 applies this ACR to `ARCHITECTURE.md` with its first code (§6).
 
 ## 6. Applied
 
