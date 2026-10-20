@@ -225,7 +225,13 @@ diff-coverage gates, LLM injection regression testing, CI security scanners.)
 *Later:*
 9. **Mutation testing** (`mutmut`) on the safety-critical modules (`argus/policy/`, `application/invoke_capability.py`,
    redaction), weekly, with a threshold that starts at today's score and only goes up.
-10. **Property-based tests** (Hypothesis) for redaction, target parsing and the policy engine.
+10. **Property-based tests** (Hypothesis) for redaction, target parsing and the policy engine. *Redaction and target
+    parsing done 2026-10-20 (`tests/test_op014_property_based.py`).* They found a real gap: a token glued to a
+    non-ASCII letter (`é<token>`) escaped the high-entropy rule, because Unicode `\b` saw no word boundary; fixed with
+    `re.ASCII` there and on the `Bearer` and `sk-` rules. *The policy engine done 2026-10-20 too*
+    (`tests/test_op014_property_policy.py`, tests only: `PolicyEngine.check` fails closed, the inspection policy never
+    allows a path that is not normal or that the deny floor names, even under an allowlist of `/`). No gap found;
+    three injected bugs (no scope check, no deny list, no path normalization) were caught.
 11. **LLM red-team scan** on a schedule (promptfoo for the application, garak for the model) next to the fixed
     regression cases of step 2.
 12. **Accessibility checks** in Playwright (axe-core) on the main pages.
