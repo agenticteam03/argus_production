@@ -29,7 +29,10 @@ What it does not record:
 
 Five reads that help compare causes are built and deployed but **offered to no class**: `metrics.cpu_history` (T-0036),
 `metrics.compare_baseline` (T-0038), `knowledge.prior_incidents` (T-0039), `analysis.trace_request_path` (T-0040) and
-`analysis.diagnostic_snapshot` (T-0034) (`config/policy.yaml`: "offered to no class yet").
+`analysis.diagnostic_snapshot` (T-0034) (`config/policy.yaml`: "offered to no class yet"). EVAL-offers (2026-10-19, 61
+cases × 5 trials, one batch per offer) measured several of them: offered alone they are used and change little
+(`request_path` 0.72 → 0.74; `baseline` called in 1 of 25 cpu runs), so none was offered. The model reaches for a
+comparison read only when it has a competing explanation to test, which is what this ACR adds.
 
 ## 2. Why the current architecture is insufficient
 
@@ -144,8 +147,9 @@ chosen, support: {score, for, against}}]`, plus `ranking_disagrees`. Operators a
 - Case labels gain `expected_hypotheses: {supported: [...], ruled_out: [...]}` (cause classes or targets).
 - New metrics: top-1 and top-3 root-cause accuracy over the ranking; ruled-out recall; `ranking_disagrees` rate.
 - New hard check: `unsupported_root_cause` = 0 (a conclusion whose root cause has no observation of its target).
-- The five built reads (§1) are offered class by class, each with at least five evaluation cases that need it and a run
-  before and after (T-0047 step 0; no ACR needed, they are §12 Level 3 rows already).
+- The built reads of §1 are measured again **with** hypotheses (H4): an untested hypothesis is exactly what a
+  comparison read tests. A read is offered to a class only when that batch improves it (T-0047 H4; offering itself
+  needs no ACR, they are §12 Level 3 rows already).
 
 ### 3.9 Not in this ACR
 

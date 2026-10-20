@@ -2,11 +2,11 @@
 
 | Field | Value |
 |---|---|
-| Status | `proposed` — step 0 needs no ACR; steps H1–H6 wait for [ACR-0024](../../architecture/changes/ACR-0024-hypotheses-and-cause-ranking.md) to be accepted (with its second approval) |
+| Status | `proposed` — steps H1–H6 wait for [ACR-0024](../../architecture/changes/ACR-0024-hypotheses-and-cause-ranking.md) to be accepted (with its second approval) |
 | Phase | next phase, area C (separate track of [NEXT-PHASE](NEXT-PHASE-supervised-remediation.md)) |
 | Architecture | ACR-0024 (`proposed`) |
 | Branch | one branch per step: `task/T-0047-h<n>-<slug>` |
-| Owner | `juanbetancurm` (+ agent); step 0 with `conantkd` (owner of T-0036 to T-0040); review `conantkd` |
+| Owner | `juanbetancurm` (+ agent); review `conantkd` (owner of the built reads, T-0034 to T-0040) |
 | Needs the VM lease | the evaluation runs on the VMs and H6 (deploy on vm-095) |
 
 ## Goal (plain language)
@@ -18,17 +18,11 @@ the wrong causes were ruled out.
 
 ## Steps (each a PR, red tests first)
 
-### Step 0 — Turn on the reads that are already built (no ACR)
-Offer them class by class, one class family per PR, each with at least five evaluation cases that need the read and a
-full evaluation run before and after (accuracy not lower, hard checks at 0):
-- `container_restart_loop`: `metrics.compare_baseline` (memory);
-- `cpu_saturation`: `metrics.cpu_history` and `metrics.compare_baseline` (cpu);
-- `disk_pressure`: `metrics.compare_baseline` (disk);
-- `dependency_unavailable`, `health_check_failed`: `analysis.trace_request_path`;
-- the classes where one call replaces several reads: `analysis.diagnostic_snapshot`;
-- every enabled class: `knowledge.prior_incidents` (until T-0048, as context only).
-The tags each read needs are checked against `argus/capabilities/catalog.py` and `argus/detectors/classes.py` at the
-start of the step.
+### Before H1 — what is already measured (EVAL-offers, 2026-10-19)
+The five built reads (`metrics.cpu_history`, `metrics.compare_baseline`, `knowledge.prior_incidents`,
+`analysis.trace_request_path`, `analysis.diagnostic_snapshot`) are offered to no class. EVAL-offers measured offering
+them one by one (61 cases × 5 trials): they are used and change little, so offering them alone is not the next step.
+H4 measures them again with hypotheses in the decisions.
 
 ### H1 — The schema and the harness checks, log-only
 - `Hypothesis`; the optional fields on `Conclude`, `Escalate`, `UseReadTools` (ACR-0024 §3.1); decision tool schemas.
@@ -51,6 +45,8 @@ start of the step.
 - `expected_hypotheses` labels on the existing cases (SC-01 to SC-09); top-1 / top-3 accuracy over the ranking;
   ruled-out recall; hard check `unsupported_root_cause` = 0.
 - A run with the H1 checks still log-only; then the harness **enforces** them only if accuracy is not lower.
+- The built reads measured again with hypotheses, one batch per read (as EVAL-offers); a read is offered to a class
+  only when its batch improves that class.
 
 ### H5 — `analysis.anomaly_summary`
 - Onset, deviation from the B7 baseline, which onset came first (ACR-0024 §3.7); offered to no class; then offered to
