@@ -14,15 +14,14 @@ address or project id is written here (`policies/SECURITY.md` rule 4).
 | D.1 vm-095 | `BACKUP OK` (2353933 bytes, 13:08); `DEPLOY OK: 999b5bbe980e (999b5bb)`; `+ 008_deploy_event applied`, schema 001 to 008; agent, worker, scheduler `Recreated`; `health 200`; `deploy recorded: 999b5bbe980e (main) on vm-095 by conantkd` | OK |
 | D.2 vm-095 | the three on ONE image `c71b991f0064`, `restarts=0`; no startup errors; `26/26 database checks passed` (B7's `deploy_event` checks included); through the edge without a login `/api/v1/topology`, `/overview`, `/me` 401, `/docs` 404; `55/55 checks passed`; `WRITE GATE CLOSED`; `commit=999b5bbe980e` `ref=999b5bb`; `LAB BASELINE OK`; `NO INTERFERENCE` | OK |
 | vm-166 | `nonint-check after`: `NO INTERFERENCE`; `ref=bdcd048`, `LAB BASELINE OK` (unchanged) | OK |
-| D.3 vm-095 | the logged-in check of the long ranges and the baseline: **not run** (it asks for an Argus password, which only conantkd types) | pending |
+| D.3 vm-095 | run by conantkd in their own terminal (logged in, read-only): the latest incident's metrics at `range=24h`: `ranges ['15m', '30m', '1h', '6h', '24h']`; `baseline` on `host_cpu_busy_ratio` and `host_memory_available_ratio`; `events []` (that incident's window does not cover this deploy: expected) | OK |
 | D.4 laptop | both leases released | OK |
 
 ## Notes
 
 - **Not in this deploy:** #203 (a failed baseline read is not kept), approved, not merged yet. It reaches vm-095 with
   the next deploy.
-- **D.3 is still to do** by conantkd in their own terminal (the block in `code.bash`): the ranges include 6h and 24h,
-  the baseline is on the series with enough data, and a deploy event shows only when an incident's window covers
-  this deploy.
+- **D.3** was run by conantkd after the record merged (#205): the long ranges and the baseline are served; no deploy
+  event on an incident older than this deploy, as expected.
 - **Rollback, if needed:** `deploy.sh bdcd048 --as conantkd` on vm-095, then the compose command of D.1. Migration 008
   stays (the old image does not read `deploy_event`).
