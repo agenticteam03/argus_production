@@ -618,6 +618,7 @@ def diagnostic_snapshot(args: NoArgs, target: TargetRef, info, invoker) -> Capab
                             partial=bool(failed))
 
 MAX_TRACED_DEPENDENCIES = 3
+TRACE_READS = ("container.status", "network.connectivity", "network.resolve_dns")
 
 
 def trace_request_path(args: NoArgs, target: TargetRef, info, invoker) -> CapabilityResult:
@@ -632,8 +633,7 @@ def trace_request_path(args: NoArgs, target: TargetRef, info, invoker) -> Capabi
     extra = traced[MAX_TRACED_DEPENDENCIES:]
     hops, lines, failed = [], [], []
     for dep in traced[:MAX_TRACED_DEPENDENCIES]:
-        reads = (("container.status", dep, {}), ("network.connectivity", target, {"to": dep.name}),
-                 ("network.resolve_dns", dep, {}))
+        reads = tuple(zip(TRACE_READS, (dep, target, dep), ({}, {"to": dep.name}, {})))
         hop = {"dependency": str(dep), "reads": {}}
         lines.append(f"{target.name} -> {dep.name}:")
         for name, t, a in reads:
@@ -652,6 +652,11 @@ def trace_request_path(args: NoArgs, target: TargetRef, info, invoker) -> Capabi
     head += f"; not ok: {', '.join(failed)}" if failed else ""
     return CapabilityResult(values={"hops": hops, "not_traced": [str(d) for d in skipped + extra]},
                             model_text=head + "\n" + "\n".join(lines), partial=bool(failed))
+
+
+# ACR-0026: the sub-reads of each combined capability; it is as sensitive as its most sensitive sub-read
+SUBREADS = {"analysis.diagnostic_snapshot": tuple(name for name, _, _ in SNAPSHOT_READS),
+            "analysis.trace_request_path": TRACE_READS}
 
 
 # --- prometheus ----------------------------------------------------------------------------------
@@ -772,12 +777,12 @@ def build_catalog() -> list[CapabilitySpec]:
         CapabilitySpec("container.detailed_logs", "get_detailed_logs",
                        "A container's redacted log lines of a time window (1-120 min, up to 500), stdout, stderr or "
                        "both.", "the recent tail is not enough: what happened in a given window", WindowLogsArgs, C, 2,
-                       "READ_ONLY_SAFE", frozenset({"detailed_logs"}), "docker_read", container_detailed_logs),
+                       "READ_ONLY_SENSITIVE", frozenset({"detailed_logs"}), "docker_read", container_detailed_logs),
         CapabilitySpec("container.search_logs", "search_logs",
                        "How many of a container's log lines in a window match a named pattern (error, timeout, refused, "
                        "oom, disk_full, auth, restart), and up to 50 of them.",
                        "is a known kind of failure present in the logs, and how often", SearchLogsArgs, C, 2,
-                       "READ_ONLY_SAFE", frozenset({"search_logs"}), "docker_read", container_search_logs),
+                       "READ_ONLY_SENSITIVE", frozenset({"search_logs"}), "docker_read", container_search_logs),
         CapabilitySpec("container.events", "get_container_events", "Docker lifecycle events (start/die/oom/kill/restart) of a container.",
                        "what happened just before a failure", EventsArgs, C, 2, "READ_ONLY_SAFE",
                        frozenset({"container", "stability"}), "docker_read", container_events),
@@ -817,8 +822,8 @@ def build_catalog() -> list[CapabilitySpec]:
                        "READ_ONLY_SAFE", frozenset({"disk"}), "host_probe", host_io),
         CapabilitySpec("host.directory_sizes", "get_directory_sizes",
                        "The largest entries directly under a declared mount (one filesystem, bounded walk).",
-                       "which directory fills a filesystem", MountArgs, H, 2, "READ_ONLY_SAFE",
-                       frozenset({"disk"}), "host_probe", host_directory_sizes),
+                       "which directory fills a filesystem", MountArgs, H, 2, "READ_ONLY_SENSITIVE",
+                       frozenset({"disk"}), "host_probe", host_directory_sizes),   # ACR-0026: names on the host
         CapabilitySpec("host.read_file", "inspect_approved_file",
                        "The last lines of a file the inspection policy allows for this target.",
                        "a specific log or diagnostics file is named by the evidence", FileArgs, C | H, 3,
@@ -885,7 +890,7 @@ def build_catalog() -> list[CapabilitySpec]:
         CapabilitySpec("analysis.diagnostic_snapshot", "capture_diagnostic_snapshot",
                        "A container's status, resources and recent logs, and its host's memory and CPU, in one call "
                        "(each part stored as its own evidence).", "a first broad look at a container and its host",
-                       NoArgs, C, 3, "READ_ONLY_SAFE", frozenset({"snapshot"}), "argus_internal", diagnostic_snapshot,
+                       NoArgs, C, 3, "READ_ONLY_SENSITIVE", frozenset({"snapshot"}), "argus_internal", diagnostic_snapshot,
                        runs_in="worker", max_output_bytes=16384, max_subcalls=6),
         CapabilitySpec("analysis.trace_request_path", "trace_request_path",
                        "Follows the container's declared dependencies (same host, at most 3): for each, is it running, "
