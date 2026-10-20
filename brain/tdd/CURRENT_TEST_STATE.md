@@ -2,6 +2,20 @@
 
 **Last updated:** 2026-10-12 (roll-up) · **Commit:** `main` after #96 (`817d88f`)
 
+New: `tests/test_op014_property_policy.py`, 11 tests, green. No code change. Full suite green.
+
+No code change in this record. CI on `main` at `bdcd048`: `test` and `frontend` green on #195.
+
+New: `tests/test_op014_property_based.py` (22 tests; up to 300 generated examples per property). Red seen: the
+glued-token property and the 5 non-ASCII cases failed before the fix. Full suite green.
+
+No code change.
+
+New: 13 tests in `test_t0045_b8_link_reasons.py` (red seen: missing `kind`, `error_kind`, `argus_probe_error`).
+`test_t0045_b3_topology.py`: the adapter now makes 3 queries. Full suite green.
+
+No code change in this record. CI on `main` at `2c7248b`: `ci` success.
+
 `test_db_check_proves_the_column_before_counting_its_refusals` (new, red seen first). The Postgres check
 (`test_database_guarantees_check`) runs the new read in CI. Full offline suite green.
 
