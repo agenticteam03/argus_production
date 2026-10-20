@@ -648,6 +648,11 @@ SELF_MERGE_PROTECTED = (
     "argus/tooling/isolation_check.py",                      # the code that enforces the write gate and the rails
     "tests/brain/", "tests/test_write_gate_standing.py", "tests/test_write_gate_check.py",
     "tests/test_tool_isolation.py", "tests/test_op014_prompt_injection.py",   # the tests of those rails
+    # phase 15 (NEXT-PHASE, ACR-0019): the action path, protected before it exists. The dispatch package and the
+    # gateway service are reserved names; the first PR that builds either one keeps them.
+    "config/actions/", "config/risk.yaml", "config/ranking.yaml",   # action cards, risk colours, ACR-0024's weights
+    "argus/capabilities/write_contract.py", "argus/actions/",      # the write contract (§14.8), the dispatch module
+    "services/action-gateway/",                                    # the action gateway (§4.5)
 )
 SELF_MERGE_PROTECTED_GLOBS = ("deploy/*/compose*.yml",)      # mounts, secrets, ports of every deployed stack
 FILES_PAGE = 100
