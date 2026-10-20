@@ -7,6 +7,10 @@ shared-Brain setup B1–B8 under way (three developers).
 > The VMs are authoritative for what runs there: run `sudo bash /opt/argus-v18/app/ops/deploy.sh status` (or read
 > `/opt/argus-v18/DEPLOYED`) and the state probe before trusting this file.
 
+> **Update 2026-10-20 (`conantkd`, DEPLOY-B7, OBSERVED with `deploy.sh status`):** **vm-095 runs `main` `999b5bb`**
+> (T-0045 B7: the baseline, the 6h and 24h ranges, deploy events); **database at migration 008** (`deploy_event`).
+> vm-166 stays on `bdcd048`. Evidence: `execution/history/DEPLOY-B7/step-01/evidence.md`.
+
 > **Update 2026-10-20 (`conantkd`, DEPLOY-195, OBSERVED with `deploy.sh status`):** **both VMs run `main` `bdcd048`**
 > (T-0045 B8: finer link reasons, `argus_probe_error` from the exporter on both hosts; #195: a token glued to a
 > non-ASCII letter is masked). Database still at migration 007. vm-166 moved from `ccc810e`. Evidence:
