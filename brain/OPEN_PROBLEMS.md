@@ -212,7 +212,10 @@ diff-coverage gates, LLM injection regression testing, CI security scanners.)
    changed lines; Vitest coverage thresholds for `frontend/`. A changed-lines gate never blocks on old, untested code.
 5. **Static analysis (SAST):** `ruff` for Python; `bandit` or `semgrep` (OWASP / Python rulesets) failing on high
    severity. CodeQL code scanning is not available for private repositories on the free plan, so these run as
-   plain CI steps without SARIF upload.
+   plain CI steps without SARIF upload. *Done 2026-10-20 (`task/OP-014-5-static-analysis`):* `ruff` (default rules, E731 ignored)
+   and `bandit` at high severity on `argus/`, `services/` and `ops/`, both clean; bandit's 20 medium findings were
+   reviewed (SQL built from constant table names and placeholders, the API's bind address, allowlisted URL reads) and
+   are not a gate yet.
 6. **Dependency audit:** `pip-audit` and `npm audit --audit-level=high` (or OSV-Scanner) on every PR; Dependabot
    alerts on.
 7. **Workflow, image and script linting:** `zizmor` for `.github/workflows/`, `hadolint` for the Dockerfiles,

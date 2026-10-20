@@ -58,6 +58,14 @@ jobs:
         run: |
           docker run --rm --mount "type=bind,source=${{ github.workspace }}/tests/promql,target=/work,readonly" \
             --entrypoint promtool prom/prometheus:v3.5.0 test rules /work/op005_test.yml
+      # OP-014 step 5: static analysis of the production code (not tests/). ruff: the default rules, config in
+      # pyproject.toml. bandit: high severity fails the build (the medium findings were reviewed on 2026-10-20: SQL
+      # built from constant table names and placeholders, the API's bind address, allowlisted URL reads).
+      - name: Static analysis (ruff, bandit)
+        run: |
+          pip install "ruff==0.8.6" "bandit==1.8.0"
+          ruff check argus services ops
+          bandit -q -r argus services ops -lll
 
   # T-0016: the web UI in frontend/ — unit tests and the production build on every push.
   # Acceptance (Playwright) and contract checks join this job when they exist (T-0016 steps 2-3).
