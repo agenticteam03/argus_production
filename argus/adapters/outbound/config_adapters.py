@@ -159,7 +159,9 @@ class PrometheusMetrics:
         trigger; a stopped exporter still reads as missing through Prometheus' staleness markers (5-minute lookback)."""
         base, now = self._url(target.host), time.time()
         found: dict[str, dict[str, tuple[float, float]]] = {}
-        for field, signal in (("success", "dependency_probe_success"), ("duration", "dependency_probe_duration_s")):
+        kinds: dict[str, tuple[float, str]] = {}
+        for field, signal in (("success", "dependency_probe_success"), ("duration", "dependency_probe_duration_s"),
+                              ("error", "dependency_probe_error")):
             expr = Template(self.signals[signal]).substitute(host=target.host, name=target.name, mounts="")
             try:
                 r = httpx.get(f"{base}/api/v1/query", params={"query": expr}, timeout=8)
@@ -168,7 +170,9 @@ class PrometheusMetrics:
                 raise MetricsUnavailable(f"prometheus at {base}: {type(e).__name__}") from e
             for series in r.json().get("data", {}).get("result", []):
                 dep = (series.get("metric") or {}).get("dependency")
-                if dep:
+                if dep and field == "error":                # T-0045 B8: the failure kind is a label, not a value
+                    kinds[dep] = (float(series["value"][0]), (series.get("metric") or {}).get("kind") or "other")
+                elif dep:
                     found.setdefault(dep, {})[field] = (float(series["value"][0]), float(series["value"][1]))
         out: dict[str, ProbeSample] = {}
         for dep, parts in found.items():
@@ -177,8 +181,10 @@ class PrometheusMetrics:
             fresh = now - max(stamps) <= self.max_staleness_s
             ok = parts.get("success")
             took = parts.get("duration")
+            kind = kinds.get(dep)
             out[dep] = ProbeSample(ok[1] if ok and fresh and now - ok[0] <= self.max_staleness_s else None,
-                                   took[1] if took and now - took[0] <= self.max_staleness_s else None, at)
+                                   took[1] if took and now - took[0] <= self.max_staleness_s else None, at,
+                                   kind[1] if kind and now - kind[0] <= self.max_staleness_s else None)
         return out
 
 

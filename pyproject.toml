@@ -25,7 +25,7 @@ dependencies = [
 argus = "argus.__main__:main"
 
 [project.optional-dependencies]
-test = ["pytest>=8"]
+test = ["pytest>=8", "hypothesis>=6.100"]
 dev = ["pre-commit>=3.5"]
 
 [tool.pytest.ini_options]
