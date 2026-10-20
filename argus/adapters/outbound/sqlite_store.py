@@ -39,6 +39,14 @@ CREATE TABLE IF NOT EXISTS alert_occurrence (
   status TEXT NOT NULL DEFAULT 'firing', received_at TEXT NOT NULL, resolved_at TEXT);
 CREATE INDEX IF NOT EXISTS alert_occurrence_incident ON alert_occurrence(incident_id, received_at);
 CREATE TABLE IF NOT EXISTS monitoring_state (host TEXT PRIMARY KEY, state TEXT NOT NULL, updated_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS deploy_event (
+  id INTEGER PRIMARY KEY AUTOINCREMENT, host TEXT NOT NULL, commit_sha TEXT NOT NULL, ref TEXT NOT NULL,
+  actor TEXT NOT NULL, at TEXT NOT NULL);
+CREATE INDEX IF NOT EXISTS deploy_event_host ON deploy_event(host, at);
+CREATE TRIGGER IF NOT EXISTS deploy_event_no_update BEFORE UPDATE ON deploy_event
+  BEGIN SELECT RAISE(ABORT, 'deploy_event is insert-only'); END;
+CREATE TRIGGER IF NOT EXISTS deploy_event_no_delete BEFORE DELETE ON deploy_event
+  BEGIN SELECT RAISE(ABORT, 'deploy_event is insert-only'); END;
 CREATE TRIGGER IF NOT EXISTS evidence_no_update BEFORE UPDATE ON evidence
   BEGIN SELECT RAISE(ABORT, 'evidence is insert-only'); END;
 CREATE TRIGGER IF NOT EXISTS evidence_no_delete BEFORE DELETE ON evidence
@@ -218,6 +226,18 @@ class SqliteStore:
         self._q("INSERT INTO monitoring_state(host,state,updated_at) VALUES (?,?,?) ON CONFLICT(host) DO UPDATE SET "
                 "state=excluded.state, updated_at=excluded.updated_at",
                 (host, json.dumps(state), datetime.now(timezone.utc).isoformat()))
+
+    def add_deploy_event(self, host: str, commit: str, ref: str, actor: str, at: datetime) -> None:
+        """ACR-0021 (T-0045 B7): a deploy of `commit` to `host` (`argus deploy record`); insert-only."""
+        self._q("INSERT INTO deploy_event(host,commit_sha,ref,actor,at) VALUES (?,?,?,?,?)",
+                (host, commit, ref, actor, at.astimezone(timezone.utc).isoformat()))
+
+    def deploy_events(self, host: str, start: datetime, end: datetime) -> list[dict[str, Any]]:
+        """The host's deploys from `start` to `end`, oldest first."""
+        rows = self._q("SELECT commit_sha,ref,actor,at FROM deploy_event WHERE host=? AND at>=? AND at<=? "
+                       "ORDER BY at, id", (host, start.astimezone(timezone.utc).isoformat(),
+                                           end.astimezone(timezone.utc).isoformat()))
+        return [{"commit": r[0], "ref": r[1], "actor": r[2], "at": datetime.fromisoformat(r[3])} for r in rows]
 
     def close_queued_incident(self, incident_id: str, outcome: str, diagnosis: str, closed_at: datetime) -> bool:
         """Close an incident no worker has claimed (T-0026). False when it is no longer queued (claimed meanwhile)."""

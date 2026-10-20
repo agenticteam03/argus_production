@@ -1,4 +1,4 @@
-"""argus serve | api | worker | scheduler | user add|disable | db import-sqlite PATH|check | diagnose TARGET [--raw] | incident ID [--raw]"""
+"""argus serve | api | worker | scheduler | user add|disable | db import-sqlite PATH|check | deploy record | diagnose TARGET [--raw] | incident ID [--raw]"""
 from __future__ import annotations
 
 import argparse
@@ -6,9 +6,11 @@ import asyncio
 import getpass
 import logging
 import os
+import re
 import signal
 import threading
 import time
+import uuid
 
 from argus.infrastructure.wiring import Settings, build, make_metrics, make_store
 from argus.infrastructure.worker import Worker
@@ -140,6 +142,34 @@ def monitoring(args) -> None:
     print(f"monitoring maintenance of {args.host} until {until.isoformat()} (declared by {args.who})")
 
 
+DEPLOY_COMMIT = re.compile(r"^[0-9a-f]{7,40}$")
+DEPLOY_REF = re.compile(r"^[A-Za-z0-9._/-]{1,100}$")
+DEPLOY_ACTOR = re.compile(r"^[A-Za-z0-9-]{1,39}$")                 # a GitHub handle
+
+
+def deploy(args) -> None:
+    """ACR-0021 (T-0045 B7): record a deploy of a commit to a host, for the incident charts' `deploy` events. The host
+    is an inventory host (default `ARGUS_HOME_HOST`, where this agent runs); commit, ref and actor are checked; audited."""
+    from argus.adapters.outbound.config_adapters import YamlInventory
+    from argus.domain.model import AuditRecord, utcnow
+    s = Settings()
+    host = args.host or s.home_host
+    inventory = YamlInventory((s.config_dir / "inventory.yaml").read_text(encoding="utf-8"))
+    if host not in {h.name for h in inventory.hosts()}:
+        raise SystemExit(f"{host or '(no host)'} is not a host of the inventory (--host or ARGUS_HOME_HOST)")
+    for value, pattern, what in ((args.commit, DEPLOY_COMMIT, "commit (7 to 40 lowercase hex)"),
+                                 (args.ref, DEPLOY_REF, "ref (letters, digits, . _ / -)"),
+                                 (args.who, DEPLOY_ACTOR, "--as (a GitHub handle)")):
+        if not pattern.match(value or ""):
+            raise SystemExit(f"not a valid {what}: {value!r}")
+    store, at = make_store(s), utcnow()
+    store.add_deploy_event(host, args.commit, args.ref, args.who, at)
+    store.append(AuditRecord(audit_id=f"aud_{uuid.uuid4().hex[:16]}", incident_id=None, at=at, category="incident",
+                             event="deploy.recorded", actor=args.who,
+                             detail={"host": host, "commit": args.commit, "ref": args.ref}))
+    print(f"deploy recorded: {args.commit[:12]} ({args.ref}) on {host} by {args.who}")
+
+
 def serve() -> None:
     """Single process (api + webhook + worker thread): the rollback for the T-0014 split."""
     import uvicorn
@@ -225,6 +255,12 @@ def build_parser() -> argparse.ArgumentParser:
     m.add_argument("host")
     m.add_argument("--minutes", type=int, required=True, help="1..240")
     m.add_argument("--as", dest="who", required=True, help="who declares it (audited)")
+    dp = sub.add_parser("deploy", help="ACR-0021: record a deploy (ops/deploy.sh calls it after DEPLOY OK)")
+    dp.add_argument("action", choices=["record"])
+    dp.add_argument("--host", default=None, help="an inventory host (default: ARGUS_HOME_HOST)")
+    dp.add_argument("--commit", required=True)
+    dp.add_argument("--ref", required=True)
+    dp.add_argument("--as", dest="who", required=True, help="who deployed (audited)")
     from argus.adapters.inbound.cli.main import add_parsers
     add_parsers(sub)
     return p
@@ -247,6 +283,8 @@ def main() -> None:
         db(a)
     elif a.cmd == "monitoring":
         monitoring(a)
+    elif a.cmd == "deploy":
+        deploy(a)
     else:
         from argus.adapters.inbound.cli.main import run
         raise SystemExit(run(a))
