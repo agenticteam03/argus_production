@@ -9,7 +9,7 @@
 | Tunnel key | `/opt/argus-v18/secrets/tunnel/` on vm-095 | anywhere else |
 | JWT signing key, Postgres passwords | `/opt/argus-v18/secrets/agent/`, `/opt/argus-v18/secrets/postgres/` on vm-095 | anywhere else |
 | OpenAI API key | `/opt/argus-v18/secrets/agent/openai_api_key` on vm-095 | anywhere else |
-| The team's shared Argus password | each developer's password manager; stored only as an argon2 hash in Postgres | anywhere written |
+| Each developer's Argus password (one account per person, no shared login: ARCHITECTURE §17.3) | their password manager; stored only as an argon2 hash in Postgres | anywhere written; never shared with another person |
 | Deploy keys (read-only, one per VM) | `/opt/argus-v18/secrets/deploy/` on each VM | anywhere else |
 | VM addresses | `~/.ssh/config` on laptops; `/opt/argus-v18/hosts.env` on the VMs | Git, the Brain |
 | The UI's TLS key and Let's Encrypt account (ACR-0011) | `/opt/argus-v18/secrets/tls/` on vm-095 (`privkey.pem` 0400, readable by the edge's uid 101 only; `letsencrypt/` 0700 root) | anywhere else |

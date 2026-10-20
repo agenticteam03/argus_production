@@ -102,23 +102,31 @@ runbook without a class.
 
 ## OP-002 — P0 safety gaps not yet reconciled with architecture v1.8
 
-**Status:** open · **Opened:** 2026-09-30
+**Status:** open · **Opened:** 2026-09-30 · **Reviewed:** 2026-10-20 by `conantkd` (+ agent), every gap checked
+against ARCHITECTURE 1.8.20, the code on `main` and the NEXT-PHASE ACRs (`task/OP-002-gap-review`)
 
 **Problem.** The library's `ARGUS-CAPABILITY-GAPS.md` lists eight **P0** gaps written against an older code base.
-Each must be settled in the architecture (ACR) before the related implementation. First assessment — to be verified:
+Each must be settled in the architecture (ACR) before the related implementation.
 
-| Gap | Asks for | Against v1.8 | Likely change |
+**Review (2026-10-20).** Four kinds of answer: covered by the text; built but missing from the text (the code says
+"lab addition"); assigned to a proposed ACR; still open.
+
+| Gap | Asks for | Finding (evidence) | Resolution |
 |---|---|---|---|
-| G-001 Deployment profiles | named, versioned profiles (production / lab); missing profile fails closed | partial: per-(capability, target) write gate, no profile | `profile` in the policy file; write gate evaluated per profile |
-| G-002 Typed prerequisites | preconditions as typed predicates on fresh, identity-bound evidence | **missing**: §13.1 uses free-text `preconditions` | typed predicates evaluated at `propose_action` and `precheck_action` |
-| G-003 Observation provenance | source vs collection time, coverage, units, partial state, identities | partial | add the fields to `Observation` / `EvidenceRecord`; missing is never zero or healthy |
-| G-004 Approval binding | immutable proposal bound to what it acts on, previews | mostly covered | extend `identity()`; preview in the approval view |
-| G-005 Verification windows | stability windows, provisional vs final recovery | partial | `stability_window` per class; provisional/final states |
-| G-006 Data minimization | per-source field allowlists, literal redaction | partial | `allowed_fields` per `CapabilitySpec` |
-| G-007 Helper semantics | missing/partial data never becomes healthy or root cause | principle missing (implemented for metrics freshness) | state the rule in §12.3; contract fixtures |
-| G-008 Corpus/dispatcher separation | runbook IDs from metadata, bounded passages, tools never from runbook text | covered by §15.3 | verify that writes are offered only for registered classes |
+| G-001 Deployment profiles | named profiles; a missing profile fails closed | **built, not in the text:** `config/policy.yaml` declares `profile`, and `argus/policy/engine.py` refuses to start without `lab` or `production`; the profile selects `allowed_safety_classes`. §13.1 names neither. `config/policy.yaml` says `production` although the deployment is the lab, and ACR-0018 makes separation of duties depend on the profile | an ACR that writes the profile into §13.1, with which profile the lab runs (needed before phase 16) |
+| G-002 Typed prerequisites | preconditions as typed predicates on fresh, identity-bound evidence | §13.1 still shows free text (`preconditions: ["restart_count >= 3"]`); ACR-0019 §3.4 replaces it: action-card `preconditions` over fresh observations, a minimal interpreter (comparisons, `in`, `and`, `or`, never `eval`), re-evaluated at precheck | **ACR-0019** (proposed), phase 17 |
+| G-003 Observation provenance | source vs collection time, coverage, units, partial state, identities | **built, not in the text:** `CapabilityResult` / `Observation` / `EvidenceRecord` carry `source_time`, `units`, `partial`, `coverage`, `identities` (`argus/domain/model.py`, stored by `invoke_capability.py`); per-series freshness in `config_adapters.py`. §5.4 and §12.3 list none of them | the same ACR as G-001: the fields in §5.4 and §12.3 as built |
+| G-004 Approval binding | an immutable proposal bound to what it acts on, previews | §14 binds the proposal by digest; ACR-0019 §3.6 freezes it and adds the precheck preview (`dry_run`) to the digest and the approval view | **ACR-0019** (proposed), phase 18 |
+| G-005 Verification windows | stability windows, provisional vs final recovery | §15.1 calls one fresh healthy sample `recovered_verified`; nothing waits for stability. ACR-0019 gives each action card a `verify` with signals and a window, but not two states | **ACR-0019**, with one addition asked in its review: recovery is provisional until the card's window holds, then final; only final counts as `recovered_verified` |
+| G-006 Data minimization | per-source field allowlists, literal redaction | redaction is built and stated (§5.4, `capabilities/redaction.py`, `container.inspect` env/mounts); no field allowlist exists. ACR-0026 decides which reads need one (`READ_ONLY_SENSITIVE`) | **open:** its own ACR after ACR-0026, `allowed_fields` per sensitive capability |
+| G-007 Helper semantics | missing or partial data never becomes healthy or the root cause | **built, partly in the text:** missing values are `None`, never 0 (`MetricSnapshot`); a blind host is a finding, not healthy (`detectors/classes.py`); stale metrics end `undiagnosable` (§1.3, §9); the topology says `unknown`, never ok (§7.1). Tests: `test_t0027_blind_spot`, `test_t0032_prometheus_down`, `test_sc04_pg_connections`, `test_e2e2_evidence_gaps`. The rule itself is not stated once | the same ACR as G-001: one sentence in §12.3 ("unknown is never healthy, never zero, never a root cause") |
+| G-008 Corpus/dispatcher separation | runbook ids from metadata, bounded passages, tools never from runbook text | **covered:** §15.3; a `MISSING TOOL REQUIREMENT` name is never offered (§15.3); tools come only from the catalog by class tags (`runner.py`, `graph_runner.py`); no write is registered, and the standing write-gate test (`tests/test_write_gate_standing.py`) checks that a model-proposed restart is never executed | **closed** |
 
-**Done when.** Each gap is covered, changed through an ACR, or dropped with a reason.
+**Next.** One small ACR for G-001, G-003 and G-007 (writing down what is built, plus the lab's profile); the G-005
+addition in ACR-0019's review; G-006's own ACR after ACR-0026.
+
+**Done when.** Each gap is covered, changed through an ACR, or dropped with a reason. Today: G-008 closed; G-002 and
+G-004 wait for ACR-0019 to be applied; G-001, G-003, G-005, G-006 and G-007 are open as above.
 
 ---
 
@@ -265,7 +273,7 @@ them (gap 7). Steps 9-13 are tracked as tasks.
 
 ## OP-015 — §14's approval and action machinery is described as built, but is not
 
-**Status:** open · **Opened:** 2026-10-18 (the NEXT-PHASE proposal) · **Found by:** `juanbetancurm` (+ agent)
+**Status:** fixed 2026-10-20 (`task/PHASE-15-foundations`: the text no longer claims it; ARCHITECTURE 1.8.21) · **Opened:** 2026-10-18 (the NEXT-PHASE proposal) · **Found by:** `juanbetancurm` (+ agent)
 
 **Problem.** ARCHITECTURE §14 says: "In this release no write capability is released, but the machinery, its tables
 and its tests exist from the start so that the first release changes no core code." `IMPLEMENTATION_PLAN.md` phase 9
@@ -283,13 +291,14 @@ What exists is the closed write gate and its standing test (T-0031).
 ARCHITECTURE change touching §14 states "designed, not built", and phase 9's line in the plan drops the HITL item.
 
 **Done when.** The §14.4 failure-injection and §22.2 binding suites run in CI, or the text no longer claims they
-exist.
+exist. *Done 2026-10-20 the second way:* §14 says "designed, not built" (1.8.21), and the plan's phase 9 and its
+"Escalation / approval" exit line no longer list HITL against a fake endpoint (it is phase 18).
 
 ---
 
 ## OP-016 — `SECURITY.md` lists a shared team password
 
-**Status:** open · **Opened:** 2026-10-18 · **Found by:** `juanbetancurm` (+ agent)
+**Status:** fixed 2026-10-20 (`task/PHASE-15-foundations`: the row is replaced; no shared account on vm-095) · **Opened:** 2026-10-18 · **Found by:** `juanbetancurm` (+ agent)
 
 **Problem.** `policies/SECURITY.md`'s secrets table has a row "The team's shared Argus password | each developer's
 password manager". ARCHITECTURE §17.3 (ACR-0011) says "Every login reachable from the Internet is one account per
@@ -300,7 +309,11 @@ a terminal session impossible to attribute (ACR-0018, ACR-0019, ACR-0020).
 ids and kinds; `argus user` has only `add` and `disable`), disable any shared account (`argus user disable`), and replace the row with "Each developer's Argus password | their password manager; an Argon2 hash in
 Postgres".
 
-**Done when.** The row is replaced and no shared account exists.
+**Done when.** The row is replaced and no shared account exists. *Row replaced 2026-10-20* ("Each developer's Argus
+password (one account per person, no shared login)"); the read-only `principal` query on vm-095 (run by `conantkd`, ids, kinds, roles and
+`disabled` only) lists five principals, all `human` and each one person's: `conantkd`, `juanbetancurm`,
+`juanes6554` (operators, enabled), `conantkd-viewer` (the temporary viewer of the D.4 check) and `olav`, both
+disabled. No shared account, so nothing to disable.
 
 ---
 
