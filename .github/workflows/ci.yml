@@ -58,10 +58,24 @@ jobs:
           ./gitleaks detect --source . --no-banner --redact
       - name: Tests (offline + Postgres + brain.py)
         run: pytest -q -rs
+      # OP-014 step 6: a known vulnerability in an installed Python package fails the build (the project itself is
+      # editable, not on PyPI, so it is skipped). A step of this job, not a new job: SELF_MERGE_CHECKS stays as is.
+      - name: Dependency audit (pip-audit)
+        run: |
+          pip install "pip-audit==2.10.1"
+          pip-audit -l --skip-editable --progress-spinner off
       - name: OP-005 PromQL signal cases
         run: |
           docker run --rm --mount "type=bind,source=${{ github.workspace }}/tests/promql,target=/work,readonly" \
             --entrypoint promtool prom/prometheus:v3.5.0 test rules /work/op005_test.yml
+      # OP-014 step 5: static analysis of the production code (not tests/). ruff: the default rules, config in
+      # pyproject.toml. bandit: high severity fails the build (the medium findings were reviewed on 2026-10-20: SQL
+      # built from constant table names and placeholders, the API's bind address, allowlisted URL reads).
+      - name: Static analysis (ruff, bandit)
+        run: |
+          pip install "ruff==0.8.6" "bandit==1.8.0"
+          ruff check argus services ops
+          bandit -q -r argus services ops -lll
 
   # T-0016: the web UI in frontend/ — unit tests and the production build on every push.
   # Acceptance (Playwright) and contract checks join this job when they exist (T-0016 steps 2-3).
@@ -81,6 +95,10 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
       - name: Install
         run: npm ci
+      # OP-014 step 6: a high or critical advisory in a production dependency (what the built UI ships) fails the
+      # build. Dev-only tooling (Vite, Vitest) is tracked in OP-017 until its major upgrades are done.
+      - name: Dependency audit (npm, production)
+        run: npm audit --omit=dev --audit-level=high
       - name: Lint (ESLint)
         run: npm run lint
       - name: Unit tests (Vitest)

@@ -37,6 +37,7 @@ import os
 import re
 import subprocess
 import sys
+import time
 import uuid
 from pathlib import Path
 
@@ -744,11 +745,27 @@ def check_main(commits: list[tuple[str, int]], pr_for, reviews_for, allowed: set
     return problems
 
 
+GH_TRIES = 3                                    # main-guard once went red on "unexpected end of JSON input"
+
+
 def gh_json(path: str):
-    p = subprocess.run(["gh", "api", path], capture_output=True, text=True, encoding="utf-8", timeout=60)
-    if p.returncode != 0:
-        raise BrainError(f"gh api {path}: {(p.stderr or p.stdout).strip()}")
-    return json.loads(p.stdout or "null")
+    """`gh api` as JSON. A failed call or a cut-off answer is tried again (GH_TRIES in all, 2 s then 4 s apart): a
+    passing rule must not go red on one bad answer from GitHub, and a real failure still raises. A 404 is an answer
+    (e.g. a deleted branch), raised at once."""
+    for attempt in range(1, GH_TRIES + 1):
+        p = subprocess.run(["gh", "api", path], capture_output=True, text=True, encoding="utf-8", timeout=60)
+        if p.returncode == 0:
+            try:
+                return json.loads(p.stdout or "null")
+            except json.JSONDecodeError as e:
+                why = f"not JSON ({e})"
+        else:
+            why = (p.stderr or p.stdout).strip()
+            if "HTTP 404" in why:
+                break
+        if attempt < GH_TRIES:
+            time.sleep(2 * attempt)
+    raise BrainError(f"gh api {path}: {why}")
 
 
 def verify_main(ref: str) -> list[str]:

@@ -41,3 +41,8 @@ include = ["argus*"]
 
 [tool.setuptools.package-data]
 argus = ["runbooks/*.md"]   # the reviewed runbook library (D-002)
+
+[tool.ruff.lint]
+# OP-014 step 5: the default rules (pyflakes and the pycodestyle errors) on the production code, in CI. E731 (a
+# named lambda) is style only and used on purpose in a few places.
+ignore = ["E731"]
