@@ -107,7 +107,7 @@ if [ "$CMD" = backup ]; then
   snap_read=${SNAP[0]}; snap_write=${SNAP[1]}; snap_pid=$SNAP_PID
   backup_cleanup() {
     if [ -n "${snap_write:-}" ]; then
-      printf 'ROLLBACK;\n' >&"$snap_write" 2>/dev/null || true
+      printf 'ROLLBACK;\n' 1>&"$snap_write" 2>/dev/null || true
       exec {snap_write}>&-
     fi
     if [ -n "${snap_pid:-}" ]; then wait "$snap_pid" 2>/dev/null || true; fi

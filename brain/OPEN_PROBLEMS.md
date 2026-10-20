@@ -211,6 +211,10 @@ diff-coverage gates, LLM injection regression testing, CI security scanners.)
 *Next — one PR each, each new job added to `SELF_MERGE_CHECKS` in the same PR:*
 4. **Coverage on changed lines:** `pytest-cov` + `diff-cover` (or `pytest-nlcov`) failing under 80 % of the PR's
    changed lines; Vitest coverage thresholds for `frontend/`. A changed-lines gate never blocks on old, untested code.
+   *Done 2026-10-20 for Python (`task/OP-014-4-7-ci-gates`):* the `test` job runs the suite under `pytest-cov`
+   (`argus/`, `services/`) and `diff-cover` fails a PR whose changed lines there are under 80 % covered (against
+   `origin/main`). Run in CI only: the full suite under coverage ran out of memory on a laptop. Vitest coverage
+   waits for OP-017 (it needs `@vitest/coverage-v8`, and Vitest's own advisories are a major upgrade).
 5. **Static analysis (SAST):** `ruff` for Python; `bandit` or `semgrep` (OWASP / Python rulesets) failing on high
    severity. CodeQL code scanning is not available for private repositories on the free plan, so these run as
    plain CI steps without SARIF upload. *Done 2026-10-20 (`task/OP-014-5-static-analysis`):* `ruff` (default rules, E731 ignored)
@@ -224,7 +228,17 @@ diff-coverage gates, LLM injection regression testing, CI security scanners.)
    `shellcheck` for `ops/*.sh`, Trivy config/filesystem scan. **Pin every action by commit SHA**: the Trivy action
    itself was compromised in March 2026, and pinned dependencies are an OpenSSF Scorecard check. *Pinning done 2026-10-20
    (`task/OP-014-7-pin-actions`):* the four actions by commit SHA, and the gitleaks download checked against its
-   published SHA-256. `zizmor`, `hadolint`, `shellcheck` and Trivy remain.
+   published SHA-256. *Linting done 2026-10-20 (`task/OP-014-4-7-ci-gates`):* `zizmor` on the workflows (3 medium
+   findings fixed: `actions/checkout` no longer persists the git token, `persist-credentials: false`), `hadolint` on
+   the four Dockerfiles (binary checked against its SHA-256; DL3008/DL3018, unpinned distro packages, ignored in
+   `.hadolint.yaml` with the reason), `shellcheck -S warning` on `ops/*.sh` (one real finding fixed in
+   `db-backup.sh`: `>&"$fd" 2>/dev/null` read as both streams, now `1>&"$fd"`; three `hosts.env` sources and
+   `ui-cert.sh`'s own `dirs` function annotated), and Trivy 0.75.0's configuration scan at high and critical (the
+   binary, checked against its SHA-256, never the action). Steps of the `test` job, so `SELF_MERGE_CHECKS` is
+   unchanged. **Left:** Trivy's one finding, DS-0002 (root in the container) on `services/target/Dockerfile` and
+   `deploy/vm-095/tunnel/Dockerfile`, is an exception for those two files only (`.trivyignore.yaml`): the target
+   services read the host's Docker socket and allowlisted host files, and the tunnel reads its key mounted from the
+   host, so a non-root user needs a VM change (the docker group, key ownership) and a deploy with its lease.
 8. **Model quality:** run the model evaluation (§21.2) on a schedule (weekly) and record the result; until then a
    change under `argus/orchestration/`, `config/signals.yaml`, the class registry or the runbooks asks for a
    teammate's review (REVIEW_PROTOCOL.md, "The tests this rule relies on").

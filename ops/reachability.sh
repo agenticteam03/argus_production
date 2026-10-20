@@ -7,6 +7,7 @@
 # Usage on each VM:  bash reachability.sh
 set -u
 HOSTS_ENV=${ARGUS_HOSTS_ENV:-/opt/argus-v18/hosts.env}   # VM-local, never committed (template: deploy/hosts.env.example)
+# shellcheck source=/dev/null   # hosts.env exists only on the VMs
 [ -r "$HOSTS_ENV" ] && . "$HOSTS_ENV"
 : "${ARGUS_VM095_PRIVATE_IP:?missing: see $HOSTS_ENV}" "${ARGUS_VM166_PRIVATE_IP:?missing: see $HOSTS_ENV}"
 case " $(hostname -I) " in
