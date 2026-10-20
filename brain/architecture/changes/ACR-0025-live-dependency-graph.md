@@ -43,13 +43,21 @@ What is missing:
 ### 3.1 Recording transitions (§7.3, the reconcile tick)
 
 On each reconcile tick (`every_s`, 60 s), the scheduler reads `MetricsPort.dependency_probes(owner)` for every owner
-with a declared dependency, **on the owner's own host's Prometheus** (the read the topology already does), and derives
-each link's state with the topology's rules (`ok`, `slow` above `link_warning_ms`, `broken`, `unknown` when the sample
-is stale or missing). It stores a row **only when a link's state changes** (and once at startup), so the
-table grows with events, not with time. Audited `link.changed` (system principal). Configuration:
-`reconcile_firing_alerts.link_states.enabled` (off until deployed).
+with a declared **container** dependency, **on the owner's own host's Prometheus** (the read the topology already does;
+for vm-166 through the tunnel), and derives each link's state with the topology's rules (`ok`, `slow` above
+`link_warning_ms`, `broken`, `unknown` when the sample is stale or missing). It stores a row **only when a link's state
+changes** (and once at startup), so the table grows with events, not with time. Audited `link.changed` (system
+principal). Configuration: `reconcile_firing_alerts.link_states.enabled` (off until deployed).
 
-### 3.2 Storage (§16.1 row 2; migration `010_link_event.sql`)
+- **This is a new read for the scheduler**, which today reads only Alertmanager (§7.3): it gets the `MetricsPort`.
+- **When a host's Prometheus cannot be read** (`MetricsUnavailable`, the tunnel down), the tick is **skipped for that
+  host**: nothing is recorded, so an outage does not write a burst of `unknown` transitions and then a burst of
+  recoveries. A sample that is read but stale is `unknown` (Argus reached Prometheus, and Prometheus has no fresh
+  probe).
+- **A host-kind dependency** (`argus-lab-filler` → `vm-166/host:vm-166`: a filesystem, not a port) is never probed and
+  never recorded; it stays `not_checked`, as on the map today.
+
+### 3.2 Storage (§16.1 row 2; a new migration, `<next free number>_link_event.sql`)
 
 `link_event` (`id`, `owner`, `dependency`, `state`, `latency_ms`, `reason` (B8's), `at`): insert-only for the runtime role
 (SELECT, INSERT), like `deploy_event` (migration 008); `db-check` proves it. Retention: with the incident data
@@ -66,20 +74,25 @@ running) stays as today. The UI keeps polling (20 s, matching the shared snapsho
 `events` gain `link_broken` / `link_recovered` (and `link_slow`) for the links of the incident's target and of its
 declared dependencies inside the window, from `link_event`. Label: "Link argus-lab-api → argus-lab-cache broken".
 
-### 3.5 The investigation (§12.2, a new Level 1 row)
+### 3.5 The investigation (§12.2, a new Level 2 row)
 
 | Tool | Capability | Executor | Notes |
 |---|---|---|---|
-| `read_link_states` | `network.link_states` | `argus_internal` | the current state and the transitions of the last `minutes` (≤ 240) of the links of the incident's target and its declared dependencies, from `link_event` and the latest probe sample; tag `dependency`; `max_per_incident` 2 |
+| `read_link_states` | `network.link_states` | `argus_internal` | the current state and the transitions of the last `minutes` (≤ 240) of the links of the incident's target and its declared dependencies, from `link_event` and the latest probe sample; tag `link_states`, which no class has yet; `max_per_incident` 2 |
 
-Offered to `dependency_unavailable`, `health_check_failed` and `nginx_upstream_failure` after an evaluation batch (SC-03,
-SC-07, SC-08 cases); a stored observation like any other read (§5.4).
+Level 2, not Level 1: a Level 1 read reaches every class without a tag (§10.4 step 3; `graph_runner.py`:
+`s.tags & cls.tool_tags or s.level == 1`), so it could not be measured before it is offered. With its own tag it is
+offered by adding `link_states` to the tool tags of `dependency_unavailable`, `health_check_failed` and
+`nginx_upstream_failure` after an evaluation batch (SC-03, SC-07, SC-08 cases). That changes the class registry
+(`argus/detectors/classes.py`), so it needs a teammate's review (OP-014 step 8). A stored observation like any other
+read (§5.4).
 
 ### 3.6 The inventory (§5.8, `config/inventory.yaml`)
 
 A `depends_on` entry may be a mapping: `{ref, port, required}`. A plain ref stays valid (port: the dependency's only
-`tcp_ports` entry; `required: true`). The loader refuses a port the dependency does not list and a dependency on another
-host (cross-host links stay `not_checked`, host isolation).
+`tcp_ports` entry; `required: true`). The loader refuses a port the dependency does not list, a `port` on a host-kind
+ref (a host dependency has no port and is never probed, §3.1), and a dependency on another host (cross-host links stay
+`not_checked`, host isolation).
 
 ### 3.7 Not in this ACR
 
@@ -98,19 +111,21 @@ Undeclared connections seen on the hosts ("observed but not declared": needs per
 
 ## 4. Consequences
 
-- **Code:** `infrastructure/scheduler.py` (the tick step, with the metrics port), `application/links.py` (new: the
+- **Code:** `infrastructure/scheduler.py` (the tick step; the scheduler gets the `MetricsPort`, a new read for it), `application/links.py` (new: the
   state rules shared with `topology.py`), `application/topology.py` (`since`, `required`, the problem),
-  `application/incident_metrics.py` (link events), the stores (migration 010), `capabilities/catalog.py`
+  `application/incident_metrics.py` (link events), the stores (the new migration), `capabilities/catalog.py`
   (`network.link_states`), `adapters/outbound/config_adapters.py` (the `depends_on` mapping).
-- **Tests:** transitions only (no row when nothing changes); a stale or missing sample → `unknown`, never `ok`; per-host reads only
+- **Tests:** transitions only (no row when nothing changes); a stale or missing sample → `unknown`, never `ok`; an
+  unreadable Prometheus skips that host's tick (no row); a host dependency is never probed; per-host reads only
   (the existing host-isolation pattern); insert-only table; `since` and the required-link problem; link events in the
   window; the inventory loader refusals; evaluation SC-03 shows `argus-lab-api → argus-lab-cache` broken before the API's
   errors, SC-07 shows the client's link broken, healthy runs show `ok`.
 - **Contract:** `contracts/ui-api.json`, the topology and incident-metrics samples (additive fields and event kinds).
-- **Deployment:** migration 010 before the new image (vm-095); the scheduler restarted with `link_states.enabled: true`.
+- **Deployment:** the new migration before the new image (vm-095); the scheduler restarted with `link_states.enabled: true`.
   Nothing on vm-166 (the exporter already probes).
-- **Risk:** one Prometheus query per owner and tick (today: four owners with a container dependency, all on vm-166, through the tunnel);
-  bounded by the tick and the existing timeouts.
+- **Risk:** one Prometheus query per owner and tick (today: four owners with a container dependency, all on vm-166,
+  through the tunnel), bounded by the tick and the existing timeouts. When the tunnel is down, vm-166's tick is skipped
+  (no false `unknown` transitions); the alert and heartbeat reconciliation of the same tick are unaffected.
 - **Reverse:** `link_states.enabled: false`; the fields are additive; the table stays (forward-only migrations).
 - **Safety principle:** **no.** Read-only (Prometheus reads already done by the topology), no write, no new executor,
   host isolation kept (each host's own Prometheus; no cross-host link), no secrets, and `link_event` is not evidence

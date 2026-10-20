@@ -97,21 +97,34 @@ conclusions (§11.3 below).
 | a hypothesis cites an evidence id not stored for this incident, or the same id both for and against | `InvalidDecision(malformed)` |
 | a `supported` hypothesis without an observation or metric snapshot **of its own target** (for `relation: host`, of that host) among `support`; or a `ruled_out` one without an `against` | `InvalidDecision(malformed)` |
 | a model-strategy `conclude` with a `root_cause_target` but no `chosen`, or a `chosen` that is not `supported` or whose target is not the `root_cause_target` | `InvalidDecision(malformed)` |
+| a hypothesis with `target: null` whose `relation` is not `external` | `InvalidDecision(malformed)` |
+| an `external` hypothesis that is `supported` without an observation or metric snapshot of a target **in scope** (the effect Argus saw) among `support`; or an `external` hypothesis as `chosen` | `InvalidDecision(malformed)` |
 | more than 5 hypotheses | `InvalidDecision(malformed)` |
 
 A runbook passage or a prior incident is never evidence for a hypothesis (they are not `EvidenceRecord`s, §5.4); they
 stay in `evidence_refs` as today. The retry bound of §11.3 applies unchanged.
 
+**An external cause** (`relation: external`, the only relation that may have `target: null`: a provider outage, a
+network outside the inventory) is something Argus cannot observe directly. It may be `supported` by what Argus saw on a
+target in scope, and it is ranked like any other hypothesis, but it can never be `chosen`: a conclusion needs a
+`root_cause_target` Argus observed. When the evidence favours an external cause, the run ends in `escalate` with the
+hypotheses, and the operator sees the external one ranked first.
+
 ### 3.3 The support score (new, `application/ranking.py`; weights in `config/ranking.yaml`)
 
 Per hypothesis, computed in Python after validation, never by the model:
 
-`score = Σ weight(each supporting record) − Σ weight(each record against) − untested_penalty`
+`score = Σ weight(each counted supporting record) − Σ weight(each counted record against) − untested_penalty`
 
 - Initial weights (data, reviewed like the policy; `config/ranking.yaml` is added to `SELF_MERGE_PROTECTED`):
   an observation of the hypothesis's own target 3; a metric snapshot of it 2; an observation of another target in
   scope 1; an alert 1; a peer finding 1; a reported symptom 0.5; `untested_penalty` 0.5.
-- The hypotheses are ranked by score (ties: more distinct supporting records, then the order given).
+- **Citing more does not score more.** Per hypothesis and side (for, against), the **generic kinds** (an alert, a peer
+  finding, a reported symptom, an observation of another target) count **once per kind**, however many records of that
+  kind are cited. Observations and snapshots of the hypothesis's own target count once per distinct record, up to
+  `max_target_records` (3). So a hypothesis cannot climb by citing every alert of the incident.
+- The hypotheses are ranked by score. Ties: more distinct supporting records that **no other hypothesis cites** (a
+  record shared by several hypotheses tells them apart from nothing), then the order given.
 - Shown as **"supported by N, contradicted by M"** with the rank and a bar, **never as a percentage or a probability**.
 - The ranking never changes the conclusion, the outcome or the routing. When the chosen hypothesis is not ranked
   first, the incident records `ranking_disagrees: true` and the UI says so ("the evidence favours h2"); the operator
@@ -123,7 +136,7 @@ Per hypothesis, computed in Python after validation, never by the model:
 |---|---|---|
 | Hypotheses under test | ≤ 300 tokens | the latest decision's list (statement, status, cited ids); never dropped once present |
 
-### 3.5 Storage (§16.1 row 2; migration `009_incident_hypothesis.sql`)
+### 3.5 Storage (§16.1 row 2; a new migration, `<next free number>_incident_hypothesis.sql`)
 
 `incident_hypothesis`: one row per hypothesis per decision step (`incident_id`, `step`, `hypothesis_id`, `statement`,
 `cause_class`, `target`, `relation`, `status`, `support_ids`, `against_ids`, `score`, `rank`, `chosen`, `at`).
@@ -170,15 +183,17 @@ once runbooks carry machine-readable hypothesis lists).
 
 - **Code:** `domain/decisions` (the models), `tooling/model_harness.py` (decision tool schemas, the §3.2 checks),
   `orchestration/context.py` (the slot), `application/ranking.py` (new), `application/incident_view.py` (fill
-  `hypotheses`), the stores (migration 009), `capabilities/catalog.py` (`analysis.anomaly_summary`), `config/ranking.yaml`
+  `hypotheses`), the stores (the new migration), `capabilities/catalog.py` (`analysis.anomaly_summary`), `config/ranking.yaml`
   (new), `brain/tools/brain.py` (`SELF_MERGE_PROTECTED`), the system prompt (how to state hypotheses).
 - **Tests:** harness refusals (fabricated id, a root cause without a target observation, ruled out without against,
-  chosen not supported); ranking determinism and weights; insert-only table; viewer redaction; `anomaly_summary`
+  chosen not supported, `target: null` that is not external, an external hypothesis chosen); an external cause ranked
+  first ends in `escalate`; two hypotheses, one citing every alert, ranked by the target observation and not by the
+  alerts; ranking determinism and weights; insert-only table; viewer redaction; `anomaly_summary`
   onset and order on fixtures; evaluation SC-03 (cache supported, API crash ruled out), SC-07 (network
   misconfiguration supported, backend down ruled out), SC-05 (the alerted mount, not `/`). Accuracy not below today's
   and every hard check at 0.
 - **Contract:** `contracts/ui-api.json` and the incident sample (additive fields).
-- **Deployment:** migration 009 before the new image on vm-095; nothing on vm-166.
+- **Deployment:** the new migration before the new image on vm-095; nothing on vm-166.
 - **Risk:** more `InvalidDecision(malformed)` retries while the prompt learns the format (measured in the evaluation
   before the harness rule is enforced; until then the rule logs only). Longer replies (≤ 5 short hypotheses).
 - **Reverse:** the field is optional; turning the harness rule to log-only and hiding the UI tab restores today's
