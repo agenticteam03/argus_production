@@ -104,7 +104,10 @@ All of it rests on **ACR-0018**:
 - **earned autonomy**, using the shadow-mode data from phase 18 on.
 
 The UI backend (T-0045, ACR-0021), observed topology with scheduled edge checks, and explicit hypotheses with cause
-ranking are separate tracks.
+ranking are separate tracks: the live dependency graph is [T-0046](T-0046-live-dependency-graph.md)
+([ACR-0025](../../architecture/changes/ACR-0025-live-dependency-graph.md)), hypotheses and the cause ranking are
+[T-0047](T-0047-hypotheses-cause-ranking.md) ([ACR-0024](../../architecture/changes/ACR-0024-hypotheses-and-cause-ranking.md)),
+memory and feedback are [T-0048](T-0048-incident-feedback.md); controlled external knowledge is ACR-0022 §3.4–3.5.
 
 ## Cross-cutting gates
 
