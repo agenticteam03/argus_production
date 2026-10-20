@@ -217,7 +217,9 @@ diff-coverage gates, LLM injection regression testing, CI security scanners.)
    alerts on.
 7. **Workflow, image and script linting:** `zizmor` for `.github/workflows/`, `hadolint` for the Dockerfiles,
    `shellcheck` for `ops/*.sh`, Trivy config/filesystem scan. **Pin every action by commit SHA**: the Trivy action
-   itself was compromised in March 2026, and pinned dependencies are an OpenSSF Scorecard check.
+   itself was compromised in March 2026, and pinned dependencies are an OpenSSF Scorecard check. *Pinning done 2026-10-20
+   (`task/OP-014-7-pin-actions`):* the four actions by commit SHA, and the gitleaks download checked against its
+   published SHA-256. `zizmor`, `hadolint`, `shellcheck` and Trivy remain.
 8. **Model quality:** run the model evaluation (§21.2) on a schedule (weekly) and record the result; until then a
    change under `argus/orchestration/`, `config/signals.yaml`, the class registry or the runbooks asks for a
    teammate's review (REVIEW_PROTOCOL.md, "The tests this rule relies on").
