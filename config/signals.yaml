@@ -9,6 +9,8 @@ dependency_probe_min:  'min(argus_probe_success{argus_host="$host",owner="$name"
 # topology's links only (MetricsPort.dependency_probes); never a detector signal.
 dependency_probe_success:     'argus_probe_success{argus_host="$host",owner="$name"}'
 dependency_probe_duration_s:  'argus_probe_duration_seconds{argus_host="$host",owner="$name"}'
+# T-0045 B8: why a probe failed (label `kind`: refused, timeout, dns, other); present only while it fails.
+dependency_probe_error:       'argus_probe_error{argus_host="$host",owner="$name"}'
 container_memory_bytes: 'argus_container_memory_bytes{argus_host="$host",container="$name"}'
 container_restart_count: 'argus_container_restart_count{argus_host="$host",container="$name"}'
 # T-0020 (db-probe /metrics): ordinary-slot usage sustained for 5 minutes (RB-004 calibration default); unknown

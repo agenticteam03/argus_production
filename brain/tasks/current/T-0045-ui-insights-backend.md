@@ -235,6 +235,9 @@ fields or routes; the UI renders without them, so frontend and backend ship inde
 
 ### B8 — (optional) finer link reasons
 
+Status: in review (`task/T-0045-B8-link-reasons`): the kind comes from the exception type only, never its text;
+`other` and a missing or stale kind stay `not reachable`.
+
 - `services/target/service.py`: export `argus_probe_error{owner,dependency,kind="refused|timeout|dns|other"} 1` when
   a probe fails (from the exception type in `tcp()`).
 - B3 maps it to `reason` (`connection refused`, `timeout`, `name not resolved`).
