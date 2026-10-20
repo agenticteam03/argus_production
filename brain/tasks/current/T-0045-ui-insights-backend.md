@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | `in progress` — B1 to B5 merged (#173, #177, #174, #175, #176, #181; follow-up #185) and applied to `ARCHITECTURE.md` (1.8.18); B6 in review (#184: target-metrics and overview, ARCHITECTURE 1.8.19); B7 and B8 open. [ACR-0021](../../architecture/changes/ACR-0021-ui-insights-v2.md) is accepted with its least-privilege approval (#182) |
+| Status | `in progress` — B1 to B5 merged (#173, #177, #174, #175, #176, #181; follow-up #185) and applied to `ARCHITECTURE.md` (1.8.18); B6 merged (#184: target-metrics and overview, 1.8.19); B7 in review (#188: baseline, long ranges, deploy events, 1.8.20); B8 open. [ACR-0021](../../architecture/changes/ACR-0021-ui-insights-v2.md) is accepted with its least-privilege approval (#182) |
 | Phase | 10 — output modes (the UI) |
 | Architecture | ACR-0021 (`accepted`, applied after B4), extending ACR-0017 |
 | Branch | one branch per step: `task/T-0045-b<n>-<slug>` |
@@ -97,7 +97,7 @@ fields or routes; the UI renders without them, so frontend and backend ship inde
   - `restart` at each increase of `container_restart_count` in the window;
   - `oom_kill` at each 0→1 of `oom_killed`;
   - `alert_fired` / `alert_resolved` from the incident's `alert_occurrence` rows (and the resolution);
-  - `deploy` from `deploy_event` (B6), empty until B6.
+  - `deploy` from `deploy_event` (B7), empty until B7.
 - **Tests:**
   - an OOM fixture gives `restart` and `oom_kill` events at the right times;
   - alert events come from the store;
@@ -219,13 +219,17 @@ fields or routes; the UI renders without them, so frontend and backend ship inde
   - `RANGES` gains `6h` (360) and `24h` (1440);
   - the step keeps ≤ 130 points (`ceil(minutes × 60 / 130)`, as today);
   - the answer lists `ranges_available`.
-- **Baseline:** per series, `{p50, p95}` of the same signal over the 24 h ending 1 h before `opened_at`
-  (`quantile_over_time` via a new `MetricsPort.quantiles(target, signal, end, minutes, [0.5, 0.95])`); `null` when the
-  window has under 50 % samples; cached per (target, signal, day).
+- **Baseline:** per series, `{p50, p95, from, to}` of the same signal over the 24 h ending 1 h before `opened_at`;
+  `null` when the window has under 50 % samples. As built: one `MetricsPort.range` read (5-minute step, 289 samples)
+  and the quantiles in Python (linear between ranks, as `quantile_over_time`), so no new port method and no fake to
+  extend; kept per (target, signal, incident start), since that window never moves.
 - **Deploy events:**
-  - migration 007 (part 2): `deploy_event (id, host, commit, ref, actor, at)`, insert-only (runtime role: INSERT,
+  - migration **008** (B5 took 007): `deploy_event (id, host, commit, ref, actor, at)`, insert-only (runtime role: INSERT,
     SELECT);
-  - `argus deploy record --host --commit --ref --as` (CLI) and one line in `ops/deploy.sh` after `DEPLOY OK`;
+  - `argus deploy record --host --commit --ref --as` (CLI; host default `ARGUS_HOME_HOST`) and one line in
+    `ops/deploy.sh` **before** the `DEPLOY OK` verdict line (which stays last). Never fatal: the running agent records
+    it; on the deploy that first brings the verb, or a host without the agent, `code.bash` records it after the
+    rebuild;
   - B2's events read it.
 - **Tests:**
   - the step for 24h ≤ 130 points;
@@ -264,5 +268,5 @@ logged-in read through the edge showing the new fields and no address).
 2. The `idle` list: **the seven scenario-only containers of vm-166** (`profile: scenario`, B3).
 3. The link warning latency: **100 ms**, per target `link_warning_ms` (B3). The heartbeat staleness: **150 s**, pinned
    by a test to the scheduler's schedule (#177).
-4. The baseline window (24 h ending 1 h before the incident) and its cost on the lab Prometheus: **still open**,
-   decided in B7.
+4. The baseline window: **24 h ending 1 h before the incident**, one read of 289 samples (5 min) per incident and
+   signal, kept for the incident's life (B7). Computed from `MetricsPort.range`, so no new port method.

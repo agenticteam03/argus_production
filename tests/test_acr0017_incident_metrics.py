@@ -101,7 +101,8 @@ def test_the_series_come_from_the_class_list_and_the_detector_signal_is_fired(ma
     assert fired == ["dependency_probe_min"]
     for s in body["series"]:
         assert set(s) == {"key", "title", "unit", "max", "fired", "points",
-                         "kind", "thresholds", "detector_threshold"}      # + ACR-0021 (T-0045 B2)
+                         "kind", "thresholds", "detector_threshold",      # + ACR-0021 (T-0045 B2)
+                         "baseline"}                                      # + T-0045 B7
 
 
 def test_an_incident_without_a_class_gets_the_host_series_only(make_app):
@@ -177,12 +178,18 @@ def test_a_closed_incident_is_read_once_and_then_served_from_the_cache(make_app)
     app = make_app(metrics=metrics)
     inc = _classified(app)
     api, headers = _api(app)
+    def chart():                                       # the window's reads; B7's baseline (24 h) is read once apart
+        return [c for c in metrics.calls if c["minutes"] != 1440]
+
+    def baseline():
+        return [c for c in metrics.calls if c["minutes"] == 1440]
     api.get(f"/api/v1/incidents/{inc.id}/metrics", headers=headers)
-    first = len(metrics.calls)
+    first, base = len(chart()), len(baseline())
     api.get(f"/api/v1/incidents/{inc.id}/metrics", headers=headers)
-    assert len(metrics.calls) == first
+    assert len(chart()) == first
     api.get(f"/api/v1/incidents/{inc.id}/metrics?range=1h", headers=headers)     # another range: its own entry
-    assert len(metrics.calls) == 2 * first
+    assert len(chart()) == 2 * first
+    assert len(baseline()) == base                     # the baseline does not depend on the range
 
 
 # --- the configuration ----------------------------------------------------------------------------------------------

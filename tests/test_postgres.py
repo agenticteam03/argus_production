@@ -92,6 +92,26 @@ def test_recheck_lineage_migration_007(runtime_dsn, store):
             c.execute("UPDATE incident SET parent_id = %s WHERE id = %s", (first.id, parent.id))
 
 
+def test_deploy_events_migration_008(runtime_dsn, store):
+    """ACR-0021 (T-0045 B7): deploy events are kept by host and time, and are insert-only for the runtime role (no
+    UPDATE or DELETE grant); a commit that is not hex is refused by the table itself."""
+    import psycopg
+    from argus.domain.model import utcnow
+    now = utcnow()
+    store.add_deploy_event("vm-095", "dfa7332", "main", "alice", now - timedelta(minutes=5))
+    store.add_deploy_event("vm-166", "dfa7332", "main", "alice", now - timedelta(minutes=5))
+    got = store.deploy_events("vm-095", now - timedelta(hours=1), now)
+    assert [(e["commit"], e["ref"], e["actor"]) for e in got] == [("dfa7332", "main", "alice")]
+    assert got[0]["at"].tzinfo is not None
+    with psycopg.connect(runtime_dsn, autocommit=True) as c:
+        for sql in ("UPDATE deploy_event SET ref = 'x'", "DELETE FROM deploy_event"):
+            with pytest.raises(psycopg.Error, match="permission denied"):
+                c.execute(sql)
+        with pytest.raises(psycopg.Error, match="check constraint"):
+            c.execute("INSERT INTO deploy_event (host, commit_sha, ref, actor, at) "
+                      "VALUES ('vm-095', 'not-hex', 'main', 'alice', now())")
+
+
 def test_worker_lease(store):
     """T-0014: a claim is a lease; only expired claims go back to the queue (tests/test_worker_lease.py, SQLite)."""
     from argus.domain.model import IncidentStatus, utcnow
