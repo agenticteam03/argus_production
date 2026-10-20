@@ -6,13 +6,15 @@ from typing import Any, Iterable
 
 _PATTERNS: list[tuple[re.Pattern, str]] = [
     (re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----.*?-----END [A-Z ]*PRIVATE KEY-----", re.S), "[REDACTED PRIVATE KEY]"),
-    (re.compile(r"(?i)\bbearer\s+[A-Za-z0-9._~+/-]{8,}=*"), "Bearer [REDACTED]"),
+    (re.compile(r"(?i)\bbearer\s+[A-Za-z0-9._~+/-]{8,}=*", re.ASCII), "Bearer [REDACTED]"),
     (re.compile(r"(?i)\b([\w.-]*(?:password|passwd|pwd|secret|token|api[_-]?key|apikey|access[_-]?key)[\w.-]*)\s*[=:]\s*(\"[^\"]*\"|'[^']*'|\S+)"),
      r"\1=[REDACTED]"),
     (re.compile(r"(?i)\b(postgres(?:ql)?|mysql|redis|mongodb|amqp)://[^\s:@/]+:[^\s@/]+@"), r"\1://[REDACTED]@"),
-    (re.compile(r"\bsk-[A-Za-z0-9_-]{16,}"), "[REDACTED KEY]"),
+    (re.compile(r"\bsk-[A-Za-z0-9_-]{16,}", re.ASCII), "[REDACTED KEY]"),
 ]
-_HIGH_ENTROPY = re.compile(r"\b[A-Za-z0-9+/_=-]{40,}\b")
+# re.ASCII (OP-014 step 10): with Unicode `\b` a non-ASCII letter glued to a token ("é<token>") is a word character, so
+# no boundary was found and the token was not masked
+_HIGH_ENTROPY = re.compile(r"\b[A-Za-z0-9+/_=-]{40,}\b", re.ASCII)
 _PATH_CHARS = re.compile(r"[A-Za-z0-9._/-]*")
 # #110 review: a declared path counts only where a path starts (not inside a URL or another path), and under a declared
 # directory a segment that holds a token is not kept (the high-entropy rule masks it)
