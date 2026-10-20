@@ -30,10 +30,11 @@ class AlertSourcePort(Protocol):
 
 class ProbeSample(NamedTuple):
     """One dependency probe of an owner (ACR-0021): success 1 / 0 (None = missing or stale), the answer time in seconds
-    (None = unknown) and the sample time."""
+    (None = unknown), the sample time, and why it failed (T-0045 B8: refused, timeout, dns, other; None = not said)."""
     success: float | None
     duration_s: float | None
     at: datetime
+    error_kind: str | None = None
 
 
 class MetricsPort(Protocol):

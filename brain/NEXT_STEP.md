@@ -1,5 +1,202 @@
 # Next step
 
+**Now (2026-10-20, roll-up, `conantkd`; night work by the agent).**
+- **On the VMs:** **both run `main` `bdcd048`** (DEPLOY-195: T-0045 B8, finer link reasons; #195, the redaction fix).
+  The UI is built with `VITE_ARGUS_INSIGHTS=1` (DEPLOY-189: B6, the Map and Metrics tabs). Database at migration 007.
+  The EVAL-offers leftovers on vm-095 are removed.
+- **In review (protected paths, a teammate's approval):**
+  - #188 (B7, migration 008);
+  - #190 (`gh_json` retries);
+  - #193 (B8's `ARCHITECTURE.md` text);
+  - #198 (OP-014 step 6, dependency audit; new OP-017, frontend advisories);
+  - #199 (OP-014 step 5, ruff and bandit);
+  - #200 (OP-014 step 7, actions pinned by SHA).
+  The three CI PRs edit different lines of `ci.yml`.
+- **Post-merge look asked:** #192 (`config/signals.yaml`, OP-014 step 8) and #195 (the redaction change).
+- **Prepared:** the B7 deploy in `task/DEPLOY-B7-B8-prep` (`brain/execution/current/code.bash`; replace `<MAIN>`).
+
+Next, in order:
+1. Review the six PRs above.
+2. Deploy B7 to vm-095 with the prepared code.bash (008 before the new image, then `argus deploy record`).
+3. OP-017: the frontend lane upgrades React Router, then Vite and Vitest.
+4. OP-014 step 4 (coverage on changed lines) and the rest of step 7 (`zizmor`, `hadolint`, `shellcheck`).
+
+Below: the rolled-up "next steps" of today's entries, then the 2026-10-19 roll-up.
+
+OP-014 steps 4 to 7 (coverage on changed lines, SAST, dependency audit, workflow linting) need `.github/` changes and
+a teammate's review.
+
+Review of #188 (B7), #190 and #193, and a post-merge look at #192 (`config/signals.yaml`) and #195 (redaction). Then
+deploy B7 (migration 008 before the new image).
+
+A teammate's post-merge look at the redaction change (safety-relevant, although outside the protected paths). The fix
+reaches vm-095 with the next agent deploy (B7 + B8). Property tests for `argus/policy/` in a reviewed PR.
+
+None for this item.
+
+Review; then deploy with B7 (#188): the target service on both VMs and the agent image.
+
+The D.4 click-through in the browser (operator/approver, then viewer). Then the review of #188 (B7) and its deploy:
+`db-migrate.sh` (008) before the new image, and `argus deploy record` for the deploy event.
+
+**Now (2026-10-19, roll-up, `conantkd`).**
+- **On the VMs:** vm-095 runs `main` `dfa7332` (DEPLOY-176: T-0045 B1 to B5, ACR-0023, migration 007). vm-166 is unchanged (`ccc810e`).
+- **On `main`, not deployed yet:** `eae17b9` adds B6 (#184: `/api/v1/target-metrics`, `/api/v1/overview`, ARCHITECTURE 1.8.19) and the B5 follow-up (#185: `db-check` proves 007).
+- **In review:** B7 (#188: baseline, the 6h/24h ranges, deploy events, migration 008, 1.8.20). It touches protected paths (`ops/`, `deploy/migrations/`, `contracts/`, `brain/architecture/`), so it needs a teammate's approval.
+- **Below this paragraph:** the rolled-up "next steps" of the entries since 2026-10-13. The EVAL-offers, ACR-0021 acceptance, B1 to B6 and DEPLOY-176 ones are done.
+
+Next, in order:
+1. **Review #188** (`juanbetancurm` or `juanes6554`).
+2. **Deploy `main` to vm-095** with B6 and B7, holding the lease:
+   - `db-migrate.sh` (008) before the new image;
+   - agent, worker and scheduler on one image;
+   - record that deploy with `docker exec argus-v18-agent argus deploy record --commit … --ref main --as …`, since the old image cannot do it;
+   - `nonint-check` before and after.
+3. **T-0016 frontend** (`juanes6554`) reads the B6 and B7 fields. B8 is optional.
+4. **Small items:**
+   - a retry in `brain.py`'s `gh_json` for main-guard's occasional `unexpected end of JSON input`;
+   - a unit test for #183 (a merge of a branch other than `main` must not keep an approval);
+   - on vm-095, remove EVAL-offers leftovers (`/tmp/eo-*`, the `argus-v18-agent:eo-*` images), holding the lease.
+5. **#157** (T-0044 RAG, draft): rebase on `main` (it conflicts in `ARCHITECTURE.md`).
+
+Deploy main to vm-095 (B1 to B5, ACR-0023): `db-migrate.sh` (007) before the new image.
+
+B7 (baseline, long ranges, deploy events); the `ARCHITECTURE.md` text of ACR-0021 (§5.8, §7.1, §8.1) now that B1-B4
+are merged.
+
+Review of the record PR. When #185 (the `db-check` read that proves 007) and B6 (#184) merge, the next deploy shows
+23 checks and the new route.
+
+B6 (#184 target-metrics, then `/api/v1/overview`) and B7. Deploy main to vm-095 (B1 to B5): `db-migrate.sh` (007)
+before the new image.
+
+A teammate's approval; then updating an approved pull request with `main` no longer needs a new review.
+
+`juanes6554` reviews the least-privilege part of ACR-0021 and approves this pull request.
+
+B6 (the two new routes) and B7 (baseline and deploy events), after #180 merges.
+
+The team decides ACR-0023 in PR #179. A cause that matches no pattern ("maintenance mode is ON") is still missed.
+
+Merge with both approvals. Then agree with `conantkd` who takes B5 and B6.
+
+B4 (the incident verdict fields). B5 to B7 wait for ACR-0021 to be accepted.
+
+B5 to B7 wait for ACR-0021 to be accepted (new routes, migration 007).
+
+B3 (topology: health, problems, per-dependency links) and B4 (the incident verdict fields).
+
+After the merge, check the push to `main` runs `main-guard` only.
+
+Reviews of #174 (B2), #175 (B3), #176 (B4).
+
+B2 (incident metrics: kind, thresholds, events, window, summary) and B3 (topology health and per-dependency links).
+
+Team review: accept, change or reject ACR-0018, ACR-0019, ACR-0020 and ACR-0022 (second approvals for the safety
+principles) and answer the open decisions in the task file. Then phase 15.
+
+Team review of ACR-0021 (second approval: two public routes) and the open decisions in T-0045; then B1.
+
+A teammate reviews (it changes `brain.py` and `REVIEW_PROTOCOL.md`).
+
+A teammate reviews (it changes `.github/`, `brain.py` and `GIT_WORKFLOW.md`); after the merge, open each new task's
+pull request as a draft at its first push.
+
+Review of the record PR. Then the follow-ups on the self-merge rule (protect `brain/agents/`, `ops/`, `deploy/*/compose*`
+and the write-gate code; check `previous_filename`; restrict who posts `LOCAL CI PASS`).
+
+#156 is merged (`f7df417`). Deploy `main` to vm-095 (`ref=main`) with the usual state probe. Name the two Hobby users in Cloud. Restore vm-166's `argus-lab-cache` in the next vm-166 session.
+
+A teammate reviews and approves this pull request; then `task/TEST-HARDEN-1` (OP-014 steps 1-3).
+
+A teammate reviews; after the merge, redeploy vm-095's agent (both leases), then OP-014 steps 4-8, one PR each.
+
+Review and merge this PR, then redeploy the UI edge on vm-095 (lease, `code.bash`, `nonint-check.sh` before and
+after) and do the real-mode click-through with `VITE_ARGUS_INSIGHTS=1`.
+
+Open the PR (`task/T-0016-map-metrics-wiring`), have a teammate review it (ACR-0017 touched a safety principle), then
+a person's real-mode login on vm-095 with `VITE_ARGUS_INSIGHTS=1`.
+
+Review (conantkd or juanes6554); juanes6554 connects the frontend.
+
+Merge #160, then this PR (retargeted to main), deploy the agent and the edge on vm-095, then the frontend connection.
+
+PR (reviewer `conantkd` or `juanes6554`), deployment of the agent and the edge on vm-095, then the topology route.
+
+Review of ACR-0016 (juanbetancurm). If accepted: apply ACR-0013 and ACR-0016 to `ARCHITECTURE.md` (the next free version), create the
+team's Langfuse Cloud project, LF-3 step 03 on vm-095 (keys, `hosts.env`, worker and agent, one trace, Cloud away),
+then remove the stopped self-hosted stack and its volumes. Restore vm-166's `argus-lab-cache` in the next vm-166 session.
+
+Review and acceptance; then the backend PRs (juanbetancurm) and the frontend connection (juanes6554).
+
+Review and merge the redesign PR (fast-track eligible: frontend only, no `.github/` or `contracts/` change, `test`
+and `frontend` green). Then the API side decides the two read routes in `frontend/BACKEND-REQUESTS.md` — each needs
+an ACR (like ACR-0014) plus a contract update, a sample and an edge allowlist entry — after which the Map and
+Metrics tabs light up with no further frontend change.
+
+A teammate reviews/accepts ACR-0015, then implements the design (local Weaviate container, hybrid adapter, embedding
+adapter, tests) and runs the TF-IDF-vs-Weaviate recall@3 benchmark on the VM.
+
+Review (conantkd).
+
+Complete full local verification. When the VM leases are available, perform the private stack and canary
+sequence in `deploy/langfuse/README.md`, using the Brain code.bash protocol and preserving sanitized evidence.
+
+Obtain teammate review of ACR-0013. In the first implementation PR, update the architecture version/changelog with the implementation, exercise filtered span and exporter-failure tests, and rerun the VM capacity gate in a stable window before enabling permanent tracing.
+
+The OP-008 after-check at the next VM session; the OP-004 timer as a team decision.
+
+Review and accept ACR-0014 in PR #151, apply the exact §7.1 architecture edit and version bump, then merge only
+after independent approval and green CI. Run a live Host A/T Prometheus smoke test only with the VM lease.
+
+Its PR when `conantkd` says so (a teammate's approval and the second approval), then the AFTER-MERGE on vm-095 (the
+agent and the edge).
+
+vm-095 back to `main` (checkout only) after this PR's merge; a person's browser login on the public UI.
+
+A teammate's acceptance and a second approval; then T-0016 "Level 1 Investigate" as steps (API, edge, frontend, VM).
+
+- A person logs in from a browser and opens an incident.
+- The AFTER-MERGE to `main` (#144, approved and merged by `juanbetancurm` at 04:35 UTC, which is ACR-0011's second
+  approval; and #145, D-003): vm-095 runs the branch at `8ee48c4` until then.
+- One account per person when the team decides.
+
+T-0016: the Playwright acceptance tests and the read-only network guard.
+
+T-0016 step 4 after ACR-0011's second approval: the edge login, the runbooks behind the login, the Nginx image.
+
+A person logs in through `ssh -L 18010` and opens an incident. Then #144's approvals, then 4e with ACR-0011 §8's data.
+
+The approvals of #144 (a teammate's, and the second approval of ACR-0011). Then 4d on vm-095's loopback with the
+lease, and 4e once §8's data is known.
+
+A teammate approves (or objects) in the PR.
+
+Next AFTER-MERGE: rebuild the target services on both hosts. A task for evaluation cases with long logs before any
+log tool is offered.
+
+PR (reviewer `conantkd`), then the AFTER-MERGE and SC-03, SC-07, SC-08 on the VMs.
+
+A teammate reviews the OP-008 prune list (and the OP-004 timer decision); then one `prune --apply`. T-0041 to
+`completed/` in the next roll-up.
+
+A teammate's acceptance and a second approval in the PR; the pending data of ACR-0011 §8; then T-0016 step 4a.
+
+The public-HTTPS ACR (ACR-0011) covers what #137's review saw in a real-mode build: the mock adapter and the
+runbooks shipped in the bundle.
+
+Run `npm test` in `frontend/` (and the `vite build`) to close the red/green record, then open the PR. Follow-ups are
+unchanged: Playwright acceptance, the read-only network guard, the `contracts/ui-api.json` check, and the new
+`offset`/total contract ask for the incident list.
+
+Open the PR for `task/T-0016-step3-screens` (colours, incident page, the crash fix, the test fix) and let CI go green.
+Follow-ups unchanged: Playwright acceptance tests, the read-only network guard, the `contracts/ui-api.json` check, and
+the incident-list `offset`/total contract ask. The live smoke test still needs the tunnel and a real database login.
+
+PR (reviewer `juanbetancurm`).
+
+The SC-12 expectation (option a), then the roll-up: `IMPLEMENTATION_PLAN.md` row 12 to 100 %.
+
 **Now (2026-10-13, evening roll-up, `conantkd`).** Both VMs run `main` `ad72617` (#113-#131, AFTER-MERGE #132:
 migrations 001-006, both Prometheus with the heartbeat rule, heartbeat `alive` on both hosts). #133 (the `platform`
 route of a monitoring loss) merged after it: vm-095's scheduler gets it at the next AFTER-MERGE. **Phase 12 is

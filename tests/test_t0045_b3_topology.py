@@ -177,7 +177,8 @@ def test_the_prometheus_adapter_groups_the_probes_by_dependency(monkeypatch):
     answers = {
         "argus_probe_success": [{"metric": {"dependency": "db"}, "value": [now, "1"]},
                                 {"metric": {"dependency": "cache"}, "value": [now - 600, "0"]}],
-        "argus_probe_duration_seconds": [{"metric": {"dependency": "db"}, "value": [now, "0.042"]}]}
+        "argus_probe_duration_seconds": [{"metric": {"dependency": "db"}, "value": [now, "0.042"]}],
+        "argus_probe_error": []}                                    # B8: no probe is failing
     queries = []
 
     class R:
@@ -193,7 +194,7 @@ def test_the_prometheus_adapter_groups_the_probes_by_dependency(monkeypatch):
     probes = metrics.dependency_probes(TargetRef.parse("h1/container:web"))
     assert probes["db"].success == 1 and probes["db"].duration_s == 0.042
     assert probes["cache"].success is None                          # older than max_staleness_s: missing, not 0
-    assert all('argus_host="h1"' in q and 'owner="web"' in q for q in queries) and len(queries) == 2
+    assert all('argus_host="h1"' in q and 'owner="web"' in q for q in queries) and len(queries) == 3
 
 
 # --- the incident overlay: roles and the cause path --------------------------------------------------------------------

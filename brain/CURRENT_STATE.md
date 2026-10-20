@@ -7,6 +7,16 @@ shared-Brain setup B1–B8 under way (three developers).
 > The VMs are authoritative for what runs there: run `sudo bash /opt/argus-v18/app/ops/deploy.sh status` (or read
 > `/opt/argus-v18/DEPLOYED`) and the state probe before trusting this file.
 
+> **Update 2026-10-20 (`conantkd`, DEPLOY-195, OBSERVED with `deploy.sh status`):** **both VMs run `main` `bdcd048`**
+> (T-0045 B8: finer link reasons, `argus_probe_error` from the exporter on both hosts; #195: a token glued to a
+> non-ASCII letter is masked). Database still at migration 007. vm-166 moved from `ccc810e`. Evidence:
+> `execution/history/DEPLOY-195/step-01/evidence.md`.
+
+> **Update 2026-10-20 (`conantkd`, DEPLOY-189, OBSERVED with `deploy.sh status`):** **vm-095 runs `main` `2c7248b`**
+> (T-0045 B6: `/api/v1/target-metrics` and `/api/v1/overview`; #185's `db-check` read: 23/23). **The UI image is
+> built with `VITE_ARGUS_INSIGHTS=1`** for the first time: the Map and Metrics tabs and the Dashboard map are served.
+> Database still at migration 007; vm-166 unchanged (`ccc810e`). Evidence: `execution/history/DEPLOY-189/step-01/evidence.md`.
+
 > **Update 2026-10-19 (`conantkd`, DEPLOY-176, OBSERVED with `deploy.sh status`):** **vm-095 runs `main` `dfa7332`**
 > (T-0045 B1 to B5: thresholds, heartbeat, chart context, map health and links, the verdict, re-check lineage;
 > ACR-0023 log pattern matches). The database is at **migration 007** (`incident.parent_id`). Agent, worker and

@@ -106,6 +106,18 @@ def test_the_request_audit_records_the_parent(ui):
 
 
 # --- storage -------------------------------------------------------------------------------------------------------------
+def test_db_check_proves_the_column_before_counting_its_refusals():
+    """Without migration 007 the two refusals "pass" because the column is missing; a read that must succeed comes
+    first, so `argus db check` fails on a database that lacks 007 (review of #181)."""
+    from argus.adapters.outbound.postgres_store import CHECKS_SQL
+    names = [n for n, _, _ in CHECKS_SQL]
+    present = names.index("re-check lineage column present (migration 007)")
+    assert CHECKS_SQL[present][2] is True and "parent_id" in CHECKS_SQL[present][1]
+    for refusal in ("re-check of a missing incident refused (ACR-0021)", "an incident's parent cannot change (ACR-0021)"):
+        assert present < names.index(refusal)
+
+
+
 def test_an_older_sqlite_file_gains_the_column(tmp_path):
     from argus.adapters.outbound.sqlite_store import SqliteStore
     path = tmp_path / "old.db"
