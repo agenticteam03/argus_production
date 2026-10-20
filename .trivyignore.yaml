@@ -1,0 +1,11 @@
+# OP-014 step 7: Trivy's configuration scan (CI, `test` job). Each exception names its files and why.
+misconfigurations:
+  - id: DS-0002
+    paths:
+      - "services/target/Dockerfile"
+      - "deploy/vm-095/tunnel/Dockerfile"
+    statement: >-
+      Root inside the container, for now: the target services read this host's Docker socket (exact GET routes) and
+      host files allowlisted by the inspection policy, and the tunnel reads its key mounted from the host. Moving
+      them to a non-root user (the docker group, key ownership) is a VM change, tracked in OP-014 step 7. Any other
+      Dockerfile running as root fails CI.
