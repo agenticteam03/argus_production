@@ -1,5 +1,44 @@
 # Next step
 
+**Now (2026-10-20, roll-up, `conantkd`; night work by the agent).**
+- **On the VMs:** **both run `main` `bdcd048`** (DEPLOY-195: T-0045 B8, finer link reasons; #195, the redaction fix).
+  The UI is built with `VITE_ARGUS_INSIGHTS=1` (DEPLOY-189: B6, the Map and Metrics tabs). Database at migration 007.
+  The EVAL-offers leftovers on vm-095 are removed.
+- **In review (protected paths, a teammate's approval):**
+  - #188 (B7, migration 008);
+  - #190 (`gh_json` retries);
+  - #193 (B8's `ARCHITECTURE.md` text);
+  - #198 (OP-014 step 6, dependency audit; new OP-017, frontend advisories);
+  - #199 (OP-014 step 5, ruff and bandit);
+  - #200 (OP-014 step 7, actions pinned by SHA).
+  The three CI PRs edit different lines of `ci.yml`.
+- **Post-merge look asked:** #192 (`config/signals.yaml`, OP-014 step 8) and #195 (the redaction change).
+- **Prepared:** the B7 deploy in `task/DEPLOY-B7-B8-prep` (`brain/execution/current/code.bash`; replace `<MAIN>`).
+
+Next, in order:
+1. Review the six PRs above.
+2. Deploy B7 to vm-095 with the prepared code.bash (008 before the new image, then `argus deploy record`).
+3. OP-017: the frontend lane upgrades React Router, then Vite and Vitest.
+4. OP-014 step 4 (coverage on changed lines) and the rest of step 7 (`zizmor`, `hadolint`, `shellcheck`).
+
+Below: the rolled-up "next steps" of today's entries, then the 2026-10-19 roll-up.
+
+OP-014 steps 4 to 7 (coverage on changed lines, SAST, dependency audit, workflow linting) need `.github/` changes and
+a teammate's review.
+
+Review of #188 (B7), #190 and #193, and a post-merge look at #192 (`config/signals.yaml`) and #195 (redaction). Then
+deploy B7 (migration 008 before the new image).
+
+A teammate's post-merge look at the redaction change (safety-relevant, although outside the protected paths). The fix
+reaches vm-095 with the next agent deploy (B7 + B8). Property tests for `argus/policy/` in a reviewed PR.
+
+None for this item.
+
+Review; then deploy with B7 (#188): the target service on both VMs and the agent image.
+
+The D.4 click-through in the browser (operator/approver, then viewer). Then the review of #188 (B7) and its deploy:
+`db-migrate.sh` (008) before the new image, and `argus deploy record` for the deploy event.
+
 **Now (2026-10-19, roll-up, `conantkd`).**
 - **On the VMs:** vm-095 runs `main` `dfa7332` (DEPLOY-176: T-0045 B1 to B5, ACR-0023, migration 007). vm-166 is unchanged (`ccc810e`).
 - **On `main`, not deployed yet:** `eae17b9` adds B6 (#184: `/api/v1/target-metrics`, `/api/v1/overview`, ARCHITECTURE 1.8.19) and the B5 follow-up (#185: `db-check` proves 007).
