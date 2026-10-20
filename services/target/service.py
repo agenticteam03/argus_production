@@ -766,13 +766,25 @@ def kernel_oom_records(minutes: int) -> dict:
 TCP_BUDGET_S, TCP_TIMEOUT_S, TCP_GAP_S, TCP_MIN_ATTEMPT_S = 8.0, 3.0, 0.5, 0.5   # #101: under the 10 s client
 
 
+def failure_kind(e: OSError) -> str:
+    """T-0045 B8: why a connect failed, from the exception type only (never its text): refused, timeout, dns, other."""
+    if isinstance(e, ConnectionRefusedError):
+        return "refused"
+    if isinstance(e, (socket.timeout, TimeoutError)):
+        return "timeout"
+    if isinstance(e, socket.gaierror):
+        return "dns"
+    return "other"
+
+
 def tcp(host: str, port: int, timeout: float = 3) -> dict:
     t0 = time.monotonic()
     try:
         with socket.create_connection((host, port), timeout=timeout):
             return {"ok": True, "duration_ms": round((time.monotonic() - t0) * 1000, 1)}
     except OSError as e:
-        return {"ok": False, "error": f"{type(e).__name__}: {e}", "duration_ms": round((time.monotonic() - t0) * 1000, 1)}
+        return {"ok": False, "error": f"{type(e).__name__}: {e}", "kind": failure_kind(e),
+                "duration_ms": round((time.monotonic() - t0) * 1000, 1)}
 
 
 def http_check(url: str, timeout: float = 5) -> dict:
@@ -1120,6 +1132,8 @@ def probe_lines(probes: list[dict], active: set[str]) -> list[str]:
         lab = f'owner="{p["owner"]}",dependency="{p["dependency"]}"'
         lines += [f"argus_probe_success{{{lab}}} {1 if r['ok'] else 0}",
                   f"argus_probe_duration_seconds{{{lab}}} {r['duration_ms'] / 1000:.4f}"]
+        if not r["ok"]:                                     # T-0045 B8: why it failed, for the map's link reason
+            lines.append(f'argus_probe_error{{{lab},kind="{r.get("kind", "other")}"}} 1')
     return lines
 
 
