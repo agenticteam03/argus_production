@@ -3005,3 +3005,137 @@ Decision / result:
 - Not changed: `parent_id` is also kept inside `body`, and the trigger guards only the column; no code changes it.
 Consequences: a deploy record shows 23 database checks once B5 is on a VM.
 References: #181, [T-0045](../tasks/current/T-0045-ui-insights-backend.md).
+
+## 2026-10-20 — DEPLOY-189: vm-095 on main 2c7248b (T-0045 B6, the UI with Map and Metrics)
+
+Type: deployment
+Who: conantkd (+ agent)
+Context: since `dfa7332` (DEPLOY-176), the following merged:
+- T-0045 B6 (#184): `/api/v1/target-metrics` and `/api/v1/overview`;
+- the B5 follow-up (#185): `db-check` proves migration 007.
+
+The UI image built with `VITE_ARGUS_INSIGHTS=1` (#164, merged 2026-10-17) had never been deployed: DEPLOY-166 and
+DEPLOY-176 rebuilt the agent image only.
+Decision / result:
+- vm-095 moved from `dfa7332` to `main` `2c7248b`:
+  - backup taken; no migration (008 comes with B7, #188);
+  - agent, worker and scheduler rebuilt on one image;
+  - `argus-v18-ui` rebuilt: the Map and Metrics calls are in the bundle, and the edge serves the two B6 routes;
+  - checks: 23/23, 55/55, WRITE GATE CLOSED, LAB BASELINE OK, NO INTERFERENCE.
+- vm-166 was not changed.
+Consequences:
+- The real UI shows the Map and Metrics tabs and the Dashboard map (ACR-0017).
+- The B6 routes are served, behind a login.
+- The browser click-through (D.4) is still to be done by a person.
+References: [evidence](../execution/history/DEPLOY-189/step-01/evidence.md).
+
+## 2026-10-20 — T-0045 B8: finer link reasons on the system map
+
+Type: implementation
+Who: conantkd (+ agent)
+Context: a broken dependency link on the map said only "not reachable" (B3). The exporter knows why a probe failed.
+Decision / result:
+- `services/target/service.py`: `tcp()` returns a `kind` from the exception type (`refused`, `timeout`, `dns`,
+  `other`), and the exporter adds `argus_probe_error{owner,dependency,kind} 1` while a probe fails.
+- `config/signals.yaml`: `dependency_probe_error`. `ProbeSample` gains `error_kind`; the Prometheus adapter reads it
+  with the same staleness rule as the other probe series.
+- `topology.py`: a broken link's `reason` and `label` say `connection refused`, `timeout` or `name not resolved`;
+  `other` and a missing kind stay `not reachable`. An `ok` link ignores a leftover kind.
+Consequences:
+- No new route, no migration, no new field (only `reason`'s values).
+- `ARCHITECTURE.md` (the topology row's `reason` values, `ProbeSample.error_kind` in the `MetricsPort` row) is
+  updated in a separate pull request: it is a protected path, and this one is self-merged.
+- The deploy rebuilds the target exporter on both hosts and the agent image (both leases).
+References: `tests/test_t0045_b8_link_reasons.py`.
+
+## 2026-10-20 — CLEANUP-eval-offers: EVAL-offers leftovers removed from vm-095
+
+Type: maintenance
+Who: conantkd (+ agent)
+Context: EVAL-offers (2026-10-19) left 13 images `argus-v18-agent:eo-*` and `/tmp/eo-*` on vm-095, used by no
+service. Its results are archived in its evidence. NEXT_STEP listed their removal as a small item.
+Decision / result:
+- Listed first: no container used an `eo-` image.
+- 13 images and every `/tmp/eo-*` removed; about 2 GB of disk freed.
+- Services unchanged; LAB BASELINE OK; NO INTERFERENCE before and after.
+Consequences:
+- vm-095 holds only the images of the running services and its build cache.
+References: [evidence](../execution/history/CLEANUP-eval-offers/step-01/evidence.md).
+
+## 2026-10-20 — OP-014 step 10: property-based tests for redaction and target parsing; a redaction gap fixed
+
+Type: implementation
+Who: conantkd (+ agent, autonomous night work)
+Context: OP-014 lists what a green CI does not yet cover under the self-merge rule. Step 10 asks for property-based
+tests (Hypothesis) of redaction, target parsing and the policy engine.
+Decision / result:
+- `tests/test_op014_property_based.py`: generated inputs, checked for properties that must always hold:
+  - no 40+ character token survives in any text, spaced or glued to its neighbours;
+  - a named secret (`password=`, `token:`, …), a `Bearer` token and a password in a connection URL are always masked;
+  - redacting twice changes nothing more; text with nothing secret-like is unchanged;
+  - a secret key is masked at any depth of dicts and lists; a declared directory keeps its files readable;
+  - a target parses back to itself; any text parses to a valid target or a `ValueError`.
+- **A real gap found:** a token glued to a non-ASCII letter (`é<token>`, `<token>ж`) was not masked. Python's Unicode
+  `\b` treats that letter as a word character, so the high-entropy rule found no boundary. The same held for `sk-`
+  keys and `Bearer`. Fixed with `re.ASCII` on those three rules in `argus/capabilities/redaction.py`: it only masks
+  more, never less.
+- `pyproject.toml`: `hypothesis` added to the `test` extra (CI installs `.[test]`).
+- The policy engine (`argus/policy/`) is a protected path: its property tests are left for a teammate-reviewed PR.
+Consequences:
+- Model-bound, stored and view-bound text masks such tokens from the next deploy of the agent image.
+- No evidence that such a token ever reached the model or the store: it needs a secret written with no space after a
+  non-ASCII letter.
+References: OP-014 step 10 in `OPEN_PROBLEMS.md`.
+
+## 2026-10-20 — DEPLOY-195: both VMs on main bdcd048 (T-0045 B8, the redaction fix)
+
+Type: deployment
+Who: conantkd (+ agent; run by the agent while conantkd was away, authorized)
+Context: since `2c7248b` (DEPLOY-189), the following merged:
+- T-0045 B8 (#192): finer link reasons;
+- the redaction fix found by OP-014 step 10's property tests (#195).
+
+B7 (#188) is still in review, so B7 and B8 were not deployed together as prepared (`task/DEPLOY-B7-B8-prep`).
+Decision / result:
+- vm-095 moved from `2c7248b` to `bdcd048`:
+  - backup taken; no migration;
+  - agent, worker and scheduler rebuilt on one image;
+  - the target services rebuilt.
+- vm-166 moved from `ccc810e` to `bdcd048`: its target services rebuilt (B8's exporter).
+- Checks: 23/23, 55/55, WRITE GATE CLOSED; the glued token masked in the worker; LAB BASELINE OK and NO INTERFERENCE
+  on both VMs.
+Consequences:
+- A broken dependency link on the map says `connection refused`, `timeout` or `name not resolved` when the exporter
+  knows why.
+- Model-bound, stored and view-bound text masks a token glued to a non-ASCII letter.
+- The B7 deploy now needs only B7: migration 008, the agent image and `argus deploy record`. The prepared code.bash
+  still rebuilds the target services; that step can be dropped.
+References: [evidence](../execution/history/DEPLOY-195/step-01/evidence.md).
+
+## 2026-10-20 — OP-014 step 10: property-based tests for the policy engine
+
+Type: tests
+Who: conantkd (+ agent, autonomous night work)
+Context: the first part of OP-014 step 10 (#195) covered the redaction and the target parsing. This part covers the
+policy engine, with tests only, so no protected path changes.
+Decision / result:
+- `tests/test_op014_property_policy.py` (11 tests, up to 300 generated examples each) against the real
+  `config/policy.yaml`:
+  - `PolicyEngine.check`:
+    - an allow means every condition held (known capability, level, safety class, incident scope, per-incident
+      limit);
+    - an unknown capability is always refused;
+    - a non-empty write gate refuses startup.
+  - The inspection policy:
+    - a path with `..`, `.` or an empty segment, or a relative path, is never readable;
+    - a deny-floor name anywhere in the path (any case), or a floor directory, is never readable, even under an
+      allowlist of `/`;
+    - an allowed read is always inside the allowlist;
+    - the data's deny list only adds to the floor;
+    - the journal reads only a listed unit within its line limit;
+    - a target without an entry allows no inspected read.
+- No gap found. As a check that the tests can fail, three bugs injected in memory were each caught: no scope check,
+  no deny list, no path normalization.
+Consequences:
+- OP-014 step 10 is done; steps 4 to 9 and 11 to 13 remain (most touch `.github/`, a protected path).
+References: OP-014 in `OPEN_PROBLEMS.md`.
