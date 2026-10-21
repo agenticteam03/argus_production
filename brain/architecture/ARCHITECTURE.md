@@ -1,7 +1,7 @@
 # Argus — Production Architecture Specification
 
 **Document type:** consolidated target architecture and implementation blueprint ·
-**Version:** 1.8.24 (2026-10-21, ACR-0025 live dependency graph; 1.8.23 2026-10-20, ACR-0027 the built gaps G-001, G-003, G-007; 1.8.21 2026-10-20, §14 marked designed, not built (OP-015); 1.8.20 2026-10-19, ACR-0021 B7 baseline, long ranges, deploy events, and B8 link reasons; 1.8.19 2026-10-19, ACR-0021 B6: target metrics and the overview; 1.8.18 2026-10-19, ACR-0021 UI insights v2: B1 to B5; 1.8.17 2026-10-19, ACR-0023 log pattern matches; 1.8.16 2026-10-18, ACR-0013 and ACR-0016 Langfuse Cloud tracing; 1.8.15 2026-10-16, ACR-0017 topology; 1.8.14 2026-10-16, ACR-0017 incident metrics; 1.8.12 2026-10-14, ACR-0014; 1.8.11 2026-10-14, ACR-0012; 1.8.10 2026-10-14, ACR-0011; 1.8.8 2026-10-12, ACR-0009; 1.8.7 2026-10-12, ACR-0008; 1.8.6 2026-10-11, ACR-0007; 1.8.5 2026-10-09, ACR-0005; 1.8.4 2026-10-09, ACR-0004; 1.8.3 2026-10-08, ACR-0003; 1.8.2 2026-10-09, ACR-0002; 1.8.1 2026-10-06, ACR-0001; base 1.8.0 of 30 September 2026, sanitized for the shared repository 2026-10-02) · **Audience:** engineers and AI coding agents implementing
+**Version:** 1.8.26 (2026-10-21, ACR-0018 phase 16 step 1: sessions, revocation, persisted login limiter, permissions, the audit hash chain, EdDSA tokens; 1.8.24 2026-10-21, ACR-0025 live dependency graph; 1.8.23 2026-10-20, ACR-0027 the built gaps G-001, G-003, G-007; 1.8.21 2026-10-20, §14 marked designed, not built (OP-015); 1.8.20 2026-10-19, ACR-0021 B7 baseline, long ranges, deploy events, and B8 link reasons; 1.8.19 2026-10-19, ACR-0021 B6: target metrics and the overview; 1.8.18 2026-10-19, ACR-0021 UI insights v2: B1 to B5; 1.8.17 2026-10-19, ACR-0023 log pattern matches; 1.8.16 2026-10-18, ACR-0013 and ACR-0016 Langfuse Cloud tracing; 1.8.15 2026-10-16, ACR-0017 topology; 1.8.14 2026-10-16, ACR-0017 incident metrics; 1.8.12 2026-10-14, ACR-0014; 1.8.11 2026-10-14, ACR-0012; 1.8.10 2026-10-14, ACR-0011; 1.8.8 2026-10-12, ACR-0009; 1.8.7 2026-10-12, ACR-0008; 1.8.6 2026-10-11, ACR-0007; 1.8.5 2026-10-09, ACR-0005; 1.8.4 2026-10-09, ACR-0004; 1.8.3 2026-10-08, ACR-0003; 1.8.2 2026-10-09, ACR-0002; 1.8.1 2026-10-06, ACR-0001; base 1.8.0 of 30 September 2026, sanitized for the shared repository 2026-10-02) · **Audience:** engineers and AI coding agents implementing
 Argus from an empty repository.
 
 
@@ -1230,7 +1230,8 @@ An unauthorized read returns **404** (not 403) and is audited as `access.inciden
 
 | Method & path | Use case | Caller auth | Notes |
 |---|---|---|---|
-| `POST /api/v1/auth/token` | — (authentication, §17.3) | username + password (humans) or client credentials (agents) | returns a short-lived JWT |
+| `POST /api/v1/auth/token` | — (authentication, §17.3) | username + password (humans) or client credentials (agents) | returns a short-lived JWT and records its server-side session (`jti`, ACR-0018) |
+| `POST /api/v1/auth/logout` | — (authentication, §17.3) | JWT (read, investigate or full: every token may end its own session) | ends this token's session at once; the next request with it is 401; audited `access.logout`; also through the public edge (a UI's logout) (ACR-0018) |
 | `POST /api/v1/alerts` | `HandleAlertNotification` | Alertmanager bearer token | Alertmanager webhook payload; returns 2xx only after durable intake |
 | `POST /api/v1/investigations` | `RunInvestigation` (`manual`) | JWT (full or investigate): operator or approver | body: `target`, `reason`, `request_kind`, optional `idempotency_key`, optional `parent_id` (the incident this one re-checks; it must exist, else 422 and nothing is created; ACR-0021); no `force_reasoning` flag exists. With an **investigate** token (ACR-0012): quotas per principal (`ARGUS_INVESTIGATIONS_PER_HOUR` 10, `ARGUS_INVESTIGATIONS_QUEUED_PER_PRINCIPAL` 2) and on all queued manual incidents (`ARGUS_INVESTIGATIONS_QUEUED_MAX` 20), else 429 + `Retry-After` (audited `investigation.quota_refused`); every accepted request audited `investigation.requested` (access, via, client) |
 | `GET /api/v1/targets` | — (the inventory's target refs) | JWT, any role | `target`, `host`, `kind`, `name` of every inventory target, for a UI's target list; no address, port or credential (ACR-0012) |
@@ -1244,7 +1245,7 @@ An unauthorized read returns **404** (not 403) and is audited as `access.inciden
 | `GET /api/v1/incidents/{id}/events` | run events of an incident | JWT | the node timeline (CLI and UIs) |
 | `GET /api/v1/evidence/{id}` | one evidence record | JWT: operator or approver | |
 | `GET /api/v1/escalations` | escalations waiting for a human | JWT | |
-| `GET /api/v1/me` | — (who am I) | JWT (read, investigate or full) | `user`, `role`, `access` and the `actions` this token may use (e.g. `view_incidents`, `view_timeline`, `view_evidence`); a UI shows a control only when its action is listed (ACR-0001) |
+| `GET /api/v1/me` | — (who am I) | JWT (read, investigate or full) | `user`, `role`, `access`, the `actions` this token may use (e.g. `view_incidents`, `view_timeline`, `view_evidence`) and the role's `permissions` (ACR-0018); a UI shows a control only when its action is listed (ACR-0001) |
 | `GET /api/v1/approvals?state=pending` | `ListPendingApprovals` | JWT: approver | shows each proposal with `approval_id` and `proposal_digest` |
 | `POST /api/v1/incidents/{id}/approve` | `AnswerApprovalRequest` | JWT: human approver (later also a signed single-use link) | body: `approval_id`, `proposal_digest` |
 | `POST /api/v1/incidents/{id}/deny` | `AnswerApprovalRequest` | same | same |
@@ -2320,10 +2321,10 @@ tables and abstractions:
 | 2 | Intake, incident and trigger data | intake queue, incidents (with `parent_id`, the incident a re-check re-checks: a foreign key that never changes, migration 007, ACR-0021), deploy events (`deploy_event`, insert-only, written by `argus deploy record` from `ops/deploy.sh`, migration 008, ACR-0021), link-state transitions (`link_event`: owner, dependency, state, latency, reason, time; insert-only, written by the scheduler, §7.3, migration 009, ACR-0025, T-0046 L2), trigger occurrences, alert occurrences, related-incident links, `evidence_version` | Postgres | application | months |
 | 3 | Evidence | `evidence` table: redacted, bounded, insert-only records with SHA-256 (§5.4) | Postgres | application | per evidence kind; never before the incident closes and its checkpoints are pruned |
 | 4 | Episodic, approval and action state | summaries, proposals, approvals, holds, resume intents, outbox, actions, per-target locks | Postgres | application | months/years |
-| 5 | Principals | human users (Argon2 password hashes), agent clients (hashed secrets), roles, scopes, disabled flag | Postgres | authentication adapter | while active + audit period |
+| 5 | Principals | human users (Argon2 password hashes), agent clients (hashed secrets), roles, scopes, disabled flag; sessions (`auth_session`, one per token's `jti`: the runtime role inserts it and may set only its revocation columns, never deletes it) and failed logins (`login_failure`), migration 010, ACR-0018 | Postgres | authentication adapter | while active + audit period; failed logins: the login window |
 | 6 | Knowledge | runbooks | Markdown in Git + TF-IDF index built at startup | versioned with code | — |
 | 7 | Configuration | inventory, policy, signals, routing, schedules | YAML in Git; SHA-256 versions recorded on proposals and audit | versioned with deployment | — |
-| 8 | Audit | all events in §5.7 | Postgres append-only (+ optional JSONL copy) | audit sink | longest of all |
+| 8 | Audit | all events in §5.7; each row chained to the previous one (`seq`, `prev_hash`, `hash`, migration 011, ACR-0018) | Postgres append-only (+ optional JSONL copy) | audit sink | longest of all |
 | 9 | Metrics | target and Argus time series | Prometheus TSDB on each Host T | operations | operational |
 | 10 | Application logs | structured logs | stdout + Docker log rotation | operations | operational |
 
@@ -2371,7 +2372,7 @@ client secrets.
 
 | # | Layer | Mechanism |
 |---|---|---|
-| 1 | Caller authentication | Alertmanager bearer token; human login ⇒ short-lived JWT; agent client credentials ⇒ JWT; (later) signed single-use approval links |
+| 1 | Caller authentication | Alertmanager bearer token; human login ⇒ short-lived JWT **with a server-side session checked on every request** (ACR-0018; WebAuthn and step-up: designed, phase 16 step 2); agent client credentials ⇒ JWT; (later) signed single-use approval links |
 | 2 | Authorization | policy data + engine decide capability, target, scope and limits; fail closed; read-view roles (§6.7) |
 | 3 | Single entry point | every capability call through `InvokeCapability`; enforced by a call-site test |
 | 4 | Model and strategy boundary | Pydantic validation; per-step limits; hard budgets; redaction; evidence as data; strategies return decisions only |
@@ -2383,7 +2384,7 @@ client secrets.
 | 10 | Action ledger | `indeterminate` ⇒ escalate, never an automatic retry |
 | 11 | Write gate | per `(capability, target)` release in policy **and** in the action-gateway configuration |
 | 12 | Peer boundary | peers authenticate as agent principals; no write authority; scoped reads; quotas; loop protection (§23) |
-| 13 | Audit integrity | DB permissions enforce append-only |
+| 13 | Audit integrity | DB permissions enforce append-only; **every row carries `prev_hash` and `hash`** (a hash chain, migration 011, written under an advisory lock so concurrent writers never fork it) and `argus audit verify` names the first row edited, removed or inserted outside the store; the scheduler verifies it at start and daily (`audit_chain` in `schedules.yaml`) and records `security.audit_chain_verified` or `security.audit_chain_broken` (ACR-0018). The signed daily digest shipped off Host A, and the alert on a broken chain: designed (phase 16, after the off-host store and the team's alert route exist) |
 | 14 | Public edge (ACR-0011) | `argus-v18-ui` only: TLS (Let's Encrypt, renewed daily); the UI contract's routes and methods only; edge logins read-only or investigate (ACR-0012: one POST, rate-limited); request and connection limits per address; security headers (CSP, HSTS, no framing); runbooks only after login; no Argus secret in the edge |
 
 ### 17.2 Identities and credentials
@@ -2393,7 +2394,7 @@ client secrets.
 | Alertmanager service identity (per Host T) | Alertmanager → `/api/v1/alerts` | bearer token file; compared in constant time |
 | Human principals (`viewer`, `operator`, `approver`) | HTTP/CLI | username + Argon2 password hash in Postgres |
 | Peer-agent principals (`peer_agent`) | peer adapter | client ID + hashed client secret in Postgres (mTLS optional later) |
-| JWT signing key | api | signs access tokens (HS256); rotated by deployment |
+| JWT signing key | api | signs access tokens: **EdDSA** with an Ed25519 private key (secret `jwt_ed25519_key`, ACR-0018), verified with its public key; HS256 with the shared key only where no Ed25519 key is installed (the lab before its switch, tests); rotated by deployment |
 | Approval link signing key *(when Slack is added)* | api | signs single-use approval links |
 | Scheduler service identity | scheduler → api | internal credential |
 | `argus-tools` UID | MCP tools server | executor credentials per `(host, executor)` |
@@ -2409,7 +2410,8 @@ stored as evidence or sent to the model.
 
 - `POST /api/v1/auth/token` implements the OAuth2 password flow for humans and the client-credentials
   flow for agents. It verifies the password (Argon2) or client secret and returns a **JWT** signed with
-  HS256, lifetime `ACCESS_TOKEN_TTL` *(default 30 min)*, with claims `sub`, `kind`, `role`, `scopes`,
+  EdDSA (Ed25519, ACR-0018; HS256 only where no Ed25519 key is installed, and then only HS256 is accepted, so an
+  algorithm can never be swapped), lifetime `ACCESS_TOKEN_TTL` *(default 30 min)*, with claims `sub`, `kind`, `role`, `scopes`,
   `iat`, `exp`, `jti` and `aud="argus-api"`. There are no refresh tokens: the caller logs in again.
 - **Read-only tokens (ACR-0001).** The login may ask for `scope=read` (the OAuth2 form field). The JWT then
   carries `access: "read"` (otherwise `access: "full"`). This claim is separate from `scopes` (the target-scope
@@ -2424,16 +2426,30 @@ stored as evidence or sent to the model.
   alerts, schedules and full (loopback) tokens are not counted.
 - Every request re-reads the principal's `disabled` flag, so disabling a user takes effect before the
   token expires.
+- **Sessions (ACR-0018).** Every token's `jti` is a row in `auth_session` (principal, access, created, expires,
+  revoked). Every request checks it: a token whose session is missing, belongs to another principal or is revoked is
+  refused with 401 ("session ended; log in again") and audited as `security.session_refused` (the reason, never the
+  token): a stolen token used after logout shows up. A token that fails its signature is refused before, unaudited. `POST /api/v1/auth/logout` ends the caller's own session (every
+  token may call it, read and investigate included); `argus user add` (a password or role change) and `argus user
+  disable` end all of a principal's open sessions; `argus session revoke <name> --as <who>` is the administrator's
+  revocation, audited (`access.sessions_revoked`). A token minted before sessions existed has none and must log in
+  again.
+- **Permissions (ACR-0018).** Routes check a named permission, not a role; a role is a bundle: `viewer` = `view`;
+  `operator` and `approver` = `view`, `view_evidence`, `investigate`. `GET /api/v1/me` lists them. The token's
+  `access` still narrows them (a read token starts nothing). `propose_action`, `approve_action`, `place_hold`,
+  `open_terminal:<host>` and `admin` are added with the routes that need them.
 - The JWT only proves **who** is calling. What the caller may do is decided server-side by the use
   cases and the policy engine. `actor` is always taken from `sub`.
 - Swagger UI (`/docs`) exposes an **Authorize** button for this flow and is the approval console of
   this release. It is served only on the loopback listener.
 - Users and agent clients are created with `argus user …` from a shell on Host A. There is no
   self-registration and no user-management API.
-- Failed logins are audited (`access.login_failed`: the username and the client, never the password) and limited per
+- A successful login is audited (`access.login`: the username, the client, the token's access and its session's first
+  eight characters, never the token; ACR-0018). Failed logins are audited (`access.login_failed`: the username and the client, never the password) and limited per
   username and per client address in a window (`ARGUS_LOGIN_MAX_PER_USER` 5, `ARGUS_LOGIN_MAX_PER_ADDRESS` 20,
   `ARGUS_LOGIN_WINDOW_S` 900); a locked login is answered 429 with `Retry-After` and audited
-  (`access.login_locked`). A success clears the username's count.
+  (`access.login_locked`). A success clears the username's count. The failures are kept in Postgres
+  (`login_failure`, ACR-0018), so a restart of the API keeps a lockout.
 - **The public edge (ACR-0011):** a login that arrives through `argus-v18-ui` (its `X-Argus-Edge` header) must ask
   for `scope=read`, otherwise 400; the loopback login is unchanged. Every login reachable from the Internet is one
   account per person (no shared password).
@@ -3010,3 +3026,4 @@ erDiagram
 | 1.8.21 | 2026-10-20 | §14's approval and action machinery is marked **designed, not built**: no table, node, route, write contract, fake gateway or §14.4 / §22.2 suite exists yet; only the closed write gate and its standing test do (phase 15) | [OP-015](../OPEN_PROBLEMS.md) |
 | 1.8.23 | 2026-10-20 | what was built but not written: the policy `profile` (`lab` | `production`, required, fail closed) (§13.1, G-001); an observation's and an evidence record's provenance, `source_time` and `collected_at` instead of `observed_at`, `units`, `partial`, `coverage`, `identities` (§5.4, §12.3, §10, G-003); "unknown is never healthy": a missing value is `None`, never 0, and missing or partial data is never healthy or a root cause (§5.4, §12.3, G-007) | [ACR-0027](changes/ACR-0027-built-gaps.md) |
 | 1.8.24 | 2026-10-21 | a live dependency graph: a `depends_on` entry may be `{ref, port, required}` (loader refusals; the exporter probes a declared port only) and one link-state rule in `application/links.py` (§5.8; T-0046 L1); accepted and built in steps: the scheduler records link-state transitions from the existing probes into `link_event` (insert-only), skipping a host whose Prometheus cannot be read (§7.3, §16.1; L2–L3); the map's `since`, `required` and `dependency_broken`, link events on the incident charts, and the Level 2 read `network.link_states` offered to no class (§7.1, §12.2; L4) | [ACR-0025](changes/ACR-0025-live-dependency-graph.md) |
+| 1.8.26 | 2026-10-21 | phase 16 step 1 of ACR-0018: server-side sessions (`auth_session`, migration 010) checked on every request, `POST /api/v1/auth/logout`, revocation by `argus user add|disable` and `argus session revoke`; failed logins kept in Postgres (`login_failure`); permissions per route, listed by `/me`; the audit hash chain (`prev_hash`, `hash`, migration 011), `argus audit verify` and its daily scheduled check; EdDSA token signing with an Ed25519 key (§7.1, §16.1, §17.1 layers 1 and 13, §17.2, §17.3). WebAuthn, step-up, the off-host signed digest and the private path remain designed (step 2 on) | [ACR-0018](changes/ACR-0018-operator-access-and-audit.md) |

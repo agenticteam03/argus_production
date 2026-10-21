@@ -1,9 +1,9 @@
 // The real login: POST /api/v1/auth/token (form-encoded, scope=investigate; ACR-0012), then GET /api/v1/me.
 // The token is never put in `localStorage`, cookies or the URL (T-0016 rule 4): it lives in memory (./session.js)
-// and, so a reload does not log the user out, in this tab's `sessionStorage` (./sessionStore.js). There is no
-// logout route, so signing out is forgetting it.
+// and, so a reload does not log the user out, in this tab's `sessionStorage` (./sessionStore.js). Signing out ends
+// the session on the server (POST /api/v1/auth/logout, ACR-0018), then forgets the token.
 import { apiFetch, httpError } from "./http.js";
-import { clearToken, setToken } from "./session.js";
+import { clearToken, getToken, setToken } from "./session.js";
 import { clearSession, loadSession, saveSession } from "./sessionStore.js";
 
 const BAD_CREDENTIALS = "Incorrect username or password. Please try again.";
@@ -36,6 +36,15 @@ export const httpAuthAdapter = {
   },
 
   async signOut() {
+    // ACR-0018: end the session on the server first, so the token is refused even if it was copied. Best effort:
+    // the token is forgotten whatever the answer (an older API answers 404, an ended session 401, or no network).
+    if (getToken()) {
+      try {
+        await apiFetch("/api/v1/auth/logout", { method: "POST" });
+      } catch {
+        // forgotten below anyway
+      }
+    }
     clearToken();
     clearSession();
   },

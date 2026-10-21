@@ -10,7 +10,7 @@ import math
 import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor, wait
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from threading import Lock, RLock
 from typing import Annotated, Literal
 
@@ -30,6 +30,18 @@ from argus.ports.ports import MetricsUnavailable, StaleMetrics
 READ_METHODS = ("GET", "HEAD")          # a read-only token (ACR-0001) may use only these
 INVESTIGATE_WRITES = {("POST", "/api/v1/investigations")}   # the one non-GET of an `investigate` token (ACR-0012)
 SCOPES = {"read", "investigate"}        # what a login may ask for; none = a full token (loopback only)
+ANY_TOKEN_WRITES = {("POST", "/api/v1/auth/logout")}   # ACR-0018: every token may end its own session
+# ACR-0018 §17.3: permissions are explicit and checked per route; a role is a bundle of them. Only the permissions of
+# what is built are listed; propose_action, approve_action, place_hold, open_terminal and admin come with their routes.
+ROLE_PERMISSIONS: dict[str, frozenset[str]] = {
+    "viewer": frozenset({"view"}),
+    "operator": frozenset({"view", "view_evidence", "investigate"}),
+    "approver": frozenset({"view", "view_evidence", "investigate"}),
+}
+
+
+def permissions_of(p: Principal) -> frozenset[str]:
+    return ROLE_PERMISSIONS.get(p.role, frozenset())
 
 log = logging.getLogger("argus.api")
 
@@ -61,17 +73,24 @@ def new_incident(target: TargetRef, trigger: TriggerKind, request: RequestKind, 
 
 class LoginLimiter:
     """§17.3 / ACR-0011: failed logins per username and per client address in a sliding window; once either reaches
-    its maximum, logins for it are refused (429) until the window has passed. In memory: the API is one process
-    (a restart forgets the counts, which only shortens a lockout)."""
+    its maximum, logins for it are refused (429) until the window has passed. ACR-0018: with a store, the failures
+    are kept in it (`login_failure`, migration 010), so a restart no longer forgets a lockout; without one (a test
+    double), in memory. `now` is wall-clock seconds."""
 
-    def __init__(self, max_per_user: int, max_per_address: int, window_s: int):
+    def __init__(self, max_per_user: int, max_per_address: int, window_s: int, store=None):
         import time
         self.max_per_user, self.max_per_address, self.window_s = max_per_user, max_per_address, window_s
-        self.now = time.monotonic
+        self.now = time.time
+        self.store = store if hasattr(store, "add_login_failure") else None
         self._fails: dict[str, list[float]] = {}
+
+    def _at(self, seconds: float) -> datetime:
+        return datetime.fromtimestamp(seconds, timezone.utc)
 
     def _recent(self, key: str) -> list[float]:
         cutoff = self.now() - self.window_s
+        if self.store is not None:
+            return [x.timestamp() for x in self.store.login_failures(key, self._at(cutoff))]
         times = [t for t in self._fails.get(key, []) if t > cutoff]
         self._fails[key] = times
         return times
@@ -84,33 +103,75 @@ class LoginLimiter:
         return max(waits, default=0)
 
     def failed(self, user: str, address: str) -> None:
+        if self.store is not None:                  # failures out of the window count for nothing: drop them
+            self.store.prune_login_failures(self._at(self.now() - self.window_s))
         for key in (f"u:{user}", f"a:{address}"):
-            self._recent(key).append(self.now())
+            if self.store is not None:
+                self.store.add_login_failure(key, self._at(self.now()))
+            else:
+                self._recent(key).append(self.now())
 
     def succeeded(self, user: str) -> None:
-        self._fails.pop(f"u:{user}", None)
+        if self.store is not None:
+            self.store.clear_login_failures(f"u:{user}")
+        else:
+            self._fails.pop(f"u:{user}", None)
 
+
+
+def sign_token(app_ctx, claims: dict) -> str:
+    """ACR-0018 §17.2: EdDSA with the API's Ed25519 key when it has one, else the lab's HS256 key."""
+    key = getattr(app_ctx, "jwt_signing", None)
+    if key is not None:
+        return jwt.encode(claims, key, algorithm="EdDSA")
+    return jwt.encode(claims, app_ctx.jwt_key, algorithm="HS256")
+
+
+def verify_token(app_ctx, token: str) -> dict:
+    """Only the configured algorithm is accepted: with an Ed25519 key, an HS256 token is refused even when it is signed
+    with the old shared key (no algorithm confusion)."""
+    key = getattr(app_ctx, "jwt_signing", None)
+    if key is not None:
+        return jwt.decode(token, key.public_key(), algorithms=["EdDSA"], audience="argus-api")
+    return jwt.decode(token, app_ctx.jwt_key, algorithms=["HS256"], audience="argus-api")
 
 def _principal_dep(app_ctx):
     def dep(request: Request, token: Annotated[str, Depends(oauth2)]) -> Principal:
         try:
-            claims = jwt.decode(token, app_ctx.jwt_key, algorithms=["HS256"], audience="argus-api")
+            claims = verify_token(app_ctx, token)
         except jwt.PyJWTError:
             raise HTTPException(status.HTTP_401_UNAUTHORIZED, "invalid or expired token",
                                 headers={"WWW-Authenticate": "Bearer"})
         row = app_ctx.store.get_principal(claims["sub"])
         if row is None or row["disabled"]:          # disabling takes effect before token expiry
             raise HTTPException(status.HTTP_401_UNAUTHORIZED, "principal disabled")
+        # ACR-0018: the token's session must exist, belong to it and not be revoked (logout, a password change or an
+        # administrator ends it at once); a token issued before sessions existed has none and must log in again
+        session = app_ctx.store.get_session(str(claims.get("jti", "")))
+        if session is None or session["principal"] != row["id"] or session["revoked_at"] is not None:
+            # a correctly signed token without a live session of its own: a token used after logout or revocation,
+            # or one minted outside the login. Audited as a security event (only signed tokens get here: no flood)
+            why = "no session" if session is None else ("another principal's session"
+                                                        if session["principal"] != row["id"] else "revoked")
+            app_ctx.store.append(AuditRecord(
+                audit_id=f"aud_{uuid.uuid4().hex[:16]}", incident_id=None, at=utcnow(), category="security",
+                event="security.session_refused", actor=row["id"],
+                detail={"reason": why, "session": str(claims.get("jti", ""))[:8], "path": request.url.path}))
+            raise HTTPException(status.HTTP_401_UNAUTHORIZED, "session ended; log in again",
+                                headers={"WWW-Authenticate": "Bearer"})
+        request.state.jti = session["jti"]
         # ACR-0001: a read-only token only narrows what the role allows; tokens without the claim are full
         access = claims.get("access", "full")
         request.state.access = access
-        if access == "read" and request.method not in READ_METHODS:
+        if (request.method, request.url.path) in ANY_TOKEN_WRITES:
+            pass                                    # ACR-0018: ending one's own session is allowed to every token
+        elif access == "read" and request.method not in READ_METHODS:
             app_ctx.store.append(AuditRecord(
                 audit_id=f"aud_{uuid.uuid4().hex[:16]}", incident_id=None, at=utcnow(), category="access",
                 event="access.read_only_refused", actor=row["id"],
                 detail={"method": request.method, "path": request.url.path}))
             raise HTTPException(status.HTTP_403_FORBIDDEN, "this token is read-only")
-        if (access == "investigate" and request.method not in READ_METHODS
+        elif (access == "investigate" and request.method not in READ_METHODS
                 and (request.method, request.url.path) not in INVESTIGATE_WRITES):
             app_ctx.store.append(AuditRecord(
                 audit_id=f"aud_{uuid.uuid4().hex[:16]}", incident_id=None, at=utcnow(), category="access",
@@ -131,10 +192,11 @@ def build_api(app_ctx) -> FastAPI:
         api.add_middleware(CORSMiddleware, allow_origins=app_ctx.settings.ui_origins, allow_methods=["GET", "POST"],
                            allow_headers=["Authorization", "Content-Type"], allow_credentials=False)
 
-    def require(*roles: str):
+    def require(permission: str):
+        """ACR-0018: a route names the permission it needs; the principal's role must grant it."""
         def dep(p: Annotated[Principal, Depends(current)]) -> Principal:
-            if p.role not in roles:
-                raise HTTPException(status.HTTP_403_FORBIDDEN, f"role {p.role} may not do this")
+            if permission not in permissions_of(p):
+                raise HTTPException(status.HTTP_403_FORBIDDEN, f"role {p.role} lacks the permission {permission}")
             return p
         return dep
 
@@ -149,7 +211,7 @@ def build_api(app_ctx) -> FastAPI:
     from argus.application.overview import Overview
     overview = Overview(app_ctx.store, app_ctx.topology, lambda: host_metrics_rows(), limit=s.incidents_limit_cap)
     quota_lock = Lock()                  # ACR-0012: quota check and incident creation are one step (one API process)
-    limiter = LoginLimiter(s.login_max_per_user, s.login_max_per_address, s.login_window_s)
+    limiter = LoginLimiter(s.login_max_per_user, s.login_max_per_address, s.login_window_s, app_ctx.store)
     api.state.login_limiter = limiter
 
     def audit_access(event: str, user: str, detail: dict) -> None:
@@ -188,25 +250,36 @@ def build_api(app_ctx) -> FastAPI:
                                 "a login through the public edge must ask for scope=read or scope=investigate")
         access = form.scopes[0] if form.scopes else "full"
         now = utcnow()
+        expires = now + timedelta(minutes=app_ctx.settings.jwt_ttl_min)
+        jti = uuid.uuid4().hex
+        app_ctx.store.add_session(jti, row["id"], access, now, expires)     # ACR-0018: the server-side session
+        audit_access("access.login", row["id"], {**where, "access": access, "session": jti[:8]})   # never the token
         claims = {"sub": row["id"], "kind": row["kind"], "role": row["role"], "scopes": row["scopes"],
-                  "access": access, "iat": now, "exp": now + timedelta(minutes=app_ctx.settings.jwt_ttl_min),
-                  "jti": uuid.uuid4().hex, "aud": "argus-api"}
-        return {"access_token": jwt.encode(claims, app_ctx.jwt_key, algorithm="HS256"), "token_type": "bearer",
+                  "access": access, "iat": now, "exp": expires, "jti": jti, "aud": "argus-api"}
+        return {"access_token": sign_token(app_ctx, claims), "token_type": "bearer",
                 "access": access}
+
+    @api.post("/api/v1/auth/logout", tags=["auth"])
+    def logout(request: Request, p: Annotated[Principal, Depends(current)]):
+        """ACR-0018: end this token's session now; the next request with it is refused."""
+        app_ctx.store.revoke_session(request.state.jti, p.id, "logout", utcnow())
+        audit_access("access.logout", p.id, {"session": request.state.jti[:8]})
+        return {"ended": True}
 
     @api.get("/api/v1/me", tags=["auth"])
     def me(request: Request, p: Annotated[Principal, Depends(current)]):
         """Who is logged in, and the actions this token may use (ACR-0001). A UI shows a control only when its
         action is listed: new features add actions here, never permission logic in the UI."""
-        access = request.state.access
+        access, granted = request.state.access, permissions_of(p)
         actions = ["view_incidents", "view_timeline"]
-        if p.role in ("operator", "approver") and s.langfuse_ui_url.startswith(("http://", "https://")):
+        if "view_evidence" in granted and s.langfuse_ui_url.startswith(("http://", "https://")):
             actions.append("view_traces")                   # ACR-0013 C: only when the Langfuse UI link is configured
-        if p.role in ("operator", "approver"):
+        if "view_evidence" in granted:
             actions.append("view_evidence")
-            if access in ("full", "investigate"):          # ACR-0012: an investigate token may start one
-                actions.append("start_investigation")
-        return {"user": p.id, "role": p.role, "access": access, "actions": actions}
+            if "investigate" in granted and access in ("full", "investigate"):   # ACR-0012: an investigate token
+                actions.append("start_investigation")                              # may start one
+        # ACR-0018: what the role grants; the token's access may narrow it (a read token starts nothing)
+        return {"user": p.id, "role": p.role, "access": access, "actions": actions, "permissions": sorted(granted)}
 
     def over_quota(principal: str, idempotency_key: str | None) -> tuple[str, int] | None:
         """ACR-0012: (which quota, seconds to wait) when an investigate token may not start one more; None = allowed.
@@ -228,7 +301,7 @@ def build_api(app_ctx) -> FastAPI:
 
     @api.post("/api/v1/investigations", status_code=202, tags=["incidents"])
     def investigate(request: Request, body: InvestigationIn,
-                    p: Annotated[Principal, Depends(require("operator", "approver"))]):
+                    p: Annotated[Principal, Depends(require("investigate"))]):
         try:
             target = TargetRef.parse(body.target)
         except ValueError as e:
@@ -355,7 +428,7 @@ def build_api(app_ctx) -> FastAPI:
             raise HTTPException(404, "not found")
         view = inc.model_dump(mode="json")
         view["target"] = str(inc.target)
-        operator = p.role in ("operator", "approver")
+        operator = "view_evidence" in permissions_of(p)
         # ACR-0021 (T-0045 B4): the verdict card's fields, derived from the store alone; a viewer's carry no evidence text
         view.update(build_verdict(
             inc, next((c for c in CLASSES if c.name == inc.incident_class), None), app_ctx.store.list_evidence(incident_id),
@@ -390,7 +463,7 @@ def build_api(app_ctx) -> FastAPI:
         root cause from its stored evidence. Never VM addresses, Argus's internal endpoints or secrets."""
         if incident_id is None:
             return app_ctx.topology.view()
-        if p.role not in ("operator", "approver"):
+        if "view_evidence" not in permissions_of(p):
             raise HTTPException(status.HTTP_403_FORBIDDEN, "the incident overlay uses evidence: operator or approver")
         inc = app_ctx.store.get_incident(incident_id)
         if inc is None:
@@ -429,7 +502,7 @@ def build_api(app_ctx) -> FastAPI:
         return overview.view()
 
     @api.get("/api/v1/evidence/{evidence_id}", tags=["incidents"])
-    def evidence(evidence_id: str, p: Annotated[Principal, Depends(require("operator", "approver"))]):
+    def evidence(evidence_id: str, p: Annotated[Principal, Depends(require("view_evidence"))]):
         rec = app_ctx.store.get_evidence([evidence_id])
         if not rec:
             raise HTTPException(404, "not found")
