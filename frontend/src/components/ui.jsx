@@ -1,5 +1,6 @@
-import { Children, useEffect, useId, useRef, useState } from "react";
+import { Children, useCallback, useEffect, useId, useRef, useState } from "react";
 import { clockZone, liveLabel } from "../utils/format.js";
+import { runRefresh } from "../utils/refresh.js";
 
 const icon = (paths) => (props) => (
   <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" {...props}>{paths}</svg>
@@ -71,9 +72,12 @@ export const Close = icon(<path d="M18 6 6 18M6 6l12 12" />);
 // `source` ("demo"/"api") and `at` (the last successful refresh, ms) make the pill honest: demo data is
 // labelled, and the clock next to "Live" ticks with each poll, so it is visibly live rather than decorative.
 // The time is in the browser's zone, named (COT, EST, GMT+1...). With `onRefresh` a "Refresh" button sits next to the pill: it reads again right
-// now instead of waiting for the next 30 s poll, and spins while the request is running.
+// now instead of waiting for the next 30 s poll, spins for at least a moment (utils/refresh.js) and then says in a
+// toast whether the data was refreshed or not.
 export function LivePill({ live, source, at, onRefresh }) {
   const [busy, setBusy] = useState(false);
+  const [toast, setToast] = useState(null);
+  const hideToast = useCallback(() => setToast(null), []);
   const demo = source === "demo";
   const dot = demo ? "bg-amber-400" : live ? "animate-pulse bg-emerald-400" : "bg-amber-400";
   const pill = (
@@ -86,7 +90,12 @@ export function LivePill({ live, source, at, onRefresh }) {
   if (!onRefresh) return pill;
   const refresh = async () => {
     setBusy(true);
-    try { await onRefresh(); } finally { setBusy(false); }
+    setToast(null);
+    const ok = await runRefresh(onRefresh);
+    setBusy(false);
+    setToast(ok
+      ? { tone: "ok", text: `Data refreshed · ${clockZone(Date.now())}` }
+      : { tone: "error", text: "Couldn't refresh. Showing the last data; it retries on its own." });
   };
   return (
     <span className="inline-flex flex-wrap items-center gap-2">
@@ -94,9 +103,26 @@ export function LivePill({ live, source, at, onRefresh }) {
       <button type="button" onClick={refresh} disabled={busy} aria-label="Refresh now"
         className="inline-flex cursor-pointer items-center gap-1.5 rounded-full border border-line bg-card px-3 py-1.5 text-xs text-muted transition hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-hover disabled:cursor-wait motion-reduce:transition-none">
         <Refresh width="13" height="13" className={busy ? "animate-spin motion-reduce:animate-none" : ""} />
-        Refresh
+        {busy ? "Refreshing…" : "Refresh"}
       </button>
+      {toast && <Toast key={toast.text} tone={toast.tone} onDone={hideToast}>{toast.text}</Toast>}
     </span>
+  );
+}
+
+// A short message at the bottom of the screen that goes away by itself (as in the ui-graphs prototype).
+export function Toast({ tone = "ok", onDone, ms = 4000, children }) {
+  useEffect(() => {
+    const timer = setTimeout(onDone, ms);
+    return () => clearTimeout(timer);
+  }, [onDone, ms]);
+  const Icon = tone === "ok" ? CircleCheck : CircleAlert;
+  return (
+    <div role="status" aria-live="polite"
+      className="toast-in fixed bottom-6 left-1/2 z-50 flex max-w-[calc(100vw-32px)] -translate-x-1/2 items-center gap-2.5 rounded-xl border border-line bg-card px-4 py-3 text-sm text-ink shadow-[0_16px_48px_-12px_rgb(0_0_0/0.35)]">
+      <Icon width="16" height="16" className={`shrink-0 ${tone === "ok" ? "text-emerald-400" : "text-red-400"}`} />
+      {children}
+    </div>
   );
 }
 

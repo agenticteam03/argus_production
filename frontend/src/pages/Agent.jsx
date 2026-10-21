@@ -27,8 +27,10 @@ export default function Agent() {
         ? current : rows.find((row) => row.status === "running")?.id ?? rows[0]?.id ?? null);
       setUpdated(Date.now());
       setError(false);
+      return true;
     } catch {
       setError(true);
+      return false; // the Refresh button says so (utils/refresh.js)
     } finally {
       setLoading(false);
     }

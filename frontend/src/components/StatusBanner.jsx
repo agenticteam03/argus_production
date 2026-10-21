@@ -112,7 +112,7 @@ export default function StatusBanner({ incidents, hostMetrics, topology, hosts, 
         <dl className="grid grid-cols-2 divide-x divide-line border-t border-line bg-field/40 sm:grid-cols-4">
           <Stat label="Hosts reporting" value={`${st.hostsReporting}/${st.hostsTotal}`} sub={st.hostsReporting === st.hostsTotal ? "Fresh samples" : "Some signals are missing"} />
           <Stat label="Active runs" value={st.running} sub={st.escalated ? `${st.escalated} escalated in 24 h` : "Nothing escalated in 24 h"} />
-          {st.links && <Stat label="Checked links OK" value={`${st.links.ok}/${st.links.total}`} sub={st.links.ok === st.links.total ? "All dependencies answer" : `${st.links.total - st.links.ok} not ok`} />}
+          {st.links && <Stat label="Checked links OK" value={`${st.links.ok}/${st.links.total}`} sub={st.links.ok === st.links.total ? "All dependencies answer" : `${st.links.total - st.links.ok} not ok or not checked`} />}
           {st.components && <Stat label="Components" value={st.components.total} sub={st.components.unknown ? `${st.components.unknown} unknown` : "All states known"} />}
         </dl>
       )}

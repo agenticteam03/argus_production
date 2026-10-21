@@ -9,7 +9,7 @@ import { Card, Segmented, Select, textareaClass } from "./ui.jsx";
 // (GET /api/v1/targets), never free text; the API applies its own quotas and checks.
 export const REASON_MAX = 500;
 
-const KINDS = [{ value: "report", label: "Report", hint: "Something is wrong" }, { value: "check", label: "Check", hint: "Is it healthy?" }];
+const KINDS = [{ value: "report", label: "Report", hint: "Something's wrong" }, { value: "check", label: "Check", hint: "Is it healthy?" }];
 
 const errorText = (err) => {
   if (err?.status === 429) {
