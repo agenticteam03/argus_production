@@ -23,7 +23,7 @@ SAMPLES = ROOT / "contracts" / "samples"
 UPDATE = os.getenv("ARGUS_UPDATE_UI_CONTRACT") == "1"
 
 # (method, path) a UI may call - docs/API-FOR-UI.md describes each one
-UI_ROUTES = [("post", "/api/v1/auth/token"), ("get", "/api/v1/me"), ("get", "/api/v1/incidents"),
+UI_ROUTES = [("post", "/api/v1/auth/token"), ("post", "/api/v1/auth/logout"), ("get", "/api/v1/me"), ("get", "/api/v1/incidents"),
              ("get", "/api/v1/incidents/{incident_id}"), ("get", "/api/v1/incidents/{incident_id}/events"),
              ("get", "/api/v1/evidence/{evidence_id}"), ("get", "/api/v1/escalations"),
              ("post", "/api/v1/investigations"), ("get", "/api/v1/targets"),

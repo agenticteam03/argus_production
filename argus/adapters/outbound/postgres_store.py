@@ -13,8 +13,11 @@ from typing import Any
 from psycopg.types.json import Jsonb
 from psycopg_pool import ConnectionPool
 
+from argus.domain.audit_chain import GENESIS, link_hash
 from argus.domain.model import AuditRecord, EvidenceRecord, Incident, TargetRef, utcnow
 
+
+AUDIT_CHAIN_LOCK = 0x41524755530A   # pg_advisory_xact_lock key of the audit chain (ACR-0018)
 
 class PostgresStore:
     def __init__(self, conninfo: str, min_size: int = 1, max_size: int = 4):
@@ -192,6 +195,41 @@ class PostgresStore:
         self._q("INSERT INTO link_event (owner, dependency, state, latency_ms, reason, at) VALUES (%s, %s, %s, %s, %s, %s)",
                 (owner, dependency, state, latency_ms, reason, at))
 
+    # --- sessions and the login limiter (ACR-0018, phase 16 step 1; migration 010) ---------------------------------
+    def add_session(self, jti: str, principal: str, access: str, created_at: datetime, expires_at: datetime) -> None:
+        self._q("INSERT INTO auth_session (jti, principal, access, created_at, expires_at) VALUES (%s, %s, %s, %s, %s)",
+                (jti, principal, access, created_at, expires_at))
+
+    def get_session(self, jti: str) -> dict[str, Any] | None:
+        rows = self._q("SELECT jti, principal, access, created_at, expires_at, revoked_at, revoked_by, revoke_reason "
+                       "FROM auth_session WHERE jti = %s", (jti,))
+        if not rows:
+            return None
+        r = rows[0]
+        return {"jti": r[0], "principal": r[1], "access": r[2], "created_at": r[3], "expires_at": r[4],
+                "revoked_at": r[5], "revoked_by": r[6], "revoke_reason": r[7]}
+
+    def revoke_session(self, jti: str, by: str, reason: str, at: datetime) -> bool:
+        return bool(self._q("UPDATE auth_session SET revoked_at = %s, revoked_by = %s, revoke_reason = %s "
+                            "WHERE jti = %s AND revoked_at IS NULL RETURNING jti", (at, by, reason, jti)))
+
+    def revoke_principal_sessions(self, principal: str, by: str, reason: str, at: datetime) -> int:
+        return len(self._q("UPDATE auth_session SET revoked_at = %s, revoked_by = %s, revoke_reason = %s "
+                           "WHERE principal = %s AND revoked_at IS NULL AND expires_at > %s RETURNING jti",
+                           (at, by, reason, principal, at)))
+
+    def add_login_failure(self, key: str, at: datetime) -> None:
+        self._q("INSERT INTO login_failure (key, at) VALUES (%s, %s)", (key, at))
+
+    def login_failures(self, key: str, since: datetime) -> list[datetime]:
+        return [r[0] for r in self._q("SELECT at FROM login_failure WHERE key = %s AND at > %s ORDER BY at", (key, since))]
+
+    def clear_login_failures(self, key: str) -> None:
+        self._q("DELETE FROM login_failure WHERE key = %s", (key,))
+
+    def prune_login_failures(self, before: datetime) -> None:
+        self._q("DELETE FROM login_failure WHERE at < %s", (before,))
+
     def link_events(self, target: str, start: datetime, end: datetime) -> list[dict[str, Any]]:
         """The transitions of the links `target` owns or is the dependency of, from `start` to `end`, oldest first."""
         rows = self._q("SELECT owner, dependency, state, latency_ms, reason, at FROM link_event "
@@ -233,8 +271,20 @@ class PostgresStore:
 
     # --- audit -----------------------------------------------------------------------------------
     def append(self, record: AuditRecord) -> None:
-        self._q("INSERT INTO audit (audit_id, incident_id, at, body) VALUES (%s, %s, %s, %s)",
-                (record.audit_id, record.incident_id, record.at, Jsonb(record.model_dump(mode="json"))))
+        """ACR-0018 (migration 011): the row is chained to the previous one. A transaction-level advisory lock makes
+        the read of the last hash and the insert one step for every writer (api, worker, scheduler)."""
+        body = record.model_dump(mode="json")
+        with self.pool.connection() as c, c.transaction():
+            c.execute("SELECT pg_advisory_xact_lock(%s)", (AUDIT_CHAIN_LOCK,))
+            row = c.execute("SELECT hash FROM audit WHERE hash IS NOT NULL ORDER BY seq DESC LIMIT 1").fetchone()
+            prev = row[0] if row else GENESIS
+            c.execute("INSERT INTO audit (audit_id, incident_id, at, body, prev_hash, hash) VALUES (%s, %s, %s, %s, %s, %s)",
+                      (record.audit_id, record.incident_id, record.at, Jsonb(body), prev,
+                       link_hash(prev, record.audit_id, body)))
+
+    def audit_chain(self) -> list[tuple[str, Any, str | None, str | None]]:
+        """ACR-0018: every audit row in write order, for `argus audit verify`."""
+        return [tuple(r) for r in self._q("SELECT audit_id, body, prev_hash, hash FROM audit ORDER BY seq")]
 
     def list_for(self, incident_id: str) -> list[AuditRecord]:
         rows = self._q("SELECT body FROM audit WHERE incident_id = %s ORDER BY at", (incident_id,))
@@ -371,6 +421,15 @@ CHECKS_SQL: list[tuple[str, str, bool]] = [
     ("link event is insert-only (UPDATE refused)", "UPDATE link_event SET state = 'broken' WHERE owner = 'dbcheck'",
      False),
     ("link event is insert-only (DELETE refused)", "DELETE FROM link_event WHERE owner = 'dbcheck'", False),
+    ("insert session (ACR-0018, migration 010)", "INSERT INTO auth_session (jti, principal, access, created_at, "
+                                                "expires_at) VALUES (md5('dbcheck'), 'dbcheck', 'read', now(), now())", True),
+    ("a session may be revoked (its revocation columns)", "UPDATE auth_session SET revoked_at = now(), "
+                                                          "revoked_by = 'dbcheck' WHERE jti = md5('dbcheck')", True),
+    ("a session's identity is fixed (UPDATE principal refused)", "UPDATE auth_session SET principal = 'x' "
+                                                                 "WHERE jti = md5('dbcheck')", False),
+    ("a session is never deleted (DELETE refused)", "DELETE FROM auth_session WHERE jti = md5('dbcheck')", False),
+    ("insert login failure (migration 010)", "INSERT INTO login_failure (key, at) VALUES ('u:dbcheck', now())", True),
+    ("a login failure may be cleared (DELETE)", "DELETE FROM login_failure WHERE key = 'u:dbcheck'", True),
     ("runtime role is not superuser", "DO $$ BEGIN IF (SELECT rolsuper FROM pg_roles WHERE rolname = current_user) "
                                       "THEN RAISE EXCEPTION 'superuser'; END IF; END $$", True),
 ]

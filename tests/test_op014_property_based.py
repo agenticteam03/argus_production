@@ -2,6 +2,7 @@
 the cases someone thought of; these generate many inputs and check what must hold for every one of them."""
 from __future__ import annotations
 
+import re
 import string
 
 import pytest
@@ -63,7 +64,13 @@ def test_a_bearer_token_is_masked(before, secret, after):
        pw=st.text(alphabet=string.ascii_letters + string.digits + "!#$%^&*", min_size=1, max_size=30))
 def test_a_password_in_a_connection_url_is_masked(scheme, user, pw):
     out, _ = Redactor().text(f"connect {scheme}://{user}:{pw}@db.internal:5432/app")
-    assert f":{pw}@" not in out and f"{scheme}://[REDACTED]@" in out
+    assert f":{pw}@" not in out
+    if re.search(r"(?i)password|passwd|pwd|secret|token|api[_-]?key|apikey|access[_-]?key", user):
+        # a user named like a secret key (`passwd`, `pwd`, ...) is caught first by the key=value rule, which masks
+        # everything after it, the password included (Hypothesis found `passwd`): masked, in another form
+        assert "[REDACTED]" in out
+    else:
+        assert f"{scheme}://[REDACTED]@" in out
 
 
 @SETTINGS
