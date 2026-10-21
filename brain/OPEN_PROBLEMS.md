@@ -23,7 +23,7 @@ When a problem is fixed, set its status to `fixed` with the date, and add a jour
 | **OP-014** | The self-merge rule relies on the tests: gaps where a green CI does not yet mean "safe to merge" | open — first three gaps in `task/TEST-HARDEN-1` | 2026-10-17 |
 | **OP-015** | ARCHITECTURE §14 says the approval/action machinery "exists from the start"; the code has none of it | open — implemented by ACR-0019 (phase 18) if accepted; until then the text must say "designed, not built" | 2026-10-18 |
 | **OP-016** | `policies/SECURITY.md` lists "the team's shared Argus password"; §17.3 and ACR-0011 require one account per person | open — fixed in phase 15 | 2026-10-18 |
-| **OP-017** | The frontend's dependencies have known advisories: React Router (production, moderate), Vite, Vitest and esbuild (dev tooling, up to critical); every fix is a major upgrade | in progress — React Router 7 (what ships: `npm audit --omit=dev` clean, 2026-10-21); Vite and Vitest left | 2026-10-20 |
+| **OP-017** | The frontend's dependencies have known advisories: React Router (production, moderate), Vite, Vitest and esbuild (dev tooling, up to critical); every fix is a major upgrade | in progress — React Router 7, Vite 8 and Vitest 5 (2026-10-21): `npm audit` clean on the whole tree; CI's gate left | 2026-10-20 |
 
 ---
 
@@ -320,8 +320,8 @@ disabled. No shared account, so nothing to disable.
 
 ## OP-017 — The frontend's dependencies have known advisories
 
-**Status:** in progress 2026-10-21 (`task/OP-017-react-router-7`: `react-router-dom` 7.18.4; `npm audit --omit=dev`
-finds nothing; Vite and Vitest left) · **Opened:** 2026-10-20 (OP-014 step 6, `npm audit`) · **Found by:** `conantkd`
+**Status:** in progress 2026-10-21: `react-router-dom` 7.18.4, then `vite` 8.3.5 and `vitest` 5.0.5
+(`task/OP-017-vite8`); `npm audit` on the whole tree finds nothing. Left: CI's gate on the whole tree (fix 3) · **Opened:** 2026-10-20 (OP-014 step 6, `npm audit`) · **Found by:** `conantkd`
 (+ agent) · **Owner:** the frontend lane (T-0016)
 
 **Problem.** `npm audit` in `frontend/` on 2026-10-20 reports the following. Python: `pip-audit` found nothing.
@@ -344,8 +344,9 @@ laptop (`npm run dev`, the dev server) and in CI.
    - Done 2026-10-21: `react-router-dom` 7.18.4 (released 2026-09-15). No code change: the UI uses only the classic
      API (`BrowserRouter`, `Routes`, `Link`, `NavLink`, the hooks), unchanged in 7. Lint, Vitest (131), the build and
      Playwright (21, with the read-only guard) pass; `npm audit --omit=dev` finds nothing.
-   - Left: `vite` 8 (Rolldown inside; needs `@vitejs/plugin-react` 6) and `vitest` 5 together, in their own pull
-     request. Neither ships in the UI image.
+   - Done 2026-10-21: `vite` 8.3.5 (Rolldown inside), `@vitejs/plugin-react` 6.1.2 and `vitest` 5.0.5 together. No
+     code or config change: `vite.config.js` uses only `defineConfig`, `searchForWorkspaceRoot` and the server and
+     preview hooks. Lint, Vitest (136), the build and Playwright (21) pass; `npm audit` finds nothing, dev included.
 3. Then raise the npm gate to every dependency (`npm audit --audit-level=high`, dev included).
 
 **Done when.** `npm audit --audit-level=high` passes on the whole tree and CI runs it.
