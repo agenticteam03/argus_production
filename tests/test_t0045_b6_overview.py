@@ -27,9 +27,9 @@ HOSTS = {"vm-095/host:vm-095": {"host_cpu_busy_ratio": 0.25, "host_memory_availa
 
 
 def _inc(app, target, cls=None, status=None, minutes_ago=10, closed_minutes_ago=None):
-    inc = incident(app, target)
+    # opened_at is given at creation: the stores sort by the opened_at column, which an update does not change
+    inc = incident(app, target, opened_at=utcnow() - timedelta(minutes=minutes_ago))
     inc.incident_class = cls
-    inc.opened_at = utcnow() - timedelta(minutes=minutes_ago)
     if status:
         inc.status = status
     if closed_minutes_ago is not None:
