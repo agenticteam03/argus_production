@@ -186,6 +186,20 @@ class PostgresStore:
                        "ORDER BY at, id", (host, start, end))
         return [{"commit": r[0], "ref": r[1], "actor": r[2], "at": r[3]} for r in rows]
 
+    def add_link_event(self, owner: str, dependency: str, state: str, latency_ms: float | None, reason: str | None,
+                       at: datetime) -> None:
+        """ACR-0025 (T-0046 L2): a change of one declared link's state; insert-only (migration 009)."""
+        self._q("INSERT INTO link_event (owner, dependency, state, latency_ms, reason, at) VALUES (%s, %s, %s, %s, %s, %s)",
+                (owner, dependency, state, latency_ms, reason, at))
+
+    def link_events(self, target: str, start: datetime, end: datetime) -> list[dict[str, Any]]:
+        """The transitions of the links `target` owns or is the dependency of, from `start` to `end`, oldest first."""
+        rows = self._q("SELECT owner, dependency, state, latency_ms, reason, at FROM link_event "
+                       "WHERE (owner = %s OR dependency = %s) AND at >= %s AND at <= %s ORDER BY at, id",
+                       (target, target, start, end))
+        return [{"owner": r[0], "dependency": r[1], "state": r[2], "latency_ms": r[3], "reason": r[4], "at": r[5]}
+                for r in rows]
+
     def close_queued_incident(self, incident_id: str, outcome: str, diagnosis: str, closed_at: datetime) -> bool:
         """Close an incident no worker has claimed (T-0026). False when it is no longer queued (claimed meanwhile)."""
         patch = {"status": "closed", "outcome": outcome, "diagnosis": diagnosis,
@@ -352,6 +366,11 @@ CHECKS_SQL: list[tuple[str, str, bool]] = [
                                                       "VALUES ('vm-095', 'abcdef1', 'dbcheck', 'dbcheck', now())", True),
     ("deploy event is insert-only (UPDATE refused)", "UPDATE deploy_event SET ref = 'x' WHERE ref = 'dbcheck'", False),
     ("deploy event is insert-only (DELETE refused)", "DELETE FROM deploy_event WHERE ref = 'dbcheck'", False),
+    ("insert link event (ACR-0025, migration 009)", "INSERT INTO link_event (owner, dependency, state, at) "
+                                                    "VALUES ('dbcheck', 'dbcheck', 'ok', now())", True),
+    ("link event is insert-only (UPDATE refused)", "UPDATE link_event SET state = 'broken' WHERE owner = 'dbcheck'",
+     False),
+    ("link event is insert-only (DELETE refused)", "DELETE FROM link_event WHERE owner = 'dbcheck'", False),
     ("runtime role is not superuser", "DO $$ BEGIN IF (SELECT rolsuper FROM pg_roles WHERE rolname = current_user) "
                                       "THEN RAISE EXCEPTION 'superuser'; END IF; END $$", True),
 ]
