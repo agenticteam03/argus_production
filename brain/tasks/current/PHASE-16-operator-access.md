@@ -1,0 +1,63 @@
+# PHASE-16 — Operator access and audit (ACR-0018), step by step
+
+| Field | Value |
+|---|---|
+| Status | `in progress` — step 1 in review (#223); steps 2–6 planned below |
+| Phase | 16 of [NEXT-PHASE](NEXT-PHASE-supervised-remediation.md) ([`../../IMPLEMENTATION_PLAN.md`](../../IMPLEMENTATION_PLAN.md)) |
+| Architecture | [ACR-0018](../../architecture/changes/ACR-0018-operator-access-and-audit.md) (`accepted`, #209); each step applies only what it builds (its §6) |
+| Branch | one per step: `task/PHASE-16-step-<n>-<slug>` |
+| Owner | `conantkd` (+ agent); review `juanbetancurm` |
+| Needs the VM lease | the deploy of each step (vm-095) |
+
+## Goal
+
+An approval (ACR-0019) or a terminal (ACR-0020) is only as trustworthy as the identity behind it and the record of
+it. Phase 16 ends when the exit proof of the plan holds: the authorization matrix is green, the public edge answers
+404 for every privileged route, and an edited audit row is detected.
+
+## Steps
+
+### Step 1 — sessions, revocation, persisted login limiter, permissions, audit chain, EdDSA (#223)
+Built and in review. Deploy: [`../../execution/history/PHASE-16/step-01/code.bash`](../../execution/history/PHASE-16/step-01/code.bash)
+(prepared: migrations 010 and 011, the image, the checks; run after #223 merges).
+
+### Step 2 — EdDSA switched on in the lab
+- Generate the Ed25519 key **on vm-095** (`openssl genpkey -algorithm ed25519`), owned like `jwt_signing_key`,
+  never printed; then add its single-file mount to the agent in `deploy/vm-095/compose.core.yml` in the same PR.
+  **Order matters:** a bind mount of a missing file makes Docker create a directory there, and the API would not
+  start; the code.bash creates the file before `up`.
+- Every session logs in again (old HS256 tokens are refused). A rollback is removing the mount.
+
+### Step 3 — WebAuthn and step-up
+- **Open decisions:** the library (`webauthn` / py_webauthn, pinned, `pip-audit` clean); the relying party id (the
+  UI's public domain, which is not in Git); two keys per person and the recovery by another administrator (§4, risk).
+- A migration: `webauthn_credential` (principal, credential id, public key, sign count, created, last used), insert
+  plus a sign-count update for the runtime role.
+- Routes: registration options / verify, authentication options / verify. A **step-up token**: single-use, ≤ 5 min,
+  bound to the object it authorizes (`approval_id + proposal_digest`, a terminal ticket, a hold); a used or expired
+  one is refused and audited.
+- UI: enrolment and the step-up dialog (frontend lane, `juanes6554`).
+- Tests: a software authenticator for the ceremonies; replay of a step-up token; the wrong object; the sign counter.
+
+### Step 4 — the private path (mTLS) and separation of duties
+- The team's client CA, its private key off vm-095; one 90-day certificate per person; a CRL.
+- `deploy/ui/nginx/`: `ssl_verify_client optional`; privileged locations answer 404 unless the certificate verifies
+  **and** the source address is in the allowlist. The allowlist is a file under `/opt/argus-v18/` on vm-095 with a
+  template in the repo, **never the addresses** (Juan's note on #209: a teammate's home address is personal data).
+- `policies/NETWORK.md`; a test that the public edge answers 404 for every privileged route.
+- Separation of duties: refused on the production profile, recorded and marked in the lab (needs the approval routes
+  of ACR-0019; the rule and its test come with them). `config/policy.yaml`'s profile is decided here (ACR-0027).
+
+### Step 5 — the off-host digest and security alerts
+- **Open decisions:** the bucket's provider (versioned, retention-locked, a put-only credential, outside both VMs);
+  the team's alert receiver (none exists: Argus only reads its Alertmanager).
+- The daily digest: the hash of each day's last chained audit row, signed (the audit digest key, §17.2) and shipped;
+  the scheduler's chain check (built in step 1) raises the alert on `security.audit_chain_broken`, on lockouts and on
+  refused privileged requests.
+
+### Step 6 — exit proof
+The authorization matrix over every route × role × token kind × permission; the public 404 test; a tamper drill on
+vm-095 (an owner edits a row; `argus audit verify` and the scheduled check name it); the record.
+
+## Not in this phase
+Approvals and actions (ACR-0019, phase 17 on), the operator terminal (ACR-0020, phase 21), OIDC (§17.3 "Future").
