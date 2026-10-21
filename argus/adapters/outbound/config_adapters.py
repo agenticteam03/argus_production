@@ -38,6 +38,11 @@ class YamlInventory:
             if warn is not None and (isinstance(warn, bool) or not isinstance(warn, (int, float)) or warn <= 0):
                 raise ValueError(f"inventory target {ref}: link_warning_ms must be a positive number")
             links = [_dependency_link(ref, d) for d in t.get("depends_on", [])]
+            refs = [str(x.ref) for x in links]
+            if len(refs) != len(set(refs)):         # one link per dependency: link() would keep the first silently
+                twice = sorted({r for r in refs if refs.count(r) > 1})
+                raise ValueError(f"inventory target {ref}: depends_on names {', '.join(twice)} twice "
+                                 f"(one link per dependency)")
             self._targets[ref] = TargetInfo(ref=ref, scope=t.get("scope", "lab"),
                                             depends_on=[x.ref for x in links], links=links,
                                             http_endpoints=t.get("http_endpoints", []),
