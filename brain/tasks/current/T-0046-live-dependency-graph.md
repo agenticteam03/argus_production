@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | `in progress` — [ACR-0025](../../architecture/changes/ACR-0025-live-dependency-graph.md) accepted (#214); L1 in review (`task/T-0046-l1-link-rules`) |
+| Status | `in progress` — [ACR-0025](../../architecture/changes/ACR-0025-live-dependency-graph.md) accepted (#214); L1 in review (#219), L2 in review (`task/T-0046-l2-link-event`, on top of L1) |
 | Phase | next phase, area B (separate track of [NEXT-PHASE](NEXT-PHASE-supervised-remediation.md)) |
 | Architecture | ACR-0025 (`accepted`, applied in 1.8.24 by L1) |
 | Branch | one branch per step: `task/T-0046-l<n>-<slug>` |
@@ -28,8 +28,8 @@ runs on every scrape.
 - **Tests:** the existing topology tests; the loader refusals (a port the dependency does not list, a `port` on a host
   ref, another host); a mapping and a plain ref give the same edge.
 
-### L2 — `link_event` (the next free migration number) and the store
-- Migration `<next free number>_link_event.sql`, insert-only (SELECT, INSERT); SQLite table and triggers; `add_link_event`,
+### L2 — `link_event` (migration 009) and the store
+- Migration `009_link_event.sql`, insert-only (SELECT, INSERT); SQLite table and triggers; `add_link_event`,
   `link_events(owner_or_dependency, start, end)`; three `db-check` checks (insert ok, UPDATE and DELETE refused).
 - **Tests:** insert-only on both stores; the read window; `tests/test_postgres.py`.
 
