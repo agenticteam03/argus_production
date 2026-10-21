@@ -5,8 +5,8 @@ import secrets
 from datetime import datetime, timedelta, timezone
 
 import psycopg
-from psycopg.types.json import Jsonb
 
+from argus.adapters.outbound.postgres_store import append_chained
 from argus.domain.model import AuditRecord
 
 
@@ -56,6 +56,5 @@ def prune_checkpoints(conninfo: str, *, days: int = 30, dry_run: bool = True,
                              detail={"threads_removed": counts["threads"], "retention_days": days,
                                      "checkpoints_removed": counts["checkpoints"],
                                      "blobs_removed": counts["blobs"], "writes_removed": counts["writes"]})
-        conn.execute("INSERT INTO audit (audit_id, incident_id, at, body) VALUES (%s, NULL, %s, %s)",
-                     (record.audit_id, record.at, Jsonb(record.model_dump(mode="json"))))
+        append_chained(conn, record)          # chained (migration 011): a bare INSERT would break `audit verify`
         return counts

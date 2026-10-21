@@ -25,6 +25,19 @@ _LINK_ROWS = ("SELECT id, owner, dependency, state, latency_ms, reason, at, LAG(
               "dependency ORDER BY at, id) AS prev FROM link_event")
 
 
+def append_chained(conn, record: AuditRecord) -> None:
+    """ACR-0018 (migration 011): write one audit row chained to the last one, inside the caller's transaction. Every
+    writer goes through here (the store, the owner-run maintenance commands): a row inserted any other way has no hash
+    and `argus audit verify` reports it. The advisory lock is held until the caller commits."""
+    body = record.model_dump(mode="json")
+    conn.execute("SELECT pg_advisory_xact_lock(%s)", (AUDIT_CHAIN_LOCK,))
+    row = conn.execute("SELECT hash FROM audit WHERE hash IS NOT NULL ORDER BY seq DESC LIMIT 1").fetchone()
+    prev = row[0] if row else GENESIS
+    conn.execute("INSERT INTO audit (audit_id, incident_id, at, body, prev_hash, hash) VALUES (%s, %s, %s, %s, %s, %s)",
+                 (record.audit_id, record.incident_id, record.at, Jsonb(body), prev,
+                  link_hash(prev, record.audit_id, body)))
+
+
 class PostgresStore:
     def __init__(self, conninfo: str, min_size: int = 1, max_size: int = 4):
         self.pool = ConnectionPool(conninfo, min_size=min_size, max_size=max_size, open=True,
@@ -309,14 +322,8 @@ class PostgresStore:
     def append(self, record: AuditRecord) -> None:
         """ACR-0018 (migration 011): the row is chained to the previous one. A transaction-level advisory lock makes
         the read of the last hash and the insert one step for every writer (api, worker, scheduler)."""
-        body = record.model_dump(mode="json")
         with self.pool.connection() as c, c.transaction():
-            c.execute("SELECT pg_advisory_xact_lock(%s)", (AUDIT_CHAIN_LOCK,))
-            row = c.execute("SELECT hash FROM audit WHERE hash IS NOT NULL ORDER BY seq DESC LIMIT 1").fetchone()
-            prev = row[0] if row else GENESIS
-            c.execute("INSERT INTO audit (audit_id, incident_id, at, body, prev_hash, hash) VALUES (%s, %s, %s, %s, %s, %s)",
-                      (record.audit_id, record.incident_id, record.at, Jsonb(body), prev,
-                       link_hash(prev, record.audit_id, body)))
+            append_chained(c, record)
 
     def audit_chain(self) -> list[tuple[str, Any, str | None, str | None]]:
         """ACR-0018: every audit row in write order, for `argus audit verify`."""

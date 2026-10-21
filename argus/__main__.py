@@ -260,10 +260,25 @@ def db(args) -> None:
     elif args.action == "prune-checkpoints":
         from argus.infrastructure.checkpoint_retention import prune_checkpoints
 
-        result = prune_checkpoints(s.pg_conninfo(), days=args.days, dry_run=not args.apply)
+        result = prune_checkpoints(s.pg_conninfo(), days=retention_days(args), dry_run=not args.apply)
         mode = "PRUNED" if args.apply else "DRY RUN"
         print(f"{mode}: threads={result['threads']} checkpoints={result['checkpoints']} "
               f"blobs={result['blobs']} writes={result['writes']}")
+    elif args.action == "prune-sessions":
+        from argus.infrastructure.session_retention import prune_sessions
+
+        result = prune_sessions(s.pg_conninfo(), days=retention_days(args), dry_run=not args.apply)
+        mode = "PRUNED" if args.apply else "DRY RUN"
+        print(f"{mode}: sessions={result['sessions']} revoked={result['revoked']}")
+
+
+def retention_days(args) -> int:
+    """`--days`, else the action's own default: checkpoints 30 (OP-004), sessions 90 (ACR-0018)."""
+    if args.days is not None:
+        return args.days
+    if args.action == "prune-sessions":
+        return int(os.getenv("ARGUS_SESSION_RETENTION_DAYS", "90"))
+    return int(os.getenv("ARGUS_CHECKPOINT_RETENTION_DAYS", "30"))
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -279,10 +294,10 @@ def build_parser() -> argparse.ArgumentParser:
     u.add_argument("--role", default="operator", choices=["viewer", "operator", "approver"])
     u.add_argument("--scopes", nargs="*", default=["lab"])
     d = sub.add_parser("db", help="Postgres system of record: import the lab SQLite history, prove the guarantees")
-    d.add_argument("action", choices=["import-sqlite", "check", "prune-checkpoints"])
+    d.add_argument("action", choices=["import-sqlite", "check", "prune-checkpoints", "prune-sessions"])
     d.add_argument("path", nargs="?", default="/data/argus.db")
-    d.add_argument("--days", type=int, default=int(os.getenv("ARGUS_CHECKPOINT_RETENTION_DAYS", "30")))
-    d.add_argument("--apply", action="store_true", help="delete eligible checkpoints; default is a read-only preview")
+    d.add_argument("--days", type=int, default=None, help="retention window (default: checkpoints 30, sessions 90)")
+    d.add_argument("--apply", action="store_true", help="delete eligible rows; default is a read-only preview")
     m = sub.add_parser("monitoring", help="ACR-0009: declare a planned stop of a host's monitoring")
     m.add_argument("action", choices=["maintenance"])
     m.add_argument("host")
