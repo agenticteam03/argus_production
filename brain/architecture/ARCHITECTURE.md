@@ -1,7 +1,7 @@
 # Argus — Production Architecture Specification
 
 **Document type:** consolidated target architecture and implementation blueprint ·
-**Version:** 1.8.26 (2026-10-21, ACR-0018 phase 16 step 1: sessions, revocation, persisted login limiter, permissions, the audit hash chain, EdDSA tokens; 1.8.24 2026-10-21, ACR-0025 live dependency graph; 1.8.23 2026-10-20, ACR-0027 the built gaps G-001, G-003, G-007; 1.8.21 2026-10-20, §14 marked designed, not built (OP-015); 1.8.20 2026-10-19, ACR-0021 B7 baseline, long ranges, deploy events, and B8 link reasons; 1.8.19 2026-10-19, ACR-0021 B6: target metrics and the overview; 1.8.18 2026-10-19, ACR-0021 UI insights v2: B1 to B5; 1.8.17 2026-10-19, ACR-0023 log pattern matches; 1.8.16 2026-10-18, ACR-0013 and ACR-0016 Langfuse Cloud tracing; 1.8.15 2026-10-16, ACR-0017 topology; 1.8.14 2026-10-16, ACR-0017 incident metrics; 1.8.12 2026-10-14, ACR-0014; 1.8.11 2026-10-14, ACR-0012; 1.8.10 2026-10-14, ACR-0011; 1.8.8 2026-10-12, ACR-0009; 1.8.7 2026-10-12, ACR-0008; 1.8.6 2026-10-11, ACR-0007; 1.8.5 2026-10-09, ACR-0005; 1.8.4 2026-10-09, ACR-0004; 1.8.3 2026-10-08, ACR-0003; 1.8.2 2026-10-09, ACR-0002; 1.8.1 2026-10-06, ACR-0001; base 1.8.0 of 30 September 2026, sanitized for the shared repository 2026-10-02) · **Audience:** engineers and AI coding agents implementing
+**Version:** 1.8.26 (2026-10-21, ACR-0018 phase 16 step 1: sessions, revocation, persisted login limiter, permissions, the audit hash chain, EdDSA tokens; 1.8.24 2026-10-21, ACR-0025 live dependency graph; 1.8.23 2026-10-20, ACR-0027 the built gaps G-001, G-003, G-007; 1.8.22 2026-10-20, ACR-0026 safety classes; 1.8.21 2026-10-20, §14 marked designed, not built (OP-015); 1.8.20 2026-10-19, ACR-0021 B7 baseline, long ranges, deploy events, and B8 link reasons; 1.8.19 2026-10-19, ACR-0021 B6: target metrics and the overview; 1.8.18 2026-10-19, ACR-0021 UI insights v2: B1 to B5; 1.8.17 2026-10-19, ACR-0023 log pattern matches; 1.8.16 2026-10-18, ACR-0013 and ACR-0016 Langfuse Cloud tracing; 1.8.15 2026-10-16, ACR-0017 topology; 1.8.14 2026-10-16, ACR-0017 incident metrics; 1.8.12 2026-10-14, ACR-0014; 1.8.11 2026-10-14, ACR-0012; 1.8.10 2026-10-14, ACR-0011; 1.8.8 2026-10-12, ACR-0009; 1.8.7 2026-10-12, ACR-0008; 1.8.6 2026-10-11, ACR-0007; 1.8.5 2026-10-09, ACR-0005; 1.8.4 2026-10-09, ACR-0004; 1.8.3 2026-10-08, ACR-0003; 1.8.2 2026-10-09, ACR-0002; 1.8.1 2026-10-06, ACR-0001; base 1.8.0 of 30 September 2026, sanitized for the shared repository 2026-10-02) · **Audience:** engineers and AI coding agents implementing
 Argus from an empty repository.
 
 
@@ -1805,15 +1805,16 @@ class CapabilitySpec(BaseModel):
     arguments: type[BaseModel]        # → JSON Schema for the model; additionalProperties: false
     target_kinds: set[str]
     level: Literal[1, 2, 3]
-    risk: Literal["low", "medium", "high", "very_high"]
+    safety_class: Literal["READ_ONLY_SAFE", "READ_ONLY_SENSITIVE",
+                          "MUTATING_LOW_RISK", "MUTATING_HIGH_RISK"]   # below; FORBIDDEN is never registered
     tags: set[str]                    # e.g. {"memory", "container"}; matched against class tool_tags
     executor: str                     # registered executor name: "docker_read", "host_probe", "prometheus", …
     runs_in: Literal["tools_child", "worker"]
     timeout_s: tuple[float, float]    # (default, hard max)
     max_output_bytes: int
     max_subcalls: int = 0             # combined capabilities only
-    side_effect: Literal["none", "write"]
-    permission: Literal["read", "write_hitl"]
+    side_effect: Literal["none", "write"]       # derived from safety_class, never set by hand
+    permission: Literal["read", "write_hitl"]   # derived from safety_class, never set by hand
 
 class Observation(BaseModel):
     observation_id: str               # becomes the evidence_id when stored
@@ -1839,6 +1840,22 @@ class Observation(BaseModel):
 
 def tcp_connect(args: TcpConnectArgs, client: NetworkProbeClient) -> Observation: ...
 ```
+
+**Safety classes** (ACR-0026). The class is a property of the **operation** and is fixed in code; the risk colour
+of an action (green, amber, red: `config/risk.yaml`, ACR-0019) is a property of the operation **on a target**, and it
+may only be raised from the class's minimum. The model never rates either one.
+
+| Class | Meaning | `permission` / `side_effect` | Use |
+|---|---|---|---|
+| `READ_ONLY_SAFE` | a read that returns no secret and no personal data | `read` / `none` | offered to the model by level and class tags |
+| `READ_ONLY_SENSITIVE` | a read that **may** return secrets, paths, command lines or client names; every read of the target's own text (log, journal, file or configuration lines) or of names found on the host (directory entries); a combined read (§12.7) whose sub-reads include one | `read` / `none` | offered to the model; field allowlist and redaction before the model (G-006); audited with its full arguments |
+| `MUTATING_LOW_RISK` | a reversible change, no data at risk | `write_hitl` / `write` | never a model tool; proposal → judge → human approval with step-up → gateway (§14); minimum colour green |
+| `MUTATING_HIGH_RISK` | a change hard to reverse, or with a data risk | `write_hitl` / `write` | as above; always red; its release needs two reviewers |
+| `FORBIDDEN` | never done | — | **never registered**: a registry test fails if one appears; named only by `config/risk.yaml` and runbooks |
+
+The policy profile lists the classes it allows (`allowed_safety_classes`, §13.1); a class outside the list is
+refused. If `config/risk.yaml` marks a pair forbidden, forbidden wins over the class. This release registers only the
+two read classes. A combined capability is as sensitive as its most sensitive sub-read.
 
 **Executor resolution** (in `tooling/dispatch.py`, on every call):
 
@@ -1989,6 +2006,7 @@ target or an approver scope changes the data file, never the engine.
 ```yaml
 profile: lab                            # lab | production; required (ACR-0027)
 max_tool_level: 3                       # rollout control: 1, 2 or 3
+allowed_safety_classes: [READ_ONLY_SAFE, READ_ONLY_SENSITIVE]   # §12.3; the profile's classes
 target_scopes:
   shop-ops: [host-t/container:shop-api, host-t/container:shop-nginx, host-t/database:shop-db]
 capabilities:
@@ -3024,6 +3042,7 @@ erDiagram
 | 1.8.19 | 2026-10-19 | UI insights v2, B6 (T-0045): `GET /api/v1/target-metrics` (one inventory target's recent signals, a fixed series list per kind, `range` 15m/1h) and `GET /api/v1/overview` (the dashboard aggregate from the store and the topology and host-metrics snapshots), any authenticated role, through the public edge (§7.1, §17.1 layer 14). Baseline and deploy events follow with B7 | [ACR-0021](changes/ACR-0021-ui-insights-v2.md) |
 | 1.8.20 | 2026-10-19 | incident metrics: the 6h and 24h ranges (`ranges_available`), a `baseline` per series (p50/p95 of the 24 h ending an hour before the incident) and `deploy` events; `deploy_event` (migration 008, insert-only) written by `argus deploy record`, which `ops/deploy.sh` calls after the checkout (§7.1, §16.1; T-0045 B7). The topology's broken links name their reason (`connection refused`, `timeout`, `name not resolved`) from the exporter's `argus_probe_error`, and `ProbeSample` carries `error_kind` (§7.1, §8.1; T-0045 B8) | [ACR-0021](changes/ACR-0021-ui-insights-v2.md) |
 | 1.8.21 | 2026-10-20 | §14's approval and action machinery is marked **designed, not built**: no table, node, route, write contract, fake gateway or §14.4 / §22.2 suite exists yet; only the closed write gate and its standing test do (phase 15) | [OP-015](../OPEN_PROBLEMS.md) |
+| 1.8.22 | 2026-10-20 | one scheme of **safety classes** (`READ_ONLY_SAFE`, `READ_ONLY_SENSITIVE`, `MUTATING_LOW_RISK`, `MUTATING_HIGH_RISK`, `FORBIDDEN`) replaces `risk` in `CapabilitySpec`; `permission` and `side_effect` derive from the class; `FORBIDDEN` is never registered; every read of the target's own text is sensitive; the risk colour per target may only raise the class's minimum (§12.3, §13.1; OP-003) | [ACR-0026](changes/ACR-0026-safety-classes.md) |
 | 1.8.23 | 2026-10-20 | what was built but not written: the policy `profile` (`lab` | `production`, required, fail closed) (§13.1, G-001); an observation's and an evidence record's provenance, `source_time` and `collected_at` instead of `observed_at`, `units`, `partial`, `coverage`, `identities` (§5.4, §12.3, §10, G-003); "unknown is never healthy": a missing value is `None`, never 0, and missing or partial data is never healthy or a root cause (§5.4, §12.3, G-007) | [ACR-0027](changes/ACR-0027-built-gaps.md) |
 | 1.8.24 | 2026-10-21 | a live dependency graph: a `depends_on` entry may be `{ref, port, required}` (loader refusals; the exporter probes a declared port only) and one link-state rule in `application/links.py` (§5.8; T-0046 L1); accepted and built in steps: the scheduler records link-state transitions from the existing probes into `link_event` (insert-only), skipping a host whose Prometheus cannot be read (§7.3, §16.1; L2–L3); the map's `since`, `required` and `dependency_broken`, link events on the incident charts, and the Level 2 read `network.link_states` offered to no class (§7.1, §12.2; L4) | [ACR-0025](changes/ACR-0025-live-dependency-graph.md) |
 | 1.8.26 | 2026-10-21 | phase 16 step 1 of ACR-0018: server-side sessions (`auth_session`, migration 010) checked on every request, `POST /api/v1/auth/logout`, revocation by `argus user add|disable` and `argus session revoke`; failed logins kept in Postgres (`login_failure`); permissions per route, listed by `/me`; the audit hash chain (`prev_hash`, `hash`, migration 011), `argus audit verify` and its daily scheduled check; EdDSA token signing with an Ed25519 key (§7.1, §16.1, §17.1 layers 1 and 13, §17.2, §17.3). WebAuthn, step-up, the off-host signed digest and the private path remain designed (step 2 on) | [ACR-0018](changes/ACR-0018-operator-access-and-audit.md) |

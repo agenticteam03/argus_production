@@ -1,4 +1,4 @@
-"""Capability contract (v1.8 §12.3, lab: safety_class OP-003, provenance G-003)."""
+"""Capability contract (v1.8 §12.3, safety classes ACR-0026, provenance G-003)."""
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -32,6 +32,10 @@ class CapabilityResult:
 
 
 Impl = Callable[[BaseModel, TargetRef, TargetInfo | None, Any], CapabilityResult]
+
+# §12.3 (ACR-0026): the five safety classes. This release registers only the two read classes; the MUTATING ones come
+# with the write contract (§14.8), and FORBIDDEN is never registered (it exists so that risk.yaml and runbooks name it).
+SAFETY_CLASSES = ("READ_ONLY_SAFE", "READ_ONLY_SENSITIVE", "MUTATING_LOW_RISK", "MUTATING_HIGH_RISK", "FORBIDDEN")
 
 
 @dataclass(frozen=True)
