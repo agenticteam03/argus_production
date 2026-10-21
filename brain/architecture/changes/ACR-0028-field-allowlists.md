@@ -5,11 +5,11 @@ ACR-0026 (#210), which decides which reads are `READ_ONLY_SENSITIVE`.
 
 | Field | Value |
 |---|---|
-| Status | `proposed` |
+| Status | `accepted` (#218, `juanbetancurm`); **applied** in `task/ACR-0028-apply-field-allowlists` (ARCHITECTURE 1.8.25) |
 | Proposed by | conantkd (+ agent) · 2026-10-21 |
-| Accepted by | — |
-| Second approval (safety principle only) | **required**: secrets and evidence integrity (what a read may store and show the model) |
-| Architecture version | the next free version when applied |
+| Accepted by | `juanbetancurm`, approving #218 · 2026-10-21 |
+| Second approval (safety principle only) | secrets and evidence integrity: the reviewer's approval of the pull request is the second approval (AGENT_PROTOCOL §4: the developer accepts, a second team member approves) |
+| Architecture version | 1.8.24 → 1.8.25 |
 | Task / PR | OP-002 G-006 · `task/ACR-0028-field-allowlists` (proposal); one implementation PR applies it |
 
 ## 1. Detect and explain
@@ -124,6 +124,12 @@ one implementation PR after ACR-0026 (#210) merges, since it relies on its class
 
 ## 6. Applied
 
-- [ ] `ARCHITECTURE.md` updated (§5.4, §12.3, §17.1), version bumped, changelog line added (with this ACR's link)
-- [ ] journal entry
-- [ ] the ACR, the architecture change and the first code that needs it are in the same pull request
+- [x] `ARCHITECTURE.md` updated (§5.4, §12.3, §17.1 layer 4), version 1.8.25, changelog line
+- [x] journal entry (`2026-10-21-ACR-0028-applied.md`)
+- [x] the architecture change and the code in the same pull request (`task/ACR-0028-apply-field-allowlists`)
+
+**As built:** the paths live in `ALLOWED_FIELDS` beside the catalog (`argus/capabilities/catalog.py`), so the 13
+reads are reviewed in one place; `argus/domain/minimize.py` holds the rule (the application layer, which minimizes a
+combined read, imports no capability code); `Observation.dropped_fields` carries the names to the audit and is not
+stored as evidence. `host.directory_sizes` and `analysis.diagnostic_snapshot` already declare their paths, although
+they become sensitive only with ACR-0026 (#210).

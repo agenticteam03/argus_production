@@ -132,6 +132,7 @@ class Observation(BaseModel):
                             "budget"] = "none"
     truncated: bool = False
     redactions: int = 0
+    dropped_fields: list[str] = []            # ACR-0028: the paths minimization dropped (names only; audited, not stored)
     model_text: str
 
 
