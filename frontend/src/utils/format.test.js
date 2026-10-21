@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { auditDetail, browserTimeZone, clock, clockZone, dateTime, liveLabel, zoneLabel } from "./format.js";
+import { auditDetail, browserTimeZone, clock, clockHM, clockZone, dateTime, liveLabel, zoneLabel } from "./format.js";
 
 describe("liveLabel", () => {
   it("says Live only when the API answered and we are not in demo mode", () => {
@@ -63,6 +63,10 @@ describe("browser time zone, labelled", () => {
     expect(clock("2026-10-14T21:12:55Z", "America/Bogota")).toMatch(/16:12:55/);
     expect(clockZone("2026-10-14T21:12:55Z", "America/Bogota")).toMatch(/^16:12:55 COT$/);
     expect(clockZone("2026-10-14T21:12:55Z", "UTC")).toMatch(/^21:12:55 UTC$/);
+  });
+  it("has a short hours:minutes clock for chart axes", () => {
+    expect(clockHM("2026-10-14T21:02:55Z", "America/Bogota")).toBe("16:02");
+    expect(clockHM(Date.parse("2026-10-14T05:07:00Z"), "UTC")).toBe("05:07");
   });
   it("accepts a timestamp in milliseconds, as the Live pill passes", () => {
     expect(clockZone(Date.parse("2026-10-14T21:12:55Z"), "America/Bogota")).toMatch(/^16:12:55 COT$/);

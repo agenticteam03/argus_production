@@ -136,7 +136,14 @@ test.describe("incidents", () => {
     await expect(page.locator('svg[aria-label^="System map"]')).toBeVisible();
     await expect(page.getByText("unknown", { exact: true })).toBeVisible();          // the legend entry
     await page.getByRole("tab", { name: "Metrics", exact: true }).click();
-    await expect(page.getByText(/missing sample is a gap/)).toBeVisible();
+    await expect(page.getByRole("heading", { name: /Incident metrics/ })).toBeVisible();
+    const ranges = page.getByRole("group", { name: "Time range" });
+    for (const r of ["15m", "30m", "1h", "6h", "24h"]) await expect(ranges.getByRole("button", { name: r })).toBeVisible();   // ranges_available
+    await expect(page.getByRole("button", { name: "Focus incident" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Reset zoom" })).toBeVisible();
+    await expect(page.getByText(/No data for the signal the detector reads/)).toBeVisible();                       // the API's summary
+    await expect(page.getByText("Fired", { exact: true })).toBeVisible();                                            // the detector's signal
+    await expect(page.getByText("Gaps are missing samples, never zero.")).toBeVisible();
   });
 
   test("an operator's Map asks for the incident overlay (ACR-0017)", async ({ page, api }) => {

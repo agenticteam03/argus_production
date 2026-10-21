@@ -1,11 +1,10 @@
-import { useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import AnswerBlock from "../components/AnswerBlock.jsx";
 import CopySummary from "../components/CopySummary.jsx";
 import DiagnoseForm from "../components/DiagnoseForm.jsx";
 import IncidentChat from "../components/IncidentChat.jsx";
 import { AuditSection, EvidenceSection, RestrictedNotice } from "../components/EvidenceAudit.jsx";
-import { MetricsTab, MiniCharts } from "../components/MetricChart.jsx";
 import RawOutputDialog from "../components/RawOutputDialog.jsx";
 import RunTimeline from "../components/RunTimeline.jsx";
 import { MapTab, MiniMapCard, miniNodes } from "../components/SystemMap.jsx";
@@ -17,6 +16,10 @@ import { useIncidentMetrics } from "../hooks/useIncidentMetrics.js";
 import { useTopology } from "../hooks/useTopology.js";
 import { dateTime, duration, isActive } from "../utils/format.js";
 import { citedEvidence, decidedBy, hostOf, modelCalls } from "../utils/incidentView.js";
+
+// The charts (ECharts, ~190 KB gzipped) load only when an incident has metrics to draw, not with the first page.
+const MetricsTab = lazy(() => import("../components/charts/ChartGrid.jsx").then((m) => ({ default: m.MetricsTab })));
+const MiniCharts = lazy(() => import("../components/charts/ChartGrid.jsx").then((m) => ({ default: m.MiniCharts })));
 
 const Back = () => (
   <Link to="/incidents" state={{ restore: true }} className="inline-flex text-[13px] text-accent-hover hover:underline">← Incidents</Link>
@@ -168,13 +171,13 @@ export default function IncidentDetail() {
           <WhyCard incident={inc} events={events} cited={cited} onJump={jumpToEvidence} />
           <div className="space-y-4">
             {showMini && <MiniMapCard topology={topology} incident={inc} onOpen={() => setTab("map")} />}
-            {showMetrics && <MiniCharts metrics={metrics} incident={inc} onOpen={() => setTab("metrics")} />}
+            {showMetrics && <Suspense fallback={<Skeleton className="h-72" />}><MiniCharts metrics={metrics} onOpen={() => setTab("metrics")} /></Suspense>}
             <IncidentChat key={inc.id} incident={inc} events={events} cited={cited} />
           </div>
         </div>
       </TabPanel>
       <TabPanel id="map" value={tab}>{showMap && <MapTab topology={topology} incident={inc} />}</TabPanel>
-      <TabPanel id="metrics" value={tab}>{showMetrics && <MetricsTab metrics={metrics} incident={inc} range={range} onRange={setRange} />}</TabPanel>
+      <TabPanel id="metrics" value={tab}>{showMetrics && <Suspense fallback={<Skeleton className="h-96" />}><MetricsTab metrics={metrics} incident={inc} range={range} onRange={setRange} /></Suspense>}</TabPanel>
       <TabPanel id="timeline" value={tab}>
         <RunTimeline incident={inc} events={events} active={active} reconnecting={reconnecting} evidenceIds={evidenceIds} onJump={jumpToEvidence} />
       </TabPanel>

@@ -29,6 +29,11 @@ export const Send = icon(<path d="m22 2-7 20-4-9-9-4Zm0 0L11 13" />);
 export const Arrow = icon(<path d="M5 12h14m-6-6 6 6-6 6" />);
 export const Inbox = icon(<path d="M22 12h-6l-2 3h-4l-2-3H2M5.5 5.1 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.5-6.9A2 2 0 0 0 16.7 4H7.3a2 2 0 0 0-1.8 1.1Z" />);
 export const Shield = icon(<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z" />);
+export const Crosshair = icon(<><circle cx="12" cy="12" r="9" /><path d="M22 12h-4M6 12H2M12 6V2m0 20v-4" /></>);
+export const ZoomIn = icon(<><circle cx="11" cy="11" r="7" /><path d="m21 21-4.3-4.3M11 8v6M8 11h6" /></>);
+export const ZoomOut = icon(<><circle cx="11" cy="11" r="7" /><path d="m21 21-4.3-4.3M8 11h6" /></>);
+export const Scan = icon(<path d="M3 7V5a2 2 0 0 1 2-2h2m10 0h2a2 2 0 0 1 2 2v2m0 10v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2" />);
+export const Info = icon(<><circle cx="12" cy="12" r="10" /><path d="M12 16v-4m0-4h.01" /></>);
 
 export const Card = ({ title, count, right, className = "", children }) => (
   <section className={`rounded-2xl border border-line bg-card/80 p-4 ${className}`}>
@@ -123,6 +128,22 @@ export function Toast({ tone = "ok", onDone, ms = 4000, children }) {
       <Icon width="16" height="16" className={`shrink-0 ${tone === "ok" ? "text-emerald-400" : "text-red-400"}`} />
       {children}
     </div>
+  );
+}
+
+// A term with an explanation: the help cursor (the arrow with the small "?") on hover, and the text in a tooltip on
+// hover or keyboard focus. Text only, never HTML.
+export function Hint({ text, children, align = "right", className = "" }) {
+  const id = useId();
+  return (
+    <span tabIndex={0} aria-describedby={id}
+      className={`group/hint relative inline-flex cursor-help rounded-full focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-hover ${className}`}>
+      {children}
+      <span role="tooltip" id={id}
+        className={`pointer-events-none absolute bottom-full z-40 mb-2 w-64 rounded-xl border border-line bg-card px-3 py-2.5 text-left text-[13px] font-normal leading-relaxed text-ink opacity-0 shadow-[0_16px_48px_-12px_rgb(0_0_0/0.35)] transition-opacity group-hover/hint:opacity-100 group-focus-visible/hint:opacity-100 motion-reduce:transition-none ${align === "right" ? "right-0" : "left-0"}`}>
+        {text}
+      </span>
+    </span>
   );
 }
 

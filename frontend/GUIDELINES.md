@@ -15,6 +15,12 @@ _Status: drafted by the agent from the code I already built (outside the repo, w
   or a GMT offset such as GMT+1 elsewhere), so the reader always knows which zone a time is in.
 - One header bar: logo top-left, menu in the middle, notifications bell and account menu top-right.
 - Everything must feel calm and readable during an incident: status colors only for status (green/amber/red).
+- Incident metric charts (as in the ui-graphs prototype): the alert and warning lines, the normal range, the
+  incident window and the events on a lane under the time axis; drag to move, Ctrl + scroll (or the toolbar) to
+  zoom, every chart of the page on one shared time window; ranges 15m to 24h as the API lists them; "Focus incident"
+  and "Reset zoom". Each chart's badge (Fired, Warning, Normal, No data…) explains itself on hover with the help
+  cursor. A missing sample is a gap, never zero.
+- The Refresh button spins for at least a moment and then says in a toast whether the data was refreshed.
 
 ## Framework
 

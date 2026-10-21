@@ -21,7 +21,10 @@ export const dateTime = (iso, timeZone = browserTimeZone()) =>
 // live deployment; otherwise it reflects whether the last request to the API actually succeeded.
 export const liveLabel = (live, source) => (source === "demo" ? "Demo data" : live ? "Live" : "Reconnecting…");
 export const clock = (iso, timeZone = browserTimeZone()) => new Date(iso).toLocaleTimeString([], { hour12: false, timeZone });
-export const clockZone = (iso, timeZone = browserTimeZone()) => `${clock(iso, timeZone)} ${zoneLabel(iso, timeZone)}`;
+// Hours and minutes only (chart axes), always 24 h with two digits.
+export const clockHM = (iso, timeZone = browserTimeZone()) =>
+  new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit", hourCycle: "h23", timeZone }).format(new Date(iso));
+export const clockZone =(iso, timeZone = browserTimeZone()) => `${clock(iso, timeZone)} ${zoneLabel(iso, timeZone)}`;
 export const shortHash = (hash) => (hash ? `${hash.slice(0, 12)}…` : "—");
 
 export const duration = (from, to) => {
