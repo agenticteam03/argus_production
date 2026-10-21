@@ -45,14 +45,14 @@ export default function LoginPage({ onLogin }) {
 
   return (
     <div className="grid min-h-full place-items-center p-3 sm:p-6">
-      <main className="w-full max-w-[1120px] overflow-hidden rounded-[20px] border border-line bg-card shadow-[0_40px_120px_-40px_rgba(59,130,246,0.25)] sm:rounded-3xl min-[900px]:min-h-[min(700px,calc(100vh-48px))]">
-        <section className="flex min-h-[inherit] flex-col px-5 py-6 sm:p-8">
+      <main className="w-full max-w-[480px] overflow-hidden rounded-[20px] border border-line bg-card shadow-[0_40px_120px_-40px_rgba(59,130,246,0.25)] sm:rounded-3xl">
+        <section className="flex flex-col px-5 py-6 sm:px-10 sm:py-8">
           <header className="flex items-center gap-2.5 text-xl font-semibold tracking-tight">
             <Logo width="22" height="22" className="text-ink" />
             <span>Argus</span>
           </header>
 
-          <form className="m-auto flex w-full max-w-[360px] flex-col gap-5 py-8" onSubmit={handleSubmit} noValidate>
+          <form className="mx-auto flex w-full max-w-[360px] flex-col gap-5 pb-2 pt-10" onSubmit={handleSubmit} noValidate>
             <h1 className="text-[28px] font-semibold tracking-[-0.03em]">Welcome back</h1>
             <p className="-mt-3.5 mb-2 text-sm text-muted">Log in to Argus to continue.</p>
 

@@ -17,3 +17,24 @@ export function applyTheme(theme, root = globalThis.document?.documentElement) {
 }
 
 export const otherTheme = (theme) => (theme === "light" ? "dark" : "light");
+
+// The header's toggle. Some components animate their colours (Tailwind `transition`) and others do not, so a plain
+// attribute change recolours the page piece by piece. While data-theme-switching is on <html>, index.css pauses every
+// transition, so everything changes in the same frame; where the browser supports View Transitions (and the user
+// has not asked for reduced motion), the old and new pages also cross-fade as one picture.
+export function switchTheme(theme, {
+  doc = globalThis.document,
+  frame = (cb) => globalThis.requestAnimationFrame(cb),
+  reducedMotion = globalThis.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false,
+} = {}) {
+  const root = doc?.documentElement;
+  if (!root) return;
+  const update = () => { root.dataset.themeSwitching = ""; applyTheme(theme, root); };
+  const done = () => { delete root.dataset.themeSwitching; };
+  if (typeof doc.startViewTransition === "function" && !reducedMotion) {
+    doc.startViewTransition(update).finished.finally(done);
+  } else {
+    update();
+    frame(() => frame(done)); // two frames: the new colours are painted before transitions come back
+  }
+}

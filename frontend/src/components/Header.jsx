@@ -5,7 +5,8 @@ import { ROLES, canSee, routes } from "../routes.js";
 import { useTheme } from "../hooks/useTheme.js";
 import { Bell, Chevron, Logo, Moon, Sun } from "./ui.jsx";
 
-const pill = "rounded-lg border px-3.5 py-2 text-sm transition motion-reduce:transition-none";
+// Compact pills up to lg so the menu stays on one row with the logo and the buttons from sm (640 px) up.
+const pill = "whitespace-nowrap rounded-lg border px-2.5 py-2 text-sm transition motion-reduce:transition-none lg:px-3.5";
 const on = "border-line bg-ink/5 text-ink";
 const off = "border-transparent text-muted hover:text-ink";
 const summary = "flex cursor-pointer list-none items-center gap-1.5 [&::-webkit-details-marker]:hidden";
@@ -28,12 +29,12 @@ export default function Header() {
   const items = routes.filter((r) => (r.children ? r.children.some((c) => canSee(c, user.role)) : canSee(r, user.role)));
 
   return (
-    <header className="relative z-30 mx-auto mt-4 flex w-[calc(100%-2rem)] max-w-[1200px] flex-wrap items-center justify-between gap-3 rounded-2xl border border-line bg-card/80 p-2.5 backdrop-blur sm:w-[calc(100%-3rem)] md:flex-nowrap">
+    <header className="relative z-30 mx-auto mt-4 flex w-[calc(100%-2rem)] max-w-[1200px] flex-wrap items-center justify-between gap-2 rounded-2xl border border-line bg-card/80 p-2.5 backdrop-blur sm:w-[calc(100%-3rem)] sm:flex-nowrap lg:gap-3">
       <Link to="/" aria-label="Argus home" className="grid size-11 place-items-center rounded-xl border border-line bg-field">
         <Logo width="20" height="20" className="text-ink" />
       </Link>
 
-      <nav className="order-last flex w-full flex-wrap items-center justify-center gap-1 md:order-none md:w-auto">
+      <nav className="order-last flex w-full flex-wrap items-center justify-center gap-0.5 sm:order-none sm:w-auto sm:flex-nowrap lg:gap-1">
         {items.map((r) =>
           r.children ? (
             <details key={r.label} className="relative">

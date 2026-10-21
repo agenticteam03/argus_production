@@ -169,6 +169,11 @@
   --color-blue-300: oklch(45% 0.15 260);
 }
 
+/* Theme switch (utils/theme.js switchTheme): no component fades on its own while data-theme changes, so the whole
+   page recolours in one frame; the View Transition below cross-fades old and new pages as one picture. */
+:root[data-theme-switching] *, :root[data-theme-switching] *::before, :root[data-theme-switching] *::after { transition: none !important; }
+::view-transition-old(root), ::view-transition-new(root) { animation-duration: 220ms; animation-timing-function: ease-out; }
+
 /* Health hexagons (StatusBanner): a soft glow on a failing one, and a pulse that stops with reduced motion. */
 .hex-glow { filter: drop-shadow(0 0 calc(5px * var(--glow-strength, 1)) color-mix(in srgb, currentColor 65%, transparent)); }
 .hex-pulse { transform-box: fill-box; transform-origin: center; animation: hex-pulse 2.2s ease-out infinite; }
