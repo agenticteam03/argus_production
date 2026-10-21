@@ -3,6 +3,7 @@ import { Link, useParams, useSearchParams } from "react-router-dom";
 import AnswerBlock from "../components/AnswerBlock.jsx";
 import CopySummary from "../components/CopySummary.jsx";
 import DiagnoseForm from "../components/DiagnoseForm.jsx";
+import IncidentChat from "../components/IncidentChat.jsx";
 import { AuditSection, EvidenceSection, RestrictedNotice } from "../components/EvidenceAudit.jsx";
 import { MetricsTab, MiniCharts } from "../components/MetricChart.jsx";
 import RawOutputDialog from "../components/RawOutputDialog.jsx";
@@ -20,7 +21,7 @@ import { citedEvidence, decidedBy, hostOf, modelCalls } from "../utils/incidentV
 const Back = () => (
   <Link to="/incidents" state={{ restore: true }} className="inline-flex text-[13px] text-accent-hover hover:underline">← Incidents</Link>
 );
-const ghost = "cursor-pointer rounded-xl border border-line bg-field px-4 py-2 text-sm text-[#d6dbe6] transition hover:border-field-line hover:text-white motion-reduce:transition-none";
+const ghost = "cursor-pointer rounded-xl border border-line bg-field px-4 py-2 text-sm text-body transition hover:border-field-line hover:text-ink motion-reduce:transition-none";
 
 export default function IncidentDetail() {
   const { id } = useParams();
@@ -117,7 +118,6 @@ export default function IncidentDetail() {
   const subtitle = [inc.reason, inc.incident_class, decided, inc.closed_at ? `took ${duration(inc.opened_at, inc.closed_at)}` : null].filter(Boolean).join(" · ");
 
   const showMini = showMap && miniNodes(topology, inc);
-  const hasSide = Boolean(showMini || showMetrics);
 
   return (
     <div className="space-y-5">
@@ -130,7 +130,7 @@ export default function IncidentDetail() {
           <span className="flex flex-wrap gap-1.5"><StatusBadge status={inc.status} /><OutcomeBadge outcome={inc.outcome} /></span>
         </div>
         <h1 ref={headingRef} tabIndex={-1} className="mt-2 text-[26px] font-semibold leading-tight tracking-[-0.03em] outline-none">{inc.target}</h1>
-        {subtitle && <p className="mt-1.5 text-sm leading-relaxed text-[#a3abba]">{subtitle}</p>}
+        {subtitle && <p className="mt-1.5 text-sm leading-relaxed text-soft">{subtitle}</p>}
 
         <div className="mt-4 border-t border-line pt-4"><AnswerBlock incident={inc} active={active} /></div>
 
@@ -164,14 +164,13 @@ export default function IncidentDetail() {
       <TabList tabs={tabs} value={tab} onChange={setTab} label="Incident information" />
 
       <TabPanel id="overview" value={tab}>
-        <div className={`grid items-start gap-4 ${hasSide ? "lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)]" : ""}`}>
+        <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)]">
           <WhyCard incident={inc} events={events} cited={cited} onJump={jumpToEvidence} />
-          {hasSide && (
-            <div className="space-y-4">
-              {showMini && <MiniMapCard topology={topology} incident={inc} onOpen={() => setTab("map")} />}
-              {showMetrics && <MiniCharts metrics={metrics} incident={inc} onOpen={() => setTab("metrics")} />}
-            </div>
-          )}
+          <div className="space-y-4">
+            {showMini && <MiniMapCard topology={topology} incident={inc} onOpen={() => setTab("map")} />}
+            {showMetrics && <MiniCharts metrics={metrics} incident={inc} onOpen={() => setTab("metrics")} />}
+            <IncidentChat key={inc.id} incident={inc} events={events} cited={cited} />
+          </div>
         </div>
       </TabPanel>
       <TabPanel id="map" value={tab}>{showMap && <MapTab topology={topology} incident={inc} />}</TabPanel>
