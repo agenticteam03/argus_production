@@ -7,6 +7,10 @@ shared-Brain setup B1–B8 under way (three developers).
 > The VMs are authoritative for what runs there: run `sudo bash /opt/argus-v18/app/ops/deploy.sh status` (or read
 > `/opt/argus-v18/DEPLOYED`) and the state probe before trusting this file.
 
+> **Update 2026-10-21 (`conantkd`, T-0047 H2/H3 deploy, OBSERVED with `deploy.sh status`):** **vm-095 runs `main`
+> `6c83da3`**: migration **012** `incident_hypothesis` (#236), the hypotheses ranked and stored and shown in the
+> incident answer (#237). 38/38 database checks. vm-166 stays on `bdcd048`. Evidence:
+> `execution/history/T-0047-H2-deploy/step-01/evidence.md`.
 > **Update 2026-10-21 (`conantkd`, T-0046 L5, OBSERVED with `deploy.sh status`):** **vm-095 runs `main` `2324186`**
 > with **link recording on** (`link_states`, #234; a restart is no transition, #231): 4 declared container links
 > recorded (1 `ok`, 3 `unknown`: scenario owners not running). vm-166 stays on `bdcd048`. Evidence:
