@@ -112,6 +112,27 @@ def test_deploy_events_migration_008(runtime_dsn, store):
                       "VALUES ('vm-095', 'not-hex', 'main', 'alice', now())")
 
 
+def test_link_events_migration_009(runtime_dsn, store):
+    """ACR-0025 (T-0046 L2): link-state transitions are kept by owner, dependency and time, and are insert-only for the
+    runtime role (no UPDATE or DELETE grant); a state outside the four is refused by the table itself."""
+    import psycopg
+    from argus.domain.model import utcnow
+    now = utcnow()
+    api, cache = "vm-166/container:pg-api", "vm-166/container:pg-cache"
+    store.add_link_event(api, cache, "broken", None, "timeout", now - timedelta(minutes=5))
+    store.add_link_event(api, cache, "ok", 3.5, None, now - timedelta(minutes=1))
+    got = store.link_events(cache, now - timedelta(hours=1), now)
+    assert [(e["owner"], e["state"], e["latency_ms"], e["reason"]) for e in got] == [
+        (api, "broken", None, "timeout"), (api, "ok", 3.5, None)]
+    assert got[0]["at"].tzinfo is not None
+    with psycopg.connect(runtime_dsn, autocommit=True) as c:
+        for sql in ("UPDATE link_event SET state = 'ok'", "DELETE FROM link_event"):
+            with pytest.raises(psycopg.Error, match="permission denied"):
+                c.execute(sql)
+        with pytest.raises(psycopg.Error, match="check constraint"):
+            c.execute("INSERT INTO link_event (owner, dependency, state, at) VALUES ('a', 'b', 'down', now())")
+
+
 def test_worker_lease(store):
     """T-0014: a claim is a lease; only expired claims go back to the queue (tests/test_worker_lease.py, SQLite)."""
     from argus.domain.model import IncidentStatus, utcnow

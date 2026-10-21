@@ -7,6 +7,10 @@ shared-Brain setup B1–B8 under way (three developers).
 > The VMs are authoritative for what runs there: run `sudo bash /opt/argus-v18/app/ops/deploy.sh status` (or read
 > `/opt/argus-v18/DEPLOYED`) and the state probe before trusting this file.
 
+> **Update 2026-10-21 (`conantkd`, DEPLOY-NIGHT, OBSERVED with `deploy.sh status`):** **vm-095 runs `main` `024aa6f`**
+> (T-0046 L1 #219, migration **009** `link_event` #220, #221). Database at migration 009. vm-166 stays on `bdcd048`.
+> Evidence: `execution/history/DEPLOY-NIGHT/step-01/evidence.md`.
+
 > **Update 2026-10-21 (`conantkd`, DEPLOY-215, OBSERVED with `deploy.sh status`):** **vm-095 runs `main` `b2e3548`**
 > (#203: a failed baseline read is not kept; #208's ops scripts). Database still at migration 008. vm-166 stays on
 > `bdcd048`. Evidence: `execution/history/DEPLOY-215/step-01/evidence.md`.

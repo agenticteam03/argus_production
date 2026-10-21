@@ -506,8 +506,9 @@ def host_read_file(args: FileArgs, target: TargetRef, info, client) -> Capabilit
     rows = d.get("lines") or []
     text = (f"file {args.path} on {target}: last {len(rows)} line(s){' (more before)' if d.get('truncated') else ''}\n"
             + "\n".join(rows))
+    # "more before" is partial coverage of the file, not a cut output (CapabilityResult has no `truncated`: it raised)
     return CapabilityResult(values=d, model_text=text, source_time=_ts(d.get("collected_at")),
-                            truncated=bool(d.get("truncated")))
+                            partial=bool(d.get("truncated")), coverage=f"last {len(rows)} line(s) of {args.path}")
 
 
 def host_service_config(args: ConfigArgs, target: TargetRef, info, client) -> CapabilityResult:
@@ -623,7 +624,8 @@ TRACE_READS = ("container.status", "network.connectivity", "network.resolve_dns"
 
 def trace_request_path(args: NoArgs, target: TargetRef, info, invoker) -> CapabilityResult:
     """T-0040: for each declared dependency of this container on the same host (at most 3): is it running, do both
-    share a Docker network, does its name resolve. A dependency on another host, or a host, is listed, never read."""
+    share a Docker network, does its name resolve. A host dependency is listed, never read; so is one on another host,
+    which the inventory already refuses (ACR-0025), kept here as a guard."""
     deps = list(getattr(info, "depends_on", None) or [])
     if not deps:
         return CapabilityResult(values={"hops": []}, model_text=f"request path of {target}: no declared dependency "

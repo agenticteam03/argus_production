@@ -113,21 +113,21 @@ Each must be settled in the architecture (ACR) before the related implementation
 
 | Gap | Asks for | Finding (evidence) | Resolution |
 |---|---|---|---|
-| G-001 Deployment profiles | named profiles; a missing profile fails closed | **built, not in the text:** `config/policy.yaml` declares `profile`, and `argus/policy/engine.py` refuses to start without `lab` or `production`; the profile selects `allowed_safety_classes`. §13.1 names neither. `config/policy.yaml` says `production` although the deployment is the lab, and ACR-0018 makes separation of duties depend on the profile | **ACR-0027** (`task/ACR-0027-built-gaps`): §13.1 states the profile; which profile the lab runs is decided in phase 16's ACR-0018 pull request |
+| G-001 Deployment profiles | named profiles; a missing profile fails closed | **built, not in the text:** `config/policy.yaml` declares `profile`, and `argus/policy/engine.py` refuses to start without `lab` or `production`; the profile selects `allowed_safety_classes`. §13.1 names neither. `config/policy.yaml` says `production` although the deployment is the lab, and ACR-0018 makes separation of duties depend on the profile | **closed** by ACR-0027 (#216): §13.1 states the profile; which profile the lab runs is decided in phase 16's ACR-0018 pull request |
 | G-002 Typed prerequisites | preconditions as typed predicates on fresh, identity-bound evidence | §13.1 still shows free text (`preconditions: ["restart_count >= 3"]`); ACR-0019 §3.4 replaces it: action-card `preconditions` over fresh observations, a minimal interpreter (comparisons, `in`, `and`, `or`, never `eval`), re-evaluated at precheck | **ACR-0019** (proposed), phase 17 |
-| G-003 Observation provenance | source vs collection time, coverage, units, partial state, identities | **built, not in the text:** `CapabilityResult` / `Observation` / `EvidenceRecord` carry `source_time`, `units`, `partial`, `coverage`, `identities` (`argus/domain/model.py`, stored by `invoke_capability.py`); per-series freshness in `config_adapters.py`. §5.4 and §12.3 list none of them | **ACR-0027**: the fields in §5.4, §10 and §12.3 as built |
+| G-003 Observation provenance | source vs collection time, coverage, units, partial state, identities | **built, not in the text:** `CapabilityResult` / `Observation` / `EvidenceRecord` carry `source_time`, `units`, `partial`, `coverage`, `identities` (`argus/domain/model.py`, stored by `invoke_capability.py`); per-series freshness in `config_adapters.py`. §5.4 and §12.3 list none of them | **closed** by ACR-0027 (#216): the fields in §5.4, §10 and §12.3 as built |
 | G-004 Approval binding | an immutable proposal bound to what it acts on, previews | §14 binds the proposal by digest; ACR-0019 §3.6 freezes it and adds the precheck preview (`dry_run`) to the digest and the approval view | **ACR-0019** (proposed), phase 18 |
 | G-005 Verification windows | stability windows, provisional vs final recovery | §15.1 calls one fresh healthy sample `recovered_verified`; nothing waits for stability. ACR-0019 gives each action card a `verify` with signals and a window, but not two states | **ACR-0019**, with one addition asked in its review: recovery is provisional until the card's window holds, then final; only final counts as `recovered_verified` |
-| G-006 Data minimization | per-source field allowlists, literal redaction | redaction is built and stated (§5.4, `capabilities/redaction.py`, `container.inspect` env/mounts); no field allowlist exists. ACR-0026 decides which reads need one (`READ_ONLY_SENSITIVE`) | **open:** its own ACR after ACR-0026, `allowed_fields` per sensitive capability |
-| G-007 Helper semantics | missing or partial data never becomes healthy or the root cause | **built, partly in the text:** missing values are `None`, never 0 (`MetricSnapshot`); a blind host is a finding, not healthy (`detectors/classes.py`); stale metrics end `undiagnosable` (§1.3, §9); the topology says `unknown`, never ok (§7.1). Tests: `test_t0027_blind_spot`, `test_t0032_prometheus_down`, `test_sc04_pg_connections`, `test_e2e2_evidence_gaps`. The rule itself is not stated once | **ACR-0027**: the rule in §12.3, `None` in §5.4's `MetricSnapshot` |
+| G-006 Data minimization | per-source field allowlists, literal redaction | redaction is built and stated (§5.4, `capabilities/redaction.py`, `container.inspect` env/mounts); no field allowlist exists. ACR-0026 decides which reads need one (`READ_ONLY_SENSITIVE`) | **ACR-0028** proposed (`task/ACR-0028-field-allowlists`): `allowed_fields` per sensitive capability, enforced in the dispatcher before redaction; applied after ACR-0026 |
+| G-007 Helper semantics | missing or partial data never becomes healthy or the root cause | **built, partly in the text:** missing values are `None`, never 0 (`MetricSnapshot`); a blind host is a finding, not healthy (`detectors/classes.py`); stale metrics end `undiagnosable` (§1.3, §9); the topology says `unknown`, never ok (§7.1). Tests: `test_t0027_blind_spot`, `test_t0032_prometheus_down`, `test_sc04_pg_connections`, `test_e2e2_evidence_gaps`. The rule itself is not stated once | **closed** by ACR-0027 (#216): the rule in §12.3, `None` in §5.4's `MetricSnapshot` |
 | G-008 Corpus/dispatcher separation | runbook ids from metadata, bounded passages, tools never from runbook text | **covered:** §15.3; a `MISSING TOOL REQUIREMENT` name is never offered (§15.3); tools come only from the catalog by class tags (`runner.py`, `graph_runner.py`); no write is registered, and the standing write-gate test (`tests/test_write_gate_standing.py`) checks that a model-proposed restart is never executed | **closed** |
 
-**Next.** ACR-0027 (`task/ACR-0027-built-gaps`) writes down G-001, G-003 and G-007; the G-005 addition in
-ACR-0019's review; G-006's own ACR after ACR-0026.
+**Next.** ACR-0027 (#216, merged) wrote down G-001, G-003 and G-007; the G-005 addition in ACR-0019's review;
+G-006 in ACR-0028 (proposed).
 
 **Done when.** Each gap is covered, changed through an ACR, or dropped with a reason. Today: G-008 closed; G-002 and
-G-004 wait for ACR-0019 to be applied; G-001, G-003 and G-007 close when ACR-0027 merges; G-005 and G-006 are open as
-above.
+G-004 wait for ACR-0019 to be applied; G-001, G-003 and G-007 closed by ACR-0027 (#216); G-005 open as above;
+G-006 in ACR-0028 (proposed).
 
 ---
 
@@ -368,8 +368,11 @@ mandatory field allowlists (ties to G-006); `FORBIDDEN` operations are never reg
 
 ## OP-004 — Checkpoint retention (in progress)
 
-**Status:** in progress 2026-10-09 (`task/OP-004-checkpoint-cleanup`, offline tests passed; VM dry run and approved
-apply pending); proposal accepted 2026-10-05 (PR #7) · **Opened:** 2026-10-05 · **Found by:** `conantkd` (T-0013 review)
+**Status:** in progress: built (#42) and its first approved `--apply` ran on vm-095 on 2026-10-14 (nothing old
+enough); a dry run on 2026-10-21 (DEPLOY-NIGHT) still finds nothing past 30 days (`threads=0 checkpoints=0`). **Left:**
+the daily timer, a team decision (it runs without a lease; see the task). Was: in progress 2026-10-09
+(`task/OP-004-checkpoint-cleanup`, offline tests passed; VM dry run and approved apply pending); proposal accepted
+2026-10-05 (PR #7) · **Opened:** 2026-10-05 · **Found by:** `conantkd` (T-0013 review)
 
 **Problem.** Since T-0013 every investigation leaves rows in `checkpoints`, `checkpoint_blobs` and `checkpoint_writes`,
 and nothing ever removes them: the runtime role has no DELETE (on purpose, migration 002). A run that ends with an
@@ -536,7 +539,9 @@ redeployed on vm-166, and this item is set to `fixed`.
 
 ## OP-008 — Backup retention, and a consistency check that survives a busy database
 
-**Status:** in progress 2026-10-09 (`task/OP-008-backup-retention`; offline implementation verified, VM dry run and
+**Status:** in progress: built (#51) and its first approved `prune --apply` ran on vm-095; a preview on 2026-10-21
+(DEPLOY-NIGHT) would remove 13 backup sets (2026-10-13 and 14), nothing removed. **Left:** a scheduled prune, a team
+decision. Was: in progress 2026-10-09 (`task/OP-008-backup-retention`; offline implementation verified, VM dry run and
 approved apply pending); proposal accepted 2026-10-07 (PR #31, approved by `juanbetancurm`; snapshot approach,
 scheduling decided later) · **Opened:** 2026-10-07 · **Found by:** `juanbetancurm` (after-merge review
 of PR #25, T-0017) · **Proposal by:** `conantkd` (+ agent) · **Fix with:** its own task, with or after T-0014
