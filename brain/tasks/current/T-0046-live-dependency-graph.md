@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | `in progress` — [ACR-0025](../../architecture/changes/ACR-0025-live-dependency-graph.md) accepted (#214); L1 merged (#219), L2 merged (#220), L3 merged (#226), L4 merged (#227), its restart follow-up in review (`task/T-0046-l4-restart-seed`) |
+| Status | `in progress` — [ACR-0025](../../architecture/changes/ACR-0025-live-dependency-graph.md) accepted (#214); L1 merged (#219), L2 merged (#220), L3 merged (#226), L4 merged (#227), its restart follow-up merged (#231); deployed on vm-095 at `a4479df` (DEPLOY-A4479DF); L5 in progress (`task/ACR-0028-envelope-not-dropped`: `link_states` on) |
 | Phase | next phase, area B (separate track of [NEXT-PHASE](NEXT-PHASE-supervised-remediation.md)) |
 | Architecture | ACR-0025 (`accepted`, applied in 1.8.24 by L1) |
 | Branch | one branch per step: `task/T-0046-l<n>-<slug>` |

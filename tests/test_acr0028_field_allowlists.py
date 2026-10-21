@@ -133,6 +133,28 @@ def test_the_canary_never_reaches_evidence_or_the_model(name):
     assert "canary" in obs.dropped_fields and all(MARK not in d for d in obs.dropped_fields)
 
 
+def test_the_gateway_envelope_is_dropped_but_not_named():
+    """The gateway adds `host` and `role` to every answer (DEPLOY-A4479DF saw them on every sensitive read): they are
+    not stored, and the audit names only what the gateway grew."""
+    spec = SPECS["container.logs"]
+    Gateway.answer = {"lines": ["x"], "collected_at": "2026-10-21T00:00:00+00:00", "host": "vm-166", "role": "read",
+                      "new_field": 1}
+    reg = ExecutorRegistry()
+    reg.register(spec.executor, Gateway)
+    obs = Dispatcher(Inventory(), reg, {}, Redactor()).call(spec, _args(spec), TargetRef.parse("vm-166/container:app"))
+    assert obs.status == "ok" and "host" not in obs.values and "role" not in obs.values
+    assert obs.dropped_fields == ["new_field"]
+
+
+def test_the_attribution_guard_still_reads_the_envelope():
+    spec = SPECS["container.logs"]
+    Gateway.answer = {"lines": ["x"], "collected_at": "2026-10-21T00:00:00+00:00", "host": "vm-095", "role": "read"}
+    reg = ExecutorRegistry()
+    reg.register(spec.executor, Gateway)
+    obs = Dispatcher(Inventory(), reg, {}, Redactor()).call(spec, _args(spec), TargetRef.parse("vm-166/container:app"))
+    assert obs.status == "error" and "ATTRIBUTION MISMATCH" in obs.model_text
+
+
 def test_a_declared_field_the_gateway_omits_is_not_an_error():
     spec = SPECS["container.detailed_logs"]                     # no `minutes`, `stream` or `truncated` in the answer
     Gateway.answer = {"lines": ["x"], "collected_at": "2026-10-21T00:00:00+00:00"}

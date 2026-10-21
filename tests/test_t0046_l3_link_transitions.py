@@ -200,9 +200,11 @@ def test_a_bad_link_states_setting_is_refused(text, error):
         load_reconcile(text)
 
 
-def test_the_shipped_file_has_link_states_off():
+def test_the_shipped_file_has_link_states_on_with_the_reconcile():
+    """T-0046 L5 turned it on (vm-095, migration 009 applied); it runs on the reconcile tick, so that is on too."""
     text = (ROOT / "deploy" / "scheduler" / "schedules.yaml").read_text(encoding="utf-8")
-    assert load_reconcile(text).link_states is False
+    cfg = load_reconcile(text)
+    assert cfg.link_states is True and cfg.enabled is True
 
 
 def test_a_link_failure_never_stops_the_alert_reconciliation(store):
