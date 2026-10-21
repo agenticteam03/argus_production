@@ -63,7 +63,7 @@ export default function Runbooks() {
         <button
           aria-pressed={gapsOnly}
           onClick={() => setGapsOnly((v) => !v)}
-          className={`inline-flex h-11 cursor-pointer items-center gap-2 rounded-[10px] border px-3.5 text-sm transition ${gapsOnly ? "border-amber-400/40 bg-amber-400/10 text-amber-300" : "border-field-line bg-field text-muted hover:text-white"}`}
+          className={`inline-flex h-11 cursor-pointer items-center gap-2 rounded-[10px] border px-3.5 text-sm transition ${gapsOnly ? "border-amber-400/40 bg-amber-400/10 text-amber-300" : "border-field-line bg-field text-muted hover:text-ink"}`}
         >
           <Warning width="15" height="15" /> Missing tools
         </button>

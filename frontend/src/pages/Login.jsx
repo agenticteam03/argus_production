@@ -1,13 +1,13 @@
 import { useId, useState } from "react";
-import logo from "../../public/images/argus-logo.png";
 import hero from "../../public/images/argus-hero.jpg";
+import { Logo } from "../components/ui.jsx";
 
 const focusRing =
   "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-hover";
 
 const inputClass =
   "h-11 w-full rounded-[10px] border border-field-line bg-field px-3.5 text-sm outline-none " +
-  "transition placeholder:text-[#4b5363] hover:border-[#313a4b] motion-reduce:transition-none " +
+  "transition placeholder:text-faint hover:border-field-hover motion-reduce:transition-none " +
   "focus:border-accent focus:ring-[3px] focus:ring-accent/20 " +
   "aria-[invalid=true]:border-danger aria-[invalid=true]:ring-[3px] aria-[invalid=true]:ring-danger/10";
 
@@ -49,7 +49,7 @@ export default function LoginPage({ onLogin }) {
       <main className="grid w-full max-w-[1120px] grid-cols-1 overflow-hidden rounded-[20px] border border-line bg-card shadow-[0_40px_120px_-40px_rgba(59,130,246,0.25)] sm:rounded-3xl min-[900px]:min-h-[min(700px,calc(100vh-48px))] min-[900px]:grid-cols-2">
         <section className="flex flex-col px-5 py-6 sm:p-8">
           <header className="flex items-center gap-2.5 text-xl font-semibold tracking-tight">
-            <img src={logo} alt="" width="28" height="28" />
+            <Logo width="22" height="22" className="text-ink" />
             <span>Argus</span>
           </header>
 
@@ -93,7 +93,7 @@ export default function LoginPage({ onLogin }) {
                   type="button"
                   onClick={() => setShowPassword((v) => !v)}
                   aria-label={showPassword ? "Hide password" : "Show password"}
-                  className={`absolute right-0 top-0 grid h-11 w-11 cursor-pointer place-items-center rounded-[10px] text-muted hover:text-white ${focusRing}`}
+                  className={`absolute right-0 top-0 grid h-11 w-11 cursor-pointer place-items-center rounded-[10px] text-muted hover:text-ink ${focusRing}`}
                 >
                   <EyeIcon off={showPassword} />
                 </button>
@@ -104,7 +104,7 @@ export default function LoginPage({ onLogin }) {
             <button
               type="submit"
               disabled={!canSubmit}
-              className={`mt-1 inline-flex h-11 cursor-pointer items-center justify-center gap-2.5 rounded-[10px] bg-accent text-sm font-medium text-white shadow-[inset_0_0_0_1px_rgba(255,255,255,0.12),0_10px_30px_-10px_rgba(59,130,246,0.6)] transition motion-reduce:transition-none enabled:hover:bg-accent-hover enabled:active:translate-y-px disabled:cursor-not-allowed disabled:bg-[#10141b] disabled:text-[#4b5363] disabled:shadow-[inset_0_0_0_1px_#1c212b] ${focusRing}`}
+              className={`mt-1 inline-flex h-11 cursor-pointer items-center justify-center gap-2.5 rounded-[10px] bg-accent text-sm font-medium text-white shadow-[inset_0_0_0_1px_rgba(255,255,255,0.12),0_10px_30px_-10px_rgba(59,130,246,0.6)] transition motion-reduce:transition-none enabled:hover:bg-accent-hover enabled:active:translate-y-px disabled:cursor-not-allowed disabled:bg-disabled disabled:text-faint disabled:shadow-[inset_0_0_0_1px_var(--color-line)] ${focusRing}`}
             >
               {loading && (
                 <span className="size-3.5 animate-spin rounded-full border-2 border-white/35 border-t-white motion-reduce:[animation-duration:1.6s]" aria-hidden="true" />

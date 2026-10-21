@@ -40,25 +40,30 @@ test.describe("dashboard (guideline 2)", () => {
     await expect(page.locator('svg[aria-label^="System map"]')).toBeVisible();
   });
 
-  test("shows current host metrics and answers a Host T memory question", async ({ page, api }) => {
+  test("shows current host metrics with their level", async ({ page, api }) => {
     await api();
     await logIn(page);
     await expect(page.getByText("Host metrics")).toBeVisible();
     // The value carries its level as screen-reader text ("60.0% (Normal)"), so the colour is never the only signal.
     await expect(page.getByText("60.0% (Normal)").first()).toBeVisible();
-    await page.getByLabel("Message for the agent").fill("Check Host T memory usage");
-    await page.getByRole("button", { name: "Send" }).click();
-    await expect(page.getByText(/Host T \(vm-166\) memory usage: 60.0%/)).toBeVisible();
   });
 
-  test("a chat diagnosis starts an investigation and links to its incident", async ({ page, api }) => {
-    await api({ role: "operator" });
+  test("opens with a status summary instead of a chat, and says if something needs attention", async ({ page, api }) => {
+    await api();
     await logIn(page);
-    await page.getByLabel("Message for the agent").fill("Investigate Host T");
-    const sent = page.waitForRequest((r) => r.method() === "POST" && r.url().endsWith("/api/v1/investigations"));
-    await page.getByRole("button", { name: "Send" }).click();
-    expect(JSON.parse((await sent).postData())).toMatchObject({ target: "vm-166/host:vm-166", request_kind: "check" });
-    await expect(page.getByRole("link", { name: "Open incident" })).toHaveAttribute("href", `/incidents/${DIAGNOSED_ID}`);
+    const banner = page.getByRole("region", { name: "Infrastructure status" });
+    await expect(banner).toBeVisible();
+    await expect(banner.getByRole("status")).toHaveText(/healthy|need.* your attention/);
+    await expect(page.getByLabel("Message for the agent")).toHaveCount(0);     // the chat moved into each incident
+  });
+
+  test("the Live pill shows Colombia time (COT) and a Refresh button reads again now", async ({ page, api }) => {
+    await api();
+    await logIn(page);
+    await expect(page.getByText(/updated \d{2}:\d{2}:\d{2} COT/).first()).toBeVisible();
+    const again = page.waitForRequest((r) => r.url().includes("/api/v1/host-metrics"));
+    await page.getByRole("button", { name: "Refresh now" }).click();
+    await again;
   });
 });
 
@@ -74,6 +79,32 @@ test.describe("incidents", () => {
     await expect(page.getByText(inc.diagnosis).first()).toBeVisible();
     await page.getByRole("tab", { name: "Runtime Timeline" }).click();   // the redesign moved the timeline into a tab
     await expect(page.getByText(/detect/i).first()).toBeVisible();      // the timeline's first node
+  });
+
+  test("an incident has a small chat that answers from its own data and sends nothing", async ({ page, api }) => {
+    await api();
+    await logIn(page);
+    await page.goto(`/incidents/${DIAGNOSED_ID}`);
+    await expect(page.getByRole("heading", { name: "Ask about this incident" })).toBeVisible();
+    await page.getByRole("button", { name: "What happened?" }).first().click();
+    await expect(page.getByText(sample("incident").target + ":").first()).toBeVisible();
+    await page.getByLabel("Question about this incident").fill("who decided?");
+    await page.getByRole("button", { name: "Send question" }).click();
+    await expect(page.getByText(/Decisions were made|does not record who made the decisions/)).toBeVisible();
+  });
+
+  test("the list filters by host, and a container of that host can then be chosen", async ({ page, api }) => {
+    await api();
+    await logIn(page);
+    await page.getByRole("link", { name: "Incidents" }).first().click();
+    const host = sample("incidents")[0].target.split("/")[0];
+    await expect(page.getByLabel("Filter by target")).toBeDisabled();            // a host comes first
+    await page.getByLabel("Filter by host").click();
+    await page.getByRole("option", { name: host, exact: true }).click();
+    await expect(page.getByLabel("Filter by target")).toBeEnabled();
+    for (const href of await page.locator('a[href^="/incidents/inc_"]').evaluateAll((els) => els.map((e) => e.textContent))) {
+      expect(href).toContain(host + "/");                                       // every visible row is on that host
+    }
   });
 
   test("an operator sees the evidence; a viewer sees that it is restricted", async ({ page, api }) => {
@@ -162,6 +193,20 @@ test.describe("runbooks (guideline 3)", () => {
     expect((await asked).headers().authorization).toMatch(/^Bearer /);
     await expect(page.getByRole("heading", { name: "Runbooks" })).toBeVisible();
     await expect(page.getByText("RB-001").first()).toBeVisible();
+  });
+});
+
+test.describe("theme", () => {
+  test("switches to the light theme, remembers it after a reload, and switches back", async ({ page, api }) => {
+    await api();
+    await logIn(page);
+    await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+    await page.getByRole("button", { name: "Switch to light theme" }).click();
+    await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+    await page.reload();
+    await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+    await page.getByRole("button", { name: "Switch to dark theme" }).click();
+    await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
   });
 });
 

@@ -99,7 +99,7 @@ export default function DiagnoseForm({ fixedTarget = null, compact = false }) {
 
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2 md:col-span-2">
           <button type="submit" disabled={!target || busy}
-            className="inline-flex h-11 cursor-pointer items-center rounded-[10px] bg-accent px-5 text-sm font-medium text-white transition enabled:hover:bg-accent-hover disabled:cursor-not-allowed disabled:bg-[#10141b] disabled:text-[#4b5363] motion-reduce:transition-none">
+            className="inline-flex h-11 cursor-pointer items-center rounded-[10px] bg-accent px-5 text-sm font-medium text-white transition enabled:hover:bg-accent-hover disabled:cursor-not-allowed disabled:bg-disabled disabled:text-faint motion-reduce:transition-none">
             {busy ? "Starting…" : "Start investigation"}
           </button>
           <p className="text-xs text-muted">Argus only reads: it never changes the target. Investigations are limited per account.</p>

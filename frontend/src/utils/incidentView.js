@@ -3,7 +3,7 @@ import { dateTime } from "./format.js";
 // Pure derivations for the incident page and the incident lists. No React, no fetch: easy to unit-test.
 
 const TRIGGER_KINDS = new Set(["reported_symptom", "alert"]);
-const humanize = (v) => (v ? String(v).replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase()) : null);
+export const humanize = (v) => (v ? String(v).replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase()) : null);
 
 export const shortName = (target) => (target ? String(target).split(/[/:]/).pop() : "");
 export const hostOf = (target) => (target ? String(target).split("/")[0] : "");

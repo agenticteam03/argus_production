@@ -7,7 +7,11 @@ _Status: drafted by the agent from the code I already built (outside the repo, w
 
 ## The look
 
-- Dark theme, Inter font, blue accent, rounded cards — one consistent style everywhere.
+- Dark theme by default, Inter font, blue accent, rounded cards — one consistent style everywhere. A **light theme**
+  keeps the same layout and accent: a sun/moon button in the header switches it, the choice is remembered in the
+  browser, and the app opens dark when nothing is saved. Components use the colour tokens in `src/index.css`
+  (`text-ink`, `text-body`, `bg-ink/5`, `bg-scrim`…), never fixed greys or white overlays.
+- Times are shown in Colombia time (**COT**, UTC-5, no daylight saving) and the Live pill says so.
 - One header bar: logo top-left, menu in the middle, notifications bell and account menu top-right.
 - Everything must feel calm and readable during an incident: status colors only for status (green/amber/red).
 
@@ -23,8 +27,10 @@ rendering. Unit tests with Vitest; Playwright acceptance tests come next (T-0016
    a wrong password shows the error without leaving the page. The demo accounts can be replaced in `.env`
    (`VITE_ARGUS_USERS`) so the login needs no database, and a mock login survives a page reload in the same tab.
 2. **Dashboard** — the landing screen after login:
-   - the **agent chat**: type a question, press Send, watch the status line while it "works", the answer appears
-     as a message (placeholder reply until the API exists);
+   - a **status summary** at the top: whether something needs attention or everything is fine, with the issues
+     listed (a host at 75 % / 90 % of CPU, memory or disk, a stale or missing host sample, a broken link on the map,
+     an incident escalated to a person in the last 24 h), a heartbeat per host, and counts (hosts reporting, active
+     runs, links OK and components when the map answers). Nothing missing is shown as healthy;
    - **recent incidents**: empty state today; later the newest 5 with status badge, trigger and time;
    - **host metrics**: live CPU, memory and root-disk usage for Host A and Host T, with the sample time; a missing
      signal is shown as "No data" (proposed ACR-0014). WireGuard and token totals remain outside this API;
@@ -50,6 +56,9 @@ rendering. Unit tests with Vitest; Playwright acceptance tests come next (T-0016
 - **One answer first.** The top of the page shows the root cause and, when the API provides it, the next step for a
   person; a **Copy summary** button copies a plain-text summary ready to paste in a ticket, and **Raw output** opens
   the incident's raw API document in a dialog.
+- **Ask about this incident:** a small chat on the Incident & Diagnosis tab. Its answers (what happened, root cause,
+  evidence, runbooks read, next step, who decided, how long) are built from the incident's own data: no model is
+  called and nothing is sent. A question the data cannot answer says so.
 - **Tabs, in this order:** **Incident & Diagnosis** (default), then **Map** and **Metrics** *only when their route
   answers*, then **Runtime Timeline**, **Evidence** and **Audit**. The tab lives in the URL (`?tab=…`) so a link
   opens the right one.
@@ -72,7 +81,10 @@ rendering. Unit tests with Vitest; Playwright acceptance tests come next (T-0016
 - The incident list loads the newest rows once (up to 200) and shows them **30 at a time**: a **Show more** button
   at the end and a line giving how many are visible and the real total (`src/utils/paging.js`). The API has no
   `offset`, so the paging happens in the browser.
-- The dashboard and the incident list refresh every 30 s and pause while the tab is hidden; a running incident
+- The Dashboard, Incidents and Agent pages have a **Refresh** button next to the Live pill that reads again right away.
+- The incident list filters by status, outcome and **host**; once a host is chosen, a **target** inside that host
+  can be chosen too (both lists come from the incidents already loaded).
+- The dashboard, the incident list and the Agent page refresh every 30 s and pause while the tab is hidden; a running incident
   refreshes every 2–3 s while it runs; the runbook list every 10 s (no API call). The pill by the page title says **Demo data** in mock mode and, against the real API, **Live** with the time of the last
   successful refresh (or **Reconnecting…** when a poll fails) — so it is visibly live, not decorative.
 

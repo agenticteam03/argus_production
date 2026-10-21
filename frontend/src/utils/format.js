@@ -5,12 +5,15 @@ export const timeAgo = (iso) => {
   return m < 1 ? "just now" : m < 60 ? `${m}m ago` : m < 1440 ? `${Math.round(m / 60)}h ago` : `${Math.round(m / 1440)}d ago`;
 };
 
-export const dateTime = (iso) => (iso ? new Date(iso).toLocaleString([], { dateStyle: "medium", timeStyle: "medium" }) : "—");
+// Times are shown in Colombia time (COT, UTC-5, no daylight saving) so everyone on the team reads the same hour.
+export const TIME_ZONE = "America/Bogota";
+export const dateTime = (iso) => (iso ? `${new Date(iso).toLocaleString([], { dateStyle: "medium", timeStyle: "medium", timeZone: TIME_ZONE })} COT` : "—");
 
 // The "Live" pill: mock data is labelled as demo whatever the poll says, so it is never mistaken for a
 // live deployment; otherwise it reflects whether the last request to the API actually succeeded.
 export const liveLabel = (live, source) => (source === "demo" ? "Demo data" : live ? "Live" : "Reconnecting…");
-export const clock = (iso) => new Date(iso).toLocaleTimeString([], { hour12: false });
+export const clock = (iso) => new Date(iso).toLocaleTimeString([], { hour12: false, timeZone: TIME_ZONE });
+export const clockCot = (iso) => `${clock(iso)} COT`;
 export const shortHash = (hash) => (hash ? `${hash.slice(0, 12)}…` : "—");
 
 export const duration = (from, to) => {

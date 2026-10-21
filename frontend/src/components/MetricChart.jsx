@@ -35,8 +35,8 @@ export default function MetricChart({ series, from, to, band }) {
   return (
     <InsetRow className="px-3 pb-2 pt-2">
       <div className="flex items-baseline justify-between gap-2 text-[13px]">
-        <span className="min-w-0 truncate text-[#d6dbe6]">{series.title}</span>
-        <span className={`font-mono text-xs ${series.fired ? "text-red-300" : "text-white"}`}>{fmt(lastValue, series.unit)}</span>
+        <span className="min-w-0 truncate text-body">{series.title}</span>
+        <span className={`font-mono text-xs ${series.fired ? "text-red-300" : "text-ink"}`}>{fmt(lastValue, series.unit)}</span>
       </div>
       <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" role="img" aria-label={label} className="mt-1 block h-[4.4rem] w-full">
         <line x1="0" x2={W} y1={H - B} y2={H - B} vectorEffect="non-scaling-stroke" className="stroke-line" />

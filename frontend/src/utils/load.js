@@ -1,6 +1,6 @@
-// Simple load levels for a usage ratio (0..1): normal below 70 %, high from 70 %, critical from 90 %.
+// Simple load levels for a usage ratio (0..1): normal below 75 %, high from 75 %, critical from 90 % (the MVP's ticks).
 // One set of thresholds for CPU, memory and disk; change the two numbers here to tune them.
-export const LOAD_HIGH = 0.7;
+export const LOAD_HIGH = 0.75;
 export const LOAD_CRITICAL = 0.9;
 
 export function loadLevel(ratio) {

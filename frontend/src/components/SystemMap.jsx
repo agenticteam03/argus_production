@@ -48,7 +48,7 @@ export function miniNodes(topology, incident) {
 // "unknown" is a first-class state (ACR-0017): neither green ("ok") nor red ("broken"). Exported so the styles can
 // be checked without a DOM (SystemMap.test.js).
 export const RECT = { ok: "stroke-field-line", unknown: "stroke-slate-500", cause: "stroke-red-400", affected: "stroke-amber-400/60", argus: "stroke-accent/40" };
-const TITLE = { cause: "fill-red-300", ok: "fill-[#d7dce5]", unknown: "fill-[#d7dce5]", affected: "fill-[#d7dce5]", argus: "fill-[#d7dce5]" };
+const TITLE = { cause: "fill-red-300", ok: "fill-body", unknown: "fill-body", affected: "fill-body", argus: "fill-body" };
 export const EDGE = { ok: "stroke-emerald-400/45", unknown: "stroke-slate-500/70", broken: "stroke-red-400", read: "stroke-field-line" };
 export const DASH = { broken: "5 4", read: "2 3", unknown: "4 4" };
 const LABEL = { cause: "Root cause", affected: "Affected", argus: "Argus", unknown: "Unknown" };
