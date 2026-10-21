@@ -2,9 +2,9 @@
 
 | Field | Value |
 |---|---|
-| Status | `proposed` — waiting for [ACR-0025](../../architecture/changes/ACR-0025-live-dependency-graph.md) to be accepted; no code before that |
+| Status | `ready` — [ACR-0025](../../architecture/changes/ACR-0025-live-dependency-graph.md) accepted (`task/ACR-0025-accepted`); L1 is next |
 | Phase | next phase, area B (separate track of [NEXT-PHASE](NEXT-PHASE-supervised-remediation.md)) |
-| Architecture | ACR-0025 (`proposed`) |
+| Architecture | ACR-0025 (`accepted`, not applied: L1 applies it) |
 | Branch | one branch per step: `task/T-0046-l<n>-<slug>` |
 | Owner | `juanbetancurm` (+ agent); review `conantkd` |
 | Needs the VM lease | L5 only (deploy on vm-095) |
