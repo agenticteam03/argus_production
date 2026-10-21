@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | `in progress` — [ACR-0025](../../architecture/changes/ACR-0025-live-dependency-graph.md) accepted (#214); L1 merged (#219), L2 merged (#220), L3 merged (#226), L4 merged (#227), its restart follow-up merged (#231); deployed on vm-095 at `a4479df` (DEPLOY-A4479DF); L5: `link_states` on (#234) and deployed on vm-095 at `2324186` ([evidence](../../execution/history/T-0046-L5/step-01/evidence.md)); SC-03 / SC-07 runs left |
+| Status | `in progress` — [ACR-0025](../../architecture/changes/ACR-0025-live-dependency-graph.md) accepted (#214); L1 merged (#219), L2 merged (#220), L3 merged (#226), L4 merged (#227), its restart follow-up merged (#231); deployed on vm-095 at `a4479df` (DEPLOY-A4479DF); L5: `link_states` on (#234) and deployed on vm-095 at `2324186` ([evidence](../../execution/history/T-0046-L5/step-01/evidence.md)); SC-03 / SC-07 PASS with link recording on ([evidence](../../execution/history/T-0046-L5/step-02/evidence.md)); before L6: the row's time is the recorder's, not the sample's, and a fault shorter than the 60 s tick is missed |
 | Phase | next phase, area B (separate track of [NEXT-PHASE](NEXT-PHASE-supervised-remediation.md)) |
 | Architecture | ACR-0025 (`accepted`, applied in 1.8.24 by L1) |
 | Branch | one branch per step: `task/T-0046-l<n>-<slug>` |
