@@ -10,6 +10,8 @@ T-0022 (ACR-0003): in a pull transport profile it also runs `ReconcileFiringAler
 (`reconcile_firing_alerts` in the same file): the firing alerts of each host's Alertmanager become incidents.
 T-0035 (ACR-0009): `reconcile_firing_alerts.monitoring_heartbeat` turns on the heartbeat check per host (off until
 every host's Prometheus has the `ArgusMonitoringHeartbeat` rule: without it, no host would ever resolve an alert).
+T-0046 L3 (ACR-0025): `reconcile_firing_alerts.link_states` records the declared links' state changes on the same tick
+(`application/link_transitions.py`); off until deployed. Its failure never stops the alert reconciliation.
 """
 from __future__ import annotations
 
@@ -27,8 +29,9 @@ from argus.domain.model import AuditRecord, Incident, RequestKind, TargetRef, Tr
 
 log = logging.getLogger("argus.scheduler")
 FIELDS = {"id", "cron", "target", "reason", "enabled"}
-RECONCILE_FIELDS = {"enabled", "every_s", "monitoring_heartbeat"}
+RECONCILE_FIELDS = {"enabled", "every_s", "monitoring_heartbeat", "link_states"}
 HEARTBEAT_FIELDS = {"enabled", "stale_after_s", "grace_s"}
+LINK_STATES_FIELDS = {"enabled"}
 RECONCILE_MIN_EVERY_S = 30
 
 
@@ -39,6 +42,7 @@ class ReconcileConfig:
     heartbeat: bool = False          # ACR-0009: the monitoring heartbeat check (MonitoringWatch)
     stale_after_s: int = 180
     grace_s: int = 300
+    link_states: bool = False        # ACR-0025 (T-0046 L3): record link-state changes (LinkTransitions)
 
 
 def load_reconcile(text: str) -> ReconcileConfig:
@@ -59,8 +63,14 @@ def load_reconcile(text: str) -> ReconcileConfig:
     if stale < 2 * every or grace < stale:
         raise ValueError(f"reconcile_firing_alerts.monitoring_heartbeat: stale_after_s {stale} must be at least two "
                          f"ticks ({2 * every} s) and grace_s {grace} at least stale_after_s")
+    ls = item.get("link_states") or {}
+    if set(ls) - LINK_STATES_FIELDS:
+        raise ValueError(f"reconcile_firing_alerts.link_states: unknown field {sorted(set(ls) - LINK_STATES_FIELDS)}")
+    if ls.get("enabled") and not item.get("enabled", False):
+        raise ValueError("reconcile_firing_alerts.link_states runs on the reconcile tick: enable reconcile_firing_alerts")
     return ReconcileConfig(enabled=bool(item.get("enabled", False)), every_s=every,
-                           heartbeat=bool(hb.get("enabled", False)), stale_after_s=stale, grace_s=grace)
+                           heartbeat=bool(hb.get("enabled", False)), stale_after_s=stale, grace_s=grace,
+                           link_states=bool(ls.get("enabled", False)))
 
 
 @dataclass(frozen=True)
@@ -104,10 +114,11 @@ def load_schedules(text: str, inventory, min_interval_s: int) -> list[Schedule]:
 
 
 class Scheduler:
-    def __init__(self, store, schedules: list[Schedule], reconcile=None, reconcile_every_s: int = 60):
+    def __init__(self, store, schedules: list[Schedule], reconcile=None, reconcile_every_s: int = 60, links=None):
         self.store = store
         self.schedules = schedules
         self.reconcile, self.reconcile_every_s = reconcile, reconcile_every_s   # ReconcileFiringAlerts or None
+        self.links = links                     # LinkTransitions or None (T-0046 L3): on the reconcile tick
         self._last: dict[str, datetime] = {}
 
     def tick(self, now: datetime) -> list[tuple[str, str]]:
@@ -154,5 +165,10 @@ class Scheduler:
                     log.info("reconcile firing alerts: %s", self.reconcile.run_once())
                 except Exception:              # same rule: the next pass retries
                     log.exception("reconcile failed")
+                if self.links is not None:     # T-0046 L3: after the alerts, and never in their way
+                    try:
+                        log.info("link states: %s", self.links.run_once())
+                    except Exception:
+                        log.exception("link states failed")
             stop.wait(every_s)
 
