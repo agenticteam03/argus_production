@@ -22,10 +22,10 @@ export const DIAGNOSED_ID = sample("incident").id;          // the sample's diag
 const b64 = (o) => Buffer.from(JSON.stringify(o)).toString("base64url");
 const TOKEN = `${b64({ alg: "HS256" })}.${b64({ sub: "alice", access: "investigate", exp: Math.floor(Date.now() / 1000) + 3600 })}.sig`;
 
-// What the UI may send to the API: any GET and the login; plus (ACR-0012) the one POST that starts an investigation,
-// but only for a session whose /me lists start_investigation.
+// What the UI may send to the API: any GET, the login and (ACR-0018) the logout; plus (ACR-0012) the one POST that
+// starts an investigation, but only for a session whose /me lists start_investigation.
 const allowed = (method, path, { investigate = false } = {}) => method === "GET"
-  || (method === "POST" && path === "/api/v1/auth/token")
+  || (method === "POST" && (path === "/api/v1/auth/token" || path === "/api/v1/auth/logout"))
   || (investigate && method === "POST" && path === "/api/v1/investigations");
 const CAN_INVESTIGATE = new Set(["operator", "approver"]);
 // ACR-0017: the topology overlay (?incident_id=) uses the incident's evidence, so only operators and approvers.
@@ -60,6 +60,7 @@ async function fakeApi(page, { role = "operator", overrides = {} } = {}, state =
       if (form.get("password") !== PASSWORD) return json(route, { detail: "bad credentials" }, 401);
       return json(route, { ...sample("login"), access_token: TOKEN });
     }
+    if (key === "POST /api/v1/auth/logout") return json(route, { ended: true });         // ACR-0018
     if (key === "GET /api/v1/me") return json(route, me);
     if (key === "GET /api/v1/incidents") return json(route, sample("incidents"));
     if (key === "GET /api/v1/escalations") return json(route, sample("escalations"));

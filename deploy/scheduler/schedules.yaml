@@ -33,3 +33,10 @@ reconcile_firing_alerts:
   # deploy of T-0046 L5 turns it on.
   link_states:
     enabled: false
+
+# ACR-0018 (phase 16): the audit hash chain (migration 011) is verified at the scheduler's start and every every_s
+# seconds (minimum 3600); the result is a `security` audit event. A broken chain is logged as an error; its alert to
+# the team waits for the team's alert route (ARCHITECTURE §18).
+audit_chain:
+  enabled: true
+  every_s: 86400

@@ -86,7 +86,8 @@ on. Anything else can change without notice.
 | Route | Who | Returns | Sample |
 |---|---|---|---|
 | `POST /api/v1/auth/token` | anyone with a login | a bearer token; form fields `username`, `password`, `scope=read` | [`login.json`](../contracts/samples/login.json) |
-| `GET /api/v1/me` | any token | user, role, `access` (`read`/`full`), `actions` | [`me.json`](../contracts/samples/me.json) |
+| `POST /api/v1/auth/logout` | any token (read and investigate included) | `{"ended": true}`; the token is refused from the next request on (ACR-0018). Call it on logout instead of only dropping the token | — |
+| `GET /api/v1/me` | any token | user, role, `access` (`read`/`investigate`/`full`), `actions`, and the role's `permissions` (ACR-0018: show controls by `actions`; `permissions` says what the role could do with a full token) | [`me.json`](../contracts/samples/me.json) |
 | `GET /api/v1/incidents?limit=30` | any role | the latest incidents, newest first | [`incidents.json`](../contracts/samples/incidents.json) |
 | `GET /api/v1/incidents/{id}` | any role; `evidence` and `audit` only for operator/approver | one incident with its diagnosis and, derived from the stored record (never a model call), the verdict card's fields (ACR-0021): `severity` (`critical`, `warning`, `ok`, or `null` while unknown), `summary`, `cause` (`{target, kind, statement, confidence 0.9 / 0.6 / 0.3, confidence_label}` or `null`), `evidence_highlights[]` (up to 3 cited, `{evidence_id, text, stance}`; empty for a viewer), `not_checked[]`, `cause_path[]`, `duration_ms` (`null` while open), `next_actions[]` and `hypotheses[]` (both `[]` for now) | [`incident.json`](../contracts/samples/incident.json) |
 | `GET /api/v1/incidents/{id}/events?after=0` | any role | the run's timeline, one event per node phase; poll with `after=<last seq>` | [`events.json`](../contracts/samples/events.json) |
