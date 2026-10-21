@@ -1,7 +1,7 @@
 # Argus — Production Architecture Specification
 
 **Document type:** consolidated target architecture and implementation blueprint ·
-**Version:** 1.8.27 (2026-10-21, ACR-0024 hypotheses and a cause ranking; 1.8.26 2026-10-21, ACR-0018 phase 16 step 1: sessions, revocation, persisted login limiter, permissions, the audit hash chain, EdDSA tokens; 1.8.25 2026-10-21, ACR-0028 field allowlists; 1.8.24 2026-10-21, ACR-0025 live dependency graph; 1.8.23 2026-10-20, ACR-0027 the built gaps G-001, G-003, G-007; 1.8.22 2026-10-20, ACR-0026 safety classes; 1.8.21 2026-10-20, §14 marked designed, not built (OP-015); 1.8.20 2026-10-19, ACR-0021 B7 baseline, long ranges, deploy events, and B8 link reasons; 1.8.19 2026-10-19, ACR-0021 B6: target metrics and the overview; 1.8.18 2026-10-19, ACR-0021 UI insights v2: B1 to B5; 1.8.17 2026-10-19, ACR-0023 log pattern matches; 1.8.16 2026-10-18, ACR-0013 and ACR-0016 Langfuse Cloud tracing; 1.8.15 2026-10-16, ACR-0017 topology; 1.8.14 2026-10-16, ACR-0017 incident metrics; 1.8.12 2026-10-14, ACR-0014; 1.8.11 2026-10-14, ACR-0012; 1.8.10 2026-10-14, ACR-0011; 1.8.8 2026-10-12, ACR-0009; 1.8.7 2026-10-12, ACR-0008; 1.8.6 2026-10-11, ACR-0007; 1.8.5 2026-10-09, ACR-0005; 1.8.4 2026-10-09, ACR-0004; 1.8.3 2026-10-08, ACR-0003; 1.8.2 2026-10-09, ACR-0002; 1.8.1 2026-10-06, ACR-0001; base 1.8.0 of 30 September 2026, sanitized for the shared repository 2026-10-02) · **Audience:** engineers and AI coding agents implementing
+**Version:** 1.8.28 (2026-10-21, ACR-0024 as built in T-0047 H2: `state_hypotheses`; 1.8.27 2026-10-21, ACR-0024 hypotheses and a cause ranking; 1.8.26 2026-10-21, ACR-0018 phase 16 step 1: sessions, revocation, persisted login limiter, permissions, the audit hash chain, EdDSA tokens; 1.8.25 2026-10-21, ACR-0028 field allowlists; 1.8.24 2026-10-21, ACR-0025 live dependency graph; 1.8.23 2026-10-20, ACR-0027 the built gaps G-001, G-003, G-007; 1.8.22 2026-10-20, ACR-0026 safety classes; 1.8.21 2026-10-20, §14 marked designed, not built (OP-015); 1.8.20 2026-10-19, ACR-0021 B7 baseline, long ranges, deploy events, and B8 link reasons; 1.8.19 2026-10-19, ACR-0021 B6: target metrics and the overview; 1.8.18 2026-10-19, ACR-0021 UI insights v2: B1 to B5; 1.8.17 2026-10-19, ACR-0023 log pattern matches; 1.8.16 2026-10-18, ACR-0013 and ACR-0016 Langfuse Cloud tracing; 1.8.15 2026-10-16, ACR-0017 topology; 1.8.14 2026-10-16, ACR-0017 incident metrics; 1.8.12 2026-10-14, ACR-0014; 1.8.11 2026-10-14, ACR-0012; 1.8.10 2026-10-14, ACR-0011; 1.8.8 2026-10-12, ACR-0009; 1.8.7 2026-10-12, ACR-0008; 1.8.6 2026-10-11, ACR-0007; 1.8.5 2026-10-09, ACR-0005; 1.8.4 2026-10-09, ACR-0004; 1.8.3 2026-10-08, ACR-0003; 1.8.2 2026-10-09, ACR-0002; 1.8.1 2026-10-06, ACR-0001; base 1.8.0 of 30 September 2026, sanitized for the shared repository 2026-10-02) · **Audience:** engineers and AI coding agents implementing
 Argus from an empty repository.
 
 
@@ -915,7 +915,7 @@ class ReadCall(BaseModel):
 class UseReadTools(BaseModel):
     kind: Literal["use_read_tools"]
     calls: list[ReadCall]                   # 1 ≤ len ≤ MAX_READS_PER_STEP (default 1)
-    hypotheses: list[Hypothesis] = []       # ACR-0024, optional: the list as it stands, so the next step continues it
+    hypotheses: list[Hypothesis] = []       # ACR-0024, optional: the list as it stands (a `state_hypotheses` call)
 
 class ProposeRemediation(BaseModel):
     kind: Literal["propose_remediation"]
@@ -1645,7 +1645,7 @@ store by ID.
 | Read-tool definitions | ≤ 2k tokens | tools policy allows for this incident's scope, tagged for the class, plus Level 1; never write capabilities |
 | Observations | each ≤ 800 tokens; logs ≤ last 50 lines / 8 KiB | keep capability, source host/executor, `source_time`, truncation flag |
 | Older steps | beyond the 4 most recent observations | replaced by each observation's one-line `model_text` |
-| Hypotheses under test (ACR-0024; T-0047 H2) | ≤ 300 tokens | the latest decision's list (statement, status, cited ids); never dropped once present |
+| Hypotheses under test (ACR-0024; built in T-0047 H2) | ≤ 300 tokens | the latest decision's list (statement, status, cited ids); never dropped once present |
 
 **Omission order when over budget** (dropped first to last): compacted older observations → the 2nd
 prior incident → the 3rd, then the 2nd, runbook passage → the 1st prior incident. **Never dropped:**
@@ -1737,8 +1737,12 @@ Besides the read tools, the harness offers three **Argus-owned decision tools**:
 † **Log-only until the evaluation (T-0047 H4):** the harness keeps the decision, attaches the would-be
 refusals to it (`hypothesis_problems`) and the runner audits them as `hypothesis.invalid`; the checks are
 enforced only when an evaluation batch shows they do not lower accuracy. The retry bound applies unchanged.
-The decision tools' schemas carry `hypotheses` (and `chosen` on `conclude`); a read step has no tool to carry
-its list yet, so `UseReadTools.hypotheses` stays empty until H2 gives the list a place in the context.
+The decision tools' schemas carry `hypotheses` (and `chosen` on `conclude`). A read step carries its list in one
+`state_hypotheses` call beside its read calls (T-0047 H2): offered only with read tools, it is not a read, does not
+count toward `max_reads_per_step`, and is checked like the others; alone, twice, or beside `conclude` / `escalate`
+it is `InvalidDecision` (`malformed`, `multiple_calls`). After each decision with hypotheses the runner ranks them
+(§3.3 of ACR-0024, `application/ranking.py`, weights in `config/ranking.yaml`) and stores them (§16.1); a step
+already stored (a run resumed after a crash) is not stored again, and a failure to store never stops the run.
 
 Each provider adapter maps its native format into `ModelReply` and nothing else. A provider without
 native tool calling returns the JSON decision in `text`.
@@ -2381,7 +2385,7 @@ tables and abstractions:
 | # | Category | Contents | Technology | Owner | Retention |
 |---|---|---|---|---|---|
 | 1 | Graph execution state | checkpoints, interrupts; evidence **references** only | `langgraph-checkpoint-postgres` | orchestration | per incident; prunable after close |
-| 2 | Intake, incident and trigger data | intake queue, incidents (with `parent_id`, the incident a re-check re-checks: a foreign key that never changes, migration 007, ACR-0021), deploy events (`deploy_event`, insert-only, written by `argus deploy record` from `ops/deploy.sh`, migration 008, ACR-0021), link-state transitions (`link_event`: owner, dependency, state, latency, reason, time; insert-only, written by the scheduler, §7.3, migration 009, ACR-0025, T-0046 L2), hypotheses (`incident_hypothesis`: one row per hypothesis per decision step, with its cited evidence ids, score, rank and `chosen`; insert-only, the next free migration, ACR-0024, T-0047 H2), trigger occurrences, alert occurrences, related-incident links, `evidence_version` | Postgres | application | months |
+| 2 | Intake, incident and trigger data | intake queue, incidents (with `parent_id`, the incident a re-check re-checks: a foreign key that never changes, migration 007, ACR-0021), deploy events (`deploy_event`, insert-only, written by `argus deploy record` from `ops/deploy.sh`, migration 008, ACR-0021), link-state transitions (`link_event`: owner, dependency, state, latency, reason, time; insert-only, written by the scheduler, §7.3, migration 009, ACR-0025, T-0046 L2), hypotheses (`incident_hypothesis`: one row per hypothesis per decision step, with its cited evidence ids, score, rank and `chosen`; insert-only, migration 012, ACR-0024, built in T-0047 H2), trigger occurrences, alert occurrences, related-incident links, `evidence_version` | Postgres | application | months |
 | 3 | Evidence | `evidence` table: redacted, bounded, insert-only records with SHA-256 (§5.4) | Postgres | application | per evidence kind; never before the incident closes and its checkpoints are pruned |
 | 4 | Episodic, approval and action state | summaries, proposals, approvals, holds, resume intents, outbox, actions, per-target locks | Postgres | application | months/years |
 | 5 | Principals | human users (Argon2 password hashes), agent clients (hashed secrets), roles, scopes, disabled flag; sessions (`auth_session`, one per token's `jti`: the runtime role inserts it and may set only its revocation columns, never deletes it) and failed logins (`login_failure`), migration 010, ACR-0018 | Postgres | authentication adapter | while active + audit period; failed logins: the login window |
@@ -3096,3 +3100,4 @@ erDiagram
 | 1.8.25 | 2026-10-21 | **field allowlists** (data minimization, OP-002 G-006): `CapabilitySpec.allowed_fields`, required for every `READ_ONLY_SENSITIVE` read; the dispatcher keeps only the declared paths before redaction, truncation and storage and audits the dropped names (`dropped_fields`); evidence values are minimized (§5.4, §12.3, §17.1) | [ACR-0028](changes/ACR-0028-field-allowlists.md) |
 | 1.8.26 | 2026-10-21 | phase 16 step 1 of ACR-0018: server-side sessions (`auth_session`, migration 010) checked on every request, `POST /api/v1/auth/logout`, revocation by `argus user add|disable` and `argus session revoke`; failed logins kept in Postgres (`login_failure`); permissions per route, listed by `/me`; the audit hash chain (`prev_hash`, `hash`, migration 011), `argus audit verify` and its daily scheduled check; EdDSA token signing with an Ed25519 key (§7.1, §16.1, §17.1 layers 1 and 13, §17.2, §17.3). WebAuthn, step-up, the off-host signed digest and the private path remain designed (step 2 on) | [ACR-0018](changes/ACR-0018-operator-access-and-audit.md) |
 | 1.8.27 | 2026-10-21 | **hypotheses and a transparent cause ranking** (ACR-0024): `Hypothesis` and the optional `hypotheses` / `chosen` fields on the decisions (§5.5); the harness checks of §11.3, **log-only** until the evaluation (`hypothesis.invalid`); the working-memory slot (§10.6), `incident_hypothesis` (§16.1), the incident answer's `hypotheses` (§7.1), `analysis.anomaly_summary` (§12.2) and the evaluation metrics (§21.2), each marked with the T-0047 step that builds it; applied with T-0047 H1 ([ACR-0024](changes/ACR-0024-hypotheses-and-cause-ranking.md)) |
+| 1.8.28 | 2026-10-21 | ACR-0024 as built in T-0047 H2: a read step states its hypotheses in one `state_hypotheses` call beside its read calls (not a read; refused alone, twice or beside a decision); the runner ranks and stores each decision's hypotheses (`incident_hypothesis`, migration 012) and the context carries the latest list (§5.5, §10.6, §11.3, §16.1) | [ACR-0024](changes/ACR-0024-hypotheses-and-cause-ranking.md) |

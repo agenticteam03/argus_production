@@ -133,6 +133,33 @@ def test_link_events_migration_009(runtime_dsn, store):
             c.execute("INSERT INTO link_event (owner, dependency, state, at) VALUES ('a', 'b', 'down', now())")
 
 
+def test_hypotheses_migration_012(runtime_dsn, store):
+    """ACR-0024 §3.5 (T-0047 H2): one row per hypothesis per decision step, read by step then rank; insert-only for
+    the runtime role; an id, relation or status outside the vocabulary is refused by the table itself."""
+    import psycopg
+    from argus.domain.model import utcnow
+    inc = _incident()
+    store.create_incident(inc, None)
+    now = utcnow()
+    row = {"hypothesis_id": "h2", "statement": "its database is down", "cause_class": "other", "target": None,
+           "relation": "external", "status": "untested", "support_ids": [], "against_ids": ["ev_a"], "score": -0.5,
+           "rank": 2, "chosen": False}
+    store.add_hypotheses(inc.id, 1, [row, {**row, "hypothesis_id": "h1", "target": str(inc.target),
+                                           "relation": "self", "support_ids": ["ev_b"], "rank": 1, "chosen": True}], now)
+    got = store.hypotheses(inc.id)
+    assert [(r["hypothesis_id"], r["rank"], r["chosen"], r["support_ids"], r["against_ids"]) for r in got] == [
+        ("h1", 1, True, ["ev_b"], ["ev_a"]), ("h2", 2, False, [], ["ev_a"])]
+    assert got[1]["target"] is None and got[0]["at"].tzinfo is not None
+    with psycopg.connect(runtime_dsn, autocommit=True) as c:
+        for sql in ("UPDATE incident_hypothesis SET status = 'supported'", "DELETE FROM incident_hypothesis"):
+            with pytest.raises(psycopg.Error, match="permission denied"):
+                c.execute(sql)
+        with pytest.raises(psycopg.Error, match="check constraint"):
+            c.execute("INSERT INTO incident_hypothesis (incident_id, step, hypothesis_id, statement, cause_class, "
+                      f"relation, status, score, rank, at) VALUES ('{inc.id}', 1, 'h9', 's', 'other', 'self', "
+                      "'untested', 0, 1, now())")
+
+
 def test_sessions_and_login_failures_migration_010(runtime_dsn, store):
     """ACR-0018 (phase 16 step 1): a session is inserted, revoked once and never deleted; the runtime role may set only
     its revocation columns. Failed logins are inserted, read in a window and cleared."""

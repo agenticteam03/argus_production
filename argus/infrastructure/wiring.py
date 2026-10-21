@@ -283,6 +283,12 @@ def build(settings: Settings | None = None, llm=None, metrics=None, executors: E
         routing = load_routing(s.config_dir)
     except ValueError as e:
         errors.append(str(e))
+    ranking = None                                   # ACR-0024 §3.3 (T-0047 H2): the hypotheses' score weights
+    try:
+        from argus.application.ranking import load_ranking
+        ranking = load_ranking(s.config_dir)
+    except ValueError as e:
+        errors.append(str(e))
     ui_signals = None                                # ACR-0017: the incident charts' signal list, validated likewise
     try:
         ui_signals = load_ui_signals(s.config_dir, set(signals))
@@ -365,7 +371,7 @@ def build(settings: Settings | None = None, llm=None, metrics=None, executors: E
                             strategies=strategies, offered_specs=[sp for sp in specs if policy.capability_known(sp.name)],
                             redactor=redactor, policy_version=policy.version,
                             max_tool_level=policy.max_tool_level, max_reads_per_step=s.max_reads_per_step,
-                            max_steps_cap=s.max_steps, routing=routing)
+                            max_steps_cap=s.max_steps, routing=routing, ranking=ranking)
     jwt_key = s.secret("jwt_signing_key") or os.getenv("ARGUS_JWT_KEY") or ""
     if len(jwt_key) < 32:
         raise SystemExit("jwt_signing_key missing or shorter than 32 characters")
