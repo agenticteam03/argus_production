@@ -87,7 +87,7 @@ def scheduler() -> None:
     log.info("%d schedules, %d enabled; reconcile firing alerts: %s", len(schedules),
              sum(x.enabled for x in schedules), f"every {cfg.every_s} s" if cfg.enabled else "off")
     store = make_store(s)
-    reconcile = None
+    reconcile = links = None
     if cfg.enabled:                     # ACR-0003: the pull transport profile
         hosts = {h.name: h.alertmanager for h in inventory.hosts() if h.alertmanager}
         source = AlertmanagerSource(hosts)
@@ -101,13 +101,17 @@ def scheduler() -> None:
                                     prometheus_ready=_prometheus_ready(inventory),
                                     routing=load_routing(s.config_dir))       # #127 review: the `platform` route
             log.info("monitoring heartbeat: stale after %d s, grace %d s", cfg.stale_after_s, cfg.grace_s)
-        reconcile = ReconcileFiringAlerts(source,
-                                          HandleAlertNotification(store, inventory, make_metrics(s, inventory)),
+        metrics = make_metrics(s, inventory)
+        reconcile = ReconcileFiringAlerts(source, HandleAlertNotification(store, inventory, metrics),
                                           sorted(hosts), watch=watch)
+        if cfg.link_states:             # ACR-0025 / T-0046 L3: the declared links' state changes (link_event)
+            from argus.application.link_transitions import LinkTransitions
+            links = LinkTransitions(store, inventory, metrics)
+            log.info("link states: %d owner(s) recorded", len(links.owners()))
     stop = threading.Event()
     signal.signal(signal.SIGTERM, lambda *_: stop.set())
     signal.signal(signal.SIGINT, lambda *_: stop.set())
-    Scheduler(store, schedules, reconcile, cfg.every_s).run_forever(stop)
+    Scheduler(store, schedules, reconcile, cfg.every_s, links=links).run_forever(stop)
 
 
 def _prometheus_ready(inventory):
