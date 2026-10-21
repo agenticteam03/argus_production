@@ -302,7 +302,11 @@ def test_a_self_merge_needs_every_required_check_green_on_its_last_push(checks, 
                                   "deploy/migrations/007_x.sql", "argus/policy/engine.py",
                                   "argus/application/invoke_capability.py", "argus/infrastructure/gate_report.py",
                                   "argus/tooling/isolation_check.py", "tests/brain/test_brain.py",
-                                  "tests/test_write_gate_standing.py", "tests/test_op014_prompt_injection.py"])
+                                  "tests/test_write_gate_standing.py", "tests/test_op014_prompt_injection.py",
+                                  # phase 15: the action path, before it exists
+                                  "config/actions/container.start.yaml", "config/risk.yaml", "config/ranking.yaml",
+                                  "argus/capabilities/write_contract.py", "argus/actions/dispatch.py",
+                                  "services/action-gateway/service.py"])
 def test_a_self_merge_never_covers_a_protected_path(path):
     why = brain.self_merge_problem(_pr(7, "alice", "h7"), GREEN, ["argus/x.py", path], [])
     assert why and path in why and "teammate" in why

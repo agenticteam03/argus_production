@@ -2,9 +2,9 @@
 
 | Field | Value |
 |---|---|
-| Status | `proposed` — steps H1–H6 wait for [ACR-0024](../../architecture/changes/ACR-0024-hypotheses-and-cause-ranking.md) to be accepted (with its second approval) |
+| Status | `ready` — [ACR-0024](../../architecture/changes/ACR-0024-hypotheses-and-cause-ranking.md) accepted with its second approval (`task/ACR-0024-accepted`); H1 is next |
 | Phase | next phase, area C (separate track of [NEXT-PHASE](NEXT-PHASE-supervised-remediation.md)) |
-| Architecture | ACR-0024 (`proposed`) |
+| Architecture | ACR-0024 (`accepted`, not applied: H1 applies it) |
 | Branch | one branch per step: `task/T-0047-h<n>-<slug>` |
 | Owner | `juanbetancurm` (+ agent); review `conantkd` (owner of the built reads, T-0034 to T-0040) |
 | Needs the VM lease | the evaluation runs on the VMs and H6 (deploy on vm-095) |
@@ -18,11 +18,18 @@ the wrong causes were ruled out.
 
 ## Steps (each a PR, red tests first)
 
-### Before H1 — what is already measured (EVAL-offers, 2026-10-19)
+### Before H1 — what is already measured
 The five built reads (`metrics.cpu_history`, `metrics.compare_baseline`, `knowledge.prior_incidents`,
-`analysis.trace_request_path`, `analysis.diagnostic_snapshot`) are offered to no class. EVAL-offers measured offering
-them one by one (61 cases × 5 trials): they are used and change little, so offering them alone is not the next step.
-H4 measures them again with hypotheses in the decisions.
+`analysis.trace_request_path`, `analysis.diagnostic_snapshot`) are offered to no class. What is measured so far:
+- **EVAL-offers** (2026-10-19, 61 cases × 5 trials, one batch per offer): `cpu_history` and `disk_history` are used
+  and change nothing; `request_path` 0.72 → 0.74; `search_logs` called in 4 of 50 health runs; `baseline`
+  (`compare_baseline`) in 1 of 25 cpu runs.
+- **EVAL-snapshot** (#121, 2026-10-13): `diagnostic_snapshot` offered to `health_check_failed` lowered it
+  (0.88 → 0.72), so it was not offered.
+- **`prior_incidents`: not measured.** The replay store is empty, so any precedent would be invented.
+
+So offering them alone is not the next step. H4 measures them again with hypotheses in the decisions. Separately,
+`conantkd` measures `compare_baseline` for `container_restart_loop` once B7's baseline is deployed (#202).
 
 ### H1 — The schema and the harness checks, log-only
 - `Hypothesis`; the optional fields on `Conclude`, `Escalate`, `UseReadTools` (ACR-0024 §3.1); decision tool schemas.
@@ -50,8 +57,10 @@ H4 measures them again with hypotheses in the decisions.
 - `expected_hypotheses` labels on the existing cases (SC-01 to SC-09); top-1 / top-3 accuracy over the ranking;
   ruled-out recall; hard check `unsupported_root_cause` = 0.
 - A run with the H1 checks still log-only; then the harness **enforces** them only if accuracy is not lower.
-- The built reads measured again with hypotheses, one batch per read (as EVAL-offers); a read is offered to a class
-  only when its batch improves that class. Offering changes the class registry (`argus/detectors/classes.py` tags),
+- The built reads measured again with hypotheses, one batch per read (as EVAL-offers): `cpu_history`,
+  `disk_history`, `compare_baseline`, `trace_request_path`, `search_logs` and `diagnostic_snapshot`;
+  `prior_incidents` only once the replay store holds recorded incidents to recall. A read is offered to a class only
+  when its batch improves that class. Offering changes the class registry (`argus/detectors/classes.py` tags),
   so that PR needs a teammate's review (OP-014 step 8), never a self-merge.
 
 ### H5 — `analysis.anomaly_summary`

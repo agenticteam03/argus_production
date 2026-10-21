@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | `proposed` — team review of PR #170; no implementation starts before it is approved |
+| Status | `approved` as a plan (PR #170 merged); its ACRs are still `proposed`. Phase 15 in progress (2026-10-20) |
 | Phase | 15–23 (planned, [`../../IMPLEMENTATION_PLAN.md`](../../IMPLEMENTATION_PLAN.md)) |
 | Architecture | [ACR-0018](../../architecture/changes/ACR-0018-operator-access-and-audit.md) operator access and audit · [ACR-0019](../../architecture/changes/ACR-0019-human-approved-remediation.md) human-approved remediation · [ACR-0020](../../architecture/changes/ACR-0020-operator-terminal.md) operator terminal · [ACR-0022](../../architecture/changes/ACR-0022-autonomous-investigation.md) more autonomous investigation — all `proposed` |
 | Sources | this proposal (juanbetancurm) merged with `conantkd`'s "Argus actúa" (2026-10-18) |

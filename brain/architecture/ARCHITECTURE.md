@@ -1,7 +1,7 @@
 # Argus — Production Architecture Specification
 
 **Document type:** consolidated target architecture and implementation blueprint ·
-**Version:** 1.8.20 (2026-10-19, ACR-0021 B7 baseline, long ranges, deploy events, and B8 link reasons; 1.8.19 2026-10-19, ACR-0021 B6: target metrics and the overview; 1.8.18 2026-10-19, ACR-0021 UI insights v2: B1 to B5; 1.8.17 2026-10-19, ACR-0023 log pattern matches; 1.8.16 2026-10-18, ACR-0013 and ACR-0016 Langfuse Cloud tracing; 1.8.15 2026-10-16, ACR-0017 topology; 1.8.14 2026-10-16, ACR-0017 incident metrics; 1.8.12 2026-10-14, ACR-0014; 1.8.11 2026-10-14, ACR-0012; 1.8.10 2026-10-14, ACR-0011; 1.8.8 2026-10-12, ACR-0009; 1.8.7 2026-10-12, ACR-0008; 1.8.6 2026-10-11, ACR-0007; 1.8.5 2026-10-09, ACR-0005; 1.8.4 2026-10-09, ACR-0004; 1.8.3 2026-10-08, ACR-0003; 1.8.2 2026-10-09, ACR-0002; 1.8.1 2026-10-06, ACR-0001; base 1.8.0 of 30 September 2026, sanitized for the shared repository 2026-10-02) · **Audience:** engineers and AI coding agents implementing
+**Version:** 1.8.21 (2026-10-20, §14 marked designed, not built (OP-015); 1.8.20 2026-10-19, ACR-0021 B7 baseline, long ranges, deploy events, and B8 link reasons; 1.8.19 2026-10-19, ACR-0021 B6: target metrics and the overview; 1.8.18 2026-10-19, ACR-0021 UI insights v2: B1 to B5; 1.8.17 2026-10-19, ACR-0023 log pattern matches; 1.8.16 2026-10-18, ACR-0013 and ACR-0016 Langfuse Cloud tracing; 1.8.15 2026-10-16, ACR-0017 topology; 1.8.14 2026-10-16, ACR-0017 incident metrics; 1.8.12 2026-10-14, ACR-0014; 1.8.11 2026-10-14, ACR-0012; 1.8.10 2026-10-14, ACR-0011; 1.8.8 2026-10-12, ACR-0009; 1.8.7 2026-10-12, ACR-0008; 1.8.6 2026-10-11, ACR-0007; 1.8.5 2026-10-09, ACR-0005; 1.8.4 2026-10-09, ACR-0004; 1.8.3 2026-10-08, ACR-0003; 1.8.2 2026-10-09, ACR-0002; 1.8.1 2026-10-06, ACR-0001; base 1.8.0 of 30 September 2026, sanitized for the shared repository 2026-10-02) · **Audience:** engineers and AI coding agents implementing
 Argus from an empty repository.
 
 
@@ -2062,8 +2062,11 @@ evidence while the security agent examines a compromised container.
 ## 14. Human-in-the-loop: approval → resume → action state machine
 
 This machinery is **generic over write capabilities**. The capability-specific parts are supplied
-through the write contract (§14.8). In this release no write capability is released, but the machinery,
-its tables and its tests exist from the start so that the first release changes no core code.
+through the write contract (§14.8). **Designed, not built (OP-015):** no write capability is released, and
+the machinery of this section (its tables, nodes, routes, write contract, fake gateway and the §14.4 / §22.2
+suites) does not exist in the code yet. What exists is the closed write gate and its standing test (§13.3,
+T-0031). It is built against a fake gateway in phase 18 if ACR-0019 is accepted, so that the first release
+changes no core code.
 
 ### 14.1 Tables (Postgres)
 
@@ -2963,3 +2966,4 @@ erDiagram
 | 1.8.18 | 2026-10-19 | UI insights v2, as built (T-0045 B1 to B5): thresholds and the heartbeat age on host metrics; `kind`, thresholds, the incident window, events and a summary on incident metrics; per-node health, problems, roles and the cause path, and one state per dependency link on the topology; the verdict fields on an incident; re-check lineage (`parent_id`, migration 007); `IncidentClassSpec.severity`; `MetricsPort.dependency_probes` (§5.8, §7.1, §8.1, §16.1). The two new routes follow with B6, baseline and deploy events with B7 | [ACR-0021](changes/ACR-0021-ui-insights-v2.md) |
 | 1.8.19 | 2026-10-19 | UI insights v2, B6 (T-0045): `GET /api/v1/target-metrics` (one inventory target's recent signals, a fixed series list per kind, `range` 15m/1h) and `GET /api/v1/overview` (the dashboard aggregate from the store and the topology and host-metrics snapshots), any authenticated role, through the public edge (§7.1, §17.1 layer 14). Baseline and deploy events follow with B7 | [ACR-0021](changes/ACR-0021-ui-insights-v2.md) |
 | 1.8.20 | 2026-10-19 | incident metrics: the 6h and 24h ranges (`ranges_available`), a `baseline` per series (p50/p95 of the 24 h ending an hour before the incident) and `deploy` events; `deploy_event` (migration 008, insert-only) written by `argus deploy record`, which `ops/deploy.sh` calls after the checkout (§7.1, §16.1; T-0045 B7). The topology's broken links name their reason (`connection refused`, `timeout`, `name not resolved`) from the exporter's `argus_probe_error`, and `ProbeSample` carries `error_kind` (§7.1, §8.1; T-0045 B8) | [ACR-0021](changes/ACR-0021-ui-insights-v2.md) |
+| 1.8.21 | 2026-10-20 | §14's approval and action machinery is marked **designed, not built**: no table, node, route, write contract, fake gateway or §14.4 / §22.2 suite exists yet; only the closed write gate and its standing test do (phase 15) | [OP-015](../OPEN_PROBLEMS.md) |
