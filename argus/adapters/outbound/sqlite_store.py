@@ -87,6 +87,13 @@ def _session(r, ts) -> dict[str, Any]:
     return {"jti": r[0], "principal": r[1], "access": r[2], "created_at": ts(r[3]), "expires_at": ts(r[4]),
             "revoked_at": ts(r[5]) if r[5] is not None else None, "revoked_by": r[6], "revoke_reason": r[7]}
 
+
+# T-0046 L4: link_event rows with the state of the row before them on the same link (time, then id), so a row that
+# repeats it (the recorder's row at a restart) is not read as a transition. Same rule as the Postgres store.
+_LINK_ROWS = ("SELECT id, owner, dependency, state, latency_ms, reason, at, LAG(state) OVER (PARTITION BY owner, "
+              "dependency ORDER BY at, id) AS prev FROM link_event")
+
+
 class SqliteStore:
     def __init__(self, path: str):
         self._lock = threading.RLock()
@@ -315,9 +322,11 @@ class SqliteStore:
         self._q("DELETE FROM login_failure WHERE at<?", (_utc(before),))
 
     def link_events(self, target: str, start: datetime, end: datetime) -> list[dict[str, Any]]:
-        """The transitions of the links `target` owns or is the dependency of, from `start` to `end`, oldest first."""
-        rows = self._q("SELECT owner,dependency,state,latency_ms,reason,at FROM link_event "
-                       "WHERE (owner=? OR dependency=?) AND at>=? AND at<=? ORDER BY at, id",
+        """The transitions of the links `target` owns or is the dependency of, from `start` to `end`, oldest first.
+        A row that repeats its link's previous state (the recorder's row at a restart) is not a transition."""
+        rows = self._q("SELECT owner,dependency,state,latency_ms,reason,at FROM "
+                       f"({_LINK_ROWS} WHERE owner=? OR dependency=?) "
+                       "WHERE (prev IS NULL OR prev<>state) AND at>=? AND at<=? ORDER BY at, id",
                        (target, target, start.astimezone(timezone.utc).isoformat(),
                         end.astimezone(timezone.utc).isoformat()))
         return [{"owner": r[0], "dependency": r[1], "state": r[2], "latency_ms": r[3], "reason": r[4],
@@ -325,8 +334,9 @@ class SqliteStore:
 
     def latest_link_events(self) -> dict[tuple[str, str], dict[str, Any]]:
         """T-0046 L4: the last recorded transition of every link, by (owner, dependency) (the map's `since`)."""
-        rows = self._q("SELECT owner,dependency,state,at FROM link_event WHERE id IN "
-                       "(SELECT MAX(id) FROM link_event GROUP BY owner, dependency)")
+        rows = self._q("SELECT owner,dependency,state,at FROM (SELECT *, ROW_NUMBER() OVER (PARTITION BY owner, "
+                       f"dependency ORDER BY at DESC, id DESC) AS n FROM ({_LINK_ROWS}) WHERE prev IS NULL OR "
+                       "prev<>state) WHERE n=1")
         return {(r[0], r[1]): {"state": r[2], "at": datetime.fromisoformat(r[3])} for r in rows}
 
     def close_queued_incident(self, incident_id: str, outcome: str, diagnosis: str, closed_at: datetime) -> bool:
