@@ -17,7 +17,8 @@ A pull request that meets the **self-merge** conditions below may instead be mer
    - [ ] no secrets, IP addresses, personal names or local paths (Windows user-profile paths) in the diff;
    - [ ] the scope matches the task (no unrelated changes);
    - [ ] if the architecture changed: an ACR exists, `ARCHITECTURE.md` version and changelog are updated, and a
-         safety-principle change has a second approval;
+         safety-principle change has a second approval (any team member's approval, the author's
+         included),
    - [ ] if the VMs changed: the archived evidence shows `NO INTERFERENCE` and the deployed commit.
 4. **Report.** The agent writes a short review report: what passes, concerns, questions for A.
 5. **B decides:**
@@ -110,7 +111,8 @@ it cannot be self-merged). A teammate may object in any PR; an objection goes to
 3. the branch is up to date with `main` when it is merged ("Update branch", then wait for the checks again);
 4. it changes **none of the protected paths** below, under its new name or, for a renamed file, its old one. Those
    still need a teammate's approval on the last push:
-   - `brain/architecture/` (ARCHITECTURE.md and every ACR; a safety-principle change still needs its second approval);
+   - `brain/architecture/` (ARCHITECTURE.md and every ACR; a safety-principle change still needs its second approval,
+     AGENT_PROTOCOL §4);
    - `brain/policies/` and `brain/agents/` (the security, git and review rules; the agents' stop conditions and rails);
    - the enforcement: `brain/tools/brain.py`, `.github/`, `.pre-commit-config.yaml`;
    - `ops/` (`deploy.sh`, `nonint-check.sh`, `write-gate-check.sh` run as root on the VMs; `local_ci.py`);
