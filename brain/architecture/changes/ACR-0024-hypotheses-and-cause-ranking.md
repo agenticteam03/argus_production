@@ -6,7 +6,7 @@ proposes an action or adds an outbound path.
 
 | Field | Value |
 |---|---|
-| Status | `accepted` (#215, approved by `conantkd`, merged 2026-10-20) (§5). Not applied: that is T-0047 H1 |
+| Status | `accepted` (#215, approved by `conantkd`, merged 2026-10-20) (§5); **applied** to ARCHITECTURE 1.8.27 with T-0047 H1 (`task/T-0047-h1-hypotheses-log-only`); built in steps H1–H5 |
 | Proposed by | juanbetancurm (+ agent) · 2026-10-20 |
 | Accepted by | a teammate approving `task/ACR-0024-accepted` (`conantkd` approved the proposal as recorded in #202, 2026-10-20) |
 | Second approval (safety principle only) | evidence integrity (a new insert-only table that cites evidence, and a stricter check of the evidence a conclusion cites). **Given:** `conantkd`'s approval of #215 (AGENT_PROTOCOL §4: the developer accepts, a second team member approves; one teammate's approval) |
@@ -216,6 +216,12 @@ Next: T-0047 H1 applies this ACR to `ARCHITECTURE.md` with its first code (§6).
 
 ## 6. Applied
 
-- [ ] `ARCHITECTURE.md` updated (§5.5, §7.1, §10.6, §11.3, §12.2, §16.1, §21.2), version bumped, changelog line added
-- [ ] journal entry
-- [ ] the ACR, the architecture change and the first code that needs it are in the same pull request
+- [x] `ARCHITECTURE.md` updated (§5.5, §7.1, §10.6, §11.3, §12.2, §16.1, §21.2), version 1.8.27, changelog line
+- [x] journal entry (`2026-10-21-T-0047-H1-hypotheses-log-only.md`)
+- [x] the architecture change and the first code that needs it in the same pull request
+  (`task/T-0047-h1-hypotheses-log-only`; the ACR itself was accepted on its own in #215)
+
+**As built (H1):** `EvidenceRef` gained `target` and `kind`, copied from the stored record, because the checks
+need to know what each cited evidence id is evidence of. A hypothesis that fails its schema is dropped from the
+decision and reported, and more than five are cut to five; the decision itself is never refused for its
+hypotheses while the checks are log-only. Both runners (`plain` and `langgraph`) audit `hypothesis.invalid`.

@@ -2,9 +2,9 @@
 
 | Field | Value |
 |---|---|
-| Status | `ready` — [ACR-0024](../../architecture/changes/ACR-0024-hypotheses-and-cause-ranking.md) accepted with its second approval (`task/ACR-0024-accepted`); H1 is next |
+| Status | `in progress` — [ACR-0024](../../architecture/changes/ACR-0024-hypotheses-and-cause-ranking.md) accepted (#215); H1 in review (`task/T-0047-h1-hypotheses-log-only`) |
 | Phase | next phase, area C (separate track of [NEXT-PHASE](NEXT-PHASE-supervised-remediation.md)) |
-| Architecture | ACR-0024 (`accepted`, not applied: H1 applies it) |
+| Architecture | ACR-0024 (`accepted`, applied in 1.8.27 by H1) |
 | Branch | one branch per step: `task/T-0047-h<n>-<slug>` |
 | Owner | `juanbetancurm` (+ agent); review `conantkd` (owner of the built reads, T-0034 to T-0040) |
 | Needs the VM lease | the evaluation runs on the VMs and H6 (deploy on vm-095) |
