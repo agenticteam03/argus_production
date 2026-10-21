@@ -5,6 +5,7 @@ authorization, read configuration or write audit (v1.8 §12.3).
 """
 from __future__ import annotations
 
+import dataclasses
 import hashlib
 from datetime import datetime, timezone
 from typing import Any, Literal
@@ -12,6 +13,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 from argus.capabilities.spec import CapabilityResult, CapabilitySpec, ExecutorError
+from argus.domain.minimize import parse_paths
 from argus.domain.model import TargetInfo, TargetRef
 
 
@@ -743,9 +745,62 @@ def compare_baseline(args: CompareArgs, target: TargetRef, info, client) -> Capa
                             coverage=f"{args.minutes} min now and {args.earlier} earlier")
 
 
+# --- ACR-0028 (G-006): the value paths each sensitive read keeps, from the gateways' answers ----------------------------
+_LINES = ("lines", "truncated", "collected_at")
+_TOP = ("by", "pids_read", "truncated", "cpus", "sample_s", "collected_at", "processes[].pid", "processes[].command",
+        "processes[].state", "processes[].rss_mib", "processes[].cpu_percent", "processes[].container_id",
+        "processes[].kernel_thread")
+ALLOWED_FIELDS: dict[str, tuple[str, ...]] = {
+    "container.logs": _LINES + ("earlier_matches.counts", "earlier_matches.lines"),
+    "container.detailed_logs": _LINES + ("minutes", "stream"),
+    "container.search_logs": _LINES + ("pattern", "matched", "minutes"),
+    "host.top_cpu": _TOP,
+    "host.top_memory": _TOP,
+    "host.kernel_oom_records": ("window_minutes", "oom_kill_since_boot", "source", "complete", "records_total",
+                                "by_container[].container_id", "by_container[].count", "records[].time",
+                                "records[].scope", "records[].container_id", "records[].command", "records[].pid",
+                                "records[].anon_rss_mib", "collected_at"),
+    "host.directory_sizes": ("path", "children[].name", "children[].bytes", "children[].entries",
+                             "children[].complete", "children[].symlink", "children_read", "entries_read", "complete",
+                             "other_filesystems", "limit_entries", "limit_seconds", "collected_at"),
+    "host.read_file": ("target", "path", "lines", "lines_returned", "truncated", "collected_at"),
+    "host.service_config": ("target", "files[].path", "files[].text", "files[].truncated", "collected_at"),
+    "host.journal": ("target", "unit", "program", "source", "lines", "window_complete", "collected_at"),
+    "host.process_details": ("target", "pid", "ppid", "name", "state", "rss_mib", "hwm_mib", "threads", "open_files",
+                             "limits.max_open_files", "limits.max_processes", "context_switches.voluntary",
+                             "context_switches.nonvoluntary", "container_id", "collected_at"),
+    "database.health": ("ok", "database", "max_connections", "reserved_connections", "usable_connections",
+                        "client_connections", "usage_percent", "monitor_slot_reserved", "by_state",
+                        "by_client[].application_name", "by_client[].role", "by_client[].connections",
+                        "longest_transactions[].pid", "longest_transactions[].application_name",
+                        "longest_transactions[].state", "longest_transactions[].wait_event_type",
+                        "longest_transactions[].wait_event", "longest_transactions[].age_s", "lock_waits",
+                        "blocked_sessions", "collected_at"),
+    # a combined read: its own values and the references to its sub-reads (each minimized by its own spec)
+    "analysis.diagnostic_snapshot": ("statuses", "subcalls", "subcall_refs"),
+}
+
+
+def _with_allowed_fields(specs: list[CapabilitySpec]) -> list[CapabilitySpec]:
+    """Attach each read's allowed paths; refuse a sensitive read without them (ACR-0028), or a list naming no read."""
+    names = {s.name for s in specs}
+    unknown = sorted(set(ALLOWED_FIELDS) - names)
+    if unknown:
+        raise ValueError(f"ALLOWED_FIELDS names no capability: {unknown}")
+    out = []
+    for s in specs:
+        if s.name in ALLOWED_FIELDS:
+            parse_paths(ALLOWED_FIELDS[s.name])          # a malformed path fails here, at startup
+            s = dataclasses.replace(s, allowed_fields=frozenset(ALLOWED_FIELDS[s.name]))
+        if s.safety_class == "READ_ONLY_SENSITIVE" and s.allowed_fields is None:
+            raise ValueError(f"{s.name} is READ_ONLY_SENSITIVE and declares no allowed_fields (ACR-0028)")
+        out.append(s)
+    return out
+
+
 def build_catalog() -> list[CapabilitySpec]:
     C, H, N, P = frozenset({"container"}), frozenset({"host"}), frozenset({"container"}), frozenset({"container"})
-    return [
+    specs = [
         CapabilitySpec("container.list", "get_container_list", "List in-scope containers on the target's host and their state.",
                        "discovering what runs on a host", NoArgs, C | H, 1, "READ_ONLY_SAFE",
                        frozenset({"container", "discovery"}), "docker_read", container_list),
@@ -917,3 +972,4 @@ def build_catalog() -> list[CapabilitySpec]:
                        "a database may be out of connections, slow, or blocking its clients", NoArgs, C, 3,
                        "READ_ONLY_SENSITIVE", frozenset({"database"}), "db_probe", db_health),   # RB-004: client names
     ]
+    return _with_allowed_fields(specs)

@@ -7,10 +7,10 @@ implemented before this one is applied and deployed.
 
 | Field | Value |
 |---|---|
-| Status | `accepted` with the two approvals of `task/ACR-0018-accepted` (§5); it merges only with both. Not applied: that is phase 16 |
+| Status | `accepted` (#209, approved by `juanbetancurm`, merged 2026-10-21) (§5). Not applied: that is phase 16 |
 | Proposed by | juanbetancurm (+ agent) · 2026-10-18 |
 | Accepted by | a teammate approving `task/ACR-0018-accepted` (proposed there by `conantkd` · 2026-10-20) |
-| Second approval (safety principle only) | **required**: least privilege (privileged routes, new permissions), secrets (new signing keys), evidence integrity (the audit chain). A second teammate approving the same pull request |
+| Second approval (safety principle only) | **required**: least privilege (privileged routes, new permissions), secrets (new signing keys), evidence integrity (the audit chain). **Given:** `juanbetancurm`'s approval of #209 (AGENT_PROTOCOL §4: the developer accepts, a second team member approves; one teammate's approval) |
 | Architecture version | the next free version when applied (1.8.22 if applied next) |
 | Task / PR | NEXT-PHASE · #170 (proposed) · `task/ACR-0018-accepted` (accepted, open decisions 2, 3 and 7 answered) |
 
@@ -109,8 +109,8 @@ over the private path with step-up (ACR-0018, ACR-0019)".
 
 ## 5. Decision
 
-Proposed in #170. **Accepted** with the two approvals of `task/ACR-0018-accepted`: one teammate's, plus a second one
-for the safety principles touched (least privilege, secrets, evidence integrity). §3 is accepted as written. The
+Proposed in #170. **Accepted** in #209 by `juanbetancurm`'s approval, which is also the second approval the safety
+principles touched (least privilege, secrets, evidence integrity) ask for (AGENT_PROTOCOL §4). §3 is accepted as written. The
 answers below are to the NEXT-PHASE open decisions that belong to this ACR (2, 3 and 7); the others belong to
 ACR-0019 and ACR-0020.
 
