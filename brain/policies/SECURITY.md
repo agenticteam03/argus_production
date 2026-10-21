@@ -29,6 +29,9 @@
 
 ## Safety principles (changing any of them needs an ACR with a second approval)
 
+The second approval may come from any team member, the author included, and one person may give both approvals
+([AGENT_PROTOCOL §4](../agents/AGENT_PROTOCOL.md)).
+
 - **Read-only:** no write capability is released; the write gate in `config/policy.yaml` stays empty.
 - **Host isolation:** an executor is resolved for the target's own host only, never another host.
 - **Evidence integrity:** evidence and audit are insert-only; the runtime database role cannot UPDATE or DELETE them.
