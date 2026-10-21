@@ -599,6 +599,52 @@ def knowledge_prior_incidents(args: PriorArgs, target: TargetRef, info, client) 
     return CapabilityResult(values={"incident_class": args.incident_class, "incidents": rows}, model_text=text)
 
 
+def link_states(args: "HistoryArgs", target: TargetRef, info, client) -> CapabilityResult:
+    """T-0046 L4 (ACR-0025 §3.5): the links of this container and of its declared dependencies (same host): each one's
+    state now (the recorder's rules on the latest probe sample; else the last recorded state), since when, and the
+    recorded transitions of the last `minutes`. A host whose Prometheus cannot be read gives a partial answer."""
+    from datetime import timedelta
+    deps = [d for d in (getattr(info, "depends_on", None) or []) if d.kind == "container" and d.host == target.host]
+    scope = [target, *deps]
+    end = datetime.now(timezone.utc)
+    start = end - timedelta(minutes=args.minutes)
+    now, skipped = client.current_links(scope)
+    latest = client.latest_links()
+    history: dict[tuple[str, str], list[dict]] = {}
+    seen = set()
+    for ref in scope:
+        for r in client.link_history(str(ref), start, end):
+            key = (r["owner"], r["dependency"], r["state"], r["at"])
+            if key not in seen:
+                seen.add(key)
+                history.setdefault((r["owner"], r["dependency"]), []).append(r)
+    current = {(o, d): (s, ms, why, "probe") for o, d, s, ms, why in now}
+    rows, lines = [], []
+    for link in sorted(set(current) | set(history)):
+        last = latest.get(link)
+        state, ms, why, source = current.get(link) or ((last["state"], None, None, "record") if last
+                                                       else ("unknown", None, None, "none"))
+        since = last["at"].isoformat() if last and last["state"] == state else None
+        moves = [{"at": r["at"].isoformat(), "state": r["state"], "latency_ms": r["latency_ms"], "reason": r["reason"]}
+                 for r in sorted(history.get(link, []), key=lambda r: r["at"])]
+        rows.append({"owner": link[0], "dependency": link[1], "state": state, "latency_ms": ms, "reason": why,
+                     "state_from": source, "since": since, "transitions": moves})
+        head = f"{link[0].split(':', 1)[-1]} -> {link[1].split(':', 1)[-1]}: {state}"
+        head += f" ({why})" if why else (f" ({ms:g} ms)" if ms is not None else "")
+        head += f" since {since[11:19]} UTC" if since else ""
+        head += "" if source == "probe" else " (last recorded state)" if source == "record" else ""
+        changes = ", ".join(f"{m['at'][11:19]} {m['state']}" for m in moves) or "none"
+        lines.append(f"- {head}; changes in the last {args.minutes} min: {changes}")
+    if not rows:
+        text = f"links of {target}: none declared on its host, and none recorded"
+    else:
+        text = f"links of {target} and its declared dependencies ({len(rows)}):\n" + "\n".join(lines)
+    if skipped:
+        text += f"\nmonitoring unreadable for {', '.join(sorted(skipped))}: the state now is not known there"
+    return CapabilityResult(values={"minutes": args.minutes, "links": rows, "unreadable_hosts": sorted(skipped)},
+                            model_text=text, partial=bool(skipped), units={"latency_ms": "ms"})
+
+
 # --- §12.7 combined (T-0034): sub-reads through InvokeCapability, never an executor ---------------------------------
 SNAPSHOT_READS = (("container.status", "self", {}), ("container.resources", "self", {}),
                   ("container.logs", "self", {"tail": 30}), ("host.memory", "host", {}), ("host.cpu", "host", {}))
@@ -910,6 +956,13 @@ def build_catalog() -> list[CapabilitySpec]:
                        "short diagnosis, newest first.", "has this happened here before, and what was it then",
                        PriorArgs, C | H, 3, "READ_ONLY_SAFE", frozenset({"prior_incidents"}), "argus_internal",
                        knowledge_prior_incidents, runs_in="worker", max_output_bytes=16384),   # T-0039
+        CapabilitySpec("network.link_states", "read_link_states",
+                       "The declared links of the container and of its dependencies (same host): each one's state now "
+                       "(ok, slow, broken, unknown), since when, and its recorded changes over a time window, with "
+                       "latency and the failure kind.",
+                       "a dependency may have failed or slowed: when each link broke or recovered, before or after "
+                       "the errors", HistoryArgs, C, 2, "READ_ONLY_SAFE", frozenset({"link_states"}),
+                       "argus_internal", link_states, runs_in="worker"),   # T-0046 L4: offered to no class yet (L6)
         CapabilitySpec("database.health", "inspect_database_health",
                        "PostgreSQL health read on the target host with a monitoring role: connection slots used vs "
                        "usable, connections by state and by client (application/role), the longest open transactions "

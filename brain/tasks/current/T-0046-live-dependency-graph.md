@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | `in progress` — [ACR-0025](../../architecture/changes/ACR-0025-live-dependency-graph.md) accepted (#214); L1 merged (#219), L2 merged (#220), L3 in review (`task/T-0046-l3-link-transitions`) |
+| Status | `in progress` — [ACR-0025](../../architecture/changes/ACR-0025-live-dependency-graph.md) accepted (#214); L1 merged (#219), L2 merged (#220), L3 in review (#226), L4 in review (`task/T-0046-l4-read-link-history`, on top of L3) |
 | Phase | next phase, area B (separate track of [NEXT-PHASE](NEXT-PHASE-supervised-remediation.md)) |
 | Architecture | ACR-0025 (`accepted`, applied in 1.8.24 by L1) |
 | Branch | one branch per step: `task/T-0046-l<n>-<slug>` |

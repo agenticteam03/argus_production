@@ -264,6 +264,12 @@ class SqliteStore:
         return [{"owner": r[0], "dependency": r[1], "state": r[2], "latency_ms": r[3], "reason": r[4],
                  "at": datetime.fromisoformat(r[5])} for r in rows]
 
+    def latest_link_events(self) -> dict[tuple[str, str], dict[str, Any]]:
+        """T-0046 L4: the last recorded transition of every link, by (owner, dependency) (the map's `since`)."""
+        rows = self._q("SELECT owner,dependency,state,at FROM link_event WHERE id IN "
+                       "(SELECT MAX(id) FROM link_event GROUP BY owner, dependency)")
+        return {(r[0], r[1]): {"state": r[2], "at": datetime.fromisoformat(r[3])} for r in rows}
+
     def close_queued_incident(self, incident_id: str, outcome: str, diagnosis: str, closed_at: datetime) -> bool:
         """Close an incident no worker has claimed (T-0026). False when it is no longer queued (claimed meanwhile)."""
         with self._lock:

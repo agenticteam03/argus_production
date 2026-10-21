@@ -133,6 +133,19 @@ def test_link_events_migration_009(runtime_dsn, store):
             c.execute("INSERT INTO link_event (owner, dependency, state, at) VALUES ('a', 'b', 'down', now())")
 
 
+def test_latest_link_events(store):
+    """T-0046 L4: the map's `since` is the last recorded transition of each link (one row per link, the newest)."""
+    from argus.domain.model import utcnow
+    now = utcnow()
+    web, db, cache = "vm-166/container:pg-l4-web", "vm-166/container:pg-l4-db", "vm-166/container:pg-l4-cache"
+    store.add_link_event(web, db, "ok", 2.0, None, now - timedelta(minutes=9))
+    store.add_link_event(web, db, "broken", None, "timeout", now - timedelta(minutes=4))
+    store.add_link_event(web, cache, "slow", 220.0, None, now - timedelta(minutes=2))
+    latest = store.latest_link_events()
+    assert latest[(web, db)]["state"] == "broken" and latest[(web, cache)]["state"] == "slow"
+    assert abs((latest[(web, db)]["at"] - (now - timedelta(minutes=4))).total_seconds()) < 1
+
+
 def test_worker_lease(store):
     """T-0014: a claim is a lease; only expired claims go back to the queue (tests/test_worker_lease.py, SQLite)."""
     from argus.domain.model import IncidentStatus, utcnow
