@@ -222,8 +222,11 @@ diff-coverage gates, LLM injection regression testing, CI security scanners.)
    changed lines; Vitest coverage thresholds for `frontend/`. A changed-lines gate never blocks on old, untested code.
    *Done 2026-10-20 for Python (`task/OP-014-4-7-ci-gates`):* the `test` job runs the suite under `pytest-cov`
    (`argus/`, `services/`) and `diff-cover` fails a PR whose changed lines there are under 80 % covered (against
-   `origin/main`). Run in CI only: the full suite under coverage ran out of memory on a laptop. Vitest coverage
-   waits for OP-017 (it needs `@vitest/coverage-v8`, and Vitest's own advisories are a major upgrade).
+   `origin/main`). Run in CI only: the full suite under coverage ran out of memory on a laptop. *Done 2026-10-21
+   for `frontend/` (`task/OP-014-4-vitest-coverage`, after OP-017's Vitest 5):* `npm test` runs Vitest with
+   `@vitest/coverage-v8` over every source file and fails under floors set just below that day's figures (lines 33,
+   statements 33, functions 28, branches 26 %); raised as tests are added, never lowered. A floor, not a
+   changed-lines gate: the pages are mostly covered by Playwright, which it does not count.
 5. **Static analysis (SAST):** `ruff` for Python; `bandit` or `semgrep` (OWASP / Python rulesets) failing on high
    severity. CodeQL code scanning is not available for private repositories on the free plan, so these run as
    plain CI steps without SARIF upload. *Done 2026-10-20 (`task/OP-014-5-static-analysis`):* `ruff` (default rules, E731 ignored)
