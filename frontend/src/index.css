@@ -13,6 +13,25 @@
   --color-accent-hover: #5b9bff;
   --color-danger: oklch(74% 0.115 25);
 
+  /* Text, surface and overlay tokens. Components use these instead of fixed greys / white overlays, so the light
+     theme below only has to change values, never markup. `ink` is the strong text colour and the base of the
+     faint overlays (bg-ink/5); `scrim` darkens what is behind a dialog; `md-*` colour the rendered runbooks. */
+  --color-ink: #f2f4f8;
+  --color-body: #d6dbe6;
+  --color-soft: #a3abba;
+  --color-faint: #4b5363;
+  --color-disabled: #10141b;
+  --color-field-hover: #313a4b;
+  --color-scrim: rgb(0 0 0 / 0.6);
+  --color-md-text: var(--color-md-text);
+  --color-md-heading: var(--color-md-heading);
+  --color-md-line: var(--color-md-line);
+  --color-md-bg: #0d1117;
+  --color-md-head: #151b23;
+  --color-md-muted: var(--color-md-muted);
+  --color-md-link: var(--color-md-link);
+  --color-md-code: rgb(110 118 129 / 0.4);
+
   /* Status palette. The status/risk badges use Tailwind's built-in shades (emerald/amber/red/sky/blue); overriding
      those shades here keeps every existing class (text-emerald-300, bg-amber-400/10, border-red-400/20, ...) but
      tunes them to a lower chroma than Tailwind's defaults, so the accents read clearly next to the blue theme
@@ -38,38 +57,43 @@
     height: 100%;
   }
 
-  html {
+  :root {
     color-scheme: dark;
+    --scroll-thumb: rgb(255 255 255 / 0.16);
+    --scroll-thumb-hover: rgb(255 255 255 / 0.28);
+    --glow-1: #0e1d42;
+    --glow-2: #070b16;
+    --glow-3: #020306;
   }
 
   /* Thin scrollbars with no visible track, on the page and inside every list, menu, drawer and textarea. */
   * {
     scrollbar-width: thin;
-    scrollbar-color: rgba(255, 255, 255, 0.16) transparent;
+    scrollbar-color: var(--scroll-thumb) transparent;
   }
   @supports not (scrollbar-color: auto) {
     *::-webkit-scrollbar { width: 8px; height: 8px; }
     *::-webkit-scrollbar-track, *::-webkit-scrollbar-corner { background: transparent; }
-    *::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.16); border-radius: 999px; }
-    *::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.28); }
+    *::-webkit-scrollbar-thumb { background: var(--scroll-thumb); border-radius: 999px; }
+    *::-webkit-scrollbar-thumb:hover { background: var(--scroll-thumb-hover); }
   }
 
   body {
-    color: #f2f4f8;
+    color: var(--color-ink);
     background-color: var(--color-page);
-    background-image: radial-gradient(120% 80% at 50% 0%, #0e1d42 0%, #070b16 45%, #020306 100%);
+    background-image: radial-gradient(120% 80% at 50% 0%, var(--glow-1) 0%, var(--glow-2) 45%, var(--glow-3) 100%);
     background-attachment: fixed;
     -webkit-font-smoothing: antialiased;
   }
 }
 
-/* GitHub-dark style rendering for runbooks (used by RunbookDrawer). */
-.markdown-body { font-size: 15px; line-height: 1.6; color: #e6edf3; overflow-wrap: break-word; }
+/* GitHub style rendering for runbooks (RunbookDrawer) and agent text; the colours come from the md-* tokens, dark or light. */
+.markdown-body { font-size: 15px; line-height: 1.6; color: var(--color-md-text); overflow-wrap: break-word; }
 .markdown-body > :first-child { margin-top: 0 !important; }
 .markdown-body > :last-child { margin-bottom: 0 !important; }
-.markdown-body h1, .markdown-body h2, .markdown-body h3, .markdown-body h4 { margin: 28px 0 16px; font-weight: 600; line-height: 1.25; color: #f0f6fc; }
-.markdown-body h1 { font-size: 2em; padding-bottom: 0.3em; border-bottom: 1px solid #3d444d; }
-.markdown-body h2 { font-size: 1.5em; padding-bottom: 0.3em; border-bottom: 1px solid #3d444d; }
+.markdown-body h1, .markdown-body h2, .markdown-body h3, .markdown-body h4 { margin: 28px 0 16px; font-weight: 600; line-height: 1.25; color: var(--color-md-heading); }
+.markdown-body h1 { font-size: 2em; padding-bottom: 0.3em; border-bottom: 1px solid var(--color-md-line); }
+.markdown-body h2 { font-size: 1.5em; padding-bottom: 0.3em; border-bottom: 1px solid var(--color-md-line); }
 .markdown-body h3 { font-size: 1.25em; }
 .markdown-body h4 { font-size: 1em; }
 .markdown-body p, .markdown-body ul, .markdown-body ol, .markdown-body table, .markdown-body pre, .markdown-body blockquote { margin: 0 0 16px; }
@@ -77,16 +101,64 @@
 .markdown-body ul { list-style: disc; }
 .markdown-body ol { list-style: decimal; }
 .markdown-body li + li { margin-top: 0.25em; }
-.markdown-body a { color: #4493f8; text-decoration: none; }
+.markdown-body a { color: var(--color-md-link); text-decoration: none; }
 .markdown-body a:hover { text-decoration: underline; }
-.markdown-body strong { font-weight: 600; color: #f0f6fc; }
-.markdown-body code { padding: 0.2em 0.4em; font-size: 85%; font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace; background: rgba(110, 118, 129, 0.4); border-radius: 6px; }
-.markdown-body pre { padding: 16px; overflow: auto; font-size: 85%; line-height: 1.45; background: #151b23; border-radius: 6px; }
+.markdown-body strong { font-weight: 600; color: var(--color-md-heading); }
+.markdown-body code { padding: 0.2em 0.4em; font-size: 85%; font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace; background: var(--color-md-code); border-radius: 6px; }
+.markdown-body pre { padding: 16px; overflow: auto; font-size: 85%; line-height: 1.45; background: var(--color-md-head); border-radius: 6px; }
 .markdown-body pre code { padding: 0; font-size: 100%; background: transparent; white-space: pre; }
 .markdown-body table { display: block; width: max-content; max-width: 100%; overflow: auto; border-collapse: collapse; }
-.markdown-body th, .markdown-body td { padding: 6px 13px; border: 1px solid #3d444d; }
+.markdown-body th, .markdown-body td { padding: 6px 13px; border: 1px solid var(--color-md-line); }
 .markdown-body th { font-weight: 600; }
-.markdown-body tr { background: #0d1117; border-top: 1px solid #3d444d; }
-.markdown-body tr:nth-child(2n) { background: #151b23; }
-.markdown-body blockquote { padding: 0 1em; color: #9198a1; border-left: 0.25em solid #3d444d; }
-.markdown-body hr { height: 0.25em; margin: 24px 0; background: #3d444d; border: 0; }
+.markdown-body tr { background: var(--color-md-bg); border-top: 1px solid var(--color-md-line); }
+.markdown-body tr:nth-child(2n) { background: var(--color-md-head); }
+.markdown-body blockquote { padding: 0 1em; color: var(--color-md-muted); border-left: 0.25em solid var(--color-md-line); }
+.markdown-body hr { height: 0.25em; margin: 24px 0; background: var(--color-md-line); border: 0; }
+
+/* Light theme: same layout, same accent; only values change. Selected with <html data-theme="light"> (utils/theme.js).
+   Status shades are darkened so text-*-300 stays readable on white; the tinted badge backgrounds adapt by themselves. */
+:root[data-theme="light"] {
+  color-scheme: light;
+  --scroll-thumb: rgb(18 26 38 / 0.22);
+  --scroll-thumb-hover: rgb(18 26 38 / 0.36);
+  --glow-1: #dbe7f9;
+  --glow-2: #edf2fa;
+  --glow-3: #f4f6f9;
+
+  --color-page: #f4f6f9;
+  --color-card: #ffffff;
+  --color-line: #e1e6ee;
+  --color-muted: #5b6678;
+  --color-field: #f3f5f9;
+  --color-field-line: #d3dae5;
+  --color-accent: #2563eb;
+  --color-accent-hover: #1d4ed8;
+  --color-danger: oklch(52% 0.17 25);
+
+  --color-ink: #121a26;
+  --color-body: #263246;
+  --color-soft: #4b5668;
+  --color-faint: #8794a8;
+  --color-disabled: #e8ecf2;
+  --color-field-hover: #b7c1d1;
+  --color-scrim: rgb(18 26 38 / 0.38);
+  --color-md-text: #1f2328;
+  --color-md-heading: #1f2328;
+  --color-md-line: #d1d9e0;
+  --color-md-bg: #ffffff;
+  --color-md-head: #f6f8fa;
+  --color-md-muted: #59636e;
+  --color-md-link: #0969da;
+  --color-md-code: rgb(129 139 152 / 0.18);
+
+  --color-red-400: oklch(58% 0.17 25);
+  --color-red-300: oklch(46% 0.16 25);
+  --color-amber-400: oklch(68% 0.14 75);
+  --color-amber-300: oklch(47% 0.11 70);
+  --color-emerald-400: oklch(58% 0.12 165);
+  --color-emerald-300: oklch(42% 0.10 165);
+  --color-sky-400: oklch(58% 0.12 240);
+  --color-sky-300: oklch(45% 0.12 240);
+  --color-blue-400: oklch(55% 0.16 260);
+  --color-blue-300: oklch(45% 0.15 260);
+}
