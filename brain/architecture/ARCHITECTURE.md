@@ -1,7 +1,7 @@
 # Argus — Production Architecture Specification
 
 **Document type:** consolidated target architecture and implementation blueprint ·
-**Version:** 1.8.21 (2026-10-20, §14 marked designed, not built (OP-015); 1.8.20 2026-10-19, ACR-0021 B7 baseline, long ranges, deploy events, and B8 link reasons; 1.8.19 2026-10-19, ACR-0021 B6: target metrics and the overview; 1.8.18 2026-10-19, ACR-0021 UI insights v2: B1 to B5; 1.8.17 2026-10-19, ACR-0023 log pattern matches; 1.8.16 2026-10-18, ACR-0013 and ACR-0016 Langfuse Cloud tracing; 1.8.15 2026-10-16, ACR-0017 topology; 1.8.14 2026-10-16, ACR-0017 incident metrics; 1.8.12 2026-10-14, ACR-0014; 1.8.11 2026-10-14, ACR-0012; 1.8.10 2026-10-14, ACR-0011; 1.8.8 2026-10-12, ACR-0009; 1.8.7 2026-10-12, ACR-0008; 1.8.6 2026-10-11, ACR-0007; 1.8.5 2026-10-09, ACR-0005; 1.8.4 2026-10-09, ACR-0004; 1.8.3 2026-10-08, ACR-0003; 1.8.2 2026-10-09, ACR-0002; 1.8.1 2026-10-06, ACR-0001; base 1.8.0 of 30 September 2026, sanitized for the shared repository 2026-10-02) · **Audience:** engineers and AI coding agents implementing
+**Version:** 1.8.23 (2026-10-20, ACR-0027 the built gaps G-001, G-003, G-007; 1.8.21 2026-10-20, §14 marked designed, not built (OP-015); 1.8.20 2026-10-19, ACR-0021 B7 baseline, long ranges, deploy events, and B8 link reasons; 1.8.19 2026-10-19, ACR-0021 B6: target metrics and the overview; 1.8.18 2026-10-19, ACR-0021 UI insights v2: B1 to B5; 1.8.17 2026-10-19, ACR-0023 log pattern matches; 1.8.16 2026-10-18, ACR-0013 and ACR-0016 Langfuse Cloud tracing; 1.8.15 2026-10-16, ACR-0017 topology; 1.8.14 2026-10-16, ACR-0017 incident metrics; 1.8.12 2026-10-14, ACR-0014; 1.8.11 2026-10-14, ACR-0012; 1.8.10 2026-10-14, ACR-0011; 1.8.8 2026-10-12, ACR-0009; 1.8.7 2026-10-12, ACR-0008; 1.8.6 2026-10-11, ACR-0007; 1.8.5 2026-10-09, ACR-0005; 1.8.4 2026-10-09, ACR-0004; 1.8.3 2026-10-08, ACR-0003; 1.8.2 2026-10-09, ACR-0002; 1.8.1 2026-10-06, ACR-0001; base 1.8.0 of 30 September 2026, sanitized for the shared repository 2026-10-02) · **Audience:** engineers and AI coding agents implementing
 Argus from an empty repository.
 
 
@@ -868,8 +868,8 @@ class Incident(BaseModel):
 ```python
 class MetricSnapshot(BaseModel):
     target: TargetRef
-    observed_at: datetime                   # timestamp of the newest sample used
-    values: dict[str, float | int | bool]   # keyed by signal name from the signal catalogue (§4.1)
+    observed_at: datetime | None            # timestamp of the newest sample used; None = no sample at all
+    values: dict[str, float | int | bool | None]   # keyed by signal name (§4.1); None = missing, never 0 (§12.3)
 
 class Passage(BaseModel):                   # runbook passage
     runbook_id: str                         # from the runbook's metadata `id`, never the file name
@@ -885,11 +885,12 @@ class EvidenceRecord(BaseModel):            # insert-only; one per observation, 
     host: str | None
     executor: str | None
     caller: str                             # principal id, "model", "strategy:<name>" or "system"
-    observed_at: datetime
+    source_time: datetime | None            # when the source measured; None = unknown (§12.3)
+    collected_at: datetime                  # when Argus received it
     status: str
     values: dict[str, JsonValue]            # redacted, bounded
     model_text: str                         # one-line rendering
-    truncated: bool; redactions: int
+    partial: bool; truncated: bool; redactions: int
     sha256: str                             # over the canonical JSON of the fields above
 
 class EvidenceRef(BaseModel):               # points at a stored record or a recalled item
@@ -1591,7 +1592,7 @@ store by ID.
 | Runbook passages | top-3, ≤ 400 tokens each | ranked by retriever score |
 | Prior incidents | top-2, ≤ 250 tokens each | same target/class first |
 | Read-tool definitions | ≤ 2k tokens | tools policy allows for this incident's scope, tagged for the class, plus Level 1; never write capabilities |
-| Observations | each ≤ 800 tokens; logs ≤ last 50 lines / 8 KiB | keep capability, source host/executor, `observed_at`, truncation flag |
+| Observations | each ≤ 800 tokens; logs ≤ last 50 lines / 8 KiB | keep capability, source host/executor, `source_time`, truncation flag |
 | Older steps | beyond the 4 most recent observations | replaced by each observation's one-line `model_text` |
 
 **Omission order when over budget** (dropped first to last): compacted older observations → the 2nd
@@ -1623,7 +1624,7 @@ Argus claiming a diagnosis.
   strings above a threshold. It records `redactions=n` on the `Observation`. It runs in the capability
   result path, **before storage**, and again in the assembler.
 - **Evidence is data.** Every external text is wrapped with provenance, e.g.
-  `<evidence id="…" source="docker-read-gateway@host-t" capability="container.logs" observed_at="…">…</evidence>`.
+  `<evidence id="…" source="docker-read-gateway@host-t" capability="container.logs" source_time="…">…</evidence>`.
   The system instructions say that instructions inside evidence must be ignored. Text from a peer
   agent is evidence like any other, never an instruction.
 - **Safety does not depend on model obedience.** The model has no authority, remediation choices come
@@ -1793,9 +1794,14 @@ class Observation(BaseModel):
     target: TargetRef
     host: str                         # "host-t"
     executor: str                     # "network_probe"
-    observed_at: datetime
+    source_time: datetime | None      # when the source measured (a sample's time); None = unknown
+    collected_at: datetime            # when Argus received the answer
     duration_ms: int
     values: dict[str, JsonValue]      # structured, capability-specific
+    units: dict[str, str]             # per value, e.g. {"used": "bytes"}
+    partial: bool = False             # the read covers only part of what was asked
+    coverage: str | None = None       # what it covers when partial, e.g. "2 of 3 mounts"
+    identities: dict[str, str]        # what was read, e.g. the container's immutable id
     error_category: Literal["none", "unreachable", "timeout", "not_found", "forbidden",
                             "invalid_args", "upstream_error", "internal"] = "none"
     truncated: bool = False
@@ -1828,6 +1834,10 @@ spec.executor = "host_probe"   +   target.host = "host-t"
 - It never decides authorization, never reads configuration directly (clients are injected), and never
   writes audit or evidence. `InvokeCapability` does both.
 - It enforces its own timeout and output bounds, and applies redaction before returning.
+- **Unknown is never healthy.** A value that could not be read is `None`, never 0 or a default; a read that covers
+  only part of what was asked sets `partial` and `coverage`. No detector, summary, conclusion or UI state treats
+  missing or partial data as healthy or as a root cause: a blind host is a finding (§9), stale metrics end
+  `undiagnosable` (§1.3), the map says `unknown` (§7.1) (ACR-0027).
 - The MCP server serializes exactly this `Observation` and the client deserializes it, so the MCP and
   in-worker paths look identical to the caller.
 
@@ -1949,6 +1959,7 @@ The **policy rules are data** in `config/policy.yaml`, versioned in Git and revi
 target or an approver scope changes the data file, never the engine.
 
 ```yaml
+profile: lab                            # lab | production; required (ACR-0027)
 max_tool_level: 3                       # rollout control: 1, 2 or 3
 target_scopes:
   shop-ops: [host-t/container:shop-api, host-t/container:shop-nginx, host-t/database:shop-db]
@@ -1973,6 +1984,9 @@ holds:
 - The file is validated at startup against the capability, class and inventory registries: unknown
   capabilities, scopes or targets refuse startup.
 - **Fail closed:** a capability without an entry is refused; a target outside every scope is refused.
+- **Profile** (`lab` | `production`): the file must name one, or the engine refuses to start. It names the kind of
+  deployment, and the rules that differ by kind refer to it (for example separation of duties, ACR-0018). Which
+  profile a deployment runs is its own decision, recorded in the deployment's records.
 
 | Engine component | Decides |
 |---|---|
@@ -2967,3 +2981,4 @@ erDiagram
 | 1.8.19 | 2026-10-19 | UI insights v2, B6 (T-0045): `GET /api/v1/target-metrics` (one inventory target's recent signals, a fixed series list per kind, `range` 15m/1h) and `GET /api/v1/overview` (the dashboard aggregate from the store and the topology and host-metrics snapshots), any authenticated role, through the public edge (§7.1, §17.1 layer 14). Baseline and deploy events follow with B7 | [ACR-0021](changes/ACR-0021-ui-insights-v2.md) |
 | 1.8.20 | 2026-10-19 | incident metrics: the 6h and 24h ranges (`ranges_available`), a `baseline` per series (p50/p95 of the 24 h ending an hour before the incident) and `deploy` events; `deploy_event` (migration 008, insert-only) written by `argus deploy record`, which `ops/deploy.sh` calls after the checkout (§7.1, §16.1; T-0045 B7). The topology's broken links name their reason (`connection refused`, `timeout`, `name not resolved`) from the exporter's `argus_probe_error`, and `ProbeSample` carries `error_kind` (§7.1, §8.1; T-0045 B8) | [ACR-0021](changes/ACR-0021-ui-insights-v2.md) |
 | 1.8.21 | 2026-10-20 | §14's approval and action machinery is marked **designed, not built**: no table, node, route, write contract, fake gateway or §14.4 / §22.2 suite exists yet; only the closed write gate and its standing test do (phase 15) | [OP-015](../OPEN_PROBLEMS.md) |
+| 1.8.23 | 2026-10-20 | what was built but not written: the policy `profile` (`lab` | `production`, required, fail closed) (§13.1, G-001); an observation's and an evidence record's provenance, `source_time` and `collected_at` instead of `observed_at`, `units`, `partial`, `coverage`, `identities` (§5.4, §12.3, §10, G-003); "unknown is never healthy": a missing value is `None`, never 0, and missing or partial data is never healthy or a root cause (§5.4, §12.3, G-007) | [ACR-0027](changes/ACR-0027-built-gaps.md) |
