@@ -16,6 +16,12 @@ from argus.ports.ports import InventoryPort
 from argus.tooling.executors import ExecutorRegistry
 
 
+# The read gateway's envelope on every answer (services/target/service.py): the attribution guard reads `host` before
+# minimization. A minimized read drops both, but they are not data, so they are not named in `dropped_fields` (ACR-0028:
+# the audit must show a field the gateway grew, not the same two names on every read).
+GATEWAY_ENVELOPE = frozenset({"host", "role"})
+
+
 class Dispatcher:
     def __init__(self, inventory: InventoryPort, executors: ExecutorRegistry,
                  credentials: dict[tuple[str, str], str], redactor: Redactor,
@@ -66,6 +72,7 @@ class Dispatcher:
         values, dropped = res.values, []
         if spec.allowed_fields is not None:     # ACR-0028: only the declared paths, before redaction and storage
             values, dropped = minimize(values, spec.allowed_fields)
+            dropped = [d for d in dropped if d not in GATEWAY_ENVELOPE]
         values, n1 = self.redactor.value(values)
         text, n2 = self.redactor.text(res.model_text)
         raw = json.dumps(values, default=str)

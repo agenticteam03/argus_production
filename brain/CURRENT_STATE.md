@@ -7,6 +7,11 @@ shared-Brain setup B1–B8 under way (three developers).
 > The VMs are authoritative for what runs there: run `sudo bash /opt/argus-v18/app/ops/deploy.sh status` (or read
 > `/opt/argus-v18/DEPLOYED`) and the state probe before trusting this file.
 
+> **Update 2026-10-21 (`conantkd`, DEPLOY-A4479DF, OBSERVED with `deploy.sh status`):** **vm-095 runs `main` `a4479df`**
+> (phase 16 step 1 #223: sessions, logout, revocation, permissions, the audit hash chain; ACR-0026 #210; ACR-0028
+> #222; T-0046 L3 #226 with `link_states` off and L4 #227; T-0047 H1 #228; React Router 7 #229). Database at
+> migration **011**; the audit chain starts after 3893 unchained rows. EdDSA off (no key installed). vm-166 stays on
+> `bdcd048`. Evidence: `execution/history/DEPLOY-A4479DF/step-01/evidence.md`.
 > **Update 2026-10-21 (`conantkd`, DEPLOY-NIGHT, OBSERVED with `deploy.sh status`):** **vm-095 runs `main` `024aa6f`**
 > (T-0046 L1 #219, migration **009** `link_event` #220, #221). Database at migration 009. vm-166 stays on `bdcd048`.
 > Evidence: `execution/history/DEPLOY-NIGHT/step-01/evidence.md`.

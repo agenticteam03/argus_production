@@ -19,6 +19,12 @@ from argus.domain.model import AuditRecord, EvidenceRecord, Incident, TargetRef,
 
 AUDIT_CHAIN_LOCK = 0x41524755530A   # pg_advisory_xact_lock key of the audit chain (ACR-0018)
 
+# T-0046 L4: link_event rows with the state of the row before them on the same link (time, then id), so a row that
+# repeats it (the recorder's row at a restart) is not read as a transition. Same rule as the SQLite store.
+_LINK_ROWS = ("SELECT id, owner, dependency, state, latency_ms, reason, at, LAG(state) OVER (PARTITION BY owner, "
+              "dependency ORDER BY at, id) AS prev FROM link_event")
+
+
 class PostgresStore:
     def __init__(self, conninfo: str, min_size: int = 1, max_size: int = 4):
         self.pool = ConnectionPool(conninfo, min_size=min_size, max_size=max_size, open=True,
@@ -231,16 +237,19 @@ class PostgresStore:
         self._q("DELETE FROM login_failure WHERE at < %s", (before,))
 
     def link_events(self, target: str, start: datetime, end: datetime) -> list[dict[str, Any]]:
-        """The transitions of the links `target` owns or is the dependency of, from `start` to `end`, oldest first."""
-        rows = self._q("SELECT owner, dependency, state, latency_ms, reason, at FROM link_event "
-                       "WHERE (owner = %s OR dependency = %s) AND at >= %s AND at <= %s ORDER BY at, id",
+        """The transitions of the links `target` owns or is the dependency of, from `start` to `end`, oldest first.
+        A row that repeats its link's previous state (the recorder's row at a restart) is not a transition."""
+        rows = self._q("SELECT owner, dependency, state, latency_ms, reason, at FROM "
+                       f"({_LINK_ROWS} WHERE owner = %s OR dependency = %s) AS e "
+                       "WHERE (prev IS NULL OR prev <> state) AND at >= %s AND at <= %s ORDER BY at, id",
                        (target, target, start, end))
         return [{"owner": r[0], "dependency": r[1], "state": r[2], "latency_ms": r[3], "reason": r[4], "at": r[5]}
                 for r in rows]
 
     def latest_link_events(self) -> dict[tuple[str, str], dict[str, Any]]:
         """T-0046 L4: the last recorded transition of every link, by (owner, dependency) (the map's `since`)."""
-        rows = self._q("SELECT DISTINCT ON (owner, dependency) owner, dependency, state, at FROM link_event "
+        rows = self._q("SELECT DISTINCT ON (owner, dependency) owner, dependency, state, at "
+                       f"FROM ({_LINK_ROWS}) AS e WHERE prev IS NULL OR prev <> state "
                        "ORDER BY owner, dependency, at DESC, id DESC")
         return {(r[0], r[1]): {"state": r[2], "at": r[3]} for r in rows}
 
