@@ -167,6 +167,8 @@ class EvidenceRef(BaseModel):
     capability: str | None
     status: str
     model_text: str
+    target: str | None = None             # ACR-0024: what it is evidence of (the hypothesis checks need it)
+    kind: str | None = None               # observation, metric_snapshot, alert, reported_symptom
 
 
 class MetricSnapshot(BaseModel):
@@ -192,9 +194,23 @@ class ReadCall(BaseModel):
     arguments: dict[str, JsonValue]
 
 
+class Hypothesis(BaseModel):
+    """ACR-0024: one candidate explanation a model strategy states, with the evidence for and against it."""
+    id: str = Field(pattern=r"^h[1-5]$")             # stable across the steps of one incident
+    statement: str = Field(min_length=1, max_length=200)
+    cause_class: str                                 # an incident class name, or "other"
+    target: str | None = None                        # in the incident's scope; None only for `external`
+    relation: Literal["self", "dependency", "host", "external"]
+    status: Literal["supported", "ruled_out", "untested"]
+    support: list[str] = []                          # evidence ids for it
+    against: list[str] = []                          # evidence ids against it
+
+
 class UseReadTools(BaseModel):
     kind: Literal["use_read_tools"] = "use_read_tools"
     calls: list[ReadCall]
+    hypotheses: list[Hypothesis] = []                # ACR-0024: no tool carries it yet (T-0047 H2)
+    hypothesis_problems: list[str] = []              # ACR-0024 §3.2 would-be refusals, log-only until H4
 
 
 class Conclude(BaseModel):
@@ -203,12 +219,17 @@ class Conclude(BaseModel):
     evidence_ids: list[str]
     confidence: Literal["low", "medium", "high"]
     root_cause_target: str | None = None
+    hypotheses: list[Hypothesis] = []                # ACR-0024: ≤ 5; required of a model strategy (log-only, H1)
+    chosen: str | None = None                        # the hypothesis id the diagnosis is
+    hypothesis_problems: list[str] = []
 
 
 class Escalate(BaseModel):
     kind: Literal["escalate"] = "escalate"
     reason: str
     evidence_ids: list[str] = []
+    hypotheses: list[Hypothesis] = []                # what was considered before giving up
+    hypothesis_problems: list[str] = []
 
 
 AgentDecision = Annotated[UseReadTools | Conclude | Escalate, Field(discriminator="kind")]

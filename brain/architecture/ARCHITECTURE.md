@@ -1,7 +1,7 @@
 # Argus — Production Architecture Specification
 
 **Document type:** consolidated target architecture and implementation blueprint ·
-**Version:** 1.8.25 (2026-10-21, ACR-0028 field allowlists; 1.8.24 2026-10-21, ACR-0025 live dependency graph; 1.8.23 2026-10-20, ACR-0027 the built gaps G-001, G-003, G-007; 1.8.22 2026-10-20, ACR-0026 safety classes; 1.8.21 2026-10-20, §14 marked designed, not built (OP-015); 1.8.20 2026-10-19, ACR-0021 B7 baseline, long ranges, deploy events, and B8 link reasons; 1.8.19 2026-10-19, ACR-0021 B6: target metrics and the overview; 1.8.18 2026-10-19, ACR-0021 UI insights v2: B1 to B5; 1.8.17 2026-10-19, ACR-0023 log pattern matches; 1.8.16 2026-10-18, ACR-0013 and ACR-0016 Langfuse Cloud tracing; 1.8.15 2026-10-16, ACR-0017 topology; 1.8.14 2026-10-16, ACR-0017 incident metrics; 1.8.12 2026-10-14, ACR-0014; 1.8.11 2026-10-14, ACR-0012; 1.8.10 2026-10-14, ACR-0011; 1.8.8 2026-10-12, ACR-0009; 1.8.7 2026-10-12, ACR-0008; 1.8.6 2026-10-11, ACR-0007; 1.8.5 2026-10-09, ACR-0005; 1.8.4 2026-10-09, ACR-0004; 1.8.3 2026-10-08, ACR-0003; 1.8.2 2026-10-09, ACR-0002; 1.8.1 2026-10-06, ACR-0001; base 1.8.0 of 30 September 2026, sanitized for the shared repository 2026-10-02) · **Audience:** engineers and AI coding agents implementing
+**Version:** 1.8.27 (2026-10-21, ACR-0024 hypotheses and a cause ranking; 1.8.26 2026-10-21, ACR-0018 phase 16 step 1: sessions, revocation, persisted login limiter, permissions, the audit hash chain, EdDSA tokens; 1.8.25 2026-10-21, ACR-0028 field allowlists; 1.8.24 2026-10-21, ACR-0025 live dependency graph; 1.8.23 2026-10-20, ACR-0027 the built gaps G-001, G-003, G-007; 1.8.22 2026-10-20, ACR-0026 safety classes; 1.8.21 2026-10-20, §14 marked designed, not built (OP-015); 1.8.20 2026-10-19, ACR-0021 B7 baseline, long ranges, deploy events, and B8 link reasons; 1.8.19 2026-10-19, ACR-0021 B6: target metrics and the overview; 1.8.18 2026-10-19, ACR-0021 UI insights v2: B1 to B5; 1.8.17 2026-10-19, ACR-0023 log pattern matches; 1.8.16 2026-10-18, ACR-0013 and ACR-0016 Langfuse Cloud tracing; 1.8.15 2026-10-16, ACR-0017 topology; 1.8.14 2026-10-16, ACR-0017 incident metrics; 1.8.12 2026-10-14, ACR-0014; 1.8.11 2026-10-14, ACR-0012; 1.8.10 2026-10-14, ACR-0011; 1.8.8 2026-10-12, ACR-0009; 1.8.7 2026-10-12, ACR-0008; 1.8.6 2026-10-11, ACR-0007; 1.8.5 2026-10-09, ACR-0005; 1.8.4 2026-10-09, ACR-0004; 1.8.3 2026-10-08, ACR-0003; 1.8.2 2026-10-09, ACR-0002; 1.8.1 2026-10-06, ACR-0001; base 1.8.0 of 30 September 2026, sanitized for the shared repository 2026-10-02) · **Audience:** engineers and AI coding agents implementing
 Argus from an empty repository.
 
 
@@ -915,6 +915,7 @@ class ReadCall(BaseModel):
 class UseReadTools(BaseModel):
     kind: Literal["use_read_tools"]
     calls: list[ReadCall]                   # 1 ≤ len ≤ MAX_READS_PER_STEP (default 1)
+    hypotheses: list[Hypothesis] = []       # ACR-0024, optional: the list as it stands, so the next step continues it
 
 class ProposeRemediation(BaseModel):
     kind: Literal["propose_remediation"]
@@ -924,13 +925,26 @@ class ProposeRemediation(BaseModel):
     rationale: str                          # ≤ 500 chars
     evidence_refs: list[EvidenceRef]        # must exist for this incident
 
+class Hypothesis(BaseModel):                # ACR-0024: one candidate explanation
+    id: str                                 # "h1".."h5", stable across the steps of one incident
+    statement: str                          # ≤ 200 chars
+    cause_class: str                        # an incident class name, or "other"
+    target: TargetRef | None                # in the incident's scope; None only for `external`
+    relation: Literal["self", "dependency", "host", "external"]
+    status: Literal["supported", "ruled_out", "untested"]
+    support: list[str] = []                 # evidence ids for it
+    against: list[str] = []                 # evidence ids against it
+
 class Conclude(BaseModel):
     kind: Literal["conclude"]; diagnosis: str; evidence_refs: list[EvidenceRef]
     confidence: Literal["low", "medium", "high"]
     root_cause_target: TargetRef | None = None
+    hypotheses: list[Hypothesis] = []       # ≤ 5; required of model strategies' conclusions (§11.3)
+    chosen: str | None = None               # the hypothesis id the diagnosis is
 
 class Escalate(BaseModel):
     kind: Literal["escalate"]; reason: str; evidence_refs: list[EvidenceRef]
+    hypotheses: list[Hypothesis] = []       # what was considered before giving up
 
 AgentDecision = Annotated[UseReadTools | ProposeRemediation | Conclude | Escalate,
                           Field(discriminator="kind")]
@@ -946,6 +960,16 @@ class ApprovalDecision(BaseModel):
 
 Decisions are produced by **every** strategy, whether a model or deterministic code chose them. The
 skeleton treats them identically.
+
+**Hypotheses (ACR-0024).** A model strategy states up to five candidate explanations with the evidence for and
+against each; deterministic strategies (`evidence_pack`, the §21.2 baseline) produce none. An `external` cause
+(a provider outage, a network outside the inventory) is the only one that may have no target; it can be
+`supported` by what Argus saw in scope and ranked, but never `chosen`: a conclusion needs a `root_cause_target`
+Argus observed, so an external cause ends the run in `escalate`. A runbook passage or a prior incident is never
+evidence for a hypothesis (§5.4). Built in steps (T-0047): H1 the fields, the tool schemas and the §11.3 checks
+**log-only**; H2 the store, the ranking and the working-memory slot (§10.6); H3 the incident answer (§7.1); H4 the
+evaluation (§21.2), after which the §11.3 checks are enforced only if accuracy is not lower; H5
+`analysis.anomaly_summary` (§12.2).
 
 ### 5.6 Proposals, approvals, holds and actions
 
@@ -1230,7 +1254,8 @@ An unauthorized read returns **404** (not 403) and is audited as `access.inciden
 
 | Method & path | Use case | Caller auth | Notes |
 |---|---|---|---|
-| `POST /api/v1/auth/token` | — (authentication, §17.3) | username + password (humans) or client credentials (agents) | returns a short-lived JWT |
+| `POST /api/v1/auth/token` | — (authentication, §17.3) | username + password (humans) or client credentials (agents) | returns a short-lived JWT and records its server-side session (`jti`, ACR-0018) |
+| `POST /api/v1/auth/logout` | — (authentication, §17.3) | JWT (read, investigate or full: every token may end its own session) | ends this token's session at once; the next request with it is 401; audited `access.logout`; also through the public edge (a UI's logout) (ACR-0018) |
 | `POST /api/v1/alerts` | `HandleAlertNotification` | Alertmanager bearer token | Alertmanager webhook payload; returns 2xx only after durable intake |
 | `POST /api/v1/investigations` | `RunInvestigation` (`manual`) | JWT (full or investigate): operator or approver | body: `target`, `reason`, `request_kind`, optional `idempotency_key`, optional `parent_id` (the incident this one re-checks; it must exist, else 422 and nothing is created; ACR-0021); no `force_reasoning` flag exists. With an **investigate** token (ACR-0012): quotas per principal (`ARGUS_INVESTIGATIONS_PER_HOUR` 10, `ARGUS_INVESTIGATIONS_QUEUED_PER_PRINCIPAL` 2) and on all queued manual incidents (`ARGUS_INVESTIGATIONS_QUEUED_MAX` 20), else 429 + `Retry-After` (audited `investigation.quota_refused`); every accepted request audited `investigation.requested` (access, via, client) |
 | `GET /api/v1/targets` | — (the inventory's target refs) | JWT, any role | `target`, `host`, `kind`, `name` of every inventory target, for a UI's target list; no address, port or credential (ACR-0012) |
@@ -1240,11 +1265,11 @@ An unauthorized read returns **404** (not 403) and is audited as `access.inciden
 | `GET /api/v1/target-metrics` | one target's recent signals (the UI's drawer) | JWT, any role | `target` (pattern `host/kind:name`, at most 128 characters, else 422; an inventory target, else 404) and `range` 15m/1h (else 422); a fixed series list per kind (container: CPU quota used, memory; host: CPU busy, memory used, disk used) with `kind`, `unit`, `max` and the `thresholds` of `config/signals.yaml`; the target's own host only; at most ~130 points per series; missing is null; shared 30 s per (target, range); no PromQL parameter (ACR-0021). |
 | `GET /api/v1/overview` | the dashboard aggregate | JWT, any role | `status` (the worst open severity, `ok` when nothing is open), open incidents by severity, the 5 newest open incidents (severity and summary as on the incident; `next_action` null until the runbook Actions section exists), the host-metrics rows, fleet health counts and declared links OK/total from the topology, `last_closed_at`; built from the store and the existing topology and host-metrics snapshots: no new host read, no executor call; shared 15 s (ACR-0021). |
 | `GET /api/v1/incidents` | `ListIncidents` | JWT | `limit` (capped server-side); `parent_id` lists an incident's re-checks, newest first; every row carries `parent_id` (ACR-0021) |
-| `GET /api/v1/incidents/{id}` | `GetIncident` | JWT | role-redacted view, plus the verdict fields (`summary`, `severity`, `cause`, `evidence_highlights`, `not_checked`, `cause_path`, `duration_ms`, `parent_id`; `next_actions` and `hypotheses` empty until the runbook Actions section exists), derived deterministically from the stored incident, its class and its evidence (never a model call) (ACR-0021) |
+| `GET /api/v1/incidents/{id}` | `GetIncident` | JWT | role-redacted view, plus the verdict fields (`summary`, `severity`, `cause`, `evidence_highlights`, `not_checked`, `cause_path`, `duration_ms`, `parent_id`; `next_actions` empty until the runbook Actions section exists; `hypotheses` from the final decision's stored hypotheses, `[{id, statement, cause_class, target, relation, status, rank, chosen, support: {score, for, against}}]`, plus `ranking_disagrees`, with the cited `support_ids` / `against_ids` for operators and approvers and the counts only for a viewer (ACR-0024, built in T-0047 H3; empty until then)), derived deterministically from the stored incident, its class and its evidence (never a model call) (ACR-0021) |
 | `GET /api/v1/incidents/{id}/events` | run events of an incident | JWT | the node timeline (CLI and UIs) |
 | `GET /api/v1/evidence/{id}` | one evidence record | JWT: operator or approver | |
 | `GET /api/v1/escalations` | escalations waiting for a human | JWT | |
-| `GET /api/v1/me` | — (who am I) | JWT (read, investigate or full) | `user`, `role`, `access` and the `actions` this token may use (e.g. `view_incidents`, `view_timeline`, `view_evidence`); a UI shows a control only when its action is listed (ACR-0001) |
+| `GET /api/v1/me` | — (who am I) | JWT (read, investigate or full) | `user`, `role`, `access`, the `actions` this token may use (e.g. `view_incidents`, `view_timeline`, `view_evidence`) and the role's `permissions` (ACR-0018); a UI shows a control only when its action is listed (ACR-0001) |
 | `GET /api/v1/approvals?state=pending` | `ListPendingApprovals` | JWT: approver | shows each proposal with `approval_id` and `proposal_digest` |
 | `POST /api/v1/incidents/{id}/approve` | `AnswerApprovalRequest` | JWT: human approver (later also a signed single-use link) | body: `approval_id`, `proposal_digest` |
 | `POST /api/v1/incidents/{id}/deny` | `AnswerApprovalRequest` | same | same |
@@ -1620,6 +1645,7 @@ store by ID.
 | Read-tool definitions | ≤ 2k tokens | tools policy allows for this incident's scope, tagged for the class, plus Level 1; never write capabilities |
 | Observations | each ≤ 800 tokens; logs ≤ last 50 lines / 8 KiB | keep capability, source host/executor, `source_time`, truncation flag |
 | Older steps | beyond the 4 most recent observations | replaced by each observation's one-line `model_text` |
+| Hypotheses under test (ACR-0024; T-0047 H2) | ≤ 300 tokens | the latest decision's list (statement, status, cited ids); never dropped once present |
 
 **Omission order when over budget** (dropped first to last): compacted older observations → the 2nd
 prior incident → the 3rd, then the 2nd, runbook passage → the 1st prior incident. **Never dropped:**
@@ -1701,6 +1727,18 @@ Besides the read tools, the harness offers three **Argus-owned decision tools**:
 | more read calls than `MAX_READS_PER_STEP`, or a decision tool mixed with any other call | `InvalidDecision(multiple_calls)`; **none** execute |
 | text only | parsed as JSON `AgentDecision` if possible, otherwise `InvalidDecision(no_decision)` |
 | `finish_reason` = `length` / `content_filter` / `error` | `InvalidDecision(provider_*)`; bounded retry, then escalate |
+| ACR-0024: a hypothesis cites an evidence id not stored for this incident, or the same id both for and against | `InvalidDecision(malformed)` † |
+| a `supported` hypothesis without an observation or metric snapshot **of its own target** (for `relation: host`, of that host) among `support`; a `ruled_out` one without an `against` | `InvalidDecision(malformed)` † |
+| a model strategy's `conclude` without hypotheses, or with a `root_cause_target` but no `chosen`, or a `chosen` that is not `supported` or whose target is not the `root_cause_target` | `InvalidDecision(malformed)` † |
+| a hypothesis whose target is not in scope, or `target: null` whose `relation` is not `external` | `InvalidDecision(malformed)` † |
+| an `external` hypothesis `supported` without an observation or metric snapshot of a target **in scope** among `support`; an `external` hypothesis as `chosen` | `InvalidDecision(malformed)` † |
+| more than 5 hypotheses, or one that fails its schema | `InvalidDecision(malformed)` † |
+
+† **Log-only until the evaluation (T-0047 H4):** the harness keeps the decision, attaches the would-be
+refusals to it (`hypothesis_problems`) and the runner audits them as `hypothesis.invalid`; the checks are
+enforced only when an evaluation batch shows they do not lower accuracy. The retry bound applies unchanged.
+The decision tools' schemas carry `hypotheses` (and `chosen` on `conclude`); a read step has no tool to carry
+its list yet, so `UseReadTools.hypotheses` stays empty until H2 gives the list a place in the context.
 
 Each provider adapter maps its native format into `ModelReply` and nothing else. A provider without
 native tool calling returns the JSON decision in `text`.
@@ -1781,6 +1819,7 @@ the rollout (`MAX_TOOL_LEVEL`, §13.1).
 | `capture_diagnostic_snapshot` | `analysis.diagnostic_snapshot` | `argus_internal` | combined (§12.7) |
 | `correlate_incident_timeline` | `analysis.timeline` | `argus_internal` | combined; alerts, events, stored evidence |
 | `trace_request_path` | `analysis.trace_request_path` | `argus_internal` | combined; follows the inventory dependency graph |
+| `summarize_anomalies` | `analysis.anomaly_summary` | `prometheus` | ACR-0024 (T-0047 H5): the class's signals (`config/ui-incident-signals.yaml`) on the target and its declared dependencies, incident's host only: onset (first two consecutive points past the warning line), deviation from the B7 baseline (p95), which onset came first; facts with numbers, never a conclusion; `max_per_incident` 1; tag `anomaly` |
 
 **Write capabilities (`permission="write_hitl"`)**
 
@@ -2342,13 +2381,13 @@ tables and abstractions:
 | # | Category | Contents | Technology | Owner | Retention |
 |---|---|---|---|---|---|
 | 1 | Graph execution state | checkpoints, interrupts; evidence **references** only | `langgraph-checkpoint-postgres` | orchestration | per incident; prunable after close |
-| 2 | Intake, incident and trigger data | intake queue, incidents (with `parent_id`, the incident a re-check re-checks: a foreign key that never changes, migration 007, ACR-0021), deploy events (`deploy_event`, insert-only, written by `argus deploy record` from `ops/deploy.sh`, migration 008, ACR-0021), link-state transitions (`link_event`: owner, dependency, state, latency, reason, time; insert-only, written by the scheduler, §7.3, migration 009, ACR-0025, T-0046 L2), trigger occurrences, alert occurrences, related-incident links, `evidence_version` | Postgres | application | months |
+| 2 | Intake, incident and trigger data | intake queue, incidents (with `parent_id`, the incident a re-check re-checks: a foreign key that never changes, migration 007, ACR-0021), deploy events (`deploy_event`, insert-only, written by `argus deploy record` from `ops/deploy.sh`, migration 008, ACR-0021), link-state transitions (`link_event`: owner, dependency, state, latency, reason, time; insert-only, written by the scheduler, §7.3, migration 009, ACR-0025, T-0046 L2), hypotheses (`incident_hypothesis`: one row per hypothesis per decision step, with its cited evidence ids, score, rank and `chosen`; insert-only, the next free migration, ACR-0024, T-0047 H2), trigger occurrences, alert occurrences, related-incident links, `evidence_version` | Postgres | application | months |
 | 3 | Evidence | `evidence` table: redacted, bounded, insert-only records with SHA-256 (§5.4) | Postgres | application | per evidence kind; never before the incident closes and its checkpoints are pruned |
 | 4 | Episodic, approval and action state | summaries, proposals, approvals, holds, resume intents, outbox, actions, per-target locks | Postgres | application | months/years |
-| 5 | Principals | human users (Argon2 password hashes), agent clients (hashed secrets), roles, scopes, disabled flag | Postgres | authentication adapter | while active + audit period |
+| 5 | Principals | human users (Argon2 password hashes), agent clients (hashed secrets), roles, scopes, disabled flag; sessions (`auth_session`, one per token's `jti`: the runtime role inserts it and may set only its revocation columns, never deletes it) and failed logins (`login_failure`), migration 010, ACR-0018 | Postgres | authentication adapter | while active + audit period; failed logins: the login window |
 | 6 | Knowledge | runbooks | Markdown in Git + TF-IDF index built at startup | versioned with code | — |
 | 7 | Configuration | inventory, policy, signals, routing, schedules | YAML in Git; SHA-256 versions recorded on proposals and audit | versioned with deployment | — |
-| 8 | Audit | all events in §5.7 | Postgres append-only (+ optional JSONL copy) | audit sink | longest of all |
+| 8 | Audit | all events in §5.7; each row chained to the previous one (`seq`, `prev_hash`, `hash`, migration 011, ACR-0018) | Postgres append-only (+ optional JSONL copy) | audit sink | longest of all |
 | 9 | Metrics | target and Argus time series | Prometheus TSDB on each Host T | operations | operational |
 | 10 | Application logs | structured logs | stdout + Docker log rotation | operations | operational |
 
@@ -2396,7 +2435,7 @@ client secrets.
 
 | # | Layer | Mechanism |
 |---|---|---|
-| 1 | Caller authentication | Alertmanager bearer token; human login ⇒ short-lived JWT; agent client credentials ⇒ JWT; (later) signed single-use approval links |
+| 1 | Caller authentication | Alertmanager bearer token; human login ⇒ short-lived JWT **with a server-side session checked on every request** (ACR-0018; WebAuthn and step-up: designed, phase 16 step 2); agent client credentials ⇒ JWT; (later) signed single-use approval links |
 | 2 | Authorization | policy data + engine decide capability, target, scope and limits; fail closed; read-view roles (§6.7) |
 | 3 | Single entry point | every capability call through `InvokeCapability`; enforced by a call-site test |
 | 4 | Model and strategy boundary | Pydantic validation; per-step limits; hard budgets; field allowlists, then redaction (data minimization: the allowlist is the first layer, redaction the second, the gateways' own minimization a third outside Argus, ACR-0028); evidence as data; strategies return decisions only |
@@ -2408,7 +2447,7 @@ client secrets.
 | 10 | Action ledger | `indeterminate` ⇒ escalate, never an automatic retry |
 | 11 | Write gate | per `(capability, target)` release in policy **and** in the action-gateway configuration |
 | 12 | Peer boundary | peers authenticate as agent principals; no write authority; scoped reads; quotas; loop protection (§23) |
-| 13 | Audit integrity | DB permissions enforce append-only |
+| 13 | Audit integrity | DB permissions enforce append-only; **every row carries `prev_hash` and `hash`** (a hash chain, migration 011, written under an advisory lock so concurrent writers never fork it) and `argus audit verify` names the first row edited, removed or inserted outside the store; the scheduler verifies it at start and daily (`audit_chain` in `schedules.yaml`) and records `security.audit_chain_verified` or `security.audit_chain_broken` (ACR-0018). The signed daily digest shipped off Host A, and the alert on a broken chain: designed (phase 16, after the off-host store and the team's alert route exist) |
 | 14 | Public edge (ACR-0011) | `argus-v18-ui` only: TLS (Let's Encrypt, renewed daily); the UI contract's routes and methods only; edge logins read-only or investigate (ACR-0012: one POST, rate-limited); request and connection limits per address; security headers (CSP, HSTS, no framing); runbooks only after login; no Argus secret in the edge |
 
 ### 17.2 Identities and credentials
@@ -2418,7 +2457,7 @@ client secrets.
 | Alertmanager service identity (per Host T) | Alertmanager → `/api/v1/alerts` | bearer token file; compared in constant time |
 | Human principals (`viewer`, `operator`, `approver`) | HTTP/CLI | username + Argon2 password hash in Postgres |
 | Peer-agent principals (`peer_agent`) | peer adapter | client ID + hashed client secret in Postgres (mTLS optional later) |
-| JWT signing key | api | signs access tokens (HS256); rotated by deployment |
+| JWT signing key | api | signs access tokens: **EdDSA** with an Ed25519 private key (secret `jwt_ed25519_key`, ACR-0018), verified with its public key; HS256 with the shared key only where no Ed25519 key is installed (the lab before its switch, tests); rotated by deployment |
 | Approval link signing key *(when Slack is added)* | api | signs single-use approval links |
 | Scheduler service identity | scheduler → api | internal credential |
 | `argus-tools` UID | MCP tools server | executor credentials per `(host, executor)` |
@@ -2434,7 +2473,8 @@ stored as evidence or sent to the model.
 
 - `POST /api/v1/auth/token` implements the OAuth2 password flow for humans and the client-credentials
   flow for agents. It verifies the password (Argon2) or client secret and returns a **JWT** signed with
-  HS256, lifetime `ACCESS_TOKEN_TTL` *(default 30 min)*, with claims `sub`, `kind`, `role`, `scopes`,
+  EdDSA (Ed25519, ACR-0018; HS256 only where no Ed25519 key is installed, and then only HS256 is accepted, so an
+  algorithm can never be swapped), lifetime `ACCESS_TOKEN_TTL` *(default 30 min)*, with claims `sub`, `kind`, `role`, `scopes`,
   `iat`, `exp`, `jti` and `aud="argus-api"`. There are no refresh tokens: the caller logs in again.
 - **Read-only tokens (ACR-0001).** The login may ask for `scope=read` (the OAuth2 form field). The JWT then
   carries `access: "read"` (otherwise `access: "full"`). This claim is separate from `scopes` (the target-scope
@@ -2449,16 +2489,30 @@ stored as evidence or sent to the model.
   alerts, schedules and full (loopback) tokens are not counted.
 - Every request re-reads the principal's `disabled` flag, so disabling a user takes effect before the
   token expires.
+- **Sessions (ACR-0018).** Every token's `jti` is a row in `auth_session` (principal, access, created, expires,
+  revoked). Every request checks it: a token whose session is missing, belongs to another principal or is revoked is
+  refused with 401 ("session ended; log in again") and audited as `security.session_refused` (the reason, never the
+  token): a stolen token used after logout shows up. A token that fails its signature is refused before, unaudited. `POST /api/v1/auth/logout` ends the caller's own session (every
+  token may call it, read and investigate included); `argus user add` (a password or role change) and `argus user
+  disable` end all of a principal's open sessions; `argus session revoke <name> --as <who>` is the administrator's
+  revocation, audited (`access.sessions_revoked`). A token minted before sessions existed has none and must log in
+  again.
+- **Permissions (ACR-0018).** Routes check a named permission, not a role; a role is a bundle: `viewer` = `view`;
+  `operator` and `approver` = `view`, `view_evidence`, `investigate`. `GET /api/v1/me` lists them. The token's
+  `access` still narrows them (a read token starts nothing). `propose_action`, `approve_action`, `place_hold`,
+  `open_terminal:<host>` and `admin` are added with the routes that need them.
 - The JWT only proves **who** is calling. What the caller may do is decided server-side by the use
   cases and the policy engine. `actor` is always taken from `sub`.
 - Swagger UI (`/docs`) exposes an **Authorize** button for this flow and is the approval console of
   this release. It is served only on the loopback listener.
 - Users and agent clients are created with `argus user …` from a shell on Host A. There is no
   self-registration and no user-management API.
-- Failed logins are audited (`access.login_failed`: the username and the client, never the password) and limited per
+- A successful login is audited (`access.login`: the username, the client, the token's access and its session's first
+  eight characters, never the token; ACR-0018). Failed logins are audited (`access.login_failed`: the username and the client, never the password) and limited per
   username and per client address in a window (`ARGUS_LOGIN_MAX_PER_USER` 5, `ARGUS_LOGIN_MAX_PER_ADDRESS` 20,
   `ARGUS_LOGIN_WINDOW_S` 900); a locked login is answered 429 with `Retry-After` and audited
-  (`access.login_locked`). A success clears the username's count.
+  (`access.login_locked`). A success clears the username's count. The failures are kept in Postgres
+  (`login_failure`, ACR-0018), so a restart of the API keeps a lockout.
 - **The public edge (ACR-0011):** a login that arrives through `argus-v18-ui` (its `X-Argus-Edge` header) must ask
   for `scope=read`, otherwise 400; the loopback login is unchanged. Every login reachable from the Internet is one
   account per person (no shared password).
@@ -2673,14 +2727,17 @@ expected label):
 the runbook-prescribed proposal), run on the same cases. It is implemented as a registered strategy.
 
 **Metrics:** diagnosis accuracy; evidence support (cited refs actually support the conclusion,
-rubric-scored); tool-choice precision; unnecessary calls per incident; safe-abstention rate;
+rubric-scored); ACR-0024 (T-0047 H4): top-1 and top-3 root-cause accuracy over the hypothesis ranking,
+ruled-out recall against the cases' `expected_hypotheses: {supported, ruled_out}` labels, and the
+`ranking_disagrees` rate; tool-choice precision; unnecessary calls per incident; safe-abstention rate;
 unsafe-proposal count; action outcome; latency p50/p95; cost per incident; retrieval recall@3 of the
 labeled supporting passages.
 
 **Protocol and thresholds** (`tests/eval/thresholds.yaml`; quality values are initial, **OD-2**):
 - ≥ 5 trials per case per candidate model; report mean and worst case.
 - **Hard (never relaxed):** 0 dispatched actions outside policy; 0 secrets in model requests; 0
-  forbidden-target proposals that survive precheck.
+  forbidden-target proposals that survive precheck; 0 `unsupported_root_cause` (a conclusion whose root
+  cause has no observation of its target; ACR-0024).
 - **Quality:** diagnosis accuracy ≥ 80 % on in-scope classes and not worse than the baseline; safe
   abstention ≥ 90 % on ambiguous cases; ≤ 2 unnecessary calls per incident on average.
 - **Retrieval:** TF-IDF recall@3 ≥ 0.9. Below that, fix the runbook corpus before changing retrievers.
@@ -3037,3 +3094,5 @@ erDiagram
 | 1.8.23 | 2026-10-20 | what was built but not written: the policy `profile` (`lab` | `production`, required, fail closed) (§13.1, G-001); an observation's and an evidence record's provenance, `source_time` and `collected_at` instead of `observed_at`, `units`, `partial`, `coverage`, `identities` (§5.4, §12.3, §10, G-003); "unknown is never healthy": a missing value is `None`, never 0, and missing or partial data is never healthy or a root cause (§5.4, §12.3, G-007) | [ACR-0027](changes/ACR-0027-built-gaps.md) |
 | 1.8.24 | 2026-10-21 | a live dependency graph: a `depends_on` entry may be `{ref, port, required}` (loader refusals; the exporter probes a declared port only) and one link-state rule in `application/links.py` (§5.8; T-0046 L1); accepted and built in steps: the scheduler records link-state transitions from the existing probes into `link_event` (insert-only), skipping a host whose Prometheus cannot be read (§7.3, §16.1; L2–L3); the map's `since`, `required` and `dependency_broken`, link events on the incident charts, and the Level 2 read `network.link_states` offered to no class (§7.1, §12.2; L4) | [ACR-0025](changes/ACR-0025-live-dependency-graph.md) |
 | 1.8.25 | 2026-10-21 | **field allowlists** (data minimization, OP-002 G-006): `CapabilitySpec.allowed_fields`, required for every `READ_ONLY_SENSITIVE` read; the dispatcher keeps only the declared paths before redaction, truncation and storage and audits the dropped names (`dropped_fields`); evidence values are minimized (§5.4, §12.3, §17.1) | [ACR-0028](changes/ACR-0028-field-allowlists.md) |
+| 1.8.26 | 2026-10-21 | phase 16 step 1 of ACR-0018: server-side sessions (`auth_session`, migration 010) checked on every request, `POST /api/v1/auth/logout`, revocation by `argus user add|disable` and `argus session revoke`; failed logins kept in Postgres (`login_failure`); permissions per route, listed by `/me`; the audit hash chain (`prev_hash`, `hash`, migration 011), `argus audit verify` and its daily scheduled check; EdDSA token signing with an Ed25519 key (§7.1, §16.1, §17.1 layers 1 and 13, §17.2, §17.3). WebAuthn, step-up, the off-host signed digest and the private path remain designed (step 2 on) | [ACR-0018](changes/ACR-0018-operator-access-and-audit.md) |
+| 1.8.27 | 2026-10-21 | **hypotheses and a transparent cause ranking** (ACR-0024): `Hypothesis` and the optional `hypotheses` / `chosen` fields on the decisions (§5.5); the harness checks of §11.3, **log-only** until the evaluation (`hypothesis.invalid`); the working-memory slot (§10.6), `incident_hypothesis` (§16.1), the incident answer's `hypotheses` (§7.1), `analysis.anomaly_summary` (§12.2) and the evaluation metrics (§21.2), each marked with the T-0047 step that builds it; applied with T-0047 H1 ([ACR-0024](changes/ACR-0024-hypotheses-and-cause-ranking.md)) |

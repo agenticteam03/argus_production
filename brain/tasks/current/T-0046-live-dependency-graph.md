@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | `in progress` — [ACR-0025](../../architecture/changes/ACR-0025-live-dependency-graph.md) accepted (#214); L1 merged (#219), L2 merged (#220), L3 in review (`task/T-0046-l3-link-transitions`) |
+| Status | `in progress` — [ACR-0025](../../architecture/changes/ACR-0025-live-dependency-graph.md) accepted (#214); L1 merged (#219), L2 merged (#220), L3 merged (#226), L4 merged (#227), its restart follow-up merged (#231); deployed on vm-095 at `a4479df` (DEPLOY-A4479DF); L5 in progress (`task/ACR-0028-envelope-not-dropped`: `link_states` on) |
 | Phase | next phase, area B (separate track of [NEXT-PHASE](NEXT-PHASE-supervised-remediation.md)) |
 | Architecture | ACR-0025 (`accepted`, applied in 1.8.24 by L1) |
 | Branch | one branch per step: `task/T-0046-l<n>-<slug>` |
@@ -50,6 +50,9 @@ runs on every scrape.
 - Contract and samples; `docs/API-FOR-UI.md`.
 - **Tests:** the fields and events; the read's result as a stored observation; viewer/operator answers unchanged
   otherwise.
+- **Follow-up (#227 review):** the recorder writes every link once at startup, so each deploy repeated the states it
+  had recorded; the stores' reads (`link_events`, `latest_link_events`) now skip a row that repeats its link's
+  previous state, ordered by time then id on both stores. `since` and the chart events survive a restart.
 
 ### L5 — Deploy and measure (vm-095 lease)
 - `db-migrate.sh` (the new migration), the new image, `link_states.enabled: true`; `nonint-check` before and after.

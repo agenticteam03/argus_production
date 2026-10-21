@@ -10,6 +10,7 @@ import threading
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
+from argus.domain.audit_chain import GENESIS, canonical, link_hash
 from argus.domain.model import (AuditRecord, EvidenceRecord, Incident, IncidentStatus, TargetRef, utcnow)
 
 SCHEMA = """
@@ -57,6 +58,15 @@ CREATE TRIGGER IF NOT EXISTS link_event_no_update BEFORE UPDATE ON link_event
   BEGIN SELECT RAISE(ABORT, 'link_event is insert-only'); END;
 CREATE TRIGGER IF NOT EXISTS link_event_no_delete BEFORE DELETE ON link_event
   BEGIN SELECT RAISE(ABORT, 'link_event is insert-only'); END;
+CREATE TABLE IF NOT EXISTS auth_session (
+  jti TEXT PRIMARY KEY, principal TEXT NOT NULL, access TEXT NOT NULL, created_at TEXT NOT NULL,
+  expires_at TEXT NOT NULL, revoked_at TEXT, revoked_by TEXT, revoke_reason TEXT);
+CREATE INDEX IF NOT EXISTS auth_session_principal ON auth_session(principal, created_at);
+CREATE TRIGGER IF NOT EXISTS auth_session_no_delete BEFORE DELETE ON auth_session
+  BEGIN SELECT RAISE(ABORT, 'auth_session rows are never deleted'); END;
+CREATE TABLE IF NOT EXISTS login_failure (
+  id INTEGER PRIMARY KEY AUTOINCREMENT, key TEXT NOT NULL, at TEXT NOT NULL);
+CREATE INDEX IF NOT EXISTS login_failure_key ON login_failure(key, at);
 CREATE TRIGGER IF NOT EXISTS evidence_no_update BEFORE UPDATE ON evidence
   BEGIN SELECT RAISE(ABORT, 'evidence is insert-only'); END;
 CREATE TRIGGER IF NOT EXISTS evidence_no_delete BEFORE DELETE ON evidence
@@ -66,6 +76,22 @@ CREATE TRIGGER IF NOT EXISTS audit_no_update BEFORE UPDATE ON audit
 CREATE TRIGGER IF NOT EXISTS audit_no_delete BEFORE DELETE ON audit
   BEGIN SELECT RAISE(ABORT, 'audit is append-only'); END;
 """
+
+
+def _utc(at: datetime) -> str:
+    return at.astimezone(timezone.utc).isoformat()
+
+
+def _session(r, ts) -> dict[str, Any]:
+    """One auth_session row as a dict; `ts` turns a stored time into a datetime (SQLite stores text)."""
+    return {"jti": r[0], "principal": r[1], "access": r[2], "created_at": ts(r[3]), "expires_at": ts(r[4]),
+            "revoked_at": ts(r[5]) if r[5] is not None else None, "revoked_by": r[6], "revoke_reason": r[7]}
+
+
+# T-0046 L4: link_event rows with the state of the row before them on the same link (time, then id), so a row that
+# repeats it (the recorder's row at a restart) is not read as a transition. Same rule as the Postgres store.
+_LINK_ROWS = ("SELECT id, owner, dependency, state, latency_ms, reason, at, LAG(state) OVER (PARTITION BY owner, "
+              "dependency ORDER BY at, id) AS prev FROM link_event")
 
 
 class SqliteStore:
@@ -82,6 +108,10 @@ class SqliteStore:
         self._db.execute("CREATE INDEX IF NOT EXISTS incident_parent ON incident(parent_id, opened_at)")
         if "resolved_at" not in {r[1] for r in self._db.execute("PRAGMA table_info(alert_occurrence)")}:
             self._db.execute("ALTER TABLE alert_occurrence ADD COLUMN resolved_at TEXT")     # T-0026 (migration 005)
+        audit_cols = {r[1] for r in self._db.execute("PRAGMA table_info(audit)")}
+        for col in ("prev_hash", "hash"):            # ACR-0018 (migration 011): the audit hash chain
+            if col not in audit_cols:
+                self._db.execute(f"ALTER TABLE audit ADD COLUMN {col} TEXT")
 
     def _q(self, sql: str, params: tuple = ()) -> list[tuple]:
         with self._lock:
@@ -255,14 +285,59 @@ class SqliteStore:
         self._q("INSERT INTO link_event(owner,dependency,state,latency_ms,reason,at) VALUES (?,?,?,?,?,?)",
                 (owner, dependency, state, latency_ms, reason, at.astimezone(timezone.utc).isoformat()))
 
+    # --- sessions and the login limiter (ACR-0018, phase 16 step 1) ------------------------------------------------
+    def add_session(self, jti: str, principal: str, access: str, created_at: datetime, expires_at: datetime) -> None:
+        self._q("INSERT INTO auth_session(jti,principal,access,created_at,expires_at) VALUES (?,?,?,?,?)",
+                (jti, principal, access, _utc(created_at), _utc(expires_at)))
+
+    def get_session(self, jti: str) -> dict[str, Any] | None:
+        rows = self._q("SELECT jti,principal,access,created_at,expires_at,revoked_at,revoked_by,revoke_reason "
+                       "FROM auth_session WHERE jti=?", (jti,))
+        return _session(rows[0], datetime.fromisoformat) if rows else None
+
+    def revoke_session(self, jti: str, by: str, reason: str, at: datetime) -> bool:
+        with self._lock:
+            cur = self._db.execute("UPDATE auth_session SET revoked_at=?, revoked_by=?, revoke_reason=? "
+                                   "WHERE jti=? AND revoked_at IS NULL", (_utc(at), by, reason, jti))
+            return cur.rowcount == 1
+
+    def revoke_principal_sessions(self, principal: str, by: str, reason: str, at: datetime) -> int:
+        with self._lock:
+            cur = self._db.execute("UPDATE auth_session SET revoked_at=?, revoked_by=?, revoke_reason=? "
+                                   "WHERE principal=? AND revoked_at IS NULL AND expires_at>?",
+                                   (_utc(at), by, reason, principal, _utc(at)))
+            return cur.rowcount
+
+    def add_login_failure(self, key: str, at: datetime) -> None:
+        self._q("INSERT INTO login_failure(key,at) VALUES (?,?)", (key, _utc(at)))
+
+    def login_failures(self, key: str, since: datetime) -> list[datetime]:
+        rows = self._q("SELECT at FROM login_failure WHERE key=? AND at>? ORDER BY at", (key, _utc(since)))
+        return [datetime.fromisoformat(r[0]) for r in rows]
+
+    def clear_login_failures(self, key: str) -> None:
+        self._q("DELETE FROM login_failure WHERE key=?", (key,))
+
+    def prune_login_failures(self, before: datetime) -> None:
+        self._q("DELETE FROM login_failure WHERE at<?", (_utc(before),))
+
     def link_events(self, target: str, start: datetime, end: datetime) -> list[dict[str, Any]]:
-        """The transitions of the links `target` owns or is the dependency of, from `start` to `end`, oldest first."""
-        rows = self._q("SELECT owner,dependency,state,latency_ms,reason,at FROM link_event "
-                       "WHERE (owner=? OR dependency=?) AND at>=? AND at<=? ORDER BY at, id",
+        """The transitions of the links `target` owns or is the dependency of, from `start` to `end`, oldest first.
+        A row that repeats its link's previous state (the recorder's row at a restart) is not a transition."""
+        rows = self._q("SELECT owner,dependency,state,latency_ms,reason,at FROM "
+                       f"({_LINK_ROWS} WHERE owner=? OR dependency=?) "
+                       "WHERE (prev IS NULL OR prev<>state) AND at>=? AND at<=? ORDER BY at, id",
                        (target, target, start.astimezone(timezone.utc).isoformat(),
                         end.astimezone(timezone.utc).isoformat()))
         return [{"owner": r[0], "dependency": r[1], "state": r[2], "latency_ms": r[3], "reason": r[4],
                  "at": datetime.fromisoformat(r[5])} for r in rows]
+
+    def latest_link_events(self) -> dict[tuple[str, str], dict[str, Any]]:
+        """T-0046 L4: the last recorded transition of every link, by (owner, dependency) (the map's `since`)."""
+        rows = self._q("SELECT owner,dependency,state,at FROM (SELECT *, ROW_NUMBER() OVER (PARTITION BY owner, "
+                       f"dependency ORDER BY at DESC, id DESC) AS n FROM ({_LINK_ROWS}) WHERE prev IS NULL OR "
+                       "prev<>state) WHERE n=1")
+        return {(r[0], r[1]): {"state": r[2], "at": datetime.fromisoformat(r[3])} for r in rows}
 
     def close_queued_incident(self, incident_id: str, outcome: str, diagnosis: str, closed_at: datetime) -> bool:
         """Close an incident no worker has claimed (T-0026). False when it is no longer queued (claimed meanwhile)."""
@@ -300,8 +375,18 @@ class SqliteStore:
 
     # --- audit -----------------------------------------------------------------------------------
     def append(self, record: AuditRecord) -> None:
-        self._q("INSERT INTO audit(audit_id,incident_id,at,body) VALUES (?,?,?,?)",
-                (record.audit_id, record.incident_id, record.at.isoformat(), record.model_dump_json()))
+        body = record.model_dump(mode="json")
+        with self._lock:                               # ACR-0018: one chained row at a time
+            row = self._db.execute("SELECT hash FROM audit WHERE hash IS NOT NULL ORDER BY rowid DESC LIMIT 1").fetchone()
+            prev = row[0] if row else GENESIS
+            self._db.execute("INSERT INTO audit(audit_id,incident_id,at,body,prev_hash,hash) VALUES (?,?,?,?,?,?)",
+                             (record.audit_id, record.incident_id, record.at.isoformat(), canonical(body), prev,
+                              link_hash(prev, record.audit_id, body)))
+
+    def audit_chain(self) -> list[tuple[str, Any, str | None, str | None]]:
+        """ACR-0018: every audit row in write order, for `argus audit verify`."""
+        return [(a, json.loads(b), p, h) for a, b, p, h in
+                self._q("SELECT audit_id, body, prev_hash, hash FROM audit ORDER BY rowid")]
 
     def list_for(self, incident_id: str) -> list[AuditRecord]:
         rows = self._q("SELECT body FROM audit WHERE incident_id=? ORDER BY at", (incident_id,))

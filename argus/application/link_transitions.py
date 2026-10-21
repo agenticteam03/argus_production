@@ -18,6 +18,37 @@ from argus.domain.model import AuditRecord, utcnow
 from argus.ports.ports import MetricsUnavailable, StaleMetrics
 
 
+def recorded(owner, dep) -> bool:
+    """A link whose state is recorded and read: a container dependency on the owner's own host."""
+    return dep.kind == "container" and dep.host == owner.ref.host
+
+
+def read_links(inventory, metrics, owners) -> tuple[list[tuple[str, str, str, float | None, str | None]], set[str]]:
+    """The current state of every recorded link of `owners`: ([(owner, dependency, state, latency_ms, reason)], the
+    hosts skipped because their Prometheus cannot be read). One read per owner, on its own host; `links.py`'s rules;
+    a broken link's reason as the map labels it. Used by the recorder and by `network.link_states` (T-0046 L4)."""
+    ports = {str(t.ref): list(t.tcp_ports) for t in inventory.targets()}
+    skipped: set[str] = set()
+    out = []
+    for t in owners:
+        if t.ref.host in skipped:
+            continue
+        try:
+            probes = metrics.dependency_probes(t.ref) or {}
+        except MetricsUnavailable:
+            skipped.add(t.ref.host)                  # this host's Prometheus is unreadable: nothing from it this time
+            continue
+        except (StaleMetrics, ValueError):
+            probes = {}                              # read, but nothing fresh: every link of the owner is `unknown`
+        warn = t.link_warning_ms or LINK_WARNING_MS
+        for dep in t.depends_on:
+            if not recorded(t, dep):
+                continue
+            state, latency, why = link_state(probes.get(dep.name), t.link_port(dep, ports.get(str(dep))), warn)
+            out.append((str(t.ref), str(dep), state, latency, (why or "not reachable") if state == "broken" else None))
+    return out, skipped
+
+
 class LinkTransitions:
     def __init__(self, store, inventory, metrics, now: Callable = utcnow):
         self.store, self.inventory, self.metrics, self.now = store, inventory, metrics, now
@@ -26,44 +57,24 @@ class LinkTransitions:
     def owners(self) -> list:
         """The targets whose links are recorded: containers with a declared container dependency on their own host."""
         return [t for t in sorted(self.inventory.targets(), key=lambda x: str(x.ref))
-                if t.ref.kind == "container" and any(self._recorded(t, d) for d in t.depends_on)]
-
-    @staticmethod
-    def _recorded(owner, dep) -> bool:
-        return dep.kind == "container" and dep.host == owner.ref.host
+                if t.ref.kind == "container" and any(recorded(t, d) for d in t.depends_on)]
 
     def run_once(self) -> str:
-        ports = {str(t.ref): list(t.tcp_ports) for t in self.inventory.targets()}
-        skipped: set[str] = set()
+        links, skipped = read_links(self.inventory, self.metrics, self.owners())
         changed = 0
-        for t in self.owners():
-            if t.ref.host in skipped:
+        for owner, dep, state, latency, reason in links:
+            key = (owner, dep)
+            previous = self._last.get(key)
+            if previous == state:
                 continue
-            try:
-                probes = self.metrics.dependency_probes(t.ref) or {}
-            except MetricsUnavailable:
-                skipped.add(t.ref.host)              # this host's Prometheus is unreadable: record nothing this tick
-                continue
-            except (StaleMetrics, ValueError):
-                probes = {}                          # read, but nothing fresh: every link of the owner is `unknown`
-            warn = t.link_warning_ms or LINK_WARNING_MS
-            for dep in t.depends_on:
-                if not self._recorded(t, dep):
-                    continue
-                state, latency, why = link_state(probes.get(dep.name), t.link_port(dep, ports.get(str(dep))), warn)
-                key = (str(t.ref), str(dep))
-                previous = self._last.get(key)
-                if previous == state:
-                    continue
-                reason = (why or "not reachable") if state == "broken" else None     # as the map labels it
-                at = self.now()
-                self.store.add_link_event(key[0], key[1], state, latency, reason, at)
-                self.store.append(AuditRecord(
-                    audit_id=f"aud_{uuid.uuid4().hex[:16]}", incident_id=None, at=at, category="incident",
-                    event="link.changed", actor="scheduler",
-                    detail={"owner": key[0], "dependency": key[1], "from": previous, "to": state,
-                            "latency_ms": latency, "reason": reason}))
-                self._last[key] = state
-                changed += 1
+            at = self.now()
+            self.store.add_link_event(owner, dep, state, latency, reason, at)
+            self.store.append(AuditRecord(
+                audit_id=f"aud_{uuid.uuid4().hex[:16]}", incident_id=None, at=at, category="incident",
+                event="link.changed", actor="scheduler",
+                detail={"owner": owner, "dependency": dep, "from": previous, "to": state, "latency_ms": latency,
+                        "reason": reason}))
+            self._last[key] = state
+            changed += 1
         hosts = f"; skipped (Prometheus unreadable): {', '.join(sorted(skipped))}" if skipped else ""
         return f"{changed} link change(s) recorded{hosts}"

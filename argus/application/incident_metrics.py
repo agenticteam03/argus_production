@@ -15,6 +15,11 @@ T-0045 B7 adds the 6h and 24h ranges (`ranges_available`), a `baseline` per seri
 the 24 h that end an hour before the incident opened, scaled like the values; null when under half of that window has
 samples or it cannot be read; read once per incident and signal) and `deploy` events (the `deploy_event` rows of the
 incident's host inside the window; the label names the ref and short commit, never who deployed).
+
+T-0046 L4 (ACR-0025 §3.4) adds `link_broken`, `link_slow` and `link_recovered` events: the recorded transitions
+(`link_event`) inside the window of the links the incident's target owns or is the dependency of, and of its declared
+dependencies (same host). `link_recovered` is an `ok` after `broken` or `slow`; an `ok` after nothing or `unknown`
+(the recorder starting) is no event, and neither is `unknown`.
 """
 from __future__ import annotations
 
@@ -36,6 +41,7 @@ BASELINE_MINUTES = 1440                     # B7: the 24 h ...
 BASELINE_LEAD = timedelta(hours=1)          # ... that end an hour before the incident opened (its run-up excluded)
 BASELINE_STEP_S = 300
 BASELINE_MIN_COVERAGE = 0.5                 # fewer samples than half the window: no baseline (unknown, not calm)
+LINK_LOOKBACK = timedelta(hours=24)         # T-0046 L4: how far before the window a link's previous state is looked up
 TOP_KEYS = {"default", "classes"}
 SERIES_KEYS = {"signal", "title", "scope", "unit", "scale", "max", "fired", "kind"}
 KINDS = ("memory", "restarts", "cpu", "latency", "health", "disk", "database", "network", "other")
@@ -111,11 +117,12 @@ class IncidentMetrics:
     def __init__(self, metrics: MetricsPort, signal_list: SignalList,
                  now: Callable[[], datetime] = lambda: datetime.now(timezone.utc),
                  clock: Callable[[], float] = time.monotonic, ttl_open_s: float = 30, ttl_closed_s: float = 600,
-                 store=None, thresholds=None):
+                 store=None, thresholds=None, inventory=None):
         """`store`: where the incident's alert occurrences are read (None = no alert events). `thresholds`: B1's
-        `Thresholds` (None = no lines)."""
+        `Thresholds` (None = no lines). `inventory`: the target's declared dependencies, whose link events are shown
+        too (None = only the target's own links, T-0046 L4)."""
         self.metrics, self.signal_list, self.now, self.clock = metrics, signal_list, now, clock
-        self.store, self.thresholds = store, thresholds
+        self.store, self.thresholds, self.inventory = store, thresholds, inventory
         self.ttl_open_s, self.ttl_closed_s = ttl_open_s, ttl_closed_s
         self._cache: dict[tuple[str, str], tuple[float, dict]] = {}
         self._baselines: dict[tuple[str, str, float], dict | None] = {}     # fixed per incident: kept, bounded
@@ -183,7 +190,7 @@ class IncidentMetrics:
             return _iso(first + i * step)
 
         events = (self._counter_events(inc, slots_of, at) + self._alert_events(inc, first, end.timestamp())
-                  + self._deploy_events(inc, first, end.timestamp()))
+                  + self._deploy_events(inc, first, end.timestamp()) + self._link_events(inc, first, end.timestamp()))
         events.sort(key=lambda e: e["at"])
         closed = inc.closed_at
         return {"incident_id": inc.id, "range": rng, "ranges_available": list(RANGES),
@@ -257,6 +264,43 @@ class IncidentMetrics:
         frm, to = (datetime.fromtimestamp(x, timezone.utc) for x in (start, stop))
         return [{"at": _iso(e["at"].timestamp()), "kind": "deploy", "label": f"Deployed {e['ref']} ({e['commit'][:7]})"}
                 for e in self.store.deploy_events(inc.target.host, frm, to)]
+
+    def _link_events(self, inc: Incident, start: float, stop: float) -> list[dict]:
+        """T-0046 L4: the link transitions inside the window (see the module docstring)."""
+        read = getattr(self.store, "link_events", None) if self.store is not None else None
+        if read is None:
+            return []
+        scope = [str(inc.target)]
+        info = self.inventory.target(inc.target) if self.inventory is not None else None
+        if info is not None:
+            scope += [str(d) for d in info.depends_on if d.kind == "container" and d.host == inc.target.host]
+        frm = datetime.fromtimestamp(start, timezone.utc) - LINK_LOOKBACK
+        to = datetime.fromtimestamp(stop, timezone.utc)
+        rows = {}
+        for ref in scope:                               # a link between two refs in scope is read twice: keep it once
+            for r in read(ref, frm, to):
+                rows[(r["owner"], r["dependency"], r["state"], r["at"])] = r
+        out, before = [], {}
+        for r in sorted(rows.values(), key=lambda r: r["at"]):
+            link = (r["owner"], r["dependency"])
+            previous, before[link] = before.get(link), r["state"]
+            if r["at"].timestamp() < start:
+                continue
+            name = f"Link {_name(r['owner'])} → {_name(r['dependency'])}"
+            if r["state"] == "broken":
+                out.append({"at": _iso(r["at"].timestamp()), "kind": "link_broken",
+                            "label": f"{name} broken" + (f" ({r['reason']})" if r.get("reason") else "")})
+            elif r["state"] == "slow":
+                ms = f" ({r['latency_ms']:g} ms)" if r.get("latency_ms") is not None else ""
+                out.append({"at": _iso(r["at"].timestamp()), "kind": "link_slow", "label": f"{name} slow{ms}"})
+            elif r["state"] == "ok" and previous in ("broken", "slow"):
+                out.append({"at": _iso(r["at"].timestamp()), "kind": "link_recovered", "label": f"{name} recovered"})
+        return out
+
+
+def _name(ref: str) -> str:
+    """A target's name from its ref (`vm-166/container:argus-lab-api` -> `argus-lab-api`)."""
+    return ref.split(":", 1)[-1]
 
 
 def _scaled(baseline: dict | None, scale: float) -> dict | None:

@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | `in progress` — step 1 in review (#223); steps 2–6 planned below |
+| Status | `in progress` — step 1 merged (#223) and deployed on vm-095 (DEPLOY-A4479DF, 2026-10-21); steps 2–6 planned below |
 | Phase | 16 of [NEXT-PHASE](NEXT-PHASE-supervised-remediation.md) ([`../../IMPLEMENTATION_PLAN.md`](../../IMPLEMENTATION_PLAN.md)) |
 | Architecture | [ACR-0018](../../architecture/changes/ACR-0018-operator-access-and-audit.md) (`accepted`, #209); each step applies only what it builds (its §6) |
 | Branch | one per step: `task/PHASE-16-step-<n>-<slug>` |
@@ -18,7 +18,7 @@ it. Phase 16 ends when the exit proof of the plan holds: the authorization matri
 ## Steps
 
 ### Step 1 — sessions, revocation, persisted login limiter, permissions, audit chain, EdDSA (#223)
-Built and in review. Deploy: [`../../execution/history/PHASE-16/step-01/code.bash`](../../execution/history/PHASE-16/step-01/code.bash)
+Merged (#223) and deployed on vm-095 at `a4479df`: [`../../execution/history/DEPLOY-A4479DF/step-01/evidence.md`](../../execution/history/DEPLOY-A4479DF/step-01/evidence.md) (prepared as [`../../execution/history/PHASE-16/step-01/code.bash`](../../execution/history/PHASE-16/step-01/code.bash))
 (prepared: migrations 010 and 011, the image, the checks; run after #223 merges).
 
 ### Step 2 — EdDSA switched on in the lab

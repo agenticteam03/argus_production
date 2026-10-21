@@ -125,7 +125,24 @@ class App:
     incident_metrics: Any = None        # ACR-0017: the metric window around an incident (the UI's charts)
     topology: Any = None                # ACR-0017: the system map (inventory, signals, an incident's evidence)
     thresholds: Any = None              # ACR-0021: the UI's warning and critical lines (signals.yaml `thresholds:`)
+    jwt_signing: Any = None             # ACR-0018: an Ed25519 private key; tokens are EdDSA, HS256 refused. None: HS256
 
+
+
+def ed25519_signing_key(pem: str | None):
+    """ACR-0018 §17.2: the API's token signing key, an Ed25519 private key in PEM (secret `jwt_ed25519_key`). None when
+    the secret is absent (the lab's HS256 key is used). Any other key type refuses startup."""
+    if not pem:
+        return None
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+    from cryptography.hazmat.primitives.serialization import load_pem_private_key
+    try:
+        key = load_pem_private_key(pem.encode(), password=None)
+    except ValueError:
+        raise SystemExit("jwt_ed25519_key is not a PEM private key")
+    if not isinstance(key, Ed25519PrivateKey):
+        raise SystemExit("jwt_ed25519_key must be an Ed25519 private key")
+    return key
 
 def _credentials(s: Settings, inventory: YamlInventory, require: bool, errors: list[str],
                  load: bool = True) -> dict[tuple[str, str], str]:
@@ -302,7 +319,8 @@ def build(settings: Settings | None = None, llm=None, metrics=None, executors: E
     knowledge = TfidfRunbooks(str(s.runbooks_dir), s.runbooks_commit and f"commit {s.runbooks_commit}")
     store = store or make_store(s)
     if "argus_internal" not in executors.names():              # in-worker capabilities (knowledge.*)
-        executors.register("argus_internal", lambda url, tok: KnowledgeClient(knowledge, store))   # T-0039: memory
+        executors.register("argus_internal", lambda url, tok: KnowledgeClient(knowledge, store,   # T-0039: memory
+                                                                              inventory, metrics))   # T-0046 L4
     if s.tool_catalogue == "mcp":       # target-side reads in the tools process, started on the first call
         from argus.tooling.mcp.client import child_client
         from argus.tooling.providers import McpCatalogue
@@ -351,11 +369,14 @@ def build(settings: Settings | None = None, llm=None, metrics=None, executors: E
     jwt_key = s.secret("jwt_signing_key") or os.getenv("ARGUS_JWT_KEY") or ""
     if len(jwt_key) < 32:
         raise SystemExit("jwt_signing_key missing or shorter than 32 characters")
+    jwt_signing = ed25519_signing_key(s.secret("jwt_ed25519_key"))
     from argus.application.incident_metrics import IncidentMetrics
     from argus.application.topology import Topology
     if s.home_host and inventory.host(s.home_host) is None:
         raise SystemExit(f"ARGUS_HOME_HOST {s.home_host!r} is not an inventory host")
     return App(settings=s, store=store, inventory=inventory, policy=policy, runner=runner, catalogue=catalogue,
                metrics=metrics, jwt_key=jwt_key, alertmanager_token=s.secret("alertmanager_token"), llm_configured=llm_configured,
-               incident_metrics=IncidentMetrics(metrics, ui_signals, store=store, thresholds=thresholds),
-               topology=Topology(inventory, metrics, store, s.home_host, thresholds=thresholds), thresholds=thresholds)
+               incident_metrics=IncidentMetrics(metrics, ui_signals, store=store, thresholds=thresholds,
+                                                inventory=inventory),
+               topology=Topology(inventory, metrics, store, s.home_host, thresholds=thresholds), thresholds=thresholds,
+               jwt_signing=jwt_signing)

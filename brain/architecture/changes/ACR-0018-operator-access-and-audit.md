@@ -144,8 +144,36 @@ Next: phase 16 applies this ACR, with its first code, in one pull request (§6).
 
 ## 6. Applied
 
-- [ ] `ARCHITECTURE.md` updated, version bumped, changelog line added (with this ACR's link)
-- [ ] `policies/SECURITY.md` (one account per person, new secrets, the principle text) and `policies/NETWORK.md`
-      (the private path, the off-host destination)
-- [ ] journal entry
-- [ ] the ACR, the architecture change and the first code that needs it are in the same pull request
+Applied in steps (phase 16). Each step writes into `ARCHITECTURE.md` only what it builds; the rest of §3 stays
+"designed".
+
+**Step 1** (`task/PHASE-16-step-1-sessions`, ARCHITECTURE 1.8.26):
+- [x] server-side sessions (`auth_session`, migration 010) checked on every request; `POST /api/v1/auth/logout`;
+      revocation by `argus user add|disable` and `argus session revoke` (audited)
+- [x] `POST /api/v1/auth/logout` also through the public edge (`deploy/ui/nginx/locations.conf`, `contracts/ui-api.json`);
+      the UI's sign-out calls it before forgetting the token (best effort: an older API's 404, an ended session or no
+      network still forget it)
+- [x] a correctly signed token without a live session of its own is audited (`security.session_refused`)
+- [x] the failed-login limiter persisted (`login_failure`)
+- [x] permissions per route, a role as a bundle, listed by `/me` (only the permissions of built routes)
+- [x] the audit hash chain (migration 011): one chain over all rows in write order (`seq`), each row's `hash` over the
+      previous hash, its id and its canonical body; an advisory lock per row so concurrent writers never fork it;
+      `argus audit verify`, and the scheduler's check at start and daily (`audit_chain` in `schedules.yaml`), recorded
+      as `security.audit_chain_verified` / `security.audit_chain_broken`. **As built, not per day:** one continuous chain is simpler to verify and stronger; the
+      daily digest of §3 becomes "the hash of each day's last row", signed and shipped once the off-host store exists
+- [x] tests: `tests/test_acr0018_sessions.py` (sessions, revocation, forged and foreign `jti`, the lockout across a
+      restart), `tests/test_acr0018_authz_matrix.py` (**the authorization matrix**: every route × role × token kind against
+      a declared table, 401 without a token, and every route of the API must be in the table; red seen by weakening the
+      evidence route), `tests/test_acr0018_audit_chain.py` (an edited,
+      removed or foreign row is named), `tests/test_postgres.py` (grants of 010; 40 concurrent writers, one chain; an
+      owner who disables the trigger and edits a row is caught)
+- [x] journal entry (`2026-10-21-PHASE-16-step-1.md`)
+
+- [x] EdDSA token signing: with the secret `jwt_ed25519_key` (an Ed25519 PEM) the API signs EdDSA and accepts only
+      EdDSA; without it, HS256 as before. `PyJWT[crypto]`. `policies/SECURITY.md` names the new secret. Switching the
+      lab on is a deploy step (generate the key on vm-095, never printed; every session logs in again)
+
+**Not yet** (step 2 on): WebAuthn and step-up; separation of duties; the signed daily digest off
+Host A; security alerts (§18), which wait for the team's alert route (no receiver exists: Argus only reads its
+Alertmanager), including the alert on `security.audit_chain_broken`; the private path (mTLS, `deploy/ui/nginx/`) and `policies/NETWORK.md`;
+`policies/SECURITY.md` (the new secrets).
