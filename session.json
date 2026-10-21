@@ -6,7 +6,7 @@
   "base_commit": "31e5e35fe11cdec74bd8fc704147ea4b0323702b",
   "started_at": "2026-10-21T06:54:48+00:00",
   "expires_at": "2026-10-21T07:54:48+00:00",
-  "released": false,
+  "released": true,
   "handoff": null,
   "vms": {
     "vm-095": {
@@ -17,7 +17,7 @@
       "base_commit": "31e5e35fe11cdec74bd8fc704147ea4b0323702b",
       "started_at": "2026-10-21T06:54:48+00:00",
       "expires_at": "2026-10-21T07:54:48+00:00",
-      "released": false,
+      "released": true,
       "handoff": null
     },
     "vm-166": {
@@ -28,7 +28,7 @@
       "base_commit": "31e5e35fe11cdec74bd8fc704147ea4b0323702b",
       "started_at": "2026-10-21T06:54:48+00:00",
       "expires_at": "2026-10-21T07:54:48+00:00",
-      "released": false,
+      "released": true,
       "handoff": null
     }
   }
