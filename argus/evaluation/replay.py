@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import dataclasses
+import json
 import os
 import re
 import time
@@ -49,6 +50,14 @@ class CaseRun:
     invalid_decisions: list[str] = field(default_factory=list)
     duration_ms: int = 0
     trial: int = 1
+    # ACR-0024 §3.8 (T-0047 H4): the final decision's hypotheses (`incident_hypothesis`), by rank, as
+    # {id, target, cause_class, status, rank, chosen}; whether the chosen one is not first; the H1 checks' problems
+    hypotheses: list[dict] = field(default_factory=list)
+    ranking_disagrees: bool = False
+    hypothesis_problems: list[str] = field(default_factory=list)
+    # targets with an `ok` observation or metric snapshot, or named in the values of an `ok` observation on their host
+    # (the database's sessions name the leaking client) (`unsupported_root_cause`); None = not recorded
+    observed: list[str] | None = None
 
 
 class FixtureExecutor:
@@ -205,6 +214,10 @@ def run_case(case: Case, workdir: Path, llm: Any | None = None, settings: Settin
     ms = int((time.monotonic() - t0) * 1000)
     evidence = app.store.list_evidence(inc.id)
     audit = app.store.list_for(inc.id)
+    rows = app.store.hypotheses(inc.id)
+    final = [r for r in rows if r["step"] == max(x["step"] for x in rows)] if rows else []
+    hypotheses = [{"id": r["hypothesis_id"], "target": r["target"], "cause_class": r["cause_class"],
+                   "status": r["status"], "rank": r["rank"], "chosen": r["chosen"]} for r in final]
     passages: list[tuple[str, str]] = []
     for a in audit:
         if a.event == "recall.passages":
@@ -217,9 +230,26 @@ def run_case(case: Case, workdir: Path, llm: Any | None = None, settings: Settin
         passages=passages, audit_events=[a.event for a in audit],
         model_requests=rec.requests if rec else [], duration_ms=ms,
         invalid_decisions=[f"{(a.detail or {}).get('reason')}: {str((a.detail or {}).get('detail'))[:300]}"
-                           for a in audit if a.event == "decision.invalid"])
+                           for a in audit if a.event == "decision.invalid"],
+        hypotheses=hypotheses, ranking_disagrees=any(h["chosen"] and h["rank"] != 1 for h in hypotheses),
+        hypothesis_problems=[p for a in audit if a.event == "hypothesis.invalid"
+                             for p in (a.detail or {}).get("problems") or []],
+        observed=_observed(evidence, [t.ref for t in app.inventory.targets()]))
     _drop_store(app, db)
     return result
+
+
+def _observed(evidence: list, refs: list[TargetRef]) -> list[str]:
+    """The targets the run observed: those of its `ok` observations and metric snapshots, and the inventory targets an
+    `ok` observation on the same host names in its values."""
+    ok = [e for e in evidence if e.target and e.status == "ok" and e.kind in ("observation", "metric_snapshot")]
+    seen = {e.target for e in ok}
+    for e in ok:
+        if e.kind == "observation":
+            values = json.dumps(e.values, default=str)
+            seen |= {str(r) for r in refs if e.target.startswith(f"{r.host}/")
+                     and re.search(rf"(?<![\w-]){re.escape(r.name)}(?![\w-])", values)}
+    return sorted(seen)
 
 
 def _drop_store(app: Any, db: Path) -> None:
