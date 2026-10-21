@@ -364,8 +364,11 @@ mandatory field allowlists (ties to G-006); `FORBIDDEN` operations are never reg
 
 ## OP-004 — Checkpoint retention (in progress)
 
-**Status:** in progress 2026-10-09 (`task/OP-004-checkpoint-cleanup`, offline tests passed; VM dry run and approved
-apply pending); proposal accepted 2026-10-05 (PR #7) · **Opened:** 2026-10-05 · **Found by:** `conantkd` (T-0013 review)
+**Status:** in progress: built (#42) and its first approved `--apply` ran on vm-095 on 2026-10-14 (nothing old
+enough); a dry run on 2026-10-21 (DEPLOY-NIGHT) still finds nothing past 30 days (`threads=0 checkpoints=0`). **Left:**
+the daily timer, a team decision (it runs without a lease; see the task). Was: in progress 2026-10-09
+(`task/OP-004-checkpoint-cleanup`, offline tests passed; VM dry run and approved apply pending); proposal accepted
+2026-10-05 (PR #7) · **Opened:** 2026-10-05 · **Found by:** `conantkd` (T-0013 review)
 
 **Problem.** Since T-0013 every investigation leaves rows in `checkpoints`, `checkpoint_blobs` and `checkpoint_writes`,
 and nothing ever removes them: the runtime role has no DELETE (on purpose, migration 002). A run that ends with an
@@ -532,7 +535,9 @@ redeployed on vm-166, and this item is set to `fixed`.
 
 ## OP-008 — Backup retention, and a consistency check that survives a busy database
 
-**Status:** in progress 2026-10-09 (`task/OP-008-backup-retention`; offline implementation verified, VM dry run and
+**Status:** in progress: built (#51) and its first approved `prune --apply` ran on vm-095; a preview on 2026-10-21
+(DEPLOY-NIGHT) would remove 13 backup sets (2026-10-13 and 14), nothing removed. **Left:** a scheduled prune, a team
+decision. Was: in progress 2026-10-09 (`task/OP-008-backup-retention`; offline implementation verified, VM dry run and
 approved apply pending); proposal accepted 2026-10-07 (PR #31, approved by `juanbetancurm`; snapshot approach,
 scheduling decided later) · **Opened:** 2026-10-07 · **Found by:** `juanbetancurm` (after-merge review
 of PR #25, T-0017) · **Proposal by:** `conantkd` (+ agent) · **Fix with:** its own task, with or after T-0014
