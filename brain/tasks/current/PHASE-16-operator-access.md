@@ -21,6 +21,12 @@ it. Phase 16 ends when the exit proof of the plan holds: the authorization matri
 Merged (#223) and deployed on vm-095 at `a4479df`: [`../../execution/history/DEPLOY-A4479DF/step-01/evidence.md`](../../execution/history/DEPLOY-A4479DF/step-01/evidence.md) (prepared as [`../../execution/history/PHASE-16/step-01/code.bash`](../../execution/history/PHASE-16/step-01/code.bash))
 (prepared: migrations 010 and 011, the image, the checks; run after #223 merges).
 
+### Step 1b — `auth_session` retention (`task/PHASE-16-session-retention`)
+`argus db prune-sessions` (owner-only, a read-only preview unless `--apply`): removes sessions whose token expired more
+than 90 days ago (`ARGUS_SESSION_RETENTION_DAYS`), audited as `maintenance.sessions_pruned`. Its audit row and
+`prune-checkpoints`' are now written chained (`append_chained`): a bare INSERT after migration 011 would have broken
+`argus audit verify` at the first checkpoint prune that removed anything. First dry run with step 2's deploy.
+
 ### Step 2 — EdDSA switched on in the lab
 - Generate the Ed25519 key **on vm-095** (`openssl genpkey -algorithm ed25519`), owned like `jwt_signing_key`,
   never printed; then add its single-file mount to the agent in `deploy/vm-095/compose.core.yml` in the same PR.
