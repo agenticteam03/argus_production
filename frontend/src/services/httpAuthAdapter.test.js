@@ -93,10 +93,44 @@ describe("httpAuthAdapter", () => {
   it("signOut forgets the in-memory token and the restored session", async () => {
     signInOk();
     await httpAuthAdapter.signIn({ username: "alice", password: "x" });
+    fetch.mockResolvedValueOnce(response(200, { ended: true }));
 
     await httpAuthAdapter.signOut();
 
     expect(getToken()).toBeNull();
     expect(httpAuthAdapter.restore()).toBeNull();
+  });
+
+  it("signOut ends the session on the server with the token (ACR-0018)", async () => {
+    signInOk();
+    await httpAuthAdapter.signIn({ username: "alice", password: "x" });
+    fetch.mockResolvedValueOnce(response(200, { ended: true }));
+
+    await httpAuthAdapter.signOut();
+
+    const [url, init] = fetch.mock.calls[2];
+    expect(url).toBe("/api/v1/auth/logout");
+    expect(init.method).toBe("POST");
+    expect(init.headers.Authorization).toBe("Bearer jwt-123");
+  });
+
+  it.each([
+    ["an older API without the route", () => fetch.mockResolvedValueOnce(response(404, {}))],
+    ["a session already ended", () => fetch.mockResolvedValueOnce(response(401, {}))],
+    ["no network", () => fetch.mockRejectedValueOnce(new TypeError("Failed to fetch"))],
+  ])("signOut still forgets the token with %s", async (_, answer) => {
+    signInOk();
+    await httpAuthAdapter.signIn({ username: "alice", password: "x" });
+    answer();
+
+    await httpAuthAdapter.signOut();
+
+    expect(getToken()).toBeNull();
+    expect(httpAuthAdapter.restore()).toBeNull();
+  });
+
+  it("signOut without a token calls nothing", async () => {
+    await httpAuthAdapter.signOut();
+    expect(fetch).not.toHaveBeenCalled();
   });
 });
