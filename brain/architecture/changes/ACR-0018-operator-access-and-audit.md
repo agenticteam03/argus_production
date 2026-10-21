@@ -7,12 +7,12 @@ implemented before this one is applied and deployed.
 
 | Field | Value |
 |---|---|
-| Status | `proposed` |
+| Status | `accepted` with the two approvals of `task/ACR-0018-accepted` (§5); it merges only with both. Not applied: that is phase 16 |
 | Proposed by | juanbetancurm (+ agent) · 2026-10-18 |
-| Accepted by | pending (team review of the NEXT-PHASE proposal PR) |
-| Second approval (safety principle only) | **required**: least privilege (privileged routes, new permissions), secrets (new signing keys), evidence integrity (the audit chain) |
-| Architecture version | the next free version when applied (1.8.17 if applied first) |
-| Task / PR | NEXT-PHASE · PR (this proposal) |
+| Accepted by | a teammate approving `task/ACR-0018-accepted` (proposed there by `conantkd` · 2026-10-20) |
+| Second approval (safety principle only) | **required**: least privilege (privileged routes, new permissions), secrets (new signing keys), evidence integrity (the audit chain). A second teammate approving the same pull request |
+| Architecture version | the next free version when applied (1.8.22 if applied next) |
+| Task / PR | NEXT-PHASE · #170 (proposed) · `task/ACR-0018-accepted` (accepted, open decisions 2, 3 and 7 answered) |
 
 ## 1. Detect and explain
 
@@ -109,8 +109,38 @@ over the private path with step-up (ACR-0018, ACR-0019)".
 
 ## 5. Decision
 
-Proposed. To be accepted or changed in the NEXT-PHASE proposal PR review; the open decisions (VPN vs mTLS, the
-off-host store, who holds which permission) are listed in the task file.
+Proposed in #170. **Accepted** with the two approvals of `task/ACR-0018-accepted`: one teammate's, plus a second one
+for the safety principles touched (least privilege, secrets, evidence integrity). §3 is accepted as written. The
+answers below are to the NEXT-PHASE open decisions that belong to this ACR (2, 3 and 7); the others belong to
+ACR-0019 and ACR-0020.
+
+1. **Private path (decision 2): mTLS client certificates with an address allowlist**, on the existing public edge.
+   - The privileged routes are served by `argus-v18-ui` on the same `tcp/443`: no new port, no cloud rule, no
+     VPN client. nginx asks for a client certificate (`ssl_verify_client optional`) and answers **404** on a
+     privileged location unless the certificate verifies against the team's client CA **and** the source address is
+     in the allowlist. The read-only UI keeps working without a certificate.
+   - One certificate per person, short-lived (90 days), issued by a client CA whose private key never sits on
+     vm-095 (only its public certificate does). Revoking a person is a CRL entry plus their Argus session revoked.
+   - Not a VPN: `wg0` belongs to the protected deployment (`infrastructure/environment.md`) and is not reused, and a
+     second WireGuard interface would be one more thing on both VMs that `nonint-check.sh` has to tell apart.
+   - mTLS is defence in depth, not the identity: the human is still proven by WebAuthn and the step-up (§3).
+2. **Permissions (decision 3):** the three enabled operators of OP-016 (`conantkd`, `juanbetancurm`, `juanes6554`)
+   hold `view`, `investigate`, `feedback`, `propose_action`, `approve_action` and `place_hold`. **`admin`:**
+   `conantkd` and `juanbetancurm`, so that a WebAuthn recovery is always done by another administrator (§4, risk).
+   **`open_terminal:<host>`: nobody** until ACR-0020 is accepted; that ACR decides it. The disabled principals
+   (`conantkd-viewer`, `olav`) get nothing new. Every grant and revocation is an audited row.
+   **Separation of duties:** enforced on the production profile, as in §3. On the lab profile it is **allowed and
+   recorded**: with three operators, enforcing it would often leave nobody to approve; the audit row and the UI mark
+   a self-approval, and the scheduled evaluation counts them.
+3. **Off-host store (decision 7):** an object-storage bucket outside both VMs, with versioning and a write-once
+   retention lock, written through a **put-only** credential that cannot delete or overwrite (a new secret under
+   `secrets/agent/`, never printed). Not vm-166 and not a developer's laptop: every developer has sudo on both VMs,
+   and a laptop is one person's. **Retention:** audit digests 1 year; terminal recordings 90 days (ACR-0020 may
+   change the latter). The provider is chosen by whoever administers the cloud account when phase 16 is deployed,
+   and recorded in `policies/NETWORK.md` with the other egress (§6). Until the bucket exists, phase 16 cannot be
+   deployed: the digest job fails closed and raises the security alert of §18.
+
+Next: phase 16 applies this ACR, with its first code, in one pull request (§6).
 
 ## 6. Applied
 
