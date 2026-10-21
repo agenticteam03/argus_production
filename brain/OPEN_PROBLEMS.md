@@ -10,7 +10,7 @@ When a problem is fixed, set its status to `fixed` with the date, and add a jour
 | **D-003** | The class registry: keep the model or switch a class to the deterministic baseline (§21.2 rule) | **decided** 2026-10-13 (`juanbetancurm`): `dependency_unavailable` and `nginx_upstream_failure` to `baseline`, the other six keep their strategy; revisited in OP-013 | 2026-10-09 |
 | OP-001 | Runbook `detector` metadata uses old or empty class names | fixed 2026-10-09 (PR #44 merged) | 2026-09-30 |
 | OP-002 | P0 safety gaps of the runbook library not yet reconciled with architecture v1.8 | open | 2026-09-30 |
-| OP-003 | Runbook safety classes not mapped to `CapabilitySpec.risk` | open | 2026-09-30 |
+| OP-003 | Runbook safety classes not mapped to `CapabilitySpec.risk` | in progress (ACR-0026) | 2026-09-30 |
 | OP-004 | LangGraph checkpoints grow forever; checkpoints of failed runs are orphaned | in progress — offline tests pass; VM dry run and approved apply pending | 2026-10-05 |
 | **OP-005** | The `restarts_10m` signal undercounts restarts of a container younger than its window | **fixed** 2026-10-09 — verified on both VMs (PR #41) | 2026-10-05 |
 | OP-006 | LangGraph `recursion_limit` is fixed at 100 and can be too small for larger step budgets | fixed 2026-10-05 | 2026-10-05 |
@@ -348,7 +348,11 @@ laptop (`npm run dev`, the dev server) and in CI.
 
 ## OP-003 — Runbook safety classes not mapped to `CapabilitySpec.risk`
 
-**Status:** open · **Opened:** 2026-09-30
+**Status:** in progress 2026-10-20 ([ACR-0026](architecture/changes/ACR-0026-safety-classes.md),
+`task/ACR-0026-safety-classes`): §12.3 has one scheme of five classes, `risk` is gone, `FORBIDDEN` is never
+registered, and the four reads that were wrongly `READ_ONLY_SAFE` (two log reads, the snapshot, directory sizes) are sensitive. **Left:** the runbooks' "Safety class"
+column (54 rows in 19 runbooks differ from the catalog) is rewritten from it with a test, and G-006 gives the
+sensitive reads their field allowlists · **Opened:** 2026-09-30
 
 **Problem.** The library's conventions classify operations as `READ_ONLY_SAFE`, `READ_ONLY_SENSITIVE`,
 `MUTATING_LOW_RISK`, `MUTATING_HIGH_RISK`, `FORBIDDEN`; architecture §12.3 uses `risk: low | medium | high | very_high`
