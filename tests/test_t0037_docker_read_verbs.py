@@ -166,10 +166,12 @@ def test_the_gateway_and_the_catalogue_name_the_same_patterns(tmp_path, monkeypa
 
 # --- the capabilities ----------------------------------------------------------------------------------------------------
 @pytest.mark.parametrize("name", sorted(NEW))
-def test_the_four_are_level_2_safe_docker_read_capabilities_offered_to_no_class(name):
+def test_the_four_are_level_2_read_docker_read_capabilities_offered_to_no_class(name):
     s = SPECS[name]
     model, kinds = NEW[name]
-    assert (s.model_name, s.level, s.safety_class, s.executor) == (model, 2, "READ_ONLY_SAFE", "docker_read")
+    # ACR-0026: the two that return log lines are sensitive, like container.logs
+    want = "READ_ONLY_SENSITIVE" if name in ("container.detailed_logs", "container.search_logs") else "READ_ONLY_SAFE"
+    assert (s.model_name, s.level, s.safety_class, s.executor) == (model, 2, want, "docker_read")
     assert set(s.target_kinds) == kinds
     assert [c.name for c in CLASSES if s.tags & c.tool_tags] == []
     pol = yaml.safe_load((ROOT / "config" / "policy.yaml").read_text(encoding="utf-8"))
