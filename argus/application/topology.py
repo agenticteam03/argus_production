@@ -19,6 +19,7 @@ from collections import deque
 from datetime import datetime, timezone
 from typing import Any, Callable
 
+from argus.application.links import LINK_WARNING_MS, link_state
 from argus.domain.model import EvidenceRecord, Incident, TargetRef
 from argus.ports.ports import MetricsUnavailable, StaleMetrics
 
@@ -28,9 +29,6 @@ HOST_SIGNALS = {"host_cpu_busy_ratio"}
 STATES = ("running", "restarting", "unhealthy", "stopped", "unknown")
 DOCKER_STATE = {"running": "running", "restarting": "restarting", "exited": "stopped", "dead": "stopped",
                 "created": "stopped", "paused": "stopped"}
-LINK_WARNING_MS = 100.0                    # a dependency answer slower than this is `slow` (inventory: link_warning_ms)
-# T-0045 B8: the exporter's failure kind of a broken link, in plain words ("other" and none stay "not reachable")
-LINK_REASONS = {"refused": "connection refused", "timeout": "timeout", "dns": "name not resolved"}
 MEMORY_WARNING, MEMORY_CRITICAL = 0.8, 0.9   # of the container's memory limit, known only from an incident's evidence
 
 
@@ -155,17 +153,12 @@ class Topology:
         edges = []
         for dep in t.depends_on:
             d = str(dep)
-            port = ports.get(d, [None])[0] if ports.get(d) else None
+            port = t.link_port(dep, ports.get(d))
             sample = probes.get(dep.name) if dep.host == t.ref.host else None
-            state, checked, latency, why = "unknown", None, None, None
-            if sample is not None:
-                checked = _iso(sample.at)
-                latency = None if sample.duration_s is None else round(sample.duration_s * 1000, 3)
-                if sample.success is not None and port is not None:
-                    state = "broken" if sample.success < 1 else ("slow" if latency is not None and latency > warn else "ok")
-                    why = LINK_REASONS.get(sample.error_kind or "")
-            elif (len(t.depends_on) == 1 and t.ref.kind == "container" and dep.kind == "container" and port is not None
-                  and vals.get("dependency_probe_min") is not None):
+            state, latency, why = link_state(sample, port, warn)
+            checked = _iso(sample.at) if sample is not None else None
+            if (sample is None and len(t.depends_on) == 1 and t.ref.kind == "container" and dep.kind == "container"
+                    and port is not None and vals.get("dependency_probe_min") is not None):
                 state = "ok" if vals["dependency_probe_min"] >= 1 else "broken"   # no per-dependency sample: the minimum
             reason = (why or "not reachable") if state == "broken" else None
             label = (f"tcp {port}" if port else "declared dependency") + (f" · {reason}" if reason else "")

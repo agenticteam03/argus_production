@@ -1,7 +1,7 @@
 # Argus — Production Architecture Specification
 
 **Document type:** consolidated target architecture and implementation blueprint ·
-**Version:** 1.8.21 (2026-10-20, §14 marked designed, not built (OP-015); 1.8.20 2026-10-19, ACR-0021 B7 baseline, long ranges, deploy events, and B8 link reasons; 1.8.19 2026-10-19, ACR-0021 B6: target metrics and the overview; 1.8.18 2026-10-19, ACR-0021 UI insights v2: B1 to B5; 1.8.17 2026-10-19, ACR-0023 log pattern matches; 1.8.16 2026-10-18, ACR-0013 and ACR-0016 Langfuse Cloud tracing; 1.8.15 2026-10-16, ACR-0017 topology; 1.8.14 2026-10-16, ACR-0017 incident metrics; 1.8.12 2026-10-14, ACR-0014; 1.8.11 2026-10-14, ACR-0012; 1.8.10 2026-10-14, ACR-0011; 1.8.8 2026-10-12, ACR-0009; 1.8.7 2026-10-12, ACR-0008; 1.8.6 2026-10-11, ACR-0007; 1.8.5 2026-10-09, ACR-0005; 1.8.4 2026-10-09, ACR-0004; 1.8.3 2026-10-08, ACR-0003; 1.8.2 2026-10-09, ACR-0002; 1.8.1 2026-10-06, ACR-0001; base 1.8.0 of 30 September 2026, sanitized for the shared repository 2026-10-02) · **Audience:** engineers and AI coding agents implementing
+**Version:** 1.8.24 (2026-10-21, ACR-0025 live dependency graph; 1.8.21 2026-10-20, §14 marked designed, not built (OP-015); 1.8.20 2026-10-19, ACR-0021 B7 baseline, long ranges, deploy events, and B8 link reasons; 1.8.19 2026-10-19, ACR-0021 B6: target metrics and the overview; 1.8.18 2026-10-19, ACR-0021 UI insights v2: B1 to B5; 1.8.17 2026-10-19, ACR-0023 log pattern matches; 1.8.16 2026-10-18, ACR-0013 and ACR-0016 Langfuse Cloud tracing; 1.8.15 2026-10-16, ACR-0017 topology; 1.8.14 2026-10-16, ACR-0017 incident metrics; 1.8.12 2026-10-14, ACR-0014; 1.8.11 2026-10-14, ACR-0012; 1.8.10 2026-10-14, ACR-0011; 1.8.8 2026-10-12, ACR-0009; 1.8.7 2026-10-12, ACR-0008; 1.8.6 2026-10-11, ACR-0007; 1.8.5 2026-10-09, ACR-0005; 1.8.4 2026-10-09, ACR-0004; 1.8.3 2026-10-08, ACR-0003; 1.8.2 2026-10-09, ACR-0002; 1.8.1 2026-10-06, ACR-0001; base 1.8.0 of 30 September 2026, sanitized for the shared repository 2026-10-02) · **Audience:** engineers and AI coding agents implementing
 Argus from an empty repository.
 
 
@@ -1032,9 +1032,15 @@ class HostInfo(BaseModel):
     name: str                               # "host-t"
     executors: dict[str, str]               # executor name → endpoint URL (no credentials)
 
+class DependencyLink(BaseModel):                # ACR-0025: one `depends_on` entry
+    ref: TargetRef                          # on the owner's own host
+    port: int | None                        # None = the dependency's first tcp_ports entry
+    required: bool = True                   # a broken required link is a problem of its owner
+
 class TargetInfo(BaseModel):
     ref: TargetRef
     depends_on: list[TargetRef]
+    links: list[DependencyLink]             # per depends_on entry its port and `required` (ACR-0025)
     scope: str                              # target-scope name used by policy and approvers
     http_endpoints: list[str]               # allowlisted for network.http_probe
     tcp_ports: list[int]                    # allowlisted for network.tcp_connect
@@ -1058,6 +1064,13 @@ class IncidentClassSpec(BaseModel):
 
 - The inventory is read through `InventoryPort` (§8.1). **Incident scope** is the incident's target
   plus its direct dependencies and dependents in the inventory; reads outside it are refused by policy.
+- **A `depends_on` entry** (ACR-0025) is a plain ref or a mapping `{ref, port, required}`. A plain ref means the
+  dependency's first `tcp_ports` entry and `required: true`. The loader refuses a port the dependency does not list, a
+  `port` on a host-kind ref (a host dependency has no port and is never probed), a dependency on another host (links
+  are per host: host isolation), and any other key. The exporter's probe list (`ops/render_target_config.py`) follows
+  the same entry: a declared port is the only one probed, a plain ref probes every listed port. The state of one link
+  (`ok`, `slow` above the owner's `link_warning_ms`, `broken`, `unknown` without a fresh sample or a port) is one rule,
+  `application/links.py`, shared by the topology (§7.1) and the recorded transitions (§7.3).
 - The class registry, the capability registry and the strategy registry are validated together at
   startup: every signal, runbook, strategy, tool tag and executor they name must exist, or Argus
   refuses to start.
@@ -1221,8 +1234,8 @@ An unauthorized read returns **404** (not 403) and is audited as `access.inciden
 | `POST /api/v1/investigations` | `RunInvestigation` (`manual`) | JWT (full or investigate): operator or approver | body: `target`, `reason`, `request_kind`, optional `idempotency_key`, optional `parent_id` (the incident this one re-checks; it must exist, else 422 and nothing is created; ACR-0021); no `force_reasoning` flag exists. With an **investigate** token (ACR-0012): quotas per principal (`ARGUS_INVESTIGATIONS_PER_HOUR` 10, `ARGUS_INVESTIGATIONS_QUEUED_PER_PRINCIPAL` 2) and on all queued manual incidents (`ARGUS_INVESTIGATIONS_QUEUED_MAX` 20), else 429 + `Retry-After` (audited `investigation.quota_refused`); every accepted request audited `investigation.requested` (access, via, client) |
 | `GET /api/v1/targets` | — (the inventory's target refs) | JWT, any role | `target`, `host`, `kind`, `name` of every inventory target, for a UI's target list; no address, port or credential (ACR-0012) |
 | `GET /api/v1/host-metrics` | named host metric snapshot | JWT, any role | Inventory host targets only; fixed CPU busy, memory used and root-disk used ratios; sample time; missing is null; no PromQL parameter (ACR-0014). Per value its `thresholds` (`warning`, `critical`, `direction`, from `config/signals.yaml`, validated at startup); per host `heartbeat_age_s` and `heartbeat_stale` (the monitoring heartbeat, ACR-0009; stale after 150 s; `null` when none is recorded) (ACR-0021). |
-| `GET /api/v1/incidents/{id}/metrics` | an incident's metric window | JWT, any role | `range` 15m/30m/1h/6h/24h (else 422; `ranges_available` lists them); a fixed signal list per class (`config/ui-incident-signals.yaml`, validated at startup); the incident's host only; window from `opened_at − range` to `closed_at + 2 min` (or now); at most ~130 points per series (the step grows); missing is null; shared for 30 s while open, 10 min once closed (ACR-0017). Per series a `kind` (`memory`, `restarts`, `cpu`, …), `thresholds` and `detector_threshold`; top level `incident_from`, `incident_to`, `events` (`restart`, `oom_kill` from counters; `alert_fired`, `alert_resolved` from alert occurrences) and a template `summary` (ACR-0021). Per series a `baseline` (p50 and p95 of the same signal over the 24 h ending an hour before the incident, scaled like the values; null under half the samples or on a failed read; read once per incident and signal) and `deploy` events from `deploy_event` on the incident's host (label: ref and short commit, never who) (ACR-0021, T-0045 B7). |
-| `GET /api/v1/topology` | the system map | JWT, any role (`incident_id` overlay: operator/approver) | Inventory targets; declared dependencies with their ports; declared networks; live state from `restarts_10m`, `health_unhealthy` and the dependency probe (`dependency_probe_min`); with `incident_id`, the incident's target and root cause from its stored `container.status` evidence (state, real networks; "no shared network" on their link); `unknown`, never ok, when Argus does not know; never VM addresses, Argus's internal endpoints or secrets; no new host read; shared for 20 s (ACR-0017). The host Argus runs on is `ARGUS_HOME_HOST`. Per node a `health` (`healthy` | `degraded` | `failed` | `unknown` | `idle`), `idle` (inventory `profile: scenario` and not running), `networks`, `problems` (signal, value, threshold, severity) and, with `incident_id`, a `role` (`root_cause` | `affected` | `on_path`) and a `cause_path`; per link an `id`, a `kind` (`dependency` | `argus_reads`), the state of **that dependency's** probe (`argus_probe_success{owner,dependency}`; `slow` above the target's `link_warning_ms`, 100 ms by default), `checked_at` (the read time), `latency_ms` and `reason` (a broken link: `connection refused`, `timeout` or `name not resolved` from the exporter's `argus_probe_error{owner,dependency,kind}`, else `not reachable`; T-0045 B8); the existing states keep their meaning (ACR-0021). |
+| `GET /api/v1/incidents/{id}/metrics` | an incident's metric window | JWT, any role | `range` 15m/30m/1h/6h/24h (else 422; `ranges_available` lists them); a fixed signal list per class (`config/ui-incident-signals.yaml`, validated at startup); the incident's host only; window from `opened_at − range` to `closed_at + 2 min` (or now); at most ~130 points per series (the step grows); missing is null; shared for 30 s while open, 10 min once closed (ACR-0017). Per series a `kind` (`memory`, `restarts`, `cpu`, …), `thresholds` and `detector_threshold`; top level `incident_from`, `incident_to`, `events` (`restart`, `oom_kill` from counters; `alert_fired`, `alert_resolved` from alert occurrences) and a template `summary` (ACR-0021). Per series a `baseline` (p50 and p95 of the same signal over the 24 h ending an hour before the incident, scaled like the values; null under half the samples or on a failed read; read once per incident and signal) and `deploy` events from `deploy_event` on the incident's host (label: ref and short commit, never who) (ACR-0021, T-0045 B7). `link_broken`, `link_recovered` and `link_slow` events from `link_event` for the links of the incident's target and of its declared dependencies inside the window (label: "Link argus-lab-api → argus-lab-cache broken") (ACR-0025; built in T-0046 L4). |
+| `GET /api/v1/topology` | the system map | JWT, any role (`incident_id` overlay: operator/approver) | Inventory targets; declared dependencies with their ports; declared networks; live state from `restarts_10m`, `health_unhealthy` and the dependency probe (`dependency_probe_min`); with `incident_id`, the incident's target and root cause from its stored `container.status` evidence (state, real networks; "no shared network" on their link); `unknown`, never ok, when Argus does not know; never VM addresses, Argus's internal endpoints or secrets; no new host read; shared for 20 s (ACR-0017). The host Argus runs on is `ARGUS_HOME_HOST`. Per node a `health` (`healthy` | `degraded` | `failed` | `unknown` | `idle`), `idle` (inventory `profile: scenario` and not running), `networks`, `problems` (signal, value, threshold, severity) and, with `incident_id`, a `role` (`root_cause` | `affected` | `on_path`) and a `cause_path`; per link an `id`, a `kind` (`dependency` | `argus_reads`), the state of **that dependency's** probe (`argus_probe_success{owner,dependency}`; `slow` above the target's `link_warning_ms`, 100 ms by default), `checked_at` (the read time), `latency_ms` and `reason` (a broken link: `connection refused`, `timeout` or `name not resolved` from the exporter's `argus_probe_error{owner,dependency,kind}`, else `not reachable`; T-0045 B8); the existing states keep their meaning (ACR-0021). Per link also `since` (the time of its last recorded transition, §7.3; null before the first) and `required` (§5.8); a broken required link is a critical `dependency_broken` problem on its owner, except when the owner is idle (ACR-0025; built in T-0046 L4). |
 | `GET /api/v1/target-metrics` | one target's recent signals (the UI's drawer) | JWT, any role | `target` (pattern `host/kind:name`, at most 128 characters, else 422; an inventory target, else 404) and `range` 15m/1h (else 422); a fixed series list per kind (container: CPU quota used, memory; host: CPU busy, memory used, disk used) with `kind`, `unit`, `max` and the `thresholds` of `config/signals.yaml`; the target's own host only; at most ~130 points per series; missing is null; shared 30 s per (target, range); no PromQL parameter (ACR-0021). |
 | `GET /api/v1/overview` | the dashboard aggregate | JWT, any role | `status` (the worst open severity, `ok` when nothing is open), open incidents by severity, the 5 newest open incidents (severity and summary as on the incident; `next_action` null until the runbook Actions section exists), the host-metrics rows, fleet health counts and declared links OK/total from the topology, `last_closed_at`; built from the store and the existing topology and host-metrics snapshots: no new host read, no executor call; shared 15 s (ACR-0021). |
 | `GET /api/v1/incidents` | `ListIncidents` | JWT | `limit` (capped server-side); `parent_id` lists an incident's re-checks, newest first; every row carries `parent_id` (ACR-0021) |
@@ -1297,6 +1310,8 @@ reconcile_firing_alerts:
     enabled: true
     stale_after_s: 180           # at least two ticks
     grace_s: 300
+  link_states:                   # ACR-0025; off until deployed
+    enabled: false
 ```
 
 On each tick the scheduler submits `RunInvestigation(trigger_kind="scheduled", schedule_id,
@@ -1343,6 +1358,17 @@ renewed is **not** fresh: reading a kept copy again is not a new heartbeat.
 | Alertmanager answers, heartbeat missing or stale | heartbeat lost: check the host's Prometheus rule evaluation and alert delivery |
 | Alertmanager does not answer | monitoring cannot be read: check the host's Alertmanager and the transport |
 | and Prometheus does not answer the bounded check | Prometheus not reachable from Argus: cause to be confirmed |
+
+**Link-state transitions (ACR-0025; built in T-0046 L2–L3).** On each reconcile tick, for every owner with a declared
+**container** dependency, the scheduler reads `MetricsPort.dependency_probes(owner)` on the **owner's own host's**
+Prometheus (the read the topology already does; for a remote host through the tunnel) and derives each link's state
+with `application/links.py` (§5.8). This is the scheduler's one read besides Alertmanager: it gets the `MetricsPort`.
+It writes a `link_event` row (§16.1) **only when a link's state changes**, and once at startup, so the table grows with
+events, not with time; audited `link.changed` (system principal). When a host's Prometheus cannot be read
+(`MetricsUnavailable`), that host's links are **skipped for the tick**: nothing is recorded, so an outage writes no
+burst of `unknown` transitions and recoveries. A sample that is read but stale is `unknown`. A host-kind dependency is
+never probed and never recorded. The alert and heartbeat reconciliation of the same tick are unaffected. Configuration:
+`reconcile_firing_alerts.link_states.enabled`. No new traffic to the monitored hosts: the probes are the exporter's.
 
 The heartbeat alert never reaches intake (`HandleAlertNotification` ignores it by its `alertname`) and never opens an
 investigation. The check is configuration (`monitoring_heartbeat.enabled`), off until every host's Prometheus has the
@@ -1737,6 +1763,7 @@ the rollout (`MAX_TOOL_LEVEL`, §13.1).
 | `get_container_network` | `container.network` | `docker_read` | from `/containers/{name}/json` |
 | `get_host_load` | `host.load` | `host_probe` | |
 | `get_io_metrics` | `host.io` | `host_probe` | |
+| `read_link_states` | `network.link_states` | `argus_internal` | the current state and the transitions of the last `minutes` (≤ 240) of the links of the incident's target and its declared dependencies, from `link_event` and the latest probe sample; a stored observation; tag `link_states`, which no class has until an evaluation batch and a teammate's review (OP-014 step 8); `max_per_incident` 2. Level 2, not 1: a Level 1 read reaches every class at once (ACR-0025; built in T-0046 L4) |
 
 **Level 3 — deep diagnosis (read)**
 
@@ -2276,7 +2303,7 @@ tables and abstractions:
 | # | Category | Contents | Technology | Owner | Retention |
 |---|---|---|---|---|---|
 | 1 | Graph execution state | checkpoints, interrupts; evidence **references** only | `langgraph-checkpoint-postgres` | orchestration | per incident; prunable after close |
-| 2 | Intake, incident and trigger data | intake queue, incidents (with `parent_id`, the incident a re-check re-checks: a foreign key that never changes, migration 007, ACR-0021), deploy events (`deploy_event`, insert-only, written by `argus deploy record` from `ops/deploy.sh`, migration 008, ACR-0021), trigger occurrences, alert occurrences, related-incident links, `evidence_version` | Postgres | application | months |
+| 2 | Intake, incident and trigger data | intake queue, incidents (with `parent_id`, the incident a re-check re-checks: a foreign key that never changes, migration 007, ACR-0021), deploy events (`deploy_event`, insert-only, written by `argus deploy record` from `ops/deploy.sh`, migration 008, ACR-0021), link-state transitions (`link_event`: owner, dependency, state, latency, reason, time; insert-only, written by the scheduler, §7.3, ACR-0025, built in T-0046 L2), trigger occurrences, alert occurrences, related-incident links, `evidence_version` | Postgres | application | months |
 | 3 | Evidence | `evidence` table: redacted, bounded, insert-only records with SHA-256 (§5.4) | Postgres | application | per evidence kind; never before the incident closes and its checkpoints are pruned |
 | 4 | Episodic, approval and action state | summaries, proposals, approvals, holds, resume intents, outbox, actions, per-target locks | Postgres | application | months/years |
 | 5 | Principals | human users (Argon2 password hashes), agent clients (hashed secrets), roles, scopes, disabled flag | Postgres | authentication adapter | while active + audit period |
@@ -2967,3 +2994,4 @@ erDiagram
 | 1.8.19 | 2026-10-19 | UI insights v2, B6 (T-0045): `GET /api/v1/target-metrics` (one inventory target's recent signals, a fixed series list per kind, `range` 15m/1h) and `GET /api/v1/overview` (the dashboard aggregate from the store and the topology and host-metrics snapshots), any authenticated role, through the public edge (§7.1, §17.1 layer 14). Baseline and deploy events follow with B7 | [ACR-0021](changes/ACR-0021-ui-insights-v2.md) |
 | 1.8.20 | 2026-10-19 | incident metrics: the 6h and 24h ranges (`ranges_available`), a `baseline` per series (p50/p95 of the 24 h ending an hour before the incident) and `deploy` events; `deploy_event` (migration 008, insert-only) written by `argus deploy record`, which `ops/deploy.sh` calls after the checkout (§7.1, §16.1; T-0045 B7). The topology's broken links name their reason (`connection refused`, `timeout`, `name not resolved`) from the exporter's `argus_probe_error`, and `ProbeSample` carries `error_kind` (§7.1, §8.1; T-0045 B8) | [ACR-0021](changes/ACR-0021-ui-insights-v2.md) |
 | 1.8.21 | 2026-10-20 | §14's approval and action machinery is marked **designed, not built**: no table, node, route, write contract, fake gateway or §14.4 / §22.2 suite exists yet; only the closed write gate and its standing test do (phase 15) | [OP-015](../OPEN_PROBLEMS.md) |
+| 1.8.24 | 2026-10-21 | a live dependency graph: a `depends_on` entry may be `{ref, port, required}` (loader refusals; the exporter probes a declared port only) and one link-state rule in `application/links.py` (§5.8; T-0046 L1); accepted and built in steps: the scheduler records link-state transitions from the existing probes into `link_event` (insert-only), skipping a host whose Prometheus cannot be read (§7.3, §16.1; L2–L3); the map's `since`, `required` and `dependency_broken`, link events on the incident charts, and the Level 2 read `network.link_states` offered to no class (§7.1, §12.2; L4) | [ACR-0025](changes/ACR-0025-live-dependency-graph.md) |

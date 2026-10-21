@@ -12,7 +12,7 @@ from string import Template
 import httpx
 import yaml
 
-from argus.domain.model import HostInfo, MetricSnapshot, Passage, TargetInfo, TargetRef
+from argus.domain.model import DependencyLink, HostInfo, MetricSnapshot, Passage, TargetInfo, TargetRef
 from argus.ports.ports import MetricsUnavailable, ProbeSample, StaleMetrics
 
 
@@ -37,8 +37,9 @@ class YamlInventory:
             warn = t.get("link_warning_ms")
             if warn is not None and (isinstance(warn, bool) or not isinstance(warn, (int, float)) or warn <= 0):
                 raise ValueError(f"inventory target {ref}: link_warning_ms must be a positive number")
+            links = [_dependency_link(ref, d) for d in t.get("depends_on", [])]
             self._targets[ref] = TargetInfo(ref=ref, scope=t.get("scope", "lab"),
-                                            depends_on=[TargetRef.parse(d) for d in t.get("depends_on", [])],
+                                            depends_on=[x.ref for x in links], links=links,
                                             http_endpoints=t.get("http_endpoints", []),
                                             tcp_ports=t.get("tcp_ports", []), mounts=t.get("mounts", []),
                                             networks=t.get("networks", []),
@@ -49,6 +50,10 @@ class YamlInventory:
             for d in info.depends_on:
                 if d not in self._targets:
                     raise ValueError(f"{info.ref} depends on unknown target {d}")
+            for x in info.links:                 # ACR-0025: a declared port must be one the dependency lists
+                if x.port is not None and x.port not in self._targets[x.ref].tcp_ports:
+                    raise ValueError(f"{info.ref} depends on {x.ref} port {x.port}, which {x.ref} does not list "
+                                     f"in tcp_ports {self._targets[x.ref].tcp_ports}")
 
     def hosts(self) -> list[HostInfo]:
         return list(self._hosts.values())
@@ -70,6 +75,28 @@ class YamlInventory:
 
     def version(self) -> str:
         return self._version
+
+
+def _dependency_link(owner: TargetRef, entry) -> DependencyLink:
+    """ACR-0025: a `depends_on` entry is a plain ref, or `{ref, port, required}`. Links are per host (host isolation:
+    a cross-host link is never probed), and a host dependency has no port (it is never probed either)."""
+    if isinstance(entry, str):
+        link = DependencyLink(ref=TargetRef.parse(entry))
+    elif isinstance(entry, dict) and "ref" in entry and not set(entry) - {"ref", "port", "required"}:
+        port, required = entry.get("port"), entry.get("required", True)
+        if port is not None and (isinstance(port, bool) or not isinstance(port, int) or not 0 < port < 65536):
+            raise ValueError(f"inventory target {owner}: depends_on {entry['ref']}: port must be a TCP port number")
+        if not isinstance(required, bool):
+            raise ValueError(f"inventory target {owner}: depends_on {entry['ref']}: required must be true or false")
+        link = DependencyLink(ref=TargetRef.parse(entry["ref"]), port=port, required=required)
+        if port is not None and link.ref.kind == "host":
+            raise ValueError(f"inventory target {owner}: depends_on {link.ref}: a host dependency has no port")
+    else:
+        raise ValueError(f"inventory target {owner}: a depends_on entry is a ref or {{ref, port, required}}, "
+                         f"not {entry!r}")
+    if link.ref.host != owner.host:
+        raise ValueError(f"inventory target {owner}: depends_on {link.ref} is on another host (links are per host)")
+    return link
 
 
 # --- Metrics -----------------------------------------------------------------------------------
