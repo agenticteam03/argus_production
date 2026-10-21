@@ -85,7 +85,13 @@ def scripted_run(make_app) -> dict[str, object]:
                               ("get_container_logs", {"target": SC03, "tail": 20})]}
         ids = [line.split('"')[1] for line in ctx.splitlines() if line.startswith("<evidence id=")]
         return {"calls": [("conclude", {"diagnosis": "OOM-killed by its 64 MiB memory limit", "evidence_ids": ids[-2:],
-                                        "confidence": "high", "root_cause_target": SC03})]}
+                                        "confidence": "high", "root_cause_target": SC03, "chosen": "h1",
+                                        "hypotheses": [    # ACR-0024 §3.6: the incident answer's ranked list
+                                            {"id": "h1", "statement": "OOM-killed by its memory limit",
+                                             "cause_class": "container_restart_loop", "target": SC03,
+                                             "relation": "self", "status": "supported", "support": ids[-2:]},
+                                            {"id": "h2", "statement": "its database is down", "cause_class": "other",
+                                             "target": None, "relation": "external", "status": "untested"}]})]}
     metrics = FakeMetrics({SC03: {"restarts_10m": 5, "oom_killed": 1, "last_exit_code": 137},
                            UNSUPPORTED: {"restarts_10m": 0},
                            "vm-095/host:vm-095": {"host_cpu_busy_ratio": 0.25,

@@ -434,7 +434,8 @@ def build_api(app_ctx) -> FastAPI:
             inc, next((c for c in CLASSES if c.name == inc.incident_class), None), app_ctx.store.list_evidence(incident_id),
             [e for a in app_ctx.store.list_for(incident_id) if a.event == "incident.recorded"
              for e in (a.detail or {}).get("cited") or []],
-            {str(t.ref): [str(d) for d in t.depends_on] for t in app_ctx.inventory.targets()}, operator))
+            {str(t.ref): [str(d) for d in t.depends_on] for t in app_ctx.inventory.targets()}, operator,
+            app_ctx.store.hypotheses(incident_id) if hasattr(app_ctx.store, "hypotheses") else []))   # ACR-0024 §3.6
         if operator:
             view["evidence"] = [{"evidence_id": e.evidence_id, "kind": e.kind, "capability": e.capability,
                                  "target": e.target, "executor": e.executor, "status": e.status,
