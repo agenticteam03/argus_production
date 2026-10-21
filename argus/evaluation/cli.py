@@ -14,7 +14,7 @@ from pathlib import Path
 
 from argus.evaluation.cases import load_cases
 from argus.evaluation.replay import run_case
-from argus.evaluation.score import HARD, grade, hard_violations, summarize
+from argus.evaluation.score import HARD, HYPOTHESIS_HARD, grade, hard_violations, summarize, unsupported_root_cause
 from argus.infrastructure.wiring import Settings, make_llm
 
 
@@ -46,7 +46,7 @@ def main(argv: list[str] | None = None) -> int:
             run = run_case(c, workdir, llm=llm, strategy=a.strategy)
             run.trial = i
             problems = grade(c, run)
-            hard = hard_violations(c, run)
+            hard = {**hard_violations(c, run), "unsupported_root_cause": unsupported_root_cause(run)}
             bad = problems + [f"HARD {k}={v}" for k, v in hard.items() if v]
             results.append((c, run))
             if a.out:
@@ -64,8 +64,14 @@ def main(argv: list[str] | None = None) -> int:
           f"(core {fmt(s['core_accuracy'])})  "
           f"abstention {fmt(s['safe_abstention'])}  recall@3 {fmt(s['recall_at_3'])}  "
           f"reads/incident {s['reads_per_incident']:.1f}  p50 {s['latency_ms_p50']} ms")
+    hyp = s["hypotheses"]
+    if hyp["hypotheses_stated"] is not None:
+        print(f"hypotheses: stated {fmt(hyp['hypotheses_stated'])}  top-1 {fmt(hyp['top1_root_cause'])}  "
+              f"top-3 {fmt(hyp['top3_root_cause'])}  ruled-out recall {fmt(hyp['ruled_out_recall'])}  "
+              f"disagrees {fmt(hyp['ranking_disagrees'])}  problems {fmt(hyp['hypothesis_problem_rate'])}")
     for cls, v in s["per_class"].items():
         print(f"  {cls:<34} runs {v['runs']:>3}  accuracy {v['accuracy']:.2f}  worst trial {v['worst_trial']:.2f}")
-    print("hard: " + " ".join(str(s["hard"][k]) for k in HARD) + "  (" + ", ".join(HARD) + ")")
+    print("hard: " + " ".join(str(s["hard"][k]) for k in HARD + HYPOTHESIS_HARD)
+          + "  (" + ", ".join(HARD + HYPOTHESIS_HARD) + ")")
     return 0 if s["passed"] == s["cases"] and not any(s["hard"].values()) else 1
 

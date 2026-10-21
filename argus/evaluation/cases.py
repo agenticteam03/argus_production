@@ -11,6 +11,13 @@ Category = Literal["class", "unsupported", "stale_metrics", "forbidden_target", 
                    "ambiguous"]
 
 
+class ExpectedHypotheses(BaseModel):
+    """ACR-0024 §3.8: what a good list holds; each entry is a target or a cause class."""
+    model_config = ConfigDict(extra="forbid")
+    supported: list[str] = []                     # the cause (default: the label's `root_cause`)
+    ruled_out: list[str] = []                     # what a careful run considers and rules out
+
+
 class Label(BaseModel):
     model_config = ConfigDict(extra="forbid", populate_by_name=True)
     outcome: str | list[str]
@@ -21,6 +28,13 @@ class Label(BaseModel):
     diagnosis_any: list[str] = []
     findings_any: list[str] = []
     runbooks: list[str] = []                      # supporting runbooks, for recall@3
+    expected_hypotheses: ExpectedHypotheses | None = None    # ACR-0024 §3.8 (T-0047 H4)
+
+    def expected_causes(self) -> list[str]:
+        """The entries a top-ranked hypothesis should match: `expected_hypotheses.supported`, else `root_cause`."""
+        if self.expected_hypotheses and self.expected_hypotheses.supported:
+            return list(self.expected_hypotheses.supported)
+        return [self.root_cause] if self.root_cause else []
 
     def names_class(self) -> bool:
         """True when the label names `class`, also as `class: null` (= no class may match)."""
