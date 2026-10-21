@@ -9,7 +9,7 @@ architecture is never changed silently to make an implementation easier.
 | Status | `proposed` → `accepted` / `rejected` → `applied` |
 | Proposed by | <github-handle> (+ agent) · <date> |
 | Accepted by | <github-handle> · <date> |
-| Second approval (safety principle only) | <github-handle> in PR #… |
+| Second approval (safety principle only) | <github-handle> in PR #… (any team member, the author included; may be the one who accepted, AGENT_PROTOCOL §4) |
 | Architecture version | from `1.8.x` → `1.8.y` |
 | Task / PR | T-xxxx · PR #… |
 
