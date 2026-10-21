@@ -133,7 +133,6 @@ def test_link_events_migration_009(runtime_dsn, store):
             c.execute("INSERT INTO link_event (owner, dependency, state, at) VALUES ('a', 'b', 'down', now())")
 
 
-
 def test_sessions_and_login_failures_migration_010(runtime_dsn, store):
     """ACR-0018 (phase 16 step 1): a session is inserted, revoked once and never deleted; the runtime role may set only
     its revocation columns. Failed logins are inserted, read in a window and cleared."""
@@ -191,6 +190,20 @@ def test_audit_chain_migration_011(store):
         finally:
             c.execute("ALTER TABLE audit ENABLE TRIGGER audit_insert_only")
     assert verify(store.audit_chain())[2] == [f"{victim}: hash does not match its body (the row was edited)"]
+
+
+def test_latest_link_events(store):
+    """T-0046 L4: the map's `since` is the last recorded transition of each link (one row per link, the newest)."""
+    from argus.domain.model import utcnow
+    now = utcnow()
+    web, db, cache = "vm-166/container:pg-l4-web", "vm-166/container:pg-l4-db", "vm-166/container:pg-l4-cache"
+    store.add_link_event(web, db, "ok", 2.0, None, now - timedelta(minutes=9))
+    store.add_link_event(web, db, "broken", None, "timeout", now - timedelta(minutes=4))
+    store.add_link_event(web, cache, "slow", 220.0, None, now - timedelta(minutes=2))
+    latest = store.latest_link_events()
+    assert latest[(web, db)]["state"] == "broken" and latest[(web, cache)]["state"] == "slow"
+    assert abs((latest[(web, db)]["at"] - (now - timedelta(minutes=4))).total_seconds()) < 1
+
 
 def test_worker_lease(store):
     """T-0014: a claim is a lease; only expired claims go back to the queue (tests/test_worker_lease.py, SQLite)."""
