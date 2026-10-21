@@ -58,6 +58,18 @@ CREATE TRIGGER IF NOT EXISTS link_event_no_update BEFORE UPDATE ON link_event
   BEGIN SELECT RAISE(ABORT, 'link_event is insert-only'); END;
 CREATE TRIGGER IF NOT EXISTS link_event_no_delete BEFORE DELETE ON link_event
   BEGIN SELECT RAISE(ABORT, 'link_event is insert-only'); END;
+CREATE TABLE IF NOT EXISTS incident_hypothesis (
+  id INTEGER PRIMARY KEY AUTOINCREMENT, incident_id TEXT NOT NULL, step INTEGER NOT NULL,
+  hypothesis_id TEXT NOT NULL, statement TEXT NOT NULL, cause_class TEXT NOT NULL, target TEXT,
+  relation TEXT NOT NULL CHECK (relation IN ('self', 'dependency', 'host', 'external')),
+  status TEXT NOT NULL CHECK (status IN ('supported', 'ruled_out', 'untested')),
+  support_ids TEXT NOT NULL, against_ids TEXT NOT NULL, score REAL NOT NULL, rank INTEGER NOT NULL,
+  chosen INTEGER NOT NULL, at TEXT NOT NULL, UNIQUE (incident_id, step, hypothesis_id));
+CREATE INDEX IF NOT EXISTS incident_hypothesis_incident ON incident_hypothesis(incident_id, step);
+CREATE TRIGGER IF NOT EXISTS incident_hypothesis_no_update BEFORE UPDATE ON incident_hypothesis
+  BEGIN SELECT RAISE(ABORT, 'incident_hypothesis is insert-only'); END;
+CREATE TRIGGER IF NOT EXISTS incident_hypothesis_no_delete BEFORE DELETE ON incident_hypothesis
+  BEGIN SELECT RAISE(ABORT, 'incident_hypothesis is insert-only'); END;
 CREATE TABLE IF NOT EXISTS auth_session (
   jti TEXT PRIMARY KEY, principal TEXT NOT NULL, access TEXT NOT NULL, created_at TEXT NOT NULL,
   expires_at TEXT NOT NULL, revoked_at TEXT, revoked_by TEXT, revoke_reason TEXT);
@@ -284,6 +296,27 @@ class SqliteStore:
         """ACR-0025 (T-0046 L2): a change of one declared link's state; insert-only."""
         self._q("INSERT INTO link_event(owner,dependency,state,latency_ms,reason,at) VALUES (?,?,?,?,?,?)",
                 (owner, dependency, state, latency_ms, reason, at.astimezone(timezone.utc).isoformat()))
+
+    # --- hypotheses (ACR-0024 §3.5, T-0047 H2) -----------------------------------------------------------------------
+    def add_hypotheses(self, incident_id: str, step: int, rows: list[dict[str, Any]], at: datetime) -> None:
+        """One decision step's hypotheses with their score and rank; insert-only."""
+        with self._lock:
+            for r in rows:
+                self._q("INSERT INTO incident_hypothesis(incident_id,step,hypothesis_id,statement,cause_class,target,"
+                        "relation,status,support_ids,against_ids,score,rank,chosen,at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                        (incident_id, step, r["hypothesis_id"], r["statement"], r["cause_class"], r["target"],
+                         r["relation"], r["status"], json.dumps(r["support_ids"]), json.dumps(r["against_ids"]),
+                         r["score"], r["rank"], int(r["chosen"]), at.astimezone(timezone.utc).isoformat()))
+
+    def hypotheses(self, incident_id: str) -> list[dict[str, Any]]:
+        """Every stored hypothesis of an incident, by step, then rank."""
+        rows = self._q("SELECT step,hypothesis_id,statement,cause_class,target,relation,status,support_ids,against_ids,"
+                       "score,rank,chosen,at FROM incident_hypothesis WHERE incident_id=? ORDER BY step, rank, id",
+                       (incident_id,))
+        return [{"step": r[0], "hypothesis_id": r[1], "statement": r[2], "cause_class": r[3], "target": r[4],
+                 "relation": r[5], "status": r[6], "support_ids": json.loads(r[7]), "against_ids": json.loads(r[8]),
+                 "score": r[9], "rank": r[10], "chosen": bool(r[11]), "at": datetime.fromisoformat(r[12])}
+                for r in rows]
 
     # --- sessions and the login limiter (ACR-0018, phase 16 step 1) ------------------------------------------------
     def add_session(self, jti: str, principal: str, access: str, created_at: datetime, expires_at: datetime) -> None:

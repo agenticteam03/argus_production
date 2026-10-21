@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | `in progress` — [ACR-0024](../../architecture/changes/ACR-0024-hypotheses-and-cause-ranking.md) accepted (#215); H1 in review (`task/T-0047-h1-hypotheses-log-only`) |
+| Status | `in progress` — [ACR-0024](../../architecture/changes/ACR-0024-hypotheses-and-cause-ranking.md) accepted (#215); H1 merged (#228); H2 in review (`task/T-0047-h2-ranking-and-storage`) |
 | Phase | next phase, area C (separate track of [NEXT-PHASE](NEXT-PHASE-supervised-remediation.md)) |
 | Architecture | ACR-0024 (`accepted`, applied in 1.8.27 by H1) |
 | Branch | one branch per step: `task/T-0047-h<n>-<slug>` |
@@ -57,6 +57,8 @@ So offering them alone is not the next step. H4 measures them again with hypothe
 - `expected_hypotheses` labels on the existing cases (SC-01 to SC-09); top-1 / top-3 accuracy over the ranking;
   ruled-out recall; hard check `unsupported_root_cause` = 0.
 - A run with the H1 checks still log-only; then the harness **enforces** them only if accuracy is not lower.
+- Leave out of the problem rate the problems on evidence references without `target` / `kind`: an investigation
+  checkpointed before H1 holds such references (`conantkd`, #228 review).
 - The built reads measured again with hypotheses, one batch per read (as EVAL-offers): `cpu_history`,
   `disk_history`, `compare_baseline`, `trace_request_path`, `search_logs` and `diagnostic_snapshot`;
   `prior_incidents` only once the replay store holds recorded incidents to recall. A read is offered to a class only

@@ -265,6 +265,7 @@ class GraphRunner(SkeletonRunner):
         if getattr(d, "hypothesis_problems", None):   # ACR-0024 §3.2, log-only until T-0047 H4: the decision stands
             self._audit(inc, "decision", "hypothesis.invalid", actor=caller,
                         detail={"step": step + 1, "decision": d.kind, "problems": d.hypothesis_problems[:10]})
+        self._hypotheses(inc, step + 1, d, view.evidence)
         upd = {"step": step + 1, "decisions": [*s.get("decisions", []), d.model_dump(mode="json")]}
         if isinstance(d, InvalidDecision):
             if d.reason == "fabricated_tool":

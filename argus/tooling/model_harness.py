@@ -30,7 +30,7 @@ Rules:
   to the data (its logs, its own file names, its write activity), not only because it can write there; a file that
   names no component is part of the symptom: escalate, with it as what a human should check.
 
-Hypotheses (with `conclude` and `escalate`):
+Hypotheses (with `conclude` and `escalate`; with read tools, one `state_hypotheses` call beside them):
 - List up to 5 candidate causes you considered, each with an id h1..h5 (keep the same id for the same cause), a
   short statement, its cause class (or "other"), its target, its relation to the incident's target (self,
   dependency, host, external) and its status: supported, ruled_out or untested.
@@ -39,11 +39,14 @@ Hypotheses (with `conclude` and `escalate`):
 - `chosen` is the id of the supported hypothesis your diagnosis is; its target is the root_cause_target.
 - A cause outside what Argus can observe (a provider outage, a network outside the inventory) is `external`, with
   no target. It may be supported by what you saw here, but it is never chosen: escalate, with the hypotheses.
+- While you gather evidence, add one `state_hypotheses` call to your read calls with the list as it stands, so the
+  next step continues it. It is not a read and does not count toward the read limit.
 """
 
 MAX_HYPOTHESES = 5
 
 DECISION_TOOLS = {"conclude", "escalate"}
+STATE_TOOL = "state_hypotheses"          # ACR-0024 §3.1 (T-0047 H2): a read step's list, beside its read calls
 
 
 class ModelHarness:
@@ -81,6 +84,12 @@ class ModelHarness:
                                    "additionalProperties": False}))
         ev_ids = sorted(view.evidence_ids)
         hypotheses = self._hypotheses_schema(view, scope)
+        if tools:                                    # only beside read tools: a read step's list (T-0047 H2)
+            tools.append(ModelToolDefinition(
+                name=STATE_TOOL, description="State your hypotheses as they stand, beside your read calls. Not a "
+                                             "read: it gathers nothing and does not count toward the read limit.",
+                parameters_schema={"type": "object", "additionalProperties": False, "required": ["hypotheses"],
+                                   "properties": {"hypotheses": hypotheses}}))
         tools.append(ModelToolDefinition(
             name="conclude", description="Final diagnosis supported by stored evidence.",
             parameters_schema={"type": "object", "additionalProperties": False,
@@ -141,6 +150,16 @@ class ModelHarness:
         calls = reply.tool_calls
         if not calls:
             return self._from_text(reply.text, view)
+        stated = [c for c in calls if c.name == STATE_TOOL]
+        if stated:                                   # T-0047 H2: the list beside the reads; never a step of its own
+            calls = [c for c in calls if c.name != STATE_TOOL]
+            if len(stated) > 1:
+                return InvalidDecision(reason="multiple_calls", detail=f"{len(stated)} {STATE_TOOL} calls: at most one")
+            if any(c.name in DECISION_TOOLS for c in calls):
+                return InvalidDecision(reason="multiple_calls",
+                                       detail=f"{STATE_TOOL} goes with read calls; conclude and escalate carry their own")
+            if not calls:
+                return InvalidDecision(reason="malformed", detail=f"{STATE_TOOL} goes with at least one read call")
         names = [c.name for c in calls]
         if any(n in DECISION_TOOLS for n in names) and len(calls) > 1:
             return InvalidDecision(reason="multiple_calls", detail=f"a decision tool must be alone: {names}")
@@ -182,7 +201,16 @@ class ModelHarness:
             except ValidationError as e:
                 return InvalidDecision(reason="malformed", detail=f"{n}: {e.errors()[0]['msg']}")
             reads.append(ReadCall(name=spec.name, arguments=a))
-        return UseReadTools(calls=reads)
+        if not stated:
+            return UseReadTools(calls=reads)
+        try:
+            raw = json.loads(stated[0].arguments_json or "{}")
+        except ValueError:
+            raw = None
+        hyps, problems = check_hypotheses(raw.get("hypotheses") if isinstance(raw, dict) else None, view)
+        if not isinstance(raw, dict):
+            problems = [f"{STATE_TOOL}: arguments must be an object", *problems]
+        return UseReadTools(calls=reads, hypotheses=hyps, hypothesis_problems=problems)
 
     def _conclude(self, args: dict, view: InvestigationView):
         if len(str(args.get("diagnosis") or "").strip()) < 20:

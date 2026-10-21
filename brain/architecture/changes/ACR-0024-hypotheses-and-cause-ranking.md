@@ -225,3 +225,9 @@ Next: T-0047 H1 applies this ACR to `ARCHITECTURE.md` with its first code (§6).
 need to know what each cited evidence id is evidence of. A hypothesis that fails its schema is dropped from the
 decision and reported, and more than five are cut to five; the decision itself is never refused for its
 hypotheses while the checks are log-only. Both runners (`plain` and `langgraph`) audit `hypothesis.invalid`.
+
+**As built (H2, ARCHITECTURE 1.8.28):** a read step carries its list in one `state_hypotheses` call beside its read
+calls, because §3.1's optional field on `UseReadTools` needed a tool to arrive through; it is not a read and is
+refused alone, twice or beside a decision. A peer finding has a weight in `config/ranking.yaml` but is not cited by
+an evidence id yet (§23), so it never counts today. `ranking_disagrees` is derived from the stored rows (the chosen
+row's rank), not stored on its own; H3 shows it.

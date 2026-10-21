@@ -201,6 +201,27 @@ class PostgresStore:
         self._q("INSERT INTO link_event (owner, dependency, state, latency_ms, reason, at) VALUES (%s, %s, %s, %s, %s, %s)",
                 (owner, dependency, state, latency_ms, reason, at))
 
+    # --- hypotheses (ACR-0024 §3.5, T-0047 H2; migration 012) --------------------------------------------------------
+    def add_hypotheses(self, incident_id: str, step: int, rows: list[dict[str, Any]], at: datetime) -> None:
+        """One decision step's hypotheses with their score and rank; insert-only, in one transaction."""
+        with self.pool.connection() as c, c.transaction():
+            for r in rows:
+                c.execute("INSERT INTO incident_hypothesis (incident_id, step, hypothesis_id, statement, cause_class, "
+                          "target, relation, status, support_ids, against_ids, score, rank, chosen, at) "
+                          "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
+                          (incident_id, step, r["hypothesis_id"], r["statement"], r["cause_class"], r["target"],
+                           r["relation"], r["status"], list(r["support_ids"]), list(r["against_ids"]), r["score"],
+                           r["rank"], bool(r["chosen"]), at))
+
+    def hypotheses(self, incident_id: str) -> list[dict[str, Any]]:
+        """Every stored hypothesis of an incident, by step, then rank."""
+        rows = self._q("SELECT step, hypothesis_id, statement, cause_class, target, relation, status, support_ids, "
+                       "against_ids, score, rank, chosen, at FROM incident_hypothesis WHERE incident_id = %s "
+                       "ORDER BY step, rank, id", (incident_id,))
+        return [{"step": r[0], "hypothesis_id": r[1], "statement": r[2], "cause_class": r[3], "target": r[4],
+                 "relation": r[5], "status": r[6], "support_ids": list(r[7]), "against_ids": list(r[8]),
+                 "score": r[9], "rank": r[10], "chosen": r[11], "at": r[12]} for r in rows]
+
     # --- sessions and the login limiter (ACR-0018, phase 16 step 1; migration 010) ---------------------------------
     def add_session(self, jti: str, principal: str, access: str, created_at: datetime, expires_at: datetime) -> None:
         self._q("INSERT INTO auth_session (jti, principal, access, created_at, expires_at) VALUES (%s, %s, %s, %s, %s)",
@@ -445,6 +466,14 @@ CHECKS_SQL: list[tuple[str, str, bool]] = [
     ("a session is never deleted (DELETE refused)", "DELETE FROM auth_session WHERE jti = md5('dbcheck')", False),
     ("insert login failure (migration 010)", "INSERT INTO login_failure (key, at) VALUES ('u:dbcheck', now())", True),
     ("a login failure may be cleared (DELETE)", "DELETE FROM login_failure WHERE key = 'u:dbcheck'", True),
+    ("insert hypothesis (ACR-0024, migration 012)", "INSERT INTO incident_hypothesis (incident_id, step, "
+                                                    "hypothesis_id, statement, cause_class, relation, status, score, "
+                                                    "rank, at) VALUES ('inc_dbcheck', 1, 'h1', 'dbcheck', 'other', "
+                                                    "'external', 'untested', 0, 1, now())", True),
+    ("hypotheses are insert-only (UPDATE refused)", "UPDATE incident_hypothesis SET status = 'supported' "
+                                                    "WHERE incident_id = 'inc_dbcheck'", False),
+    ("hypotheses are insert-only (DELETE refused)", "DELETE FROM incident_hypothesis WHERE incident_id = 'inc_dbcheck'",
+     False),
     ("runtime role is not superuser", "DO $$ BEGIN IF (SELECT rolsuper FROM pg_roles WHERE rolname = current_user) "
                                       "THEN RAISE EXCEPTION 'superuser'; END IF; END $$", True),
 ]
