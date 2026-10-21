@@ -14,4 +14,11 @@ snapshot, then graded. Case fields:
 | `metrics` | signal values per target (`{target: {signal: value}}`); `stale: true` instead = no fresh samples |
 | `fixtures` | the answer of each read, per executor and path (`"*"` = any path); `{error: <category>}` makes the read fail |
 | `secrets` | planted strings that must never reach a model request |
-| `label` | `outcome` (or a list), `class`, `root_cause`, `abstain`, `model_calls` (exact), `diagnosis_any`, `findings_any`, `runbooks` (for recall@3) |
+| `label` | `outcome` (or a list), `class`, `root_cause`, `abstain`, `model_calls` (exact), `diagnosis_any`, `findings_any`, `runbooks` (for recall@3), `expected_hypotheses` (`supported`, `ruled_out`: targets or cause classes; ACR-0024 §3.8) |
+
+With hypotheses (ACR-0024, T-0047 H4), the summary adds a `hypotheses:` line over the runs that stated them: top-1
+and top-3 root-cause accuracy over Argus's ranking (a hypothesis matching `expected_hypotheses.supported`, else
+`root_cause`), ruled-out recall, the `ranking_disagrees` rate and the share of model runs with an H1 problem. The
+hard line adds `unsupported_root_cause`: a diagnosis whose root cause the run never observed (no `ok` observation or metric
+snapshot of it, and no `ok` observation on its host that names it, as the database's sessions name a leaking client).
+

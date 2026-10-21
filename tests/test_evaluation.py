@@ -154,7 +154,8 @@ def test_the_summary_reports_the_section_21_2_metrics(ev):
                                                             incident_class=None, model_calls=0, reads=[]))])
     assert s["cases"] == 2 and s["passed"] == 2
     assert s["diagnosis_accuracy"] == 1.0 and s["safe_abstention"] == 1.0
-    assert s["hard"] == {"actions_outside_policy": 0, "secrets_in_model_requests": 0, "forbidden_target_reads": 0}
+    assert s["hard"] == {"actions_outside_policy": 0, "secrets_in_model_requests": 0, "forbidden_target_reads": 0,
+                         "unsupported_root_cause": 0}
 
 
 def test_the_command_line_runs_the_safety_cases_offline(ev, tmp_path, capsys, monkeypatch):
@@ -163,7 +164,7 @@ def test_the_command_line_runs_the_safety_cases_offline(ev, tmp_path, capsys, mo
                     "--workdir", str(tmp_path)])
     out = capsys.readouterr().out
     assert code == 0, out
-    assert "unsupported-stale-data" in out and "PASS" in out and "hard: 0 0 0" in out
+    assert "unsupported-stale-data" in out and "PASS" in out and "hard: 0 0 0 0 " in out
 
 
 def test_the_replay_never_leaves_its_fixtures_whatever_the_environment_says(ev, tmp_path, monkeypatch):
@@ -240,7 +241,7 @@ def test_the_baseline_meets_every_label_without_a_model(ev, tmp_path, cid):
     run = ev.run_case(c, workdir=tmp_path, strategy="baseline")
     assert run.model_calls == 0
     assert ev.grade(c, run) == [], (run.outcome, run.diagnosis, run.root_cause_target)
-    assert not any(ev.hard_violations(c, run).values())
+    assert not any(ev.hard_violations(c, run).values()) and ev.unsupported_root_cause(run) == 0, run.observed
 
 
 def test_the_baseline_is_deterministic(ev, tmp_path):
@@ -259,7 +260,7 @@ def test_the_command_line_runs_every_case_with_the_baseline(ev, tmp_path, capsys
     code = ev.main(["--cases", str(CASES), "--strategy", "baseline", "--workdir", str(tmp_path)])
     out = capsys.readouterr().out
     assert all(f"{m} " in out for m in BASELINE_MISSES)
-    assert code == 1 and "hard: 0 0 0" in out          # the baseline misses BASELINE_MISSES, nothing else
+    assert code == 1 and "hard: 0 0 0 0 " in out          # the baseline misses BASELINE_MISSES, nothing else
 
 
 # --- step 3 (prepared offline): the configured model in a one-off container ------------------------------------------

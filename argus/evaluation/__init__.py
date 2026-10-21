@@ -7,10 +7,12 @@ replays it through the real wiring (policy, graph, evidence store, redaction) wi
 target services, then grades the result and the hard checks. It never reaches a VM. Shipped in the image so the
 real model's trials (step 3) run in the worker container with the same code.
 """
-from argus.evaluation.cases import Case, Label, load_cases
+from argus.evaluation.cases import Case, ExpectedHypotheses, Label, load_cases
 from argus.evaluation.replay import CaseRun, run_case
-from argus.evaluation.score import grade, hard_violations, recall_at_3, summarize
+from argus.evaluation.score import (grade, hard_violations, ranking_metrics, recall_at_3, ruled_out_found,
+                                    summarize, top_k, unsupported_root_cause)
 from argus.evaluation.cli import main
 
-__all__ = ["Case", "CaseRun", "Label", "grade", "hard_violations", "load_cases", "main", "recall_at_3", "run_case",
-           "summarize"]
+__all__ = ["Case", "CaseRun", "ExpectedHypotheses", "Label", "grade", "hard_violations", "load_cases", "main",
+           "ranking_metrics", "recall_at_3", "ruled_out_found", "run_case", "summarize", "top_k",
+           "unsupported_root_cause"]

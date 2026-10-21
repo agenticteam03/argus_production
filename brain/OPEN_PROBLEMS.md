@@ -23,7 +23,7 @@ When a problem is fixed, set its status to `fixed` with the date, and add a jour
 | **OP-014** | The self-merge rule relies on the tests: gaps where a green CI does not yet mean "safe to merge" | open — first three gaps in `task/TEST-HARDEN-1` | 2026-10-17 |
 | **OP-015** | ARCHITECTURE §14 says the approval/action machinery "exists from the start"; the code has none of it | open — implemented by ACR-0019 (phase 18) if accepted; until then the text must say "designed, not built" | 2026-10-18 |
 | **OP-016** | `policies/SECURITY.md` lists "the team's shared Argus password"; §17.3 and ACR-0011 require one account per person | open — fixed in phase 15 | 2026-10-18 |
-| **OP-017** | The frontend's dependencies have known advisories: React Router (production, moderate), Vite, Vitest and esbuild (dev tooling, up to critical); every fix is a major upgrade | in progress — React Router 7 (what ships: `npm audit --omit=dev` clean, 2026-10-21); Vite and Vitest left | 2026-10-20 |
+| **OP-017** | The frontend's dependencies have known advisories: React Router (production, moderate), Vite, Vitest and esbuild (dev tooling, up to critical); every fix is a major upgrade | in progress — React Router 7, Vite 8 and Vitest 5 (2026-10-21): `npm audit` clean on the whole tree; CI's gate left | 2026-10-20 |
 
 ---
 
@@ -222,8 +222,11 @@ diff-coverage gates, LLM injection regression testing, CI security scanners.)
    changed lines; Vitest coverage thresholds for `frontend/`. A changed-lines gate never blocks on old, untested code.
    *Done 2026-10-20 for Python (`task/OP-014-4-7-ci-gates`):* the `test` job runs the suite under `pytest-cov`
    (`argus/`, `services/`) and `diff-cover` fails a PR whose changed lines there are under 80 % covered (against
-   `origin/main`). Run in CI only: the full suite under coverage ran out of memory on a laptop. Vitest coverage
-   waits for OP-017 (it needs `@vitest/coverage-v8`, and Vitest's own advisories are a major upgrade).
+   `origin/main`). Run in CI only: the full suite under coverage ran out of memory on a laptop. *Done 2026-10-21
+   for `frontend/` (`task/OP-014-4-vitest-coverage`, after OP-017's Vitest 5):* `npm test` runs Vitest with
+   `@vitest/coverage-v8` over every source file and fails under floors set just below that day's figures (lines 33,
+   statements 33, functions 28, branches 26 %); raised as tests are added, never lowered. A floor, not a
+   changed-lines gate: the pages are mostly covered by Playwright, which it does not count.
 5. **Static analysis (SAST):** `ruff` for Python; `bandit` or `semgrep` (OWASP / Python rulesets) failing on high
    severity. CodeQL code scanning is not available for private repositories on the free plan, so these run as
    plain CI steps without SARIF upload. *Done 2026-10-20 (`task/OP-014-5-static-analysis`):* `ruff` (default rules, E731 ignored)
@@ -320,8 +323,8 @@ disabled. No shared account, so nothing to disable.
 
 ## OP-017 — The frontend's dependencies have known advisories
 
-**Status:** in progress 2026-10-21 (`task/OP-017-react-router-7`: `react-router-dom` 7.18.4; `npm audit --omit=dev`
-finds nothing; Vite and Vitest left) · **Opened:** 2026-10-20 (OP-014 step 6, `npm audit`) · **Found by:** `conantkd`
+**Status:** in progress 2026-10-21: `react-router-dom` 7.18.4, then `vite` 8.3.5 and `vitest` 5.0.5
+(`task/OP-017-vite8`); `npm audit` on the whole tree finds nothing. Left: CI's gate on the whole tree (fix 3) · **Opened:** 2026-10-20 (OP-014 step 6, `npm audit`) · **Found by:** `conantkd`
 (+ agent) · **Owner:** the frontend lane (T-0016)
 
 **Problem.** `npm audit` in `frontend/` on 2026-10-20 reports the following. Python: `pip-audit` found nothing.
@@ -344,8 +347,9 @@ laptop (`npm run dev`, the dev server) and in CI.
    - Done 2026-10-21: `react-router-dom` 7.18.4 (released 2026-09-15). No code change: the UI uses only the classic
      API (`BrowserRouter`, `Routes`, `Link`, `NavLink`, the hooks), unchanged in 7. Lint, Vitest (131), the build and
      Playwright (21, with the read-only guard) pass; `npm audit --omit=dev` finds nothing.
-   - Left: `vite` 8 (Rolldown inside; needs `@vitejs/plugin-react` 6) and `vitest` 5 together, in their own pull
-     request. Neither ships in the UI image.
+   - Done 2026-10-21: `vite` 8.3.5 (Rolldown inside), `@vitejs/plugin-react` 6.1.2 and `vitest` 5.0.5 together. No
+     code or config change: `vite.config.js` uses only `defineConfig`, `searchForWorkspaceRoot` and the server and
+     preview hooks. Lint, Vitest (136), the build and Playwright (21) pass; `npm audit` finds nothing, dev included.
 3. Then raise the npm gate to every dependency (`npm audit --audit-level=high`, dev included).
 
 **Done when.** `npm audit --audit-level=high` passes on the whole tree and CI runs it.
