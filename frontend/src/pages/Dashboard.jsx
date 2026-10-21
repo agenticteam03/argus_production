@@ -31,7 +31,7 @@ function IncidentsCard({ incidents, className }) {
 
 const HOST_LABELS = { "vm-095": "Host A", "vm-166": "Host T" };
 const HOST_METRICS = [
-  ["CPU", "cpu_busy_ratio"], ["Memory", "memory_used_ratio"], ["Disk", "disk_used_ratio"],
+  ["CPU", "cpu_busy_ratio"], ["Memory", "memory_used_ratio"], ["Disk /", "disk_used_ratio"],
 ];
 
 // Load level -> [label, Pill tone, bar colour]. Colour is never the only signal: the label is always written.
@@ -152,11 +152,10 @@ export default function Dashboard() {
 
       <StatusBanner incidents={incidents} hostMetrics={hostMetrics} topology={topology} hosts={HOST_LABELS} loaded={updatedAt != null} />
 
-      <DiagnoseForm />
-
       {/* items-start: each column is as tall as its own content, so Recent incidents ends at its last row. */}
       <div className="grid items-start gap-4 lg:grid-cols-3">
         <div className="space-y-4 lg:col-span-2">
+          <DiagnoseForm />
           <IncidentsCard incidents={incidents} />
           <Card title="Pending approvals" count={approvals.length}>
             {approvals.length === 0 ? (

@@ -64,6 +64,8 @@
     --glow-1: #0e1d42;
     --glow-2: #070b16;
     --glow-3: #020306;
+    --glow-4: transparent;
+    --glow-strength: 1;
   }
 
   /* Thin scrollbars with no visible track, on the page and inside every list, menu, drawer and textarea. */
@@ -81,7 +83,9 @@
   body {
     color: var(--color-ink);
     background-color: var(--color-page);
-    background-image: radial-gradient(120% 80% at 50% 0%, var(--glow-1) 0%, var(--glow-2) 45%, var(--glow-3) 100%);
+    background-image:
+      radial-gradient(70% 55% at 100% 100%, var(--glow-4), transparent 70%),
+      radial-gradient(120% 80% at 50% 0%, var(--glow-1) 0%, var(--glow-2) 45%, var(--glow-3) 100%);
     background-attachment: fixed;
     -webkit-font-smoothing: antialiased;
   }
@@ -121,16 +125,18 @@
   color-scheme: light;
   --scroll-thumb: rgb(18 26 38 / 0.22);
   --scroll-thumb-hover: rgb(18 26 38 / 0.36);
-  --glow-1: #dbe7f9;
-  --glow-2: #edf2fa;
-  --glow-3: #f4f6f9;
+  --glow-1: #cfe0f7;
+  --glow-2: #e2eaf6;
+  --glow-3: #eef2f8;
+  --glow-4: rgb(160 190 240 / 0.32);
+  --glow-strength: 0;
 
-  --color-page: #f4f6f9;
+  --color-page: #e9eff8;
   --color-card: #ffffff;
-  --color-line: #e1e6ee;
+  --color-line: #dbe3ee;
   --color-muted: #5b6678;
-  --color-field: #f3f5f9;
-  --color-field-line: #d3dae5;
+  --color-field: #eef2f8;
+  --color-field-line: #d0d9e6;
   --color-accent: #2563eb;
   --color-accent-hover: #1d4ed8;
   --color-danger: oklch(52% 0.17 25);
@@ -161,4 +167,24 @@
   --color-sky-300: oklch(45% 0.12 240);
   --color-blue-400: oklch(55% 0.16 260);
   --color-blue-300: oklch(45% 0.15 260);
+}
+
+/* Health hexagons (StatusBanner): a soft glow on a failing one, and a pulse that stops with reduced motion. */
+.hex-glow { filter: drop-shadow(0 0 calc(5px * var(--glow-strength, 1)) color-mix(in srgb, currentColor 65%, transparent)); }
+.hex-pulse { transform-box: fill-box; transform-origin: center; animation: hex-pulse 2.2s ease-out infinite; }
+@keyframes hex-pulse { from { transform: scale(1); opacity: 0.75; } to { transform: scale(1.55); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .hex-pulse { animation: none; opacity: 0; } }
+
+/* Login: the hero picture melts into the form panel (card colour, dark or light) with an eased fade, so there is no
+   hard edge or grey band between them. The picture is inset on the left; its own edge fades in and the overlay fades out. */
+.hero-img { -webkit-mask-image: linear-gradient(to right, transparent 0%, #000 8%); mask-image: linear-gradient(to right, transparent 0%, #000 8%); }
+.hero-fade {
+  background-image: linear-gradient(to right,
+    var(--color-card) 0%,
+    color-mix(in srgb, var(--color-card) 94%, transparent) 6%,
+    color-mix(in srgb, var(--color-card) 80%, transparent) 12%,
+    color-mix(in srgb, var(--color-card) 55%, transparent) 17%,
+    color-mix(in srgb, var(--color-card) 28%, transparent) 21%,
+    color-mix(in srgb, var(--color-card) 8%, transparent) 24%,
+    transparent 26%);
 }

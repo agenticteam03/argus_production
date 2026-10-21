@@ -70,7 +70,7 @@ export default function DiagnoseForm({ fixedTarget = null, compact = false }) {
 
   return (
     <Card title="Start an investigation">
-      <form aria-labelledby={ids.form} onSubmit={submit} className="grid gap-5 md:grid-cols-[minmax(0,22rem)_minmax(0,1fr)]" aria-describedby={error ? ids.error : undefined}>
+      <form aria-labelledby={ids.form} onSubmit={submit} className="grid gap-5 md:grid-cols-[minmax(0,15rem)_minmax(0,1fr)]" aria-describedby={error ? ids.error : undefined}>
         <h3 id={ids.form} className="sr-only">Start an investigation</h3>
 
         <div className="space-y-4">
@@ -94,7 +94,7 @@ export default function DiagnoseForm({ fixedTarget = null, compact = false }) {
         <div className="flex flex-col space-y-1.5">
           <label htmlFor={ids.reason} className="block text-[13px] font-medium">Reason</label>
           <textarea id={ids.reason} value={reason} maxLength={REASON_MAX} rows={4} onChange={(e) => setReason(e.target.value)}
-            placeholder="What did you see? (optional)" className={`${textareaClass} flex-1`} />
+            placeholder="What did you see? (optional)" className={`${textareaClass} min-h-24 flex-1`} />
         </div>
 
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2 md:col-span-2">

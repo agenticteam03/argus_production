@@ -22,6 +22,14 @@ export function nodeHealth(node, brokenIds = new Set()) {
   return ["running", "healthy", "ok"].includes(node.status) ? "ok" : "degraded";
 }
 
+// What a component is, for its icon in the honeycomb: a database, a host, or (by default) a container.
+export function nodeIcon(node) {
+  const name = `${node.kind ?? ""} ${node.label ?? ""} ${node.id ?? ""}`;
+  if (node.kind === "database" || /\b(db|database|postgres(ql)?|mysql|mariadb|redis|mongo\w*)\b/i.test(name)) return "database";
+  if (node.kind === "host" || /\/host:/.test(String(node.target ?? node.id ?? ""))) return "server";
+  return "box";
+}
+
 export function fleetStatus({ incidents = [], hostMetrics = [], topology = null, hosts = {}, now = Date.now(), loaded = true }) {
   if (!loaded) {
     return { level: "checking", headline: "Checking the infrastructure…", detail: "Waiting for the first reading.", attention: [], counts: { critical: 0, warning: 0, running: 0 }, hosts: [], stats: null, nodes: [] };
@@ -84,6 +92,6 @@ export function fleetStatus({ incidents = [], hostMetrics = [], topology = null,
       ? `Host metrics are within limits${topology ? ", checked links are OK" : ""} and nothing was escalated to a person in the last 24 h.`
       : level === "critical" ? "Something is failing right now." : "Nothing is down, but it is worth a look.",
     attention, counts, hosts: beats, stats,
-    nodes: nodes.map((n) => ({ id: n.id, label: n.label, health: nodeHealth(n, brokenIds) })),
+    nodes: nodes.map((n) => ({ id: n.id, label: n.label, icon: nodeIcon(n), health: nodeHealth(n, brokenIds) })),
   };
 }

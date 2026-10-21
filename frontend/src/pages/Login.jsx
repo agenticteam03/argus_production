@@ -114,9 +114,9 @@ export default function LoginPage({ onLogin }) {
           </form>
         </section>
 
-        <aside className="relative hidden border-l border-line bg-[#06070b] min-[900px]:block" aria-hidden="true">
-          <img src={hero} alt="" className="absolute inset-0 h-full w-full object-cover object-top" />
-          <div className="pointer-events-none absolute inset-0 bg-linear-to-r from-card/55 to-transparent to-25%" />
+        <aside className="relative hidden bg-card min-[900px]:block" aria-hidden="true">
+          <img src={hero} alt="" className="hero-img absolute inset-y-0 right-0 h-full w-[86%] object-cover object-top" />
+          <div className="hero-fade pointer-events-none absolute inset-0" />
         </aside>
       </main>
     </div>

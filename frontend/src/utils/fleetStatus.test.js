@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ageLabel, fleetStatus, nodeHealth, STALE_MS } from "./fleetStatus.js";
+import { ageLabel, fleetStatus, nodeHealth, nodeIcon, STALE_MS } from "./fleetStatus.js";
 
 const NOW = Date.parse("2026-10-20T15:00:00Z");
 const HOSTS = { "vm-095": "Host A", "vm-166": "Host T" };
@@ -87,5 +87,18 @@ describe("nodeHealth / ageLabel", () => {
     expect(ageLabel(3 * 60e3)).toBe("3 min ago");
     expect(ageLabel(2 * 3600e3)).toBe("2 h ago");
     expect(ageLabel(null)).toBeNull();
+  });
+});
+
+describe("nodeIcon", () => {
+  it("picks database, server or container", () => {
+    expect(nodeIcon({ id: "x", label: "app-db" })).toBe("database");
+    expect(nodeIcon({ id: "x", label: "postgres", kind: "app" })).toBe("database");
+    expect(nodeIcon({ id: "vm-166/host:vm-166", label: "vm-166", target: "vm-166/host:vm-166" })).toBe("server");
+    expect(nodeIcon({ id: "x", label: "argus-lab-client", kind: "app" })).toBe("box");
+  });
+  it("is carried on each honeycomb node", () => {
+    const topology = { nodes: [{ id: "a", label: "app-db", status: "running" }, { id: "b", label: "client", status: "running" }], edges: [] };
+    expect(fleetStatus({ hosts: {}, hostMetrics: [], topology, now: Date.now() }).nodes.map((n) => n.icon)).toEqual(["database", "box"]);
   });
 });

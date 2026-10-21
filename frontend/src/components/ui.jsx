@@ -13,6 +13,9 @@ export const Logo = (props) => (
     <path d="M26.5 101.5 98 213.5 119.5 180 89 133.5H148.5L169.5 101.5Z" />
   </svg>
 );
+export const Box = icon(<><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z" /><path d="m3.3 7 8.7 5 8.7-5M12 22V12" /></>);
+export const Database = icon(<><ellipse cx="12" cy="5" rx="9" ry="3" /><path d="M3 5v14a9 3 0 0 0 18 0V5M3 12a9 3 0 0 0 18 0" /></>);
+export const Server = icon(<><rect width="20" height="8" x="2" y="2" rx="2" /><rect width="20" height="8" x="2" y="14" rx="2" /><path d="M6 6h.01M6 18h.01" /></>);
 export const Chevron = icon(<path d="m6 9 6 6 6-6" />);
 export const Refresh = icon(<><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" /><path d="M21 3v5h-5" /><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" /><path d="M8 16H3v5" /></>);
 export const Sun = icon(<><circle cx="12" cy="12" r="4" /><path d="M12 2v2m0 16v2M4.93 4.93l1.41 1.41m11.32 11.32 1.41 1.41M2 12h2m16 0h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41" /></>);
@@ -148,7 +151,7 @@ export const fieldClass =
   "h-11 rounded-[10px] border border-field-line bg-field px-3.5 text-sm outline-none transition placeholder:text-faint focus:border-accent focus:ring-[3px] focus:ring-accent/20";
 
 export const textareaClass =
-  "min-h-24 w-full resize-none overflow-y-auto rounded-[10px] border border-field-line bg-field px-3.5 py-3 text-sm leading-relaxed outline-none transition placeholder:text-faint focus:border-accent focus:ring-[3px] focus:ring-accent/20";
+  "w-full resize-none overflow-y-auto rounded-[10px] border border-field-line bg-field px-3.5 py-2.5 text-sm leading-relaxed outline-none transition placeholder:text-faint focus:border-accent focus:ring-[3px] focus:ring-accent/20";
 
 // Themed replacement for the native <select>, whose open list is drawn by the browser and cannot be styled.
 // Same API as before: <option> children, `value`, and `onChange` called with { target: { value } }.

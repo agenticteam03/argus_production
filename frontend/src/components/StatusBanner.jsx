@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 import { fleetStatus } from "../utils/fleetStatus.js";
-import { CircleAlert, CircleCheck, Pill, Radio, Warning } from "./ui.jsx";
+import { Box, CircleAlert, CircleCheck, Database, Pill, Radio, Server, Warning } from "./ui.jsx";
 
 // The Dashboard's summary: is anything wrong, or is everything fine? Built from the overview and (when it answers)
 // the topology; see utils/fleetStatus.js for exactly what counts.
@@ -11,23 +11,40 @@ const TONE = {
   checking: { box: "border-line bg-card/80", icon: "text-muted", Icon: Radio },
 };
 const DOT = { critical: "bg-red-400", warning: "bg-amber-400" };
-const CELL = { ok: "fill-emerald-400/25 stroke-emerald-400", degraded: "fill-amber-400/25 stroke-amber-400", failed: "fill-red-400/30 stroke-red-400", unknown: "fill-slate-500/20 stroke-slate-500" };
 const HEALTH_WORD = { ok: "running", degraded: "degraded", failed: "failing", unknown: "unknown" };
+// Health -> [edge/fill colour, icon colour]. Same idea as the MVP: tone = health, icon = what the component is.
+const HEX_TONE = { ok: ["text-emerald-400", "text-emerald-300"], degraded: ["text-amber-400", "text-amber-300"], failed: ["text-red-400", "text-red-300"], unknown: ["text-slate-500", "text-muted"] };
+const KIND_ICON = { box: Box, database: Database, server: Server };
+const HEX_POINTS = "20,1.5 38.2,12 38.2,32 20,42.5 1.8,32 1.8,12";
 
-// One hexagon per monitored component, coloured by its health. Decorative: the counts next to it say the same in words.
-function Honeycomb({ nodes }) {
-  const PER_ROW = 6;
-  const rows = Array.from({ length: Math.ceil(nodes.length / PER_ROW) }, (_, r) => nodes.slice(r * PER_ROW, (r + 1) * PER_ROW));
+// One hexagon per monitored component: its colour says how it is (green running, amber degraded, red failing, dashed
+// grey unknown), its icon says what it is, and a failing one pulses. Decorative: the counts say the same in words.
+function Hex({ node }) {
+  const [tone, iconTone] = HEX_TONE[node.health];
+  const Ico = KIND_ICON[node.icon] ?? Box;
   return (
-    <svg role="img" aria-label={`Components: ${["ok", "degraded", "failed", "unknown"].map((h) => `${nodes.filter((n) => n.health === h).length} ${HEALTH_WORD[h]}`).join(", ")}`}
-      viewBox={`0 0 ${PER_ROW * 26 + 13} ${rows.length * 22 + 6}`} className="h-auto w-44 shrink-0">
-      {rows.map((row, r) => row.map((n, c) => (
-        <g key={n.id} transform={`translate(${c * 26 + (r % 2 ? 13 : 0) + 2},${r * 22 + 2})`}>
-          <title>{`${n.label}: ${HEALTH_WORD[n.health]}`}</title>
-          <polygon points="12,1 22,6.5 22,17.5 12,23 2,17.5 2,6.5" strokeWidth="1.3" className={CELL[n.health]} />
-        </g>
-      )))}
-    </svg>
+    <span title={`${node.label}: ${HEALTH_WORD[node.health]}`} className={`relative inline-grid h-[33px] w-[30px] shrink-0 place-items-center ${tone}`}>
+      <svg viewBox="0 0 40 44" aria-hidden="true" className="absolute inset-0 size-full overflow-visible">
+        <polygon points={HEX_POINTS} strokeWidth="1.6" strokeDasharray={node.health === "unknown" ? "4 3" : undefined} className={`fill-current/15 stroke-current ${node.health === "failed" ? "hex-glow" : ""}`} />
+        {node.health === "failed" && <polygon points={HEX_POINTS} strokeWidth="1.5" className="hex-pulse fill-none stroke-current" />}
+      </svg>
+      <Ico width="13" height="13" className={`relative ${iconTone}`} />
+    </span>
+  );
+}
+
+function Honeycomb({ nodes }) {
+  const PER_ROW = 5;
+  const rows = Array.from({ length: Math.ceil(nodes.length / PER_ROW) }, (_, r) => nodes.slice(r * PER_ROW, (r + 1) * PER_ROW));
+  const label = ["ok", "degraded", "failed", "unknown"].map((h) => `${nodes.filter((n) => n.health === h).length} ${HEALTH_WORD[h]}`).join(", ");
+  return (
+    <div role="img" aria-label={`${nodes.length} components: ${label}`} className="shrink-0 pt-1">
+      {rows.map((row, r) => (
+        <div key={r} className="flex gap-1" style={{ marginLeft: r % 2 ? 17 : 0, marginTop: r ? -7 : 0 }}>
+          {row.map((n) => <Hex key={n.id} node={n} />)}
+        </div>
+      ))}
+    </div>
   );
 }
 
