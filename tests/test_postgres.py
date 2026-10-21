@@ -203,6 +203,11 @@ def test_latest_link_events(store):
     latest = store.latest_link_events()
     assert latest[(web, db)]["state"] == "broken" and latest[(web, cache)]["state"] == "slow"
     assert abs((latest[(web, db)]["at"] - (now - timedelta(minutes=4))).total_seconds()) < 1
+    # a restart repeats a state: not a transition, for `since` nor for the history (#227 review)
+    store.add_link_event(web, db, "broken", None, "timeout", now - timedelta(minutes=1))
+    assert abs((store.latest_link_events()[(web, db)]["at"] - (now - timedelta(minutes=4))).total_seconds()) < 1
+    states = [r["state"] for r in store.link_events(web, now - timedelta(minutes=10), now) if r["dependency"] == db]
+    assert states == ["ok", "broken"]
 
 
 def test_worker_lease(store):

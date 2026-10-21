@@ -85,8 +85,9 @@ def recorder(store, metrics):
 
 
 def rows(store, owner="h1/container:web"):
-    return [(r["owner"], r["dependency"], r["state"]) for r in
-            store.link_events(owner, T0 - timedelta(days=1), T0 + timedelta(days=1))]
+    """What the recorder wrote, every row (the stores' reads skip a row that repeats its link's state, L4)."""
+    return [tuple(r) for r in store._q("SELECT owner, dependency, state FROM link_event WHERE owner=? ORDER BY at, id",
+                                       (owner,))]
 
 
 def test_the_first_tick_records_every_link_once(store):
