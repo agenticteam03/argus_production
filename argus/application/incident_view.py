@@ -98,10 +98,32 @@ def cause_path(depends: dict[str, list[str]], target: str, root: str | None) -> 
     return path[::-1]
 
 
+def hypotheses_view(rows: list[dict], evidence: list[EvidenceRecord], show_evidence: bool) -> tuple[list[dict], bool]:
+    """ACR-0024 §3.6 (T-0047 H3): the final decision's hypotheses, by rank, and whether the chosen one is not ranked
+    first. `for` / `against` count the cited records that are stored evidence of the incident; the ids themselves only
+    with `show_evidence` (a viewer gets the counts, as for `evidence_highlights`)."""
+    if not rows:
+        return [], False
+    last = max(r["step"] for r in rows)
+    stored = {e.evidence_id for e in evidence}
+    out = []
+    for r in sorted((r for r in rows if r["step"] == last), key=lambda r: r["rank"]):
+        h = {"id": r["hypothesis_id"], "statement": r["statement"], "cause_class": r["cause_class"],
+             "target": r["target"], "relation": r["relation"], "status": r["status"], "rank": r["rank"],
+             "chosen": r["chosen"], "support": {"score": r["score"],
+                                                "for": len({i for i in r["support_ids"] if i in stored}),
+                                                "against": len({i for i in r["against_ids"] if i in stored})}}
+        if show_evidence:
+            h["support_ids"], h["against_ids"] = list(r["support_ids"]), list(r["against_ids"])
+        out.append(h)
+    return out, any(h["chosen"] and h["rank"] != 1 for h in out)
+
+
 def build_verdict(inc: Incident, spec: IncidentClassSpec | None, evidence: list[EvidenceRecord], cited: list[str],
-                  depends: dict[str, list[str]], show_evidence: bool) -> dict:
+                  depends: dict[str, list[str]], show_evidence: bool, hypotheses: list[dict] | None = None) -> dict:
     """`cited`: the evidence ids the conclusion cites (the `incident.recorded` audit event). `show_evidence`: False for a
-    viewer, whose view carries no evidence text (so no highlights)."""
+    viewer, whose view carries no evidence text (so no highlights). `hypotheses`: the incident's stored rows
+    (`incident_hypothesis`, every step)."""
     by_id = {e.evidence_id: e for e in evidence}
     highlights = []
     if show_evidence:
@@ -119,8 +141,10 @@ def build_verdict(inc: Incident, spec: IncidentClassSpec | None, evidence: list[
         score, label = CONFIDENCE.get(inc.confidence or "", (None, None))
         cause = {"target": inc.root_cause_target, "kind": CLASS_TEXT.get(spec.name if spec else "", (None, None))[1],
                  "statement": first_sentence(inc.diagnosis), "confidence": score, "confidence_label": label}
+    ranked, disagrees = hypotheses_view(hypotheses or [], evidence, show_evidence)
     return {"severity": _severity(inc, spec), "summary": _summary(inc, spec), "cause": cause,
             "evidence_highlights": highlights, "not_checked": list(dict.fromkeys(not_checked)),
             "cause_path": cause_path(depends, str(inc.target), inc.root_cause_target),
             "duration_ms": (round((inc.closed_at - inc.opened_at).total_seconds() * 1000) if inc.closed_at else None),
-            "next_actions": [], "hypotheses": []}          # until the runbook Actions section / decision schema exist
+            "next_actions": [],                            # until the runbook Actions section exists
+            "hypotheses": ranked, "ranking_disagrees": disagrees}
