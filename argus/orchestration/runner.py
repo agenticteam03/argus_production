@@ -92,7 +92,7 @@ class SkeletonRunner:
                              model_text=red_text, redactions=n1 + n2).with_hash()
         self.memory.append_evidence(rec)
         return EvidenceRef(evidence_id=rec.evidence_id, sha256=rec.sha256, capability=None, status="ok",
-                           model_text=rec.model_text)
+                           model_text=rec.model_text, target=rec.target, kind=rec.kind)
 
     def scope(self, target: TargetRef) -> set[TargetRef]:
         """Incident scope: the target, its inventory neighbours, and the hosts they run on."""
@@ -245,6 +245,9 @@ class SkeletonRunner:
                          decision=self._summary(d))
             self._audit(inc, "decision", "decision." + getattr(d, "kind", "unknown"),
                         actor=ctx.caller, detail=json.loads(d.model_dump_json()) if hasattr(d, "model_dump_json") else {})
+            if getattr(d, "hypothesis_problems", None):   # ACR-0024 §3.2, log-only until T-0047 H4: the decision stands
+                self._audit(inc, "decision", "hypothesis.invalid", actor=ctx.caller,
+                            detail={"step": step + 1, "decision": d.kind, "problems": d.hypothesis_problems[:10]})
             if isinstance(d, InvalidDecision):
                 if d.reason == "fabricated_tool":
                     self._audit(inc, "security", "security.fabricated_tool", actor=ctx.caller, detail={"detail": d.detail})

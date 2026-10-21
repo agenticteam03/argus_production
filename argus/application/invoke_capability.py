@@ -62,7 +62,7 @@ class InvokeCapability:
                              redactions=obs.redactions).with_hash()
         self.memory.append_evidence(rec)
         return EvidenceRef(evidence_id=rec.evidence_id, sha256=rec.sha256, capability=rec.capability,
-                           status=rec.status, model_text=rec.model_text)
+                           status=rec.status, model_text=rec.model_text, target=rec.target, kind=rec.kind)
 
     def __call__(self, ctx: InvocationContext, name: str, arguments: dict[str, Any]) -> tuple[Observation, EvidenceRef | None]:
         arguments = dict(arguments or {})
