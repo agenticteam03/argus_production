@@ -90,6 +90,8 @@ def test_a_mapping_names_its_port_and_may_be_not_required():
     ("[{ref: h1/container:db, required: 'yes'}]", "true or false"),
     ("[{ref: h1/container:db, prot: 5432}]", "a ref or {ref, port, required}"),   # a misspelt key is refused
     ("[{port: 5432}]", "a ref or {ref, port, required}"),
+    ("[h1/container:db, h1/container:db]", "twice"),                         # one link per dependency
+    ("[h1/container:db, {ref: h1/container:db, port: 5433}]", "twice"),      # not one per port either
 ])
 def test_the_loader_refuses(entry, words):
     with pytest.raises(ValueError, match=words.replace("{", r"\{").replace("}", r"\}")):
