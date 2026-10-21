@@ -10,6 +10,7 @@ from pydantic import BaseModel
 
 from argus.capabilities.redaction import Redactor
 from argus.capabilities.spec import CapabilitySpec, ExecutorError
+from argus.domain.minimize import minimize
 from argus.domain.model import Observation, TargetRef, utcnow
 from argus.ports.ports import InventoryPort
 from argus.tooling.executors import ExecutorRegistry
@@ -62,7 +63,10 @@ class Dispatcher:
             return Observation(**base, status="error", error_category="upstream_error",
                                duration_ms=int((time.monotonic() - started) * 1000),
                                model_text=f"{spec.name} on {target}: ATTRIBUTION MISMATCH — answer came from {echoed!r}")
-        values, n1 = self.redactor.value(res.values)
+        values, dropped = res.values, []
+        if spec.allowed_fields is not None:     # ACR-0028: only the declared paths, before redaction and storage
+            values, dropped = minimize(values, spec.allowed_fields)
+        values, n1 = self.redactor.value(values)
         text, n2 = self.redactor.text(res.model_text)
         raw = json.dumps(values, default=str)
         truncated = False
@@ -73,7 +77,7 @@ class Dispatcher:
                            duration_ms=int((time.monotonic() - started) * 1000), values=values,
                            units=res.units, source_time=res.source_time, partial=res.partial,
                            coverage=res.coverage, identities=res.identities, truncated=truncated,
-                           redactions=n1 + n2, model_text=text)
+                           redactions=n1 + n2, dropped_fields=dropped, model_text=text)
 
 
 class DirectProvider:

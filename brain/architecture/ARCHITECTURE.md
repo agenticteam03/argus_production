@@ -1,7 +1,7 @@
 # Argus — Production Architecture Specification
 
 **Document type:** consolidated target architecture and implementation blueprint ·
-**Version:** 1.8.24 (2026-10-21, ACR-0025 live dependency graph; 1.8.23 2026-10-20, ACR-0027 the built gaps G-001, G-003, G-007; 1.8.21 2026-10-20, §14 marked designed, not built (OP-015); 1.8.20 2026-10-19, ACR-0021 B7 baseline, long ranges, deploy events, and B8 link reasons; 1.8.19 2026-10-19, ACR-0021 B6: target metrics and the overview; 1.8.18 2026-10-19, ACR-0021 UI insights v2: B1 to B5; 1.8.17 2026-10-19, ACR-0023 log pattern matches; 1.8.16 2026-10-18, ACR-0013 and ACR-0016 Langfuse Cloud tracing; 1.8.15 2026-10-16, ACR-0017 topology; 1.8.14 2026-10-16, ACR-0017 incident metrics; 1.8.12 2026-10-14, ACR-0014; 1.8.11 2026-10-14, ACR-0012; 1.8.10 2026-10-14, ACR-0011; 1.8.8 2026-10-12, ACR-0009; 1.8.7 2026-10-12, ACR-0008; 1.8.6 2026-10-11, ACR-0007; 1.8.5 2026-10-09, ACR-0005; 1.8.4 2026-10-09, ACR-0004; 1.8.3 2026-10-08, ACR-0003; 1.8.2 2026-10-09, ACR-0002; 1.8.1 2026-10-06, ACR-0001; base 1.8.0 of 30 September 2026, sanitized for the shared repository 2026-10-02) · **Audience:** engineers and AI coding agents implementing
+**Version:** 1.8.25 (2026-10-21, ACR-0028 field allowlists; 1.8.24 2026-10-21, ACR-0025 live dependency graph; 1.8.23 2026-10-20, ACR-0027 the built gaps G-001, G-003, G-007; 1.8.21 2026-10-20, §14 marked designed, not built (OP-015); 1.8.20 2026-10-19, ACR-0021 B7 baseline, long ranges, deploy events, and B8 link reasons; 1.8.19 2026-10-19, ACR-0021 B6: target metrics and the overview; 1.8.18 2026-10-19, ACR-0021 UI insights v2: B1 to B5; 1.8.17 2026-10-19, ACR-0023 log pattern matches; 1.8.16 2026-10-18, ACR-0013 and ACR-0016 Langfuse Cloud tracing; 1.8.15 2026-10-16, ACR-0017 topology; 1.8.14 2026-10-16, ACR-0017 incident metrics; 1.8.12 2026-10-14, ACR-0014; 1.8.11 2026-10-14, ACR-0012; 1.8.10 2026-10-14, ACR-0011; 1.8.8 2026-10-12, ACR-0009; 1.8.7 2026-10-12, ACR-0008; 1.8.6 2026-10-11, ACR-0007; 1.8.5 2026-10-09, ACR-0005; 1.8.4 2026-10-09, ACR-0004; 1.8.3 2026-10-08, ACR-0003; 1.8.2 2026-10-09, ACR-0002; 1.8.1 2026-10-06, ACR-0001; base 1.8.0 of 30 September 2026, sanitized for the shared repository 2026-10-02) · **Audience:** engineers and AI coding agents implementing
 Argus from an empty repository.
 
 
@@ -888,7 +888,7 @@ class EvidenceRecord(BaseModel):            # insert-only; one per observation, 
     source_time: datetime | None            # when the source measured; None = unknown (§12.3)
     collected_at: datetime                  # when Argus received it
     status: str
-    values: dict[str, JsonValue]            # redacted, bounded
+    values: dict[str, JsonValue]            # minimized to the read's allowed fields (§12.3), redacted, bounded
     model_text: str                         # one-line rendering
     partial: bool; truncated: bool; redactions: int
     sha256: str                             # over the canonical JSON of the fields above
@@ -1811,6 +1811,7 @@ class CapabilitySpec(BaseModel):
     timeout_s: tuple[float, float]    # (default, hard max)
     max_output_bytes: int
     max_subcalls: int = 0             # combined capabilities only
+    allowed_fields: frozenset[str] | None   # value paths kept: "a", "a[].b", "a.b"; required when sensitive (ACR-0028)
     side_effect: Literal["none", "write"]
     permission: Literal["read", "write_hitl"]
 
@@ -1861,6 +1862,12 @@ spec.executor = "host_probe"   +   target.host = "host-t"
 - It never decides authorization, never reads configuration directly (clients are injected), and never
   writes audit or evidence. `InvokeCapability` does both.
 - It enforces its own timeout and output bounds, and applies redaction before returning.
+- **Minimization (ACR-0028).** The dispatcher keeps only the read's `allowed_fields` paths of `values`, **before**
+  redaction, truncation and storage; anything else is dropped, never stored, never shown. The names of the dropped
+  paths (never their values) go into the `tool.completed` audit detail (`dropped_fields`), so a gateway that grows a
+  field is visible. Every `READ_ONLY_SENSITIVE` read declares its paths, or the catalog refuses to start; a combined
+  read declares its own, and its sub-reads are minimized by their own specs. `model_text` is built only from declared
+  fields (a canary test per sensitive read holds it).
 - **Unknown is never healthy.** A value that could not be read is `None`, never 0 or a default; a read that covers
   only part of what was asked sets `partial` and `coverage`. No detector, summary, conclusion or UI state treats
   missing or partial data as healthy or as a root cause: a blind host is a finding (§9), stale metrics end
@@ -2374,7 +2381,7 @@ client secrets.
 | 1 | Caller authentication | Alertmanager bearer token; human login ⇒ short-lived JWT; agent client credentials ⇒ JWT; (later) signed single-use approval links |
 | 2 | Authorization | policy data + engine decide capability, target, scope and limits; fail closed; read-view roles (§6.7) |
 | 3 | Single entry point | every capability call through `InvokeCapability`; enforced by a call-site test |
-| 4 | Model and strategy boundary | Pydantic validation; per-step limits; hard budgets; redaction; evidence as data; strategies return decisions only |
+| 4 | Model and strategy boundary | Pydantic validation; per-step limits; hard budgets; field allowlists, then redaction (data minimization: the allowlist is the first layer, redaction the second, the gateways' own minimization a third outside Argus, ACR-0028); evidence as data; strategies return decisions only |
 | 5 | Tool boundary | stdio-only MCP; read-only published set; static scope checks; separate UID and credentials; no database credential in the child |
 | 6 | Host access | exact-route Docker gateways; inspect redaction; target-side probe verbs; inspection policy; no Docker socket |
 | 7 | Cross-host path | the selected transport profile (§3.2); binding only where the profile says; per-service credentials; no public exposure except the UI edge of layer 14; no cross-host executor fallback; encrypted when leaving the private network |
@@ -3010,3 +3017,4 @@ erDiagram
 | 1.8.21 | 2026-10-20 | §14's approval and action machinery is marked **designed, not built**: no table, node, route, write contract, fake gateway or §14.4 / §22.2 suite exists yet; only the closed write gate and its standing test do (phase 15) | [OP-015](../OPEN_PROBLEMS.md) |
 | 1.8.23 | 2026-10-20 | what was built but not written: the policy `profile` (`lab` | `production`, required, fail closed) (§13.1, G-001); an observation's and an evidence record's provenance, `source_time` and `collected_at` instead of `observed_at`, `units`, `partial`, `coverage`, `identities` (§5.4, §12.3, §10, G-003); "unknown is never healthy": a missing value is `None`, never 0, and missing or partial data is never healthy or a root cause (§5.4, §12.3, G-007) | [ACR-0027](changes/ACR-0027-built-gaps.md) |
 | 1.8.24 | 2026-10-21 | a live dependency graph: a `depends_on` entry may be `{ref, port, required}` (loader refusals; the exporter probes a declared port only) and one link-state rule in `application/links.py` (§5.8; T-0046 L1); accepted and built in steps: the scheduler records link-state transitions from the existing probes into `link_event` (insert-only), skipping a host whose Prometheus cannot be read (§7.3, §16.1; L2–L3); the map's `since`, `required` and `dependency_broken`, link events on the incident charts, and the Level 2 read `network.link_states` offered to no class (§7.1, §12.2; L4) | [ACR-0025](changes/ACR-0025-live-dependency-graph.md) |
+| 1.8.25 | 2026-10-21 | **field allowlists** (data minimization, OP-002 G-006): `CapabilitySpec.allowed_fields`, required for every `READ_ONLY_SENSITIVE` read; the dispatcher keeps only the declared paths before redaction, truncation and storage and audits the dropped names (`dropped_fields`); evidence values are minimized (§5.4, §12.3, §17.1) | [ACR-0028](changes/ACR-0028-field-allowlists.md) |

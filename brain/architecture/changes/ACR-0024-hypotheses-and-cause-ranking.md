@@ -6,10 +6,10 @@ proposes an action or adds an outbound path.
 
 | Field | Value |
 |---|---|
-| Status | `accepted` with the two approvals of `task/ACR-0024-accepted` (§5); it merges only with both. Not applied: that is T-0047 H1 |
+| Status | `accepted` (#215, approved by `conantkd`, merged 2026-10-20) (§5). Not applied: that is T-0047 H1 |
 | Proposed by | juanbetancurm (+ agent) · 2026-10-20 |
 | Accepted by | a teammate approving `task/ACR-0024-accepted` (`conantkd` approved the proposal as recorded in #202, 2026-10-20) |
-| Second approval (safety principle only) | **required**: evidence integrity (a new insert-only table that cites evidence, and a stricter check of the evidence a conclusion cites). A second teammate approving the same pull request |
+| Second approval (safety principle only) | evidence integrity (a new insert-only table that cites evidence, and a stricter check of the evidence a conclusion cites). **Given:** `conantkd`'s approval of #215 (AGENT_PROTOCOL §4: the developer accepts, a second team member approves; one teammate's approval) |
 | Architecture version | the next free version when applied |
 | Task / PR | [T-0047](../../tasks/current/T-0047-hypotheses-cause-ranking.md) · #202 (proposed) · `task/ACR-0024-accepted` (accepted) |
 
@@ -206,8 +206,8 @@ once runbooks carry machine-readable hypothesis lists).
 Proposed in #202, where `conantkd`'s review asked for changes (`target: null` only for an external cause, which is
 never chosen; generic evidence counted once per kind so citing more does not score more; ties on records no other
 hypothesis cites; the next free migration number; ARCHITECTURE applied with the first code; a class-registry change
-never self-merged) and approved the text as recorded. **Accepted as written** with the two approvals of
-`task/ACR-0024-accepted`: one teammate's, plus a second one for evidence integrity.
+never self-merged) and approved the text as recorded. **Accepted as written** in #215 by
+`conantkd`'s approval, which is also the second approval evidence integrity asks for (AGENT_PROTOCOL §4).
 
 The harness checks of §3.2 start log-only (T-0047 H1) and are enforced only when the evaluation shows they do not
 lower accuracy (H4).
