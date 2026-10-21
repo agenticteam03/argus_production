@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | `in progress` — [ACR-0024](../../architecture/changes/ACR-0024-hypotheses-and-cause-ranking.md) accepted (#215); H1 merged (#228); H2 in review (#236); H3 in review (`task/T-0047-h3-incident-answer`, on H2) |
+| Status | `in progress` — [ACR-0024](../../architecture/changes/ACR-0024-hypotheses-and-cause-ranking.md) accepted (#215); H1 merged (#228); H2 merged (#236); H3 merged (#237); both deployed on vm-095 (#239); H4 step 1 (the metrics) in review (`task/T-0047-h4-eval-metrics`) |
 | Phase | next phase, area C (separate track of [NEXT-PHASE](NEXT-PHASE-supervised-remediation.md)) |
 | Architecture | ACR-0024 (`accepted`, applied in 1.8.27 by H1) |
 | Branch | one branch per step: `task/T-0047-h<n>-<slug>` |
@@ -56,6 +56,10 @@ So offering them alone is not the next step. H4 measures them again with hypothe
 ### H4 — Evaluation
 - `expected_hypotheses` labels on the existing cases (SC-01 to SC-09); top-1 / top-3 accuracy over the ranking;
   ruled-out recall; hard check `unsupported_root_cause` = 0.
+  - Step 1 (built): the label, the replay's final list, the metrics and the hard check. 15 cases are labeled, the
+    ones whose cause is not the target (`dep-*`, `nginx-slow-*`, `pg-leaker-*`): the cause supported, the target (the
+    victim) ruled out; the others fall back to `root_cause`. Replays are fresh, so the #228 note (references without
+    `target` / `kind`) applies only to recorded investigations.
 - A run with the H1 checks still log-only; then the harness **enforces** them only if accuracy is not lower.
 - Leave out of the problem rate the problems on evidence references without `target` / `kind`: an investigation
   checkpointed before H1 holds such references (`conantkd`, #228 review).

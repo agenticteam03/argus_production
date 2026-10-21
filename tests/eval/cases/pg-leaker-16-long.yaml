@@ -223,3 +223,8 @@ label:
   - argus-lab-leaker
   runbooks:
   - RB-004
+  expected_hypotheses:             # ACR-0024 §3.8: the cause, and the victim ruled out
+    supported:
+    - vm-166/container:argus-lab-leaker
+    ruled_out:
+    - vm-166/container:argus-lab-db
