@@ -133,6 +133,65 @@ def test_link_events_migration_009(runtime_dsn, store):
             c.execute("INSERT INTO link_event (owner, dependency, state, at) VALUES ('a', 'b', 'down', now())")
 
 
+
+def test_sessions_and_login_failures_migration_010(runtime_dsn, store):
+    """ACR-0018 (phase 16 step 1): a session is inserted, revoked once and never deleted; the runtime role may set only
+    its revocation columns. Failed logins are inserted, read in a window and cleared."""
+    import uuid
+
+    import psycopg
+    from argus.domain.model import utcnow
+    now = utcnow()
+    jti, other = uuid.uuid4().hex, uuid.uuid4().hex
+    store.add_session(jti, "pg-alice", "read", now, now + timedelta(minutes=30))
+    store.add_session(other, "pg-alice", "full", now, now + timedelta(minutes=30))
+    assert store.get_session(jti)["access"] == "read" and store.get_session(jti)["revoked_at"] is None
+    assert store.revoke_session(jti, "pg-alice", "logout", now) is True
+    assert store.revoke_session(jti, "pg-alice", "again", now) is False
+    assert store.revoke_principal_sessions("pg-alice", "admin", "test", now) == 1          # only the open one
+    assert store.get_session(other)["revoked_by"] == "admin"
+    with psycopg.connect(runtime_dsn, autocommit=True) as c:
+        for sql in (f"UPDATE auth_session SET principal = 'x' WHERE jti = '{jti}'", "DELETE FROM auth_session"):
+            with pytest.raises(psycopg.Error, match="permission denied"):
+                c.execute(sql)
+        with pytest.raises(psycopg.Error, match="check constraint"):
+            c.execute("INSERT INTO auth_session (jti, principal, access, created_at, expires_at) "
+                      "VALUES ('not-a-jti', 'x', 'read', now(), now())")
+    store.add_login_failure("u:pg-bob", now - timedelta(minutes=20))
+    store.add_login_failure("u:pg-bob", now - timedelta(minutes=1))
+    assert len(store.login_failures("u:pg-bob", now - timedelta(minutes=15))) == 1
+    store.prune_login_failures(now - timedelta(minutes=15))                # the old one goes
+    assert len(store.login_failures("u:pg-bob", now - timedelta(hours=1))) == 1
+    store.clear_login_failures("u:pg-bob")
+    assert store.login_failures("u:pg-bob", now - timedelta(hours=1)) == []
+
+
+def test_audit_chain_migration_011(store):
+    """ACR-0018 §17.1 layer 13: concurrent writers never fork the chain (an advisory lock per row), and an owner who
+    disables the insert-only trigger and edits a row is caught by the verifier."""
+    import uuid
+    from concurrent.futures import ThreadPoolExecutor
+
+    import psycopg
+    from argus.domain.audit_chain import verify
+    from argus.domain.model import AuditRecord, utcnow
+
+    def write(i):
+        store.append(AuditRecord(audit_id=f"aud_pg_{uuid.uuid4().hex[:12]}", incident_id=None, at=utcnow(),
+                                 category="access", event="access.chain_test", actor=f"writer{i}"))
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        list(pool.map(write, range(40)))
+    chained, before, problems = verify(store.audit_chain())
+    assert problems == [] and chained >= 40
+    victim = [r for r in store.audit_chain() if r[1].get("actor") == "writer7"][0][0]
+    with psycopg.connect(OWNER_DSN, autocommit=True) as c:
+        c.execute("ALTER TABLE audit DISABLE TRIGGER audit_insert_only")
+        try:
+            c.execute("UPDATE audit SET body = jsonb_set(body, '{actor}', '\"mallory\"') WHERE audit_id = %s", (victim,))
+        finally:
+            c.execute("ALTER TABLE audit ENABLE TRIGGER audit_insert_only")
+    assert verify(store.audit_chain())[2] == [f"{victim}: hash does not match its body (the row was edited)"]
+
 def test_worker_lease(store):
     """T-0014: a claim is a lease; only expired claims go back to the queue (tests/test_worker_lease.py, SQLite)."""
     from argus.domain.model import IncidentStatus, utcnow
