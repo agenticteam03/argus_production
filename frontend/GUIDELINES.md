@@ -11,7 +11,8 @@ _Status: drafted by the agent from the code I already built (outside the repo, w
   keeps the same layout and accent: a sun/moon button in the header switches it, the choice is remembered in the
   browser, and the app opens dark when nothing is saved. Components use the colour tokens in `src/index.css`
   (`text-ink`, `text-body`, `bg-ink/5`, `bg-scrim`…), never fixed greys or white overlays.
-- Times are shown in Colombia time (**COT**, UTC-5, no daylight saving) and the Live pill says so.
+- Times are shown in the **browser's own time zone**, always followed by its name (**COT** in Colombia; EST, UTC
+  or a GMT offset such as GMT+1 elsewhere), so the reader always knows which zone a time is in.
 - One header bar: logo top-left, menu in the middle, notifications bell and account menu top-right.
 - Everything must feel calm and readable during an incident: status colors only for status (green/amber/red).
 
@@ -23,7 +24,7 @@ rendering. Unit tests with Vitest; Playwright acceptance tests come next (T-0016
 ## The screens
 
 1. **Login** — username + password, show/hide password button, inline error message, "Forgot password?" link
-   (decorative for now), hero image on the right side. Clicking **Log in** with a demo account enters the app;
+   (decorative for now), the form centred on the page with no picture (dark and light alike). Clicking **Log in** with a demo account enters the app;
    a wrong password shows the error without leaving the page. The demo accounts can be replaced in `.env`
    (`VITE_ARGUS_USERS`) so the login needs no database, and a mock login survives a page reload in the same tab.
 2. **Dashboard** — the landing screen after login:

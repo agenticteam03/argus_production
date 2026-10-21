@@ -57,7 +57,7 @@ test.describe("dashboard (guideline 2)", () => {
     await expect(page.getByLabel("Message for the agent")).toHaveCount(0);     // the chat moved into each incident
   });
 
-  test("the Live pill shows Colombia time (COT) and a Refresh button reads again now", async ({ page, api }) => {
+  test("the Live pill shows the browser's time zone by name (COT here) and a Refresh button reads again now", async ({ page, api }) => {
     await api();
     await logIn(page);
     await expect(page.getByText(/updated \d{2}:\d{2}:\d{2} COT/).first()).toBeVisible();

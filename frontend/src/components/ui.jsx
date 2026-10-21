@@ -1,5 +1,5 @@
 import { Children, useEffect, useId, useRef, useState } from "react";
-import { clockCot, liveLabel } from "../utils/format.js";
+import { clockZone, liveLabel } from "../utils/format.js";
 
 const icon = (paths) => (props) => (
   <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" {...props}>{paths}</svg>
@@ -70,7 +70,7 @@ export const Close = icon(<path d="M18 6 6 18M6 6l12 12" />);
 
 // `source` ("demo"/"api") and `at` (the last successful refresh, ms) make the pill honest: demo data is
 // labelled, and the clock next to "Live" ticks with each poll, so it is visibly live rather than decorative.
-// The time is Colombia time (COT). With `onRefresh` a "Refresh" button sits next to the pill: it reads again right
+// The time is in the browser's zone, named (COT, EST, GMT+1...). With `onRefresh` a "Refresh" button sits next to the pill: it reads again right
 // now instead of waiting for the next 30 s poll, and spins while the request is running.
 export function LivePill({ live, source, at, onRefresh }) {
   const [busy, setBusy] = useState(false);
@@ -80,7 +80,7 @@ export function LivePill({ live, source, at, onRefresh }) {
     <span className="inline-flex items-center gap-2 rounded-full border border-line bg-card px-3 py-1.5 text-xs text-muted">
       <span className={`size-2 rounded-full ${dot}`} />
       {liveLabel(live, source)}
-      {at != null && <span className="text-muted/60">· updated {clockCot(at)}</span>}
+      {at != null && <span className="text-muted/60">· updated {clockZone(at)}</span>}
     </span>
   );
   if (!onRefresh) return pill;

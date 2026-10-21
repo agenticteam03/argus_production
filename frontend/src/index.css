@@ -174,17 +174,3 @@
 .hex-pulse { transform-box: fill-box; transform-origin: center; animation: hex-pulse 2.2s ease-out infinite; }
 @keyframes hex-pulse { from { transform: scale(1); opacity: 0.75; } to { transform: scale(1.55); opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { .hex-pulse { animation: none; opacity: 0; } }
-
-/* Login: the hero picture melts into the form panel (card colour, dark or light) with an eased fade, so there is no
-   hard edge or grey band between them. The picture is inset on the left; its own edge fades in and the overlay fades out. */
-.hero-img { -webkit-mask-image: linear-gradient(to right, transparent 0%, #000 8%); mask-image: linear-gradient(to right, transparent 0%, #000 8%); }
-.hero-fade {
-  background-image: linear-gradient(to right,
-    var(--color-card) 0%,
-    color-mix(in srgb, var(--color-card) 94%, transparent) 6%,
-    color-mix(in srgb, var(--color-card) 80%, transparent) 12%,
-    color-mix(in srgb, var(--color-card) 55%, transparent) 17%,
-    color-mix(in srgb, var(--color-card) 28%, transparent) 21%,
-    color-mix(in srgb, var(--color-card) 8%, transparent) 24%,
-    transparent 26%);
-}

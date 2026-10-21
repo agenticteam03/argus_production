@@ -1,5 +1,4 @@
 import { useId, useState } from "react";
-import hero from "../../public/images/argus-hero.jpg";
 import { Logo } from "../components/ui.jsx";
 
 const focusRing =
@@ -46,8 +45,8 @@ export default function LoginPage({ onLogin }) {
 
   return (
     <div className="grid min-h-full place-items-center p-3 sm:p-6">
-      <main className="grid w-full max-w-[1120px] grid-cols-1 overflow-hidden rounded-[20px] border border-line bg-card shadow-[0_40px_120px_-40px_rgba(59,130,246,0.25)] sm:rounded-3xl min-[900px]:min-h-[min(700px,calc(100vh-48px))] min-[900px]:grid-cols-2">
-        <section className="flex flex-col px-5 py-6 sm:p-8">
+      <main className="w-full max-w-[1120px] overflow-hidden rounded-[20px] border border-line bg-card shadow-[0_40px_120px_-40px_rgba(59,130,246,0.25)] sm:rounded-3xl min-[900px]:min-h-[min(700px,calc(100vh-48px))]">
+        <section className="flex min-h-[inherit] flex-col px-5 py-6 sm:p-8">
           <header className="flex items-center gap-2.5 text-xl font-semibold tracking-tight">
             <Logo width="22" height="22" className="text-ink" />
             <span>Argus</span>
@@ -113,11 +112,6 @@ export default function LoginPage({ onLogin }) {
             </button>
           </form>
         </section>
-
-        <aside className="relative hidden bg-card min-[900px]:block" aria-hidden="true">
-          <img src={hero} alt="" className="hero-img absolute inset-y-0 right-0 h-full w-[86%] object-cover object-top" />
-          <div className="hero-fade pointer-events-none absolute inset-0" />
-        </aside>
       </main>
     </div>
   );
