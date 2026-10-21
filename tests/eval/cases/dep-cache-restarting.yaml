@@ -232,3 +232,8 @@ label:
   - cache
   runbooks:
   - RB-003
+  expected_hypotheses:             # ACR-0024 §3.8: the cause, and the victim ruled out
+    supported:
+    - vm-166/container:argus-lab-cache
+    ruled_out:
+    - vm-166/container:argus-lab-api
