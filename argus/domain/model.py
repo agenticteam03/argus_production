@@ -260,10 +260,18 @@ class HostInfo(BaseModel):
     alertmanager: str | None = None           # ACR-0003: the host's Alertmanager URL (not an executor: no token)
 
 
+class DependencyLink(BaseModel):
+    """ACR-0025: one declared dependency of a target, from an inventory `depends_on` entry."""
+    ref: TargetRef
+    port: int | None = None              # None = the dependency's first `tcp_ports` entry (a plain ref)
+    required: bool = True                # a broken required link is a problem of its owner (T-0046 L4)
+
+
 class TargetInfo(BaseModel):
     ref: TargetRef
     scope: str = "lab"
     depends_on: list[TargetRef] = []
+    links: list[DependencyLink] = []     # ACR-0025: per `depends_on` entry its port and `required` (none = plain refs)
     http_endpoints: list[str] = []
     tcp_ports: list[int] = []
     mounts: list[str] = []
@@ -271,6 +279,15 @@ class TargetInfo(BaseModel):
     database: str | None = None          # dbname read by the db-probe (inventory `database`)
     profile: str | None = None           # ACR-0021: "scenario" = a lab container that only runs during a scenario
     link_warning_ms: float | None = None  # ACR-0021: a dependency answer slower than this is `slow` (default 100 ms)
+
+    def link(self, dep: TargetRef) -> DependencyLink:
+        """The declared link to `dep`; a plain ref (or a target built without links) is port None, required."""
+        return next((x for x in self.links if x.ref == dep), DependencyLink(ref=dep))
+
+    def link_port(self, dep: TargetRef, dep_ports: list[int] | None) -> int | None:
+        """The port the link to `dep` uses: the declared one, else the dependency's first `tcp_ports` entry."""
+        port = self.link(dep).port
+        return port if port is not None else (dep_ports[0] if dep_ports else None)
 
 
 # ---------------------------------------------------------------------------------------------
