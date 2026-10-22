@@ -192,6 +192,52 @@ def test_sessions_and_login_failures_migration_010(runtime_dsn, store):
     assert store.login_failures("u:pg-bob", now - timedelta(hours=1)) == []
 
 
+def test_webauthn_and_step_up_migration_013(runtime_dsn, store):
+    """ACR-0018 (phase 16 step 3): a credential's key and owner are fixed and it is revoked, never deleted; a challenge,
+    a ticket and a step-up token are taken once (one UPDATE each) and only while unexpired; the database itself refuses
+    a step-up longer than 5 minutes and a self-issued ticket."""
+    import uuid
+
+    import psycopg
+    from argus.domain.model import utcnow
+    now = utcnow()
+    jti = uuid.uuid4().hex
+    store.add_session(jti, "pg-carol", "read", now, now + timedelta(minutes=30))
+    assert store.set_session_second_factor(jti, now) is True
+    assert store.get_session(jti)["second_factor_at"] is not None
+    store.add_webauthn_credential("pg-carol-credential-1", "pg-carol", b"\x01cose", 0, "laptop", now)
+    assert [c["label"] for c in store.webauthn_credentials("pg-carol")] == ["laptop"]
+    assert store.update_webauthn_sign_count("pg-carol-credential-1", 3, now) is True
+    assert store.webauthn_credentials("pg-carol")[0]["sign_count"] == 3
+    cid = f"wch_{uuid.uuid4().hex}"
+    store.add_webauthn_challenge(cid, "pg-carol", jti, "login", b"chal", None, None, now, now + timedelta(minutes=5))
+    assert store.take_webauthn_challenge(cid, "pg-carol", jti, "step_up", now) is None          # another ceremony
+    assert store.take_webauthn_challenge(cid, "pg-carol", jti, "login", now)["challenge"] == b"chal"
+    assert store.take_webauthn_challenge(cid, "pg-carol", jti, "login", now) is None            # once
+    store.add_enrol_ticket("a" * 64, "pg-carol", "pg-admin", now, now + timedelta(hours=24))
+    assert store.enrol_ticket_valid("a" * 64, "pg-carol", now) and not store.enrol_ticket_valid("a" * 64, "x", now)
+    assert store.use_enrol_ticket("a" * 64, "pg-carol", now) is True
+    assert store.use_enrol_ticket("a" * 64, "pg-carol", now) is False
+    store.add_step_up("b" * 64, "pg-carol", jti, "test:pg", now, now + timedelta(minutes=5))
+    assert store.take_step_up("b" * 64, now + timedelta(minutes=6)) is None                    # expired
+    assert store.take_step_up("b" * 64, now)["object"] == "test:pg"
+    assert store.take_step_up("b" * 64, now) is None                                           # once
+    assert store.revoke_webauthn_credentials("pg-carol", "pg-admin", now) == 1
+    assert store.webauthn_credentials("pg-carol") == []
+    with psycopg.connect(runtime_dsn, autocommit=True) as c:
+        for sql in ("UPDATE webauthn_credential SET public_key = '\\x02'", "UPDATE webauthn_credential SET principal = 'x'",
+                    "DELETE FROM webauthn_credential", "DELETE FROM step_up_token", "DELETE FROM webauthn_challenge",
+                    "UPDATE step_up_token SET object = 'x'"):
+            with pytest.raises(psycopg.Error, match="permission denied"):
+                c.execute(sql)
+        with pytest.raises(psycopg.Error, match="check constraint"):
+            c.execute("INSERT INTO step_up_token (id, principal, session, object, created_at, expires_at) "
+                      "VALUES (repeat('c', 64), 'x', 'x', 'test:x', now(), now() + interval '6 minutes')")
+        with pytest.raises(psycopg.Error, match="check constraint"):
+            c.execute("INSERT INTO webauthn_enrol_ticket (id, principal, issued_by, created_at, expires_at) "
+                      "VALUES (repeat('d', 64), 'x', 'x', now(), now())")
+
+
 def test_audit_chain_migration_011(store):
     """ACR-0018 §17.1 layer 13: concurrent writers never fork the chain (an advisory lock per row), and an owner who
     disables the insert-only trigger and edits a row is caught by the verifier."""

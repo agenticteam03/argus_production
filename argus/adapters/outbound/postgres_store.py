@@ -241,13 +241,13 @@ class PostgresStore:
                 (jti, principal, access, created_at, expires_at))
 
     def get_session(self, jti: str) -> dict[str, Any] | None:
-        rows = self._q("SELECT jti, principal, access, created_at, expires_at, revoked_at, revoked_by, revoke_reason "
-                       "FROM auth_session WHERE jti = %s", (jti,))
+        rows = self._q("SELECT jti, principal, access, created_at, expires_at, revoked_at, revoked_by, revoke_reason, "
+                       "second_factor_at FROM auth_session WHERE jti = %s", (jti,))
         if not rows:
             return None
         r = rows[0]
         return {"jti": r[0], "principal": r[1], "access": r[2], "created_at": r[3], "expires_at": r[4],
-                "revoked_at": r[5], "revoked_by": r[6], "revoke_reason": r[7]}
+                "revoked_at": r[5], "revoked_by": r[6], "revoke_reason": r[7], "second_factor_at": r[8]}
 
     def revoke_session(self, jti: str, by: str, reason: str, at: datetime) -> bool:
         return bool(self._q("UPDATE auth_session SET revoked_at = %s, revoked_by = %s, revoke_reason = %s "
@@ -257,6 +257,71 @@ class PostgresStore:
         return len(self._q("UPDATE auth_session SET revoked_at = %s, revoked_by = %s, revoke_reason = %s "
                            "WHERE principal = %s AND revoked_at IS NULL AND expires_at > %s RETURNING jti",
                            (at, by, reason, principal, at)))
+
+    def set_session_second_factor(self, jti: str, at: datetime) -> bool:
+        return bool(self._q("UPDATE auth_session SET second_factor_at = %s WHERE jti = %s AND revoked_at IS NULL "
+                            "RETURNING jti", (at, jti)))
+
+    # --- WebAuthn and the step-up token (ACR-0018, phase 16 step 3; migration 013) -----------------------------------
+    def add_webauthn_credential(self, cred_id: str, principal: str, public_key: bytes, sign_count: int, label: str,
+                                at: datetime) -> None:
+        self._q("INSERT INTO webauthn_credential (id, principal, public_key, sign_count, label, created_at) "
+                "VALUES (%s, %s, %s, %s, %s, %s)", (cred_id, principal, public_key, sign_count, label, at))
+
+    def webauthn_credentials(self, principal: str) -> list[dict[str, Any]]:
+        """The principal's credentials that are not revoked, oldest first."""
+        rows = self._q("SELECT id, principal, public_key, sign_count, label, created_at, last_used_at "
+                       "FROM webauthn_credential WHERE principal = %s AND revoked_at IS NULL ORDER BY created_at, id",
+                       (principal,))
+        return [{"id": r[0], "principal": r[1], "public_key": bytes(r[2]), "sign_count": r[3], "label": r[4],
+                 "created_at": r[5], "last_used_at": r[6]} for r in rows]
+
+    def update_webauthn_sign_count(self, cred_id: str, sign_count: int, at: datetime) -> bool:
+        return bool(self._q("UPDATE webauthn_credential SET sign_count = %s, last_used_at = %s "
+                            "WHERE id = %s AND revoked_at IS NULL RETURNING id", (sign_count, at, cred_id)))
+
+    def revoke_webauthn_credentials(self, principal: str, by: str, at: datetime) -> int:
+        return len(self._q("UPDATE webauthn_credential SET revoked_at = %s, revoked_by = %s "
+                           "WHERE principal = %s AND revoked_at IS NULL RETURNING id", (at, by, principal)))
+
+    def add_webauthn_challenge(self, challenge_id: str, principal: str, session: str, kind: str, challenge: bytes,
+                               obj: str | None, ticket: str | None, at: datetime, expires_at: datetime) -> None:
+        self._q("INSERT INTO webauthn_challenge (id, principal, session, kind, challenge, object, ticket, created_at, "
+                "expires_at) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)",
+                (challenge_id, principal, session, kind, challenge, obj, ticket, at, expires_at))
+
+    def take_webauthn_challenge(self, challenge_id: str, principal: str, session: str, kind: str,
+                                at: datetime) -> dict[str, Any] | None:
+        """Marks the challenge used and returns it, once (one UPDATE: two concurrent takes cannot both get it), while
+        it is unexpired and this principal's, session's and ceremony's; else None."""
+        rows = self._q("UPDATE webauthn_challenge SET used_at = %s WHERE id = %s AND principal = %s AND session = %s "
+                       "AND kind = %s AND used_at IS NULL AND expires_at > %s RETURNING challenge, object, ticket",
+                       (at, challenge_id, principal, session, kind, at))
+        return {"challenge": bytes(rows[0][0]), "object": rows[0][1], "ticket": rows[0][2]} if rows else None
+
+    def add_enrol_ticket(self, ticket_id: str, principal: str, issued_by: str, at: datetime,
+                         expires_at: datetime) -> None:
+        self._q("INSERT INTO webauthn_enrol_ticket (id, principal, issued_by, created_at, expires_at) "
+                "VALUES (%s, %s, %s, %s, %s)", (ticket_id, principal, issued_by, at, expires_at))
+
+    def enrol_ticket_valid(self, ticket_id: str, principal: str, at: datetime) -> bool:
+        return bool(self._q("SELECT 1 FROM webauthn_enrol_ticket WHERE id = %s AND principal = %s AND used_at IS NULL "
+                            "AND expires_at > %s", (ticket_id, principal, at)))
+
+    def use_enrol_ticket(self, ticket_id: str, principal: str, at: datetime) -> bool:
+        return bool(self._q("UPDATE webauthn_enrol_ticket SET used_at = %s WHERE id = %s AND principal = %s "
+                            "AND used_at IS NULL AND expires_at > %s RETURNING id", (at, ticket_id, principal, at)))
+
+    def add_step_up(self, token_id: str, principal: str, session: str, obj: str, at: datetime,
+                    expires_at: datetime) -> None:
+        self._q("INSERT INTO step_up_token (id, principal, session, object, created_at, expires_at) "
+                "VALUES (%s, %s, %s, %s, %s, %s)", (token_id, principal, session, obj, at, expires_at))
+
+    def take_step_up(self, token_id: str, at: datetime) -> dict[str, Any] | None:
+        """Marks the token used and returns its binding, once (one UPDATE), while unexpired; else None."""
+        rows = self._q("UPDATE step_up_token SET used_at = %s WHERE id = %s AND used_at IS NULL AND expires_at > %s "
+                       "RETURNING principal, session, object", (at, token_id, at))
+        return {"principal": rows[0][0], "session": rows[0][1], "object": rows[0][2]} if rows else None
 
     def add_login_failure(self, key: str, at: datetime) -> None:
         self._q("INSERT INTO login_failure (key, at) VALUES (%s, %s)", (key, at))
@@ -473,6 +538,32 @@ CHECKS_SQL: list[tuple[str, str, bool]] = [
     ("a session is never deleted (DELETE refused)", "DELETE FROM auth_session WHERE jti = md5('dbcheck')", False),
     ("insert login failure (migration 010)", "INSERT INTO login_failure (key, at) VALUES ('u:dbcheck', now())", True),
     ("a login failure may be cleared (DELETE)", "DELETE FROM login_failure WHERE key = 'u:dbcheck'", True),
+    ("a session's second factor may be set (migration 013)", "UPDATE auth_session SET second_factor_at = now() "
+                                                              "WHERE jti = md5('dbcheck')", True),
+    ("insert WebAuthn credential (ACR-0018, migration 013)", "INSERT INTO webauthn_credential (id, principal, "
+                                                             "public_key, sign_count, created_at) VALUES "
+                                                             "('dbcheck-credential-id', 'dbcheck', '\\x00', 0, now())",
+     True),
+    ("a credential's counter may move (UPDATE sign_count)", "UPDATE webauthn_credential SET sign_count = 1, "
+                                                            "last_used_at = now() WHERE id = 'dbcheck-credential-id'", True),
+    ("a credential's key is fixed (UPDATE public_key refused)", "UPDATE webauthn_credential SET public_key = '\\x01' "
+                                                                "WHERE id = 'dbcheck-credential-id'", False),
+    ("a credential's owner is fixed (UPDATE principal refused)", "UPDATE webauthn_credential SET principal = 'x' "
+                                                                 "WHERE id = 'dbcheck-credential-id'", False),
+    ("a credential is never deleted (DELETE refused)", "DELETE FROM webauthn_credential WHERE id = 'dbcheck-credential-id'",
+     False),
+    ("insert step-up token (migration 013)", "INSERT INTO step_up_token (id, principal, session, object, created_at, "
+                                             "expires_at) VALUES (repeat('a', 64), 'dbcheck', 'dbcheck', 'test:dbcheck', "
+                                             "now(), now() + interval '5 minutes')", True),
+    ("a step-up token lives at most 5 minutes", "INSERT INTO step_up_token (id, principal, session, object, created_at, "
+                                                "expires_at) VALUES (repeat('b', 64), 'dbcheck', 'dbcheck', "
+                                                "'test:dbcheck', now(), now() + interval '6 minutes')", False),
+    ("a step-up token's object is fixed (UPDATE object refused)", "UPDATE step_up_token SET object = 'x' "
+                                                                  "WHERE id = repeat('a', 64)", False),
+    ("a step-up token is never deleted (DELETE refused)", "DELETE FROM step_up_token WHERE id = repeat('a', 64)", False),
+    ("nobody issues their own enrolment ticket", "INSERT INTO webauthn_enrol_ticket (id, principal, issued_by, "
+                                                 "created_at, expires_at) VALUES (repeat('c', 64), 'dbcheck', 'dbcheck', "
+                                                 "now(), now() + interval '1 day')", False),
     ("insert hypothesis (ACR-0024, migration 012)", "INSERT INTO incident_hypothesis (incident_id, step, "
                                                     "hypothesis_id, statement, cause_class, relation, status, score, "
                                                     "rank, at) VALUES ('inc_dbcheck', 1, 'h1', 'dbcheck', 'other', "
