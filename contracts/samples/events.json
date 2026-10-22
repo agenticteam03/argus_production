@@ -11,7 +11,7 @@
       "target": "vm-166/container:argus-lab-worker",
       "trigger": "manual"
     },
-    "incident_id": "inc_77b419ffd2c4",
+    "incident_id": "inc_7e49840f50fa",
     "node": "detect",
     "phase": "enter",
     "seq": 1
@@ -50,7 +50,7 @@
       },
       "strategy": "model_loop"
     },
-    "incident_id": "inc_77b419ffd2c4",
+    "incident_id": "inc_7e49840f50fa",
     "node": "detect",
     "phase": "exit",
     "seq": 2
@@ -63,7 +63,7 @@
         "RB-008"
       ]
     },
-    "incident_id": "inc_77b419ffd2c4",
+    "incident_id": "inc_7e49840f50fa",
     "node": "recall",
     "phase": "enter",
     "seq": 3
@@ -99,7 +99,7 @@
         }
       ]
     },
-    "incident_id": "inc_77b419ffd2c4",
+    "incident_id": "inc_7e49840f50fa",
     "node": "recall",
     "phase": "exit",
     "seq": 4
@@ -111,7 +111,7 @@
       "steps_left": 8,
       "strategy": "model_loop"
     },
-    "incident_id": "inc_77b419ffd2c4",
+    "incident_id": "inc_7e49840f50fa",
     "node": "investigate",
     "phase": "enter",
     "seq": 5
@@ -140,7 +140,7 @@
       },
       "step": 1
     },
-    "incident_id": "inc_77b419ffd2c4",
+    "incident_id": "inc_7e49840f50fa",
     "node": "investigate",
     "phase": "exit",
     "seq": 6
@@ -150,7 +150,7 @@
     "data": {
       "calls": 2
     },
-    "incident_id": "inc_77b419ffd2c4",
+    "incident_id": "inc_7e49840f50fa",
     "node": "act",
     "phase": "enter",
     "seq": 7
@@ -160,7 +160,7 @@
     "data": {
       "capability": "container.status",
       "error_category": "none",
-      "evidence_id": "obs_906e33f1d6d34fe0",
+      "evidence_id": "obs_9a72f05666764ae7",
       "executor": "docker_read",
       "host": "vm-166",
       "result": "vm-166/container:argus-lab-worker: state=restarting health=none restarts=7 oom_killed=True exit_code=137 started_at=unknown memory_limit_bytes=67108864 cpu_limit_cores=unknown networks=unknown id=aaa111",
@@ -169,7 +169,7 @@
       "target": "vm-166/container:argus-lab-worker",
       "tool": "get_container_status"
     },
-    "incident_id": "inc_77b419ffd2c4",
+    "incident_id": "inc_7e49840f50fa",
     "node": "act",
     "phase": "step",
     "seq": 8
@@ -179,7 +179,7 @@
     "data": {
       "capability": "container.logs",
       "error_category": "none",
-      "evidence_id": "obs_1e2ba915fc634a86",
+      "evidence_id": "obs_b5f0c65434884487",
       "executor": "docker_read",
       "host": "vm-166",
       "result": "vm-166/container:argus-lab-worker: last 1 log lines",
@@ -188,7 +188,7 @@
       "target": "vm-166/container:argus-lab-worker",
       "tool": "get_container_logs"
     },
-    "incident_id": "inc_77b419ffd2c4",
+    "incident_id": "inc_7e49840f50fa",
     "node": "act",
     "phase": "step",
     "seq": 9
@@ -198,7 +198,7 @@
     "data": {
       "evidence_total": 4
     },
-    "incident_id": "inc_77b419ffd2c4",
+    "incident_id": "inc_7e49840f50fa",
     "node": "act",
     "phase": "exit",
     "seq": 10
@@ -210,7 +210,7 @@
       "steps_left": 7,
       "strategy": "model_loop"
     },
-    "incident_id": "inc_77b419ffd2c4",
+    "incident_id": "inc_7e49840f50fa",
     "node": "investigate",
     "phase": "enter",
     "seq": 11
@@ -222,15 +222,15 @@
       "decision": {
         "confidence": "high",
         "evidence_ids": [
-          "obs_906e33f1d6d34fe0",
-          "obs_1e2ba915fc634a86"
+          "obs_9a72f05666764ae7",
+          "obs_b5f0c65434884487"
         ],
         "kind": "conclude",
         "root_cause_target": "vm-166/container:argus-lab-worker"
       },
       "step": 2
     },
-    "incident_id": "inc_77b419ffd2c4",
+    "incident_id": "inc_7e49840f50fa",
     "node": "investigate",
     "phase": "exit",
     "seq": 12
@@ -239,8 +239,8 @@
     "at": "2026-10-22T21:03:37.952091+00:00",
     "data": {
       "cited": [
-        "obs_906e33f1d6d34fe0",
-        "obs_1e2ba915fc634a86"
+        "obs_9a72f05666764ae7",
+        "obs_b5f0c65434884487"
       ],
       "confidence": "high",
       "diagnosis": "OOM-killed by its 64 MiB memory limit",
@@ -249,7 +249,7 @@
       "root_cause_target": "vm-166/container:argus-lab-worker",
       "status": "closed"
     },
-    "incident_id": "inc_77b419ffd2c4",
+    "incident_id": "inc_7e49840f50fa",
     "node": "record",
     "phase": "exit",
     "seq": 13

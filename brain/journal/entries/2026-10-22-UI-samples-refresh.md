@@ -32,6 +32,12 @@ The contract remains shape-only and unchanged. No frontend source, API
 contract, runtime code, VM, or other sample changed. Since `contracts/`
 is protected, the PR requests conantkd's review.
 
+Follow-up (S1, after CI): the Playwright test "the list opens an incident" failed on the PR. The regeneration gave
+the incident and its evidence new ids, but `incidents.json` and `evidence.json` kept the old ones, and the frontend's
+tests name `inc_7e49840f50fa` and `ev_f5de798421654c48`. The three refreshed samples now carry the original ids again
+(the incident, two evidence and two observation ids, paired by kind and capability), so every generated id in them
+exists on main. Only the ids changed; the values stay refreshed.
+
 References: [T-0049](../../tasks/current/T-0049-agent-skills.md),
 [API for UI](../../../docs/API-FOR-UI.md),
 [ACR-0001](../../architecture/changes/ACR-0001-ui-read-access.md).
@@ -47,6 +53,9 @@ References: [T-0049](../../tasks/current/T-0049-agent-skills.md),
   WSL `bash.exe`, which could not find `/bin/bash`. The exact 10 failed
   cases passed with Git Bash first on `PATH` (10 passed); the full suite
   was not rerun.
+
+- After the id fix: `npm test` 219 passed; the contract test 3 passed. Playwright's browser is not installed on the
+  laptop, so CI runs the acceptance tests.
 
 ### Next step
 
