@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | `in progress` — 12 held-out cases written, offline baseline measured; the model's runs need the vm-095 lease |
+| Status | `in progress` — set, baseline and model runs measured; each class's re-decision is its own PR |
 | Problem | [OP-013](../../OPEN_PROBLEMS.md) (from D-003) |
 | Architecture | none (§21.2 as written; an ACR only if the rule itself should change) |
 | Owner | `juanbetancurm` (+ agent) |
@@ -17,7 +17,7 @@ strategies on cases written **after** the rules and **without reading them**, th
 
 ## The held-out set (`tests/eval/heldout/cases/`)
 
-Twelve cases, six per class, each a failure mechanism or dependency pair the 55 main cases do not have. Labels come
+Twelve cases, six per class, each a failure mechanism or dependency pair the 61 main cases do not have. Labels come
 from RB-003 and RB-015 and from what the fixtures show, written before any strategy was run on them.
 
 | Case | Class | Mechanism | Right answer |
@@ -58,7 +58,48 @@ ambiguous case out: 2/5 and 3/5). The baseline escalates the wrong-port, overloa
 names the upstream for both proxy-cause nginx cases, and diagnoses the ambiguous nginx case. Labels were not changed
 after this run.
 
-## Plan for the model runs (S1 schedules them; vm-095 lease)
+**The model runs (vm-095, 2026-10-22, 5 trials each, hard `0 0 0` in both):** counted the same way, the 6 cases of the
+class in each trial. Evidence: [step 02](../../execution/history/OP-013/step-02/evidence.md).
+
+| Strategy | `dependency_unavailable` (trials of 6) | `nginx_upstream_failure` (trials of 6) |
+|---|---|---|
+| `baseline` (offline, deterministic) | 3 → **0.50** | 3 → **0.50** |
+| `model_loop` | 5, 4, 4, 5, 5 → **0.77** (worst 0.67) | 5, 6, 4, 5, 4 → 0.80 (worst 0.67) |
+| `plan_then_reason` | 6, 4, 3, 3, 4 → 0.67 (worst 0.50) | 4, 6, 6, 5, 5 → **0.87** (worst 0.67) |
+
+- Both ambiguous cases escalated in every trial of both strategies (the baseline diagnosed the nginx one).
+- The model's misses: `model_loop` dep backend-wrong-port 4/5, cache-maxclients 3/5; `plan_then_reason` nginx
+  upstream-closes 2/5, header-too-big 1/5, upstream-cpu-starved 1/5. The proxy-cause nginx cases, which the baseline
+  always misses, passed in 9 of 10 `plan_then_reason` runs.
+- **Measured on the deployed `6c83da3`**, not main: the image predates T-0047 H4, so the VM copy of the cases lost
+  `label.expected_hypotheses` (the repo's cases are unchanged). Nothing on the model's path differs from main (agent
+  loop, strategies, prompts, tool tags; the H5 read is offered to no class) and PASS/FAIL is graded the same; the run
+  has no hypothesis metrics and no `unsupported_root_cause` count.
+- Small set: 6 cases per class. The gap to the baseline (+0.27 and +0.37) is larger than the spread between trials,
+  but a single case is worth 0.17.
+
+## Decision proposal (§21.2 as D-003 applied it)
+
+Both classes meet the rule on the held-out set: the model's mean beats the baseline with every hard count 0.
+
+**Provisional until step 2:** the runs came before the label review (`conantkd`, #270), so these numbers count only
+once the labels are confirmed, first the four flagged above. A changed label is regraded from the results files on
+vm-095 (`eval-results/eval-20261022-113954.jsonl`, `eval-20261022-120509.jsonl`) before any class changes; the class
+PRs wait for the review.
+
+| Class | Today | Proposal | Held-out | Main set (D-003) |
+|---|---|---|---|---|
+| `dependency_unavailable` | `baseline` | back to `model_loop` | 0.77 vs 0.50 | 0.90 vs 1.00 |
+| `nginx_upstream_failure` | `baseline` | back to `plan_then_reason` | 0.87 vs 0.50 | 0.92 vs 1.00 |
+
+The two sets disagree because the baseline's rules were written from the main set: on cases nobody tuned it on, it
+gets half right. The held-out result is the one §21.2 asks for (an unseen mechanism is the normal incident). The
+baseline stays the fallback when no model is configured. Each class changes in its own PR (`argus/detectors/classes.py`,
+`tests/test_d003_class_registry.py`, which today requires the baseline for these classes; `conantkd` reviews); D-003
+and OP-013 are updated by the roll-up. Not part of the proposal: changing the baseline's rules from these misses
+(a rule fix needs a new held-out set, as above).
+
+## Plan for the model runs (done; kept for a re-run) (S1 schedules them; vm-095 lease)
 
 `--strategy` applies one strategy to every class and `--category` filters `class`/`ambiguous`, not the incident
 class, so each model strategy runs over all 12 cases and only its class's rows count (from the results file):
@@ -88,6 +129,6 @@ roll-up).
 | Step | What | State |
 |---|---|---|
 | 1 | 12 held-out cases, the structure test, this file, the journal entry | done (this branch) |
-| 2 | Labels reviewed by a teammate before the model runs count | open |
-| 3 | The two model runs on vm-095 (S1 holds the lease) | open |
-| 4 | Results recorded here; each class re-decided in its own PR | open |
+| 2 | Labels reviewed by a teammate before the model runs count | open (the four named above first) |
+| 3 | The two model runs on vm-095 | done 2026-10-22 ([evidence](../../execution/history/OP-013/step-02/evidence.md)) |
+| 4 | Results recorded here; each class re-decided in its own PR | results recorded (provisional); the two PRs follow step 2 |
