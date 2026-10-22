@@ -1,4 +1,4 @@
-"""argus serve | api | worker | scheduler | user add|disable | session revoke | db import-sqlite PATH|check | deploy record | diagnose TARGET [--raw] | incident ID [--raw]"""
+"""argus serve | api | worker | scheduler | user add|disable | session revoke | webauthn allow-enrol|reset | db import-sqlite PATH|check | deploy record | diagnose TARGET [--raw] | incident ID [--raw]"""
 from __future__ import annotations
 
 import argparse
@@ -238,6 +238,23 @@ def session(args) -> None:
     print(f"{ended} open session(s) of {args.name} ended")
 
 
+def webauthn(args) -> None:
+    """ACR-0018 step 3 (D3, D4): another administrator lets a person enrol their first credential (a one-time code,
+    shown once: give it to them, never paste it into a record) or resets every credential and session of theirs."""
+    from argus.application.second_factor import SecondFactor, SecondFactorRefused
+    s = Settings()
+    second = SecondFactor(make_store(s), s.webauthn_rp_id, s.webauthn_origin, ticket_hours=s.webauthn_enrol_ticket_hours)
+    try:
+        if args.action == "allow-enrol":
+            code = second.allow_enrol(args.name, args.who)
+            print(f"enrolment code for {args.name} (single use, {s.webauthn_enrol_ticket_hours} h): {code}")
+        else:
+            creds, sessions = second.reset(args.name, args.who)
+            print(f"{creds} credential(s) of {args.name} revoked, {sessions} open session(s) ended")
+    except SecondFactorRefused as e:
+        raise SystemExit(str(e))
+
+
 def db(args) -> None:
     s = Settings()
     if s.db_backend != "postgres":
@@ -310,6 +327,10 @@ def build_parser() -> argparse.ArgumentParser:
     se.add_argument("name")
     se.add_argument("--as", dest="who", required=True, help="who revokes (audited)")
     se.add_argument("--reason", default="revoked by an administrator")
+    wa = sub.add_parser("webauthn", help="ACR-0018: a first-credential ticket for a person, or a reset of their keys")
+    wa.add_argument("action", choices=["allow-enrol", "reset"])
+    wa.add_argument("name")
+    wa.add_argument("--as", dest="who", required=True, help="the other administrator (audited; never the person)")
     dp = sub.add_parser("deploy", help="ACR-0021: record a deploy (ops/deploy.sh calls it after DEPLOY OK)")
     dp.add_argument("action", choices=["record"])
     dp.add_argument("--host", default=None, help="an inventory host (default: ARGUS_HOME_HOST)")
@@ -342,6 +363,8 @@ def main() -> None:
         deploy(a)
     elif a.cmd == "session":
         session(a)
+    elif a.cmd == "webauthn":
+        webauthn(a)
     elif a.cmd == "audit":
         audit(a)
     else:

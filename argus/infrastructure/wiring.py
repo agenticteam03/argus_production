@@ -79,6 +79,13 @@ class Settings:
     login_max_per_user: int = field(default_factory=lambda: int(os.getenv("ARGUS_LOGIN_MAX_PER_USER", "5")))
     login_max_per_address: int = field(default_factory=lambda: int(os.getenv("ARGUS_LOGIN_MAX_PER_ADDRESS", "20")))
     login_window_s: int = field(default_factory=lambda: int(os.getenv("ARGUS_LOGIN_WINDOW_S", "900")))
+    # ACR-0018 phase 16 step 3 (D2): WebAuthn's relying party id and the browser origin are the UI's DNS name (the
+    # VM's environment, never in Git; e.g. `name` and `https://name`). Unset: the second-factor routes answer 503.
+    webauthn_rp_id: str = field(default_factory=lambda: os.getenv("ARGUS_WEBAUTHN_RP_ID", "").strip())
+    webauthn_origin: str = field(default_factory=lambda: os.getenv("ARGUS_WEBAUTHN_ORIGIN", "").strip().rstrip("/"))
+    # D4: how long another administrator's enrolment ticket stays valid (or until used)
+    webauthn_enrol_ticket_hours: int = field(
+        default_factory=lambda: int(os.getenv("ARGUS_WEBAUTHN_ENROL_TICKET_HOURS", "24")))
     incidents_limit_cap: int = field(default_factory=lambda: int(os.getenv("ARGUS_INCIDENTS_LIMIT_CAP", "200")))
     # ACR-0017: the inventory host Argus runs on (the map marks it and draws its reads); unset = every host monitored
     home_host: str = field(default_factory=lambda: os.getenv("ARGUS_HOME_HOST", "").strip())

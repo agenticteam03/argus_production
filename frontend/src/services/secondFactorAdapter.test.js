@@ -1,0 +1,85 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { httpSecondFactorAdapter, mockSecondFactorAdapter, registerObject } from "./secondFactorAdapter.js";
+import { clearToken, setToken } from "./session.js";
+
+const response = (status, body) => ({ ok: status >= 200 && status < 300, status, json: async () => body });
+const bytes = (...n) => new Uint8Array(n);
+const sent = (i) => JSON.parse(fetch.mock.calls[i][1].body);
+
+// A fake authenticator: what navigator.credentials returns, and what it was asked.
+const fakeKeys = () => ({
+  create: vi.fn(async () => ({ id: "Bwg", rawId: bytes(7, 8), type: "public-key",
+    response: { clientDataJSON: bytes(1), attestationObject: bytes(2) } })),
+  get: vi.fn(async () => ({ id: "Bwg", rawId: bytes(7, 8), type: "public-key",
+    response: { clientDataJSON: bytes(1), authenticatorData: bytes(3), signature: bytes(4), userHandle: null } })),
+});
+const OPTIONS = { challenge_id: "wch_1", options: { challenge: "AQID", user: { id: "BAU", name: "alice" }, allowCredentials: [] } };
+
+describe("httpSecondFactorAdapter", () => {
+  beforeEach(() => { globalThis.fetch = vi.fn(); setToken("jwt-1"); });
+  afterEach(() => { clearToken(); vi.restoreAllMocks(); });
+
+  it("reads the status from /me, null when the API has no second factor", async () => {
+    fetch.mockResolvedValueOnce(response(200, { user: "alice", second_factor: { enrolled: 1, verified: false } }))
+      .mockResolvedValueOnce(response(200, { user: "alice", second_factor: null }));
+    expect(await httpSecondFactorAdapter.status()).toEqual({ enrolled: 1, verified: false });
+    expect(await httpSecondFactorAdapter.status()).toBeNull();
+    expect(fetch.mock.calls[0][0]).toBe("/api/v1/me");
+  });
+
+  it("enrols a first key with the code: options, the authenticator's create(), then verify with the label", async () => {
+    const keys = fakeKeys();
+    fetch.mockResolvedValueOnce(response(200, OPTIONS)).mockResolvedValueOnce(response(200, { credential: "Bwg", enrolled: 1 }));
+    expect(await httpSecondFactorAdapter.enrol({ ticket: "code-1", label: "laptop" }, keys)).toEqual({ credential: "Bwg", enrolled: 1 });
+    expect(fetch.mock.calls.map((c) => [c[1].method, c[0]])).toEqual([
+      ["POST", "/api/v1/auth/webauthn/register/options"], ["POST", "/api/v1/auth/webauthn/register/verify"]]);
+    expect(sent(0)).toEqual({ ticket: "code-1" });
+    expect([...keys.create.mock.calls[0][0].publicKey.challenge]).toEqual([1, 2, 3]);
+    expect(sent(1)).toMatchObject({ challenge_id: "wch_1", label: "laptop",
+      credential: { id: "Bwg", rawId: "Bwg", response: { attestationObject: "Ag" } } });
+    expect(fetch.mock.calls[1][1].headers).toMatchObject({ Authorization: "Bearer jwt-1", "Content-Type": "application/json" });
+  });
+
+  it("enrols a further key with a step-up token instead of a code", async () => {
+    fetch.mockResolvedValueOnce(response(200, OPTIONS)).mockResolvedValueOnce(response(200, { enrolled: 2 }));
+    await httpSecondFactorAdapter.enrol({ stepUpToken: "su-1" }, fakeKeys());
+    expect(sent(0)).toEqual({ step_up_token: "su-1" });
+  });
+
+  it("confirms the login with an assertion", async () => {
+    const keys = fakeKeys();
+    fetch.mockResolvedValueOnce(response(200, OPTIONS)).mockResolvedValueOnce(response(200, { verified: true }));
+    expect(await httpSecondFactorAdapter.confirmLogin(keys)).toEqual({ verified: true });
+    expect(fetch.mock.calls[0][0]).toBe("/api/v1/auth/webauthn/login/options");
+    expect(fetch.mock.calls[0][1]).not.toHaveProperty("body");
+    expect(sent(1).credential.response).toEqual({ clientDataJSON: "AQ", authenticatorData: "Aw", signature: "BA" });
+  });
+
+  it("takes a step-up for one object and returns its token", async () => {
+    fetch.mockResolvedValueOnce(response(200, OPTIONS))
+      .mockResolvedValueOnce(response(200, { step_up_token: "su-9", expires_at: "2026-10-22T16:05:00Z" }));
+    const out = await httpSecondFactorAdapter.stepUp(registerObject("alice"), fakeKeys());
+    expect(sent(0)).toEqual({ object: "webauthn.register:alice" });
+    expect(out).toEqual({ token: "su-9", expiresAt: "2026-10-22T16:05:00Z" });
+  });
+
+  it("surfaces the API's reason when a ceremony is refused", async () => {
+    fetch.mockResolvedValueOnce(response(403, { detail: "the first credential needs an enrolment ticket from another administrator" }));
+    await expect(httpSecondFactorAdapter.enrol({ ticket: "" }, fakeKeys())).rejects.toMatchObject({
+      status: 403, detail: "the first credential needs an enrolment ticket from another administrator" });
+  });
+
+  it("lists the caller's keys", async () => {
+    fetch.mockResolvedValueOnce(response(200, [{ credential: "Bwg", label: "laptop" }]));
+    expect(await httpSecondFactorAdapter.credentials()).toEqual([{ credential: "Bwg", label: "laptop" }]);
+    expect(fetch.mock.calls[0][0]).toBe("/api/v1/auth/webauthn/credentials");
+  });
+});
+
+describe("mockSecondFactorAdapter", () => {
+  it("says the demo has no second factor and refuses its ceremonies", async () => {
+    expect(await mockSecondFactorAdapter.status()).toBeNull();
+    expect(await mockSecondFactorAdapter.credentials()).toEqual([]);
+    for (const fn of ["enrol", "confirmLogin", "stepUp"]) await expect(mockSecondFactorAdapter[fn]({})).rejects.toThrow(/real Argus API/);
+  });
+});

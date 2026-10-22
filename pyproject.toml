@@ -11,6 +11,7 @@ dependencies = [
   "PyYAML>=6",
   "PyJWT[crypto]>=2.8",                         # ACR-0018: EdDSA token signing needs cryptography
   "pwdlib[argon2]>=0.2",
+  "webauthn==3.0.1",                            # ACR-0018 phase 16 step 3 (D1): the WebAuthn ceremonies
   "openai>=1.66",
   "python-multipart>=0.0.9",
   "psycopg[binary]>=3.2,<3.3",

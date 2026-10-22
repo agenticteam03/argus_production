@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { httpArgusAdapter } from "./httpArgusAdapter.js";
 import { httpAuthAdapter } from "./httpAuthAdapter.js";
+import { httpSecondFactorAdapter } from "./secondFactorAdapter.js";
 import { clearToken } from "./session.js";
 
 // T-0016 "Contract": every call the real adapters make is a route, method and query parameter that
@@ -31,7 +32,8 @@ describe("the real adapters against contracts/ui-api.json", () => {
     vi.stubGlobal("fetch", vi.fn(async (url, init = {}) => {
       calls.push({ method: (init.method ?? "GET").toUpperCase(), url });
       const body = String(url).endsWith("/auth/token") ? { access: "read", access_token: "a.b.c", token_type: "bearer" }
-        : String(url).endsWith("/me") ? { user: "alice", role: "operator", access: "read", actions: [] } : [];
+        : String(url).endsWith("/me") ? { user: "alice", role: "operator", access: "read", actions: [] }
+        : String(url).endsWith("/options") ? { challenge_id: "wch_1", options: { challenge: "AQ", user: { id: "AQ" } } } : [];
       return { ok: true, status: 200, json: async () => body };
     }));
   });
@@ -50,8 +52,17 @@ describe("the real adapters against contracts/ui-api.json", () => {
     await httpArgusAdapter.getTopology();                                            // ACR-0017: the system map
     await httpArgusAdapter.getTopology("inc_1");                                     // the incident overlay
     await httpArgusAdapter.getIncidentMetrics("inc_1", "15m");                       // the incident's metric window
+    const key = { id: "AQ", rawId: new Uint8Array([1]), type: "public-key",                // ACR-0018 step 3
+      response: { clientDataJSON: new Uint8Array([1]), attestationObject: new Uint8Array([2]),
+        authenticatorData: new Uint8Array([3]), signature: new Uint8Array([4]) } };
+    const keys = { create: async () => key, get: async () => key };
+    await httpSecondFactorAdapter.status();
+    await httpSecondFactorAdapter.credentials();
+    await httpSecondFactorAdapter.enrol({ ticket: "code" }, keys);
+    await httpSecondFactorAdapter.confirmLogin(keys);
+    await httpSecondFactorAdapter.stepUp("test:x", keys);
     await httpAuthAdapter.signOut();                                                 // ACR-0018: ends the session
-    expect(calls.length).toBeGreaterThanOrEqual(15);
+    expect(calls.length).toBeGreaterThanOrEqual(23);
     expect(undeclared(calls)).toEqual([]);
   });
 
