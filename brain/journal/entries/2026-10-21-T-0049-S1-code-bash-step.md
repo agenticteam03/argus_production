@@ -2,11 +2,14 @@
 
 Type: implementation
 Who: juanbetancurm (+ agent)
-Status: initial implementation committed locally at `b997395`; corrections reviewed and validated; SK.2 ready.
+Status: initial and corrective commits are local; governance merged; final publication record under validation.
 Context: T-0049 step S1, isolated in `w-s1` on
 `task/T-0049-s1-code-bash-step`, created from `origin/main` at `953331f`.
 On 2026-10-22, local merge `dbffd037` integrated reviewed main `9d65e1e` without conflicts;
 the five pending correction files and completed private SK.1 block were preserved exactly.
+The developer committed the correction as `8f40d31`. After governance #268 merged,
+local merge `86bd0d19` integrated main `e4b9869` without conflicts or skill-code changes, and
+local merge `808d46a` integrated main `096bf90` (#270, a journal entry only).
 
 Decision / result:
 - Add a short `.claude/skills/code-bash-step/SKILL.md` that reads the current Brain policies first,
@@ -41,6 +44,8 @@ Decision / result:
   stdout redirect to `/dev/null` is allowed on that first line, as the coordinating session confirmed.
 - Preserve the developer-completed SK.1 block and sanitized successful evidence under
   `brain/execution/history/T-0049-S1/step-01/`, as authorized. Keep raw terminal output private.
+- Preserve completed SK.2 and its sanitized local-commit evidence under the approved `step-02/` archive.
+  The final publication record changes only that archive and this journal; the skill code stays as reviewed.
 
 ### Test state
 
@@ -77,15 +82,17 @@ Decision / result:
 - Full offline regression of the final correction on integrated main `9d65e1e`: **1571 passed,
   62 skipped, 1 deselected in 742.16s**, exit 0. It uses process-local Git Bash selection and a Git
   discovery ceiling for temporary repositories. Only the known detached-CI lint case is deselected.
+- Integrated-main validation on `808d46a` (main `096bf90`) with the final three-file record: full offline
+  suite passed, 0 failed (1654 collected, only the known detached-CI lint case deselected); run by S1
+  after S2's session ended.
 - No runtime, database, CI or shared Brain summary changes; no VM command or external action executed.
 
 ### Next step
 
-The developer already made the initial 38-file commit `b997395`; plan #255 is now approved and merged.
-The final peer re-review is clear with no findings; the real OP-013 file passes the checker too.
-Current-main full offline validation passed. SK.2 is ready for a new local
-commit with its exact nine-file list, including the approved completed-step archive; never amend the
-initial commit. Current execution files and raw output stay outside the commit. Relay the checkpoint
-through the coordinating session's central run file and wait for its output before claiming the
-correction committed. Hold push/PR until step S0 protects `.claude/skills/`; `conantkd` reviews the
-resulting skill PR.
+The developer made initial commit `b997395` and corrective commit `8f40d31`; neither is amended.
+The final peer re-review is clear and the real OP-013 file passes the checker. Plans #255 and governance
+#268 are approved and merged, so `.claude/skills/` is protected before publication. After integrated-main
+validation, SK.3 commits the exact three-file publication record, pushes the skill task branch and opens
+the PR requesting `conantkd` through the central command workflow. Current execution files and raw output
+stay outside the commit. Wait for actual developer output before claiming publication; no self-merge,
+and preserve the source branch.
