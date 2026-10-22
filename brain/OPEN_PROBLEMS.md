@@ -272,7 +272,10 @@ diff-coverage gates, LLM injection regression testing, CI security scanners.)
     three injected bugs (no scope check, no deny list, no path normalization) were caught.
 11. **LLM red-team scan** on a schedule (promptfoo for the application, garak for the model) next to the fixed
     regression cases of step 2.
-12. **Accessibility checks** in Playwright (axe-core) on the main pages.
+12. **Accessibility checks** in Playwright (axe-core) on the main pages. *Done 2026-10-21 (`task/OP-014-12-a11y`):*
+    `frontend/e2e/a11y.e2e.js` runs axe-core (WCAG 2 A and AA) on login, dashboard, incidents, an incident and
+    runbooks; any violation fails the `frontend` job. **Left (frontend lane):** `color-contrast` is excluded until
+    its two causes are fixed: `text-muted/60` (2.93:1) and white on `bg-accent` (3.67:1); AA asks 4.5:1.
 13. **OpenSSF Scorecard** run monthly as a health signal for the repository's practices.
 
 **Done when.** Steps 1-8 are merged and required; the self-merge rule's protected-path list is reviewed again with
