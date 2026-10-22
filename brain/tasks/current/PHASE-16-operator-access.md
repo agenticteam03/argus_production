@@ -36,8 +36,8 @@ than 90 days ago (`ARGUS_SESSION_RETENTION_DAYS`), audited as `maintenance.sessi
 
 ### Step 3 — WebAuthn and step-up
 **Built (3a, `task/PHASE-16-step-3-webauthn`):** migration 013, `argus/application/second_factor.py`, the routes (also through the
-public edge), `argus webauthn allow-enrol|reset`, ARCHITECTURE 1.8.29; `tests/test_acr0018_webauthn.py`. **Next:** 3b, the
-UI's enrolment and step-up dialogs; the deploy (migration 013 before the image; `ARGUS_WEBAUTHN_RP_ID` and
+public edge), `argus webauthn allow-enrol|reset`, ARCHITECTURE 1.8.29; `tests/test_acr0018_webauthn.py`. **3b built (`task/PHASE-16-step-3b-ui`):** the UI's `/account/security` page
+(enrol, confirm the login, a further key by step-up) and the browser's ceremony helpers. **Next:** the deploy (migration 013 before the image; `ARGUS_WEBAUTHN_RP_ID` and
 `ARGUS_WEBAUTHN_ORIGIN` in `hosts.env`); the first tickets (each administrator for the other).
 
 - **Open decisions:** the library (`webauthn` / py_webauthn, pinned, `pip-audit` clean); the relying party id (the
