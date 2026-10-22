@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | `in progress` — [ACR-0024](../../architecture/changes/ACR-0024-hypotheses-and-cause-ranking.md) accepted (#215); H1 merged (#228); H2 merged (#236); H3 merged (#237); both deployed on vm-095 (#239); H4 step 1 (the metrics) merged (#245); H5 step 1 (`analysis.anomaly_summary`, offered to no class) merged (#252); H5 step 2 part A (per-target range fixtures in the replay) merged (#267); part B (the read offered to two classes) in review (#274), its model batch run before the merge ([evidence](../../execution/history/T-0047-H5B/step-01/evidence.md)) |
+| Status | `in progress` — [ACR-0024](../../architecture/changes/ACR-0024-hypotheses-and-cause-ranking.md) accepted (#215); H1 merged (#228); H2 merged (#236); H3 merged (#237); both deployed on vm-095 (#239); H4 step 1 (the metrics) merged (#245); H5 step 1 (`analysis.anomaly_summary`, offered to no class) merged (#252); H5 step 2 part A (per-target range fixtures in the replay) merged (#267); part B (the read offered to `container_restart_loop`) in review (#274), its model batch run before the merge ([evidence](../../execution/history/T-0047-H5B/step-01/evidence.md)) |
 | Phase | next phase, area C (separate track of [NEXT-PHASE](NEXT-PHASE-supervised-remediation.md)) |
 | Architecture | ACR-0024 (`accepted`, applied in 1.8.27 by H1) |
 | Branch | one branch per step: `task/T-0047-h<n>-<slug>` |
@@ -88,7 +88,8 @@ So offering them alone is not the next step. H4 measures them again with hypothe
     history and scaled so the last sample is the snapshot's value (three cases' restart-count history undercounts
     it: `restart-crash-01`, `restart-crash-02`, `restart-oom-01`). `range_earlier` (the baseline window) stays one
     series per signal, not per target: a dependency's 24 h baseline in the replay is the case target's.
-  - Step 2, part B (built, batch run 2026-10-22, in review): the `anomaly` tag on `dependency_unavailable` and `container_restart_loop`
+  - Step 2, part B (built, batch run 2026-10-22, in review): the `anomaly` tag on `dependency_unavailable` and `container_restart_loop`,
+    then on `container_restart_loop` only (the result below)
     (a class-registry change: `conantkd` reviews). The offline evaluation of `tests/eval/cases` is unchanged
     (registered 32/61, `--strategy baseline` 57/61, hard 0): the baseline asks no model, so a tool offer changes nothing
     without one. The model batch decides whether the offer stays: the 12 cases of the two classes (`dep-*`,
@@ -110,8 +111,10 @@ So offering them alone is not the next step. H4 measures them again with hypothe
     - The one hard (`unsupported_root_cause`): `dep-backend-stopped`, trial 1. The right target and class, but no
       observation of the backend cited. It is the evidence gap that `problems 0.45` shows in both arms. The same case
       scored the same hard on main's code in a first batch that was lost (trial 2).
-    - By the letter of the rule, restart keeps the tag. Dependency improves its accuracy but has hard 1, so the
-      reviewer decides: keep it, with that explanation, or remove its tag.
+    - **Decision** (the rule, as `conantkd`'s review asked): the tag stays only where the batch met it. Restart keeps
+      it. `dependency_unavailable` improved its accuracy but has hard 1, so its tag is removed. It can be measured
+      again after the support-evidence fix (the gap behind that hard). The restart arm's numbers stand: its offer is
+      the same with or without the other class's tag.
     - `dependency_unavailable` runs `baseline` (D-003), so its offer reaches the model only if OP-013's proposal
       gives the class a model strategy again.
 

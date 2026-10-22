@@ -52,7 +52,8 @@ The hard row (H5B.4c): `dep-backend-stopped`, trial 1, verdict FAIL.
 
 - **Decision rule** (task file, H5 step 2 B): accuracy per class not lower and hard 0, or the tag is removed.
   - `container_restart_loop` meets it.
-  - `dependency_unavailable` is not lower (0.52 → 0.84) but has hard 1, so the reviewer decides on its tag.
+  - `dependency_unavailable` is not lower (0.52 → 0.84) but has hard 1, so its tag is removed (the review of
+    #274); it can be measured again after the support-evidence fix.
 - **What the batch cannot attribute:** with 3 calls in 60 runs, the gain cannot be put down to the read's output
   alone. The offer also changes the tool list the model sees, and 25 runs per class leave room for variance.
 - **Production effect:** `dependency_unavailable` runs `baseline` (D-003), so its offer reaches the model only if

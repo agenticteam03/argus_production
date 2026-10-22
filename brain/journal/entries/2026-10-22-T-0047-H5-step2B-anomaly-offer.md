@@ -1,4 +1,4 @@
-## 2026-10-22 — T-0047 H5 step 2 B: `analysis.anomaly_summary` offered to the dependency and restart classes
+## 2026-10-22 — T-0047 H5 step 2 B: `analysis.anomaly_summary` offered to the restart class
 
 Type: work
 Who: juanbetancurm (+ agent)
@@ -17,8 +17,11 @@ Decision / result:
   - The hard is `dep-backend-stopped` trial 1: the right root cause and class, but no observation of the backend
     cited. It is the evidence gap `problems 0.45` shows in both arms. A lost first batch had the same hard on main's
     code (trial 2).
-  - Restart meets the rule. Dependency is not lower but has hard 1: the reviewer decides between keeping its tag,
-    with that explanation, and removing it.
+  - Restart meets the rule. Dependency is not lower but has hard 1.
+- The tag decision (the rule, as `conantkd`'s review asked): `anomaly` stays on `container_restart_loop` and is removed
+  from `dependency_unavailable`. That class can be measured again after the support-evidence fix (the gap behind the
+  hard). The restart arm's numbers stand: its offer is the same with or without the other class's tag.
+  `tests/test_t0047_h5_anomaly_summary.py` names only the restart class (red seen: it named both).
 - A first batch was lost (a block pasted twice deleted its result files). The re-run refused to start while the
   batch containers existed, and wrote stamped files with no `rm`.
 Consequences: the offer stays only if the model batch (12 cases of the two classes, `--strategy model_loop`, 5 trials,
@@ -31,12 +34,14 @@ References: [T-0047](../../tasks/current/T-0047-hypotheses-cause-ranking.md), AC
 
 ### Test state
 
-T-0047 H5 step 2 B: `tests/test_t0047_h5_anomaly_summary.py` 23 passed (red seen); offline evaluation 32/61 registered, 57/61 baseline, hard 0.
+T-0047 H5 step 2 B: `tests/test_t0047_h5_anomaly_summary.py` 23 passed (red seen twice: offered to none, then to
+both classes); offline evaluation 32/61 registered, 57/61 baseline, hard 0.
 
 Model batch on vm-095 (run stamp `20261022T174900`): restart 0.97 → 1.00, dependency 0.52 → 0.84, hard after 1
-(above). Full offline suite on the branch merged with main `77c4524`: **1701 passed, 63 skipped, 1 deselected**,
-exit 0. Main then gained only #287 (no code) before the merge at `863dbf0`.
+(above). Full offline suite on the final tree (the tag on the restart class only, main `863dbf0` merged): **1701
+passed, 63 skipped, 1 deselected**, exit 0.
 
 ### Next step
 
-T-0047 H5 step 2 B: `conantkd` decides on the `dependency_unavailable` tag (hard 1, explained); the restart tag stays by the rule.
+T-0047 H5 step 2 B: `conantkd` reviews #274 (the tag on `container_restart_loop` only). Then the support-evidence fix
+(the gap behind the hard), after which `dependency_unavailable` can be measured again.
