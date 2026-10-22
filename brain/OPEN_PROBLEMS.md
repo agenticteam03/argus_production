@@ -274,8 +274,10 @@ diff-coverage gates, LLM injection regression testing, CI security scanners.)
    only touch). *Re-run with 3 workers (`task/OP-014-9-mutation-read-path`):* the policy and the read path, 889
    mutants: 649 killed, 66 survived, 174 timed out. 58 survivors were new (hidden among the first timeouts): the audit
    trail and the stored evidence of an ordinary read. `tests/test_op014_mutation_read_path.py` kills 56; the 2 left
-   and the 8 of the first run are equivalent. **Left:** the remaining timeouts, and the weekly CI job (`.github/`,
-   a teammate's review).
+   and the 8 of the first run are equivalent. *The 174 timeouts re-run with 2 workers
+   (`task/OP-014-9-mutation-decisions`):* 93 killed, 45 survived, 36 still timed out;
+   `tests/test_op014_mutation_policy_decisions.py` kills 37, the 8 left are equivalent. **Left:** 36 timeouts, and
+   the weekly CI job (`.github/`, a teammate's review).
 10. **Property-based tests** (Hypothesis) for redaction, target parsing and the policy engine. *Redaction and target
     parsing done 2026-10-20 (`tests/test_op014_property_based.py`).* They found a real gap: a token glued to a
     non-ASCII letter (`é<token>`) escaped the high-entropy rule, because Unicode `\b` saw no word boundary; fixed with
