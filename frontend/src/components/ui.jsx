@@ -60,7 +60,7 @@ export const LivePill = ({ live, source, at }) => {
     <span className="inline-flex items-center gap-2 rounded-full border border-line bg-card px-3 py-1.5 text-xs text-muted">
       <span className={`size-2 rounded-full ${dot}`} />
       {liveLabel(live, source)}
-      {at != null && <span className="text-muted/60">· updated {clock(at)}</span>}
+      {at != null && <span className="text-muted">· updated {clock(at)}</span>}
     </span>
   );
 };

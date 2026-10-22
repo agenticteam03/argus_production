@@ -1,12 +1,10 @@
 // OP-014 step 12: accessibility checks (axe-core, WCAG 2 A and AA) on the main pages, against the built app with the
-// API faked from contracts/samples like every acceptance test (fixtures.js). Any violation fails the test.
-// Known and left to the frontend lane (OP-014 step 12): `color-contrast`, two causes on 2026-10-21: `text-muted/60`
-// (2.93:1) and white on `bg-accent` (3.67:1); AA asks 4.5:1. Remove it from KNOWN once they are fixed.
+// API faked from contracts/samples like every acceptance test (fixtures.js). Any violation fails the test, colour
+// contrast included (its two causes were fixed on 2026-10-22: `text-muted/60` and white on `bg-accent`).
 import AxeBuilder from "@axe-core/playwright";
 import { DIAGNOSED_ID, expect, logIn, test } from "./fixtures.js";
 
-const KNOWN = ["color-contrast"];
-const scan = (page, disabled = KNOWN) => new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa"]).disableRules(disabled).analyze();
+const scan = (page) => new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa"]).analyze();
 const found = (r) => r.violations.map((v) => `${v.impact} ${v.id}: ${v.nodes.map((n) => n.target.join(" ")).join(", ")}`);
 
 const PAGES = [
