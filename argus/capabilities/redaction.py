@@ -4,11 +4,14 @@ from __future__ import annotations
 import re
 from typing import Any, Iterable
 
+_SECRET_NAME = r"[\w.-]*(?:password|passwd|pwd|secret|token|api[_-]?key|apikey|access[_-]?key)[\w.-]*"
 _PATTERNS: list[tuple[re.Pattern, str]] = [
     (re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----.*?-----END [A-Z ]*PRIVATE KEY-----", re.S), "[REDACTED PRIVATE KEY]"),
-    (re.compile(r"(?i)\bbearer\s+[A-Za-z0-9._~+/-]{8,}=*", re.ASCII), "Bearer [REDACTED]"),
-    (re.compile(r"(?i)\b([\w.-]*(?:password|passwd|pwd|secret|token|api[_-]?key|apikey|access[_-]?key)[\w.-]*)\s*[=:]\s*(\"[^\"]*\"|'[^']*'|\S+)"),
-     r"\1=[REDACTED]"),
+    # the token is on the same line, and a named secret (`password=...`) after `Bearer` is no token: the next rule masks
+    # its value (`\s+` and no look-ahead turned `Bearer\npassword=x` into `Bearer [REDACTED]x`)
+    (re.compile(r"(?i)\bbearer[ \t]+(?!" + _SECRET_NAME + r"\s*[=:]\s*[^\s=])[A-Za-z0-9._~+/-]{8,}=*", re.ASCII),
+     "Bearer [REDACTED]"),
+    (re.compile(r"(?i)\b(" + _SECRET_NAME + r")\s*[=:]\s*(\"[^\"]*\"|'[^']*'|\S+)"), r"\1=[REDACTED]"),
     (re.compile(r"(?i)\b(postgres(?:ql)?|mysql|redis|mongodb|amqp)://[^\s:@/]+:[^\s@/]+@"), r"\1://[REDACTED]@"),
     (re.compile(r"\bsk-[A-Za-z0-9_-]{16,}", re.ASCII), "[REDACTED KEY]"),
 ]
