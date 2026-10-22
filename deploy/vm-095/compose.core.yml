@@ -57,6 +57,9 @@ services:
       # ARGUS_AGENT_CMD=serve (investigates in-process) needs the folder back: /opt/argus-v18/secrets/agent:/run/argus-secrets:ro
       - /opt/argus-v18/secrets/agent/db_password:/run/argus-secrets/db_password:ro
       - /opt/argus-v18/secrets/agent/jwt_signing_key:/run/argus-secrets/jwt_signing_key:ro
+      # ACR-0018 phase 16 step 2: the Ed25519 key; with it the API signs and accepts EdDSA only. The file must exist
+      # before `up` (a missing bind source becomes a directory). Rollback: remove this line and recreate the agent.
+      - /opt/argus-v18/secrets/agent/jwt_ed25519_key:/run/argus-secrets/jwt_ed25519_key:ro
       - /opt/argus-v18/secrets/agent/openai_api_key:/run/argus-secrets/openai_api_key:ro   # only for llm_configured
     environment:
       ARGUS_RUNNER: ${ARGUS_RUNNER:-langgraph}          # T-0013 (verified 2026-10-04); rollback: ARGUS_RUNNER=plain

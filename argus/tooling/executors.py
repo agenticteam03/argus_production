@@ -49,10 +49,15 @@ _MOUNT = re.compile(r"/[A-Za-z0-9_/-]*")          # as the inventory checks a mo
 class PrometheusClient:
     """prometheus executor: only named signal templates (never free-form PromQL)."""
 
-    def __init__(self, base_url: str, token: str | None, signals: dict[str, str], timeout_s: float = 10.0):
+    def __init__(self, base_url: str, token: str | None, signals: dict[str, str], timeout_s: float = 10.0,
+                 lines: dict[str, tuple[float, str]] | None = None,
+                 class_signals: dict[str, list[tuple[str, str]]] | None = None):
+        """`lines` and `class_signals` (T-0047 H5, `analysis.anomaly_summary`): the warning line and direction per
+        signal (`signals.yaml` `thresholds:`) and the (signal, scope) list per class (`ui-incident-signals.yaml`)."""
         self.base_url = base_url.rstrip("/")
         self.signals = signals
         self.timeout_s = timeout_s
+        self.lines, self.class_signals = lines or {}, class_signals or {}
 
     def expr(self, signal: str, target: TargetRef, mounts: str = "") -> str:
         """`mounts` (T-0036): the target's declared mounts joined by `|` (a PromQL regex), plain paths only, as the

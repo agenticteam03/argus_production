@@ -20,10 +20,10 @@ When a problem is fixed, set its status to `fixed` with the date, and add a jour
 | OP-010 | The db-probe cannot connect when every usable slot is taken, so `postgresql_connection_exhaustion` cannot fire at 100 % | **fixed** 2026-10-09 — SC-04 at 100 % DIAGNOSED from the pulled alert | 2026-10-08 |
 | **OP-011** | Two alerts on one target open two incidents: §6.4 correlation is not implemented | **fixed** 2026-10-09 — SC-03 on vm-166 gives one incident (ACR-0004) | 2026-10-09 |
 | OP-013 | D-003 was decided on the same cases the baseline's rules were written from: its 1.00 is an upper bound | open | 2026-10-13 |
-| **OP-014** | The self-merge rule relies on the tests: gaps where a green CI does not yet mean "safe to merge" | open — first three gaps in `task/TEST-HARDEN-1` | 2026-10-17 |
+| **OP-014** | The self-merge rule relies on the tests: gaps where a green CI does not yet mean "safe to merge" | in progress — steps 1-7 and 10 done (TEST-HARDEN-1, the CI gates, Vitest coverage 2026-10-21); 8, 9, 11-13 left | 2026-10-17 |
 | **OP-015** | ARCHITECTURE §14 says the approval/action machinery "exists from the start"; the code has none of it | open — implemented by ACR-0019 (phase 18) if accepted; until then the text must say "designed, not built" | 2026-10-18 |
 | **OP-016** | `policies/SECURITY.md` lists "the team's shared Argus password"; §17.3 and ACR-0011 require one account per person | open — fixed in phase 15 | 2026-10-18 |
-| **OP-017** | The frontend's dependencies have known advisories: React Router (production, moderate), Vite, Vitest and esbuild (dev tooling, up to critical); every fix is a major upgrade | in progress — React Router 7, Vite 8 and Vitest 5 (2026-10-21): `npm audit` clean on the whole tree; CI's gate left | 2026-10-20 |
+| **OP-017** | The frontend's dependencies have known advisories: React Router (production, moderate), Vite, Vitest and esbuild (dev tooling, up to critical); every fix is a major upgrade | **fixed** 2026-10-21 — React Router 7, Vite 8, Vitest 5; CI runs `npm audit --audit-level=high` on every dependency | 2026-10-20 |
 
 ---
 
@@ -189,7 +189,10 @@ change (for example "within 0.10 of the baseline and hard 0").
 
 ## OP-014 — The self-merge rule relies on the tests
 
-**Status:** open · **Opened:** 2026-10-17 (the self-merge rule, `agents/REVIEW_PROTOCOL.md`) · **Owner:** the team
+**Status:** in progress: steps 1-3 done (`TEST-HARDEN-1`, 99badb3: the Docker tests run in CI, the prompt-injection
+cases in `tests/test_op014_prompt_injection.py`, the timing test checks mechanics only), steps 4-7 and 10 done
+(below); left: 8 (the scheduled model evaluation), 9, 11-13 · **Opened:** 2026-10-17 (the self-merge rule,
+`agents/REVIEW_PROTOCOL.md`) · **Owner:** the team
 
 **Problem.** Under the self-merge rule, a green `test` + `frontend` on the last push replaces a teammate's review for
 everything outside the protected paths. CI is already broad: Brain audit and lint, gitleaks over the full history,
@@ -210,7 +213,7 @@ the frontend's ESLint, Vitest, build and Playwright. But a green CI does not yet
 **Fix, in order.** (Online research, 2026-10-17: OpenSSF Scorecard checks, SLSA source-track discussion, mutation and
 diff-coverage gates, LLM injection regression testing, CI security scanners.)
 
-*Now — `task/TEST-HARDEN-1`:*
+*Done — `task/TEST-HARDEN-1` (99badb3):*
 1. Run the Docker tests in CI (`ARGUS_TEST_DOCKER=1` on the Linux runner, which has Docker) and make them required.
 2. Prompt-injection regression cases: instructions planted in container logs, a file read, an HTTP body and a peer
    finding; assert they are wrapped as data, never change the class or the root cause, never add a tool call outside
@@ -224,8 +227,10 @@ diff-coverage gates, LLM injection regression testing, CI security scanners.)
    (`argus/`, `services/`) and `diff-cover` fails a PR whose changed lines there are under 80 % covered (against
    `origin/main`). Run in CI only: the full suite under coverage ran out of memory on a laptop. *Done 2026-10-21
    for `frontend/` (`task/OP-014-4-vitest-coverage`, after OP-017's Vitest 5):* `npm test` runs Vitest with
-   `@vitest/coverage-v8` over every source file and fails under floors set just below that day's figures (lines 33,
-   statements 33, functions 28, branches 26 %); raised as tests are added, never lowered. A floor, not a
+   `@vitest/coverage-v8` over every source file and fails under floors set just below the current figures; raised
+   as tests are added, never lowered. First 33 / 33 / 28 / 26 % (lines, statements, functions, branches); then
+   43 / 43 / 39 / 40 % with tests for SafeMarkdown, the incident's answer, why-card, timeline, evidence, audit and
+   charts (`task/OP-014-frontend-tests`). A floor, not a
    changed-lines gate: the pages are mostly covered by Playwright, which it does not count.
 5. **Static analysis (SAST):** `ruff` for Python; `bandit` or `semgrep` (OWASP / Python rulesets) failing on high
    severity. CodeQL code scanning is not available for private repositories on the free plan, so these run as
@@ -267,7 +272,10 @@ diff-coverage gates, LLM injection regression testing, CI security scanners.)
     three injected bugs (no scope check, no deny list, no path normalization) were caught.
 11. **LLM red-team scan** on a schedule (promptfoo for the application, garak for the model) next to the fixed
     regression cases of step 2.
-12. **Accessibility checks** in Playwright (axe-core) on the main pages.
+12. **Accessibility checks** in Playwright (axe-core) on the main pages. *Done 2026-10-21 (`task/OP-014-12-a11y`):*
+    `frontend/e2e/a11y.e2e.js` runs axe-core (WCAG 2 A and AA) on login, dashboard, incidents, an incident and
+    runbooks; any violation fails the `frontend` job. **Left (frontend lane):** `color-contrast` is excluded until
+    its two causes are fixed: `text-muted/60` (2.93:1) and white on `bg-accent` (3.67:1); AA asks 4.5:1.
 13. **OpenSSF Scorecard** run monthly as a health signal for the repository's practices.
 
 **Done when.** Steps 1-8 are merged and required; the self-merge rule's protected-path list is reviewed again with
@@ -323,8 +331,8 @@ disabled. No shared account, so nothing to disable.
 
 ## OP-017 — The frontend's dependencies have known advisories
 
-**Status:** in progress 2026-10-21: `react-router-dom` 7.18.4, then `vite` 8.3.5 and `vitest` 5.0.5
-(`task/OP-017-vite8`); `npm audit` on the whole tree finds nothing. Left: CI's gate on the whole tree (fix 3) · **Opened:** 2026-10-20 (OP-014 step 6, `npm audit`) · **Found by:** `conantkd`
+**Status:** **fixed** 2026-10-21: `react-router-dom` 7.18.4, `vite` 8.3.5 and `vitest` 5.0.5 (#229, #242); CI's
+`frontend` job runs `npm audit --audit-level=high` on every dependency (#244) · **Opened:** 2026-10-20 (OP-014 step 6, `npm audit`) · **Found by:** `conantkd`
 (+ agent) · **Owner:** the frontend lane (T-0016)
 
 **Problem.** `npm audit` in `frontend/` on 2026-10-20 reports the following. Python: `pip-audit` found nothing.
