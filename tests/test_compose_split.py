@@ -51,10 +51,10 @@ AGENT_SECRETS = "/opt/argus-v18/secrets/agent"
 
 def test_only_the_worker_mounts_the_executor_tokens():
     """T-0021 step 4 (§12.6): the tokens reach the worker container only, where the tools process reads them; the api
-    gets its own files (database, JWT key, model key for its status), never the token folders."""
+    gets its own files (database, JWT keys, model key for its status), never the token folders."""
     api = [v for v in CORE["argus-v18-agent"]["volumes"] if "/secrets/" in v]
     assert sorted(api) == [f"{AGENT_SECRETS}/{f}:/run/argus-secrets/{f}:ro"
-                           for f in ("db_password", "jwt_signing_key", "openai_api_key")]
+                           for f in ("db_password", "jwt_ed25519_key", "jwt_signing_key", "openai_api_key")]
     assert f"{AGENT_SECRETS}:/run/argus-secrets:ro" in CORE["argus-v18-worker"]["volumes"]
     for name in ("argus-v18-agent", "argus-v18-scheduler"):
         assert not any(v.startswith(f"{AGENT_SECRETS}:") or "/vm-0" in v or "/vm-1" in v
