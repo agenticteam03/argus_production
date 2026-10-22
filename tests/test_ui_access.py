@@ -60,11 +60,12 @@ def test_read_token_is_refused_on_every_non_get_route_and_audited(ui):
     r = api.post("/api/v1/investigations", headers=read, json=body)
     assert r.status_code == 403 and "read-only" in r.json()["detail"]
     assert api.post("/api/v1/investigations", headers=full, json=body).status_code == 202   # same user, full token
-    # every non-GET route (except the login itself, and ending one's own session: ACR-0018) refuses a read token,
-    # including routes added in the future
-    from argus.adapters.inbound.http import ANY_TOKEN_WRITES
+    # every non-GET route (except the login itself, ending one's own session and completing one's own second factor:
+    # ACR-0018) refuses a read token, including routes added in the future
+    from argus.adapters.inbound.http import ANY_TOKEN_WRITES, SECOND_FACTOR_WRITES
     writes = [(m, rt.path) for rt in api.app.routes for m in getattr(rt, "methods", set())
-              if m not in ("GET", "HEAD") and rt.path != "/api/v1/auth/token" and (m, rt.path) not in ANY_TOKEN_WRITES]
+              if m not in ("GET", "HEAD") and rt.path != "/api/v1/auth/token"
+              and (m, rt.path) not in ANY_TOKEN_WRITES | SECOND_FACTOR_WRITES]
     assert writes
     for method, path in writes:
         res = api.request(method, path.replace("{incident_id}", "inc_x"), headers=read, json={})
@@ -114,7 +115,8 @@ def test_me_tells_a_ui_who_is_logged_in_and_what_the_token_may_do(ui):
     assert r.status_code == 200
     assert r.json() == {"user": "alice", "role": "operator", "access": "read",
                         "actions": ["view_incidents", "view_timeline", "view_evidence"],
-                        "permissions": ["investigate", "view", "view_evidence"]}    # ACR-0018: what the role grants
+                        "permissions": ["investigate", "view", "view_evidence"],   # ACR-0018: what the role grants
+                        "second_factor": None}                                      # not configured here (step 3)
     full = me(api, "alice").json()
     assert full["access"] == "full" and full["actions"] == ["view_incidents", "view_timeline", "view_evidence",
                                                             "start_investigation"]

@@ -79,6 +79,26 @@ CREATE TRIGGER IF NOT EXISTS auth_session_no_delete BEFORE DELETE ON auth_sessio
 CREATE TABLE IF NOT EXISTS login_failure (
   id INTEGER PRIMARY KEY AUTOINCREMENT, key TEXT NOT NULL, at TEXT NOT NULL);
 CREATE INDEX IF NOT EXISTS login_failure_key ON login_failure(key, at);
+CREATE TABLE IF NOT EXISTS webauthn_credential (
+  id TEXT PRIMARY KEY, principal TEXT NOT NULL, public_key BLOB NOT NULL, sign_count INTEGER NOT NULL,
+  label TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL, last_used_at TEXT, revoked_at TEXT, revoked_by TEXT);
+CREATE TABLE IF NOT EXISTS webauthn_challenge (
+  id TEXT PRIMARY KEY, principal TEXT NOT NULL, session TEXT NOT NULL, kind TEXT NOT NULL, challenge BLOB NOT NULL,
+  object TEXT, ticket TEXT, created_at TEXT NOT NULL, expires_at TEXT NOT NULL, used_at TEXT);
+CREATE TABLE IF NOT EXISTS webauthn_enrol_ticket (
+  id TEXT PRIMARY KEY, principal TEXT NOT NULL, issued_by TEXT NOT NULL, created_at TEXT NOT NULL,
+  expires_at TEXT NOT NULL, used_at TEXT);
+CREATE TABLE IF NOT EXISTS step_up_token (
+  id TEXT PRIMARY KEY, principal TEXT NOT NULL, session TEXT NOT NULL, object TEXT NOT NULL, created_at TEXT NOT NULL,
+  expires_at TEXT NOT NULL, used_at TEXT);
+CREATE TRIGGER IF NOT EXISTS webauthn_credential_no_delete BEFORE DELETE ON webauthn_credential
+  BEGIN SELECT RAISE(ABORT, 'webauthn_credential rows are never deleted'); END;
+CREATE TRIGGER IF NOT EXISTS webauthn_challenge_no_delete BEFORE DELETE ON webauthn_challenge
+  BEGIN SELECT RAISE(ABORT, 'webauthn_challenge rows are never deleted'); END;
+CREATE TRIGGER IF NOT EXISTS webauthn_enrol_ticket_no_delete BEFORE DELETE ON webauthn_enrol_ticket
+  BEGIN SELECT RAISE(ABORT, 'webauthn_enrol_ticket rows are never deleted'); END;
+CREATE TRIGGER IF NOT EXISTS step_up_token_no_delete BEFORE DELETE ON step_up_token
+  BEGIN SELECT RAISE(ABORT, 'step_up_token rows are never deleted'); END;
 CREATE TRIGGER IF NOT EXISTS evidence_no_update BEFORE UPDATE ON evidence
   BEGIN SELECT RAISE(ABORT, 'evidence is insert-only'); END;
 CREATE TRIGGER IF NOT EXISTS evidence_no_delete BEFORE DELETE ON evidence
@@ -97,7 +117,8 @@ def _utc(at: datetime) -> str:
 def _session(r, ts) -> dict[str, Any]:
     """One auth_session row as a dict; `ts` turns a stored time into a datetime (SQLite stores text)."""
     return {"jti": r[0], "principal": r[1], "access": r[2], "created_at": ts(r[3]), "expires_at": ts(r[4]),
-            "revoked_at": ts(r[5]) if r[5] is not None else None, "revoked_by": r[6], "revoke_reason": r[7]}
+            "revoked_at": ts(r[5]) if r[5] is not None else None, "revoked_by": r[6], "revoke_reason": r[7],
+            "second_factor_at": ts(r[8]) if r[8] is not None else None}
 
 
 # T-0046 L4: link_event rows with the state of the row before them on the same link (time, then id), so a row that
@@ -120,6 +141,8 @@ class SqliteStore:
         self._db.execute("CREATE INDEX IF NOT EXISTS incident_parent ON incident(parent_id, opened_at)")
         if "resolved_at" not in {r[1] for r in self._db.execute("PRAGMA table_info(alert_occurrence)")}:
             self._db.execute("ALTER TABLE alert_occurrence ADD COLUMN resolved_at TEXT")     # T-0026 (migration 005)
+        if "second_factor_at" not in {r[1] for r in self._db.execute("PRAGMA table_info(auth_session)")}:
+            self._db.execute("ALTER TABLE auth_session ADD COLUMN second_factor_at TEXT")   # migration 013
         audit_cols = {r[1] for r in self._db.execute("PRAGMA table_info(audit)")}
         for col in ("prev_hash", "hash"):            # ACR-0018 (migration 011): the audit hash chain
             if col not in audit_cols:
@@ -324,8 +347,8 @@ class SqliteStore:
                 (jti, principal, access, _utc(created_at), _utc(expires_at)))
 
     def get_session(self, jti: str) -> dict[str, Any] | None:
-        rows = self._q("SELECT jti,principal,access,created_at,expires_at,revoked_at,revoked_by,revoke_reason "
-                       "FROM auth_session WHERE jti=?", (jti,))
+        rows = self._q("SELECT jti,principal,access,created_at,expires_at,revoked_at,revoked_by,revoke_reason,"
+                       "second_factor_at FROM auth_session WHERE jti=?", (jti,))
         return _session(rows[0], datetime.fromisoformat) if rows else None
 
     def revoke_session(self, jti: str, by: str, reason: str, at: datetime) -> bool:
@@ -340,6 +363,87 @@ class SqliteStore:
                                    "WHERE principal=? AND revoked_at IS NULL AND expires_at>?",
                                    (_utc(at), by, reason, principal, _utc(at)))
             return cur.rowcount
+
+    def set_session_second_factor(self, jti: str, at: datetime) -> bool:
+        with self._lock:
+            cur = self._db.execute("UPDATE auth_session SET second_factor_at=? WHERE jti=? AND revoked_at IS NULL",
+                                   (_utc(at), jti))
+            return cur.rowcount == 1
+
+    # --- WebAuthn and the step-up token (ACR-0018, phase 16 step 3; migration 013) -----------------------------------
+    def add_webauthn_credential(self, cred_id: str, principal: str, public_key: bytes, sign_count: int, label: str,
+                                at: datetime) -> None:
+        self._q("INSERT INTO webauthn_credential(id,principal,public_key,sign_count,label,created_at) "
+                "VALUES (?,?,?,?,?,?)", (cred_id, principal, public_key, sign_count, label, _utc(at)))
+
+    def webauthn_credentials(self, principal: str) -> list[dict[str, Any]]:
+        """The principal's credentials that are not revoked, oldest first."""
+        rows = self._q("SELECT id,principal,public_key,sign_count,label,created_at,last_used_at FROM webauthn_credential "
+                       "WHERE principal=? AND revoked_at IS NULL ORDER BY created_at, id", (principal,))
+        return [{"id": r[0], "principal": r[1], "public_key": bytes(r[2]), "sign_count": r[3], "label": r[4],
+                 "created_at": datetime.fromisoformat(r[5]),
+                 "last_used_at": datetime.fromisoformat(r[6]) if r[6] else None} for r in rows]
+
+    def update_webauthn_sign_count(self, cred_id: str, sign_count: int, at: datetime) -> bool:
+        with self._lock:
+            cur = self._db.execute("UPDATE webauthn_credential SET sign_count=?, last_used_at=? "
+                                   "WHERE id=? AND revoked_at IS NULL", (sign_count, _utc(at), cred_id))
+            return cur.rowcount == 1
+
+    def revoke_webauthn_credentials(self, principal: str, by: str, at: datetime) -> int:
+        with self._lock:
+            cur = self._db.execute("UPDATE webauthn_credential SET revoked_at=?, revoked_by=? "
+                                   "WHERE principal=? AND revoked_at IS NULL", (_utc(at), by, principal))
+            return cur.rowcount
+
+    def add_webauthn_challenge(self, challenge_id: str, principal: str, session: str, kind: str, challenge: bytes,
+                               obj: str | None, ticket: str | None, at: datetime, expires_at: datetime) -> None:
+        self._q("INSERT INTO webauthn_challenge(id,principal,session,kind,challenge,object,ticket,created_at,expires_at) "
+                "VALUES (?,?,?,?,?,?,?,?,?)",
+                (challenge_id, principal, session, kind, challenge, obj, ticket, _utc(at), _utc(expires_at)))
+
+    def take_webauthn_challenge(self, challenge_id: str, principal: str, session: str, kind: str,
+                                at: datetime) -> dict[str, Any] | None:
+        """Marks the challenge used and returns it, once, while it is unexpired and this principal's, session's and
+        ceremony's; else None."""
+        with self._lock:
+            rows = self._db.execute("SELECT challenge,object,ticket FROM webauthn_challenge WHERE id=? AND principal=? "
+                                    "AND session=? AND kind=? AND used_at IS NULL AND expires_at>?",
+                                    (challenge_id, principal, session, kind, _utc(at))).fetchall()
+            if not rows:
+                return None
+            self._db.execute("UPDATE webauthn_challenge SET used_at=? WHERE id=?", (_utc(at), challenge_id))
+            return {"challenge": bytes(rows[0][0]), "object": rows[0][1], "ticket": rows[0][2]}
+
+    def add_enrol_ticket(self, ticket_id: str, principal: str, issued_by: str, at: datetime,
+                         expires_at: datetime) -> None:
+        self._q("INSERT INTO webauthn_enrol_ticket(id,principal,issued_by,created_at,expires_at) VALUES (?,?,?,?,?)",
+                (ticket_id, principal, issued_by, _utc(at), _utc(expires_at)))
+
+    def enrol_ticket_valid(self, ticket_id: str, principal: str, at: datetime) -> bool:
+        return bool(self._q("SELECT 1 FROM webauthn_enrol_ticket WHERE id=? AND principal=? AND used_at IS NULL "
+                            "AND expires_at>?", (ticket_id, principal, _utc(at))))
+
+    def use_enrol_ticket(self, ticket_id: str, principal: str, at: datetime) -> bool:
+        with self._lock:
+            cur = self._db.execute("UPDATE webauthn_enrol_ticket SET used_at=? WHERE id=? AND principal=? "
+                                   "AND used_at IS NULL AND expires_at>?", (_utc(at), ticket_id, principal, _utc(at)))
+            return cur.rowcount == 1
+
+    def add_step_up(self, token_id: str, principal: str, session: str, obj: str, at: datetime,
+                    expires_at: datetime) -> None:
+        self._q("INSERT INTO step_up_token(id,principal,session,object,created_at,expires_at) VALUES (?,?,?,?,?,?)",
+                (token_id, principal, session, obj, _utc(at), _utc(expires_at)))
+
+    def take_step_up(self, token_id: str, at: datetime) -> dict[str, Any] | None:
+        """Marks the token used and returns its binding, once, while unexpired; else None."""
+        with self._lock:
+            rows = self._db.execute("SELECT principal,session,object FROM step_up_token WHERE id=? AND used_at IS NULL "
+                                    "AND expires_at>?", (token_id, _utc(at))).fetchall()
+            if not rows:
+                return None
+            self._db.execute("UPDATE step_up_token SET used_at=? WHERE id=?", (_utc(at), token_id))
+            return {"principal": rows[0][0], "session": rows[0][1], "object": rows[0][2]}
 
     def add_login_failure(self, key: str, at: datetime) -> None:
         self._q("INSERT INTO login_failure(key,at) VALUES (?,?)", (key, _utc(at)))
