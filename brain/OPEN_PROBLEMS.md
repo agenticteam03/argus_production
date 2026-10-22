@@ -263,7 +263,13 @@ diff-coverage gates, LLM injection regression testing, CI security scanners.)
 
 *Later:*
 9. **Mutation testing** (`mutmut`) on the safety-critical modules (`argus/policy/`, `application/invoke_capability.py`,
-   redaction), weekly, with a threshold that starts at today's score and only goes up.
+   redaction), weekly, with a threshold that starts at today's score and only goes up. *First run 2026-10-22, local
+   (`task/OP-014-9-mutation`):* `argus/policy/` and `invoke_capability.py`, mutmut 3.3.1 in a container; 889 mutants:
+   525 killed, 59 survived, 305 timed out (a loaded laptop: re-run them before counting). `argus/policy/` had one
+   survivor; the others were in the combined-capability path. `tests/test_op014_mutation_invoke.py` kills 51 of the
+   59; the 8 left are equivalent (a `getattr` default never used, `model_dump` mode on string-only fields, a context
+   used only when the target is missing). **Left:** redaction, the timeouts, and the weekly CI job (`.github/`, a
+   teammate's review).
 10. **Property-based tests** (Hypothesis) for redaction, target parsing and the policy engine. *Redaction and target
     parsing done 2026-10-20 (`tests/test_op014_property_based.py`).* They found a real gap: a token glued to a
     non-ASCII letter (`é<token>`) escaped the high-entropy rule, because Unicode `\b` saw no word boundary; fixed with
