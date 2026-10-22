@@ -20,7 +20,7 @@ When a problem is fixed, set its status to `fixed` with the date, and add a jour
 | OP-010 | The db-probe cannot connect when every usable slot is taken, so `postgresql_connection_exhaustion` cannot fire at 100 % | **fixed** 2026-10-09 — SC-04 at 100 % DIAGNOSED from the pulled alert | 2026-10-08 |
 | **OP-011** | Two alerts on one target open two incidents: §6.4 correlation is not implemented | **fixed** 2026-10-09 — SC-03 on vm-166 gives one incident (ACR-0004) | 2026-10-09 |
 | OP-013 | D-003 was decided on the same cases the baseline's rules were written from: its 1.00 is an upper bound | open | 2026-10-13 |
-| **OP-014** | The self-merge rule relies on the tests: gaps where a green CI does not yet mean "safe to merge" | open — first three gaps in `task/TEST-HARDEN-1` | 2026-10-17 |
+| **OP-014** | The self-merge rule relies on the tests: gaps where a green CI does not yet mean "safe to merge" | in progress — steps 1-7 and 10 done (TEST-HARDEN-1, the CI gates, Vitest coverage 2026-10-21); 8, 9, 11-13 left | 2026-10-17 |
 | **OP-015** | ARCHITECTURE §14 says the approval/action machinery "exists from the start"; the code has none of it | open — implemented by ACR-0019 (phase 18) if accepted; until then the text must say "designed, not built" | 2026-10-18 |
 | **OP-016** | `policies/SECURITY.md` lists "the team's shared Argus password"; §17.3 and ACR-0011 require one account per person | open — fixed in phase 15 | 2026-10-18 |
 | **OP-017** | The frontend's dependencies have known advisories: React Router (production, moderate), Vite, Vitest and esbuild (dev tooling, up to critical); every fix is a major upgrade | **fixed** 2026-10-21 — React Router 7, Vite 8, Vitest 5; CI runs `npm audit --audit-level=high` on every dependency | 2026-10-20 |
@@ -189,7 +189,10 @@ change (for example "within 0.10 of the baseline and hard 0").
 
 ## OP-014 — The self-merge rule relies on the tests
 
-**Status:** open · **Opened:** 2026-10-17 (the self-merge rule, `agents/REVIEW_PROTOCOL.md`) · **Owner:** the team
+**Status:** in progress: steps 1-3 done (`TEST-HARDEN-1`, 99badb3: the Docker tests run in CI, the prompt-injection
+cases in `tests/test_op014_prompt_injection.py`, the timing test checks mechanics only), steps 4-7 and 10 done
+(below); left: 8 (the scheduled model evaluation), 9, 11-13 · **Opened:** 2026-10-17 (the self-merge rule,
+`agents/REVIEW_PROTOCOL.md`) · **Owner:** the team
 
 **Problem.** Under the self-merge rule, a green `test` + `frontend` on the last push replaces a teammate's review for
 everything outside the protected paths. CI is already broad: Brain audit and lint, gitleaks over the full history,
@@ -210,7 +213,7 @@ the frontend's ESLint, Vitest, build and Playwright. But a green CI does not yet
 **Fix, in order.** (Online research, 2026-10-17: OpenSSF Scorecard checks, SLSA source-track discussion, mutation and
 diff-coverage gates, LLM injection regression testing, CI security scanners.)
 
-*Now — `task/TEST-HARDEN-1`:*
+*Done — `task/TEST-HARDEN-1` (99badb3):*
 1. Run the Docker tests in CI (`ARGUS_TEST_DOCKER=1` on the Linux runner, which has Docker) and make them required.
 2. Prompt-injection regression cases: instructions planted in container logs, a file read, an HTTP body and a peer
    finding; assert they are wrapped as data, never change the class or the root cause, never add a tool call outside
@@ -224,8 +227,12 @@ diff-coverage gates, LLM injection regression testing, CI security scanners.)
    (`argus/`, `services/`) and `diff-cover` fails a PR whose changed lines there are under 80 % covered (against
    `origin/main`). Run in CI only: the full suite under coverage ran out of memory on a laptop. *Done 2026-10-21
    for `frontend/` (`task/OP-014-4-vitest-coverage`, after OP-017's Vitest 5):* `npm test` runs Vitest with
-   `@vitest/coverage-v8` over every source file and fails under floors set just below that day's figures (lines 33,
-   statements 33, functions 28, branches 26 %); raised as tests are added, never lowered. A floor, not a
+   `@vitest/coverage-v8` over every source file and fails under floors set just below the current figures; raised
+   as tests are added, never lowered. First 33 / 33 / 28 / 26 % (lines, statements, functions, branches); then
+   43 / 43 / 39 / 40 % with tests for SafeMarkdown, the incident's answer, why-card, timeline, evidence, audit and
+   charts (`task/OP-014-frontend-tests`); then 45 / 44 / 41 / 44 % with the shared badges, live pill, tabs, runbook
+   card and incident row (`task/OP-014-frontend-tests-2`); then 48 / 47 / 45 / 48 % with the system map's rendering
+   (`task/OP-014-frontend-tests-3`). A floor, not a
    changed-lines gate: the pages are mostly covered by Playwright, which it does not count.
 5. **Static analysis (SAST):** `ruff` for Python; `bandit` or `semgrep` (OWASP / Python rulesets) failing on high
    severity. CodeQL code scanning is not available for private repositories on the free plan, so these run as
@@ -257,7 +264,21 @@ diff-coverage gates, LLM injection regression testing, CI security scanners.)
 
 *Later:*
 9. **Mutation testing** (`mutmut`) on the safety-critical modules (`argus/policy/`, `application/invoke_capability.py`,
-   redaction), weekly, with a threshold that starts at today's score and only goes up.
+   redaction), weekly, with a threshold that starts at today's score and only goes up. *First run 2026-10-22, local
+   (`task/OP-014-9-mutation`):* `argus/policy/` and `invoke_capability.py`, mutmut 3.3.1 in a container; 889 mutants:
+   525 killed, 59 survived, 305 timed out (a loaded laptop: re-run them before counting). `argus/policy/` had one
+   survivor; the others were in the combined-capability path. `tests/test_op014_mutation_invoke.py` kills 51 of the
+   59; the 8 left are equivalent (a `getattr` default never used, `model_dump` mode on string-only fields, a context
+   used only when the target is missing). *Redaction 2026-10-22 (`task/OP-014-9-mutation-redaction`):* 204
+   mutants, 136 killed, 58 survived, 10 timed out; `tests/test_op014_mutation_redaction.py` kills 42 of the 58, the
+   16 left are equivalent (sort order of spans that are sorted again, `find` from `start + 2`, merging spans that
+   only touch). *Re-run with 3 workers (`task/OP-014-9-mutation-read-path`):* the policy and the read path, 889
+   mutants: 649 killed, 66 survived, 174 timed out. 58 survivors were new (hidden among the first timeouts): the audit
+   trail and the stored evidence of an ordinary read. `tests/test_op014_mutation_read_path.py` kills 56; the 2 left
+   and the 8 of the first run are equivalent. *The 174 timeouts re-run with 2 workers
+   (`task/OP-014-9-mutation-decisions`):* 93 killed, 45 survived, 36 still timed out;
+   `tests/test_op014_mutation_policy_decisions.py` kills 37, the 8 left are equivalent. **Left:** 36 timeouts, and
+   the weekly CI job (`.github/`, a teammate's review).
 10. **Property-based tests** (Hypothesis) for redaction, target parsing and the policy engine. *Redaction and target
     parsing done 2026-10-20 (`tests/test_op014_property_based.py`).* They found a real gap: a token glued to a
     non-ASCII letter (`é<token>`) escaped the high-entropy rule, because Unicode `\b` saw no word boundary; fixed with
@@ -267,7 +288,12 @@ diff-coverage gates, LLM injection regression testing, CI security scanners.)
     three injected bugs (no scope check, no deny list, no path normalization) were caught.
 11. **LLM red-team scan** on a schedule (promptfoo for the application, garak for the model) next to the fixed
     regression cases of step 2.
-12. **Accessibility checks** in Playwright (axe-core) on the main pages.
+12. **Accessibility checks** in Playwright (axe-core) on the main pages. *Done 2026-10-21 (`task/OP-014-12-a11y`):*
+    `frontend/e2e/a11y.e2e.js` runs axe-core (WCAG 2 A and AA) on login, dashboard, incidents, an incident and
+    runbooks; any violation fails the `frontend` job. *Contrast fixed 2026-10-22 (`task/OP-014-12-contrast`):* the
+    "updated" clock uses `text-muted` (6.3:1, was `text-muted/60` 2.93:1); solid buttons with white text use
+    `bg-accent-solid` `#2563eb` (5.2:1; hover `#1d4ed8` 6.7:1, was `bg-accent` 3.67:1); `color-contrast` is no
+    longer excluded. Step 12 is done.
 13. **OpenSSF Scorecard** run monthly as a health signal for the repository's practices.
 
 **Done when.** Steps 1-8 are merged and required; the self-merge rule's protected-path list is reviewed again with

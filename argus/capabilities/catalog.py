@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import dataclasses
 import hashlib
+import math
 from datetime import datetime, timezone
 from typing import Any, Literal
 
@@ -75,6 +76,16 @@ class SearchLogsArgs(_Args):
     pattern: Literal["error", "timeout", "refused", "oom", "disk_full", "auth", "restart"] = Field(
         ..., description="a named pattern (never free text): error, timeout, refused, oom, disk_full, auth, restart")
     minutes: int = Field(30, ge=1, le=120, description="window in minutes")
+
+
+IncidentClassName = Literal["container_restart_loop", "dependency_unavailable", "health_check_failed",
+                            "postgresql_connection_exhaustion", "nginx_upstream_failure", "cpu_saturation",
+                            "disk_pressure", "monitoring_blind_spot"]          # = detectors/classes.py (a test pins it)
+
+
+class AnomalyArgs(_Args):
+    incident_class: IncidentClassName = Field(..., description="the incident's class: its signals are summarized")
+    minutes: int = Field(60, ge=15, le=240, description="window in minutes, ending now")
 
 
 class CompareArgs(_Args):
@@ -791,6 +802,144 @@ def compare_baseline(args: CompareArgs, target: TargetRef, info, client) -> Capa
                             coverage=f"{args.minutes} min now and {args.earlier} earlier")
 
 
+# --- T-0047 H5 (ACR-0024 §3.7): the facts of an anomaly, with numbers, never a conclusion ---------------------------
+# A 0/1 state signal has no warning line in signals.yaml; past it = its bad state.
+STATE_LINES = {"dependency_probe_min": (0.5, "below"), "db_up": (0.5, "below"), "health_unhealthy": (0.5, "above"),
+               "oom_killed": (0.5, "above"), "scrape_targets_down": (0.5, "above")}
+MOUNT_SIGNALS = {"host_disk_used_ratio_5m", "host_disk_hours_to_full", "host_disk_used_ratio_mounts"}
+ANOMALY_BASELINE_MINUTES = 1440            # B7's baseline: the 24 h ...
+ANOMALY_BASELINE_LEAD_S = 3600             # ... ending an hour before the window (its run-up excluded)
+ANOMALY_BASELINE_STEP_S = 300
+ANOMALY_MAX_DEPENDENCIES = 3
+
+
+def _iso_time(ts: float) -> str:
+    return datetime.fromtimestamp(ts, timezone.utc).isoformat().replace("+00:00", "Z")
+
+
+def _quantile(ordered: list[float], q: float) -> float:
+    pos = (len(ordered) - 1) * q
+    lo = math.floor(pos)
+    hi = min(lo + 1, len(ordered) - 1)
+    return ordered[lo] + (ordered[hi] - ordered[lo]) * (pos - lo)
+
+
+def _range(client, signal: str, target: TargetRef, minutes: int, step: int, end_offset_s: int = 0,
+           **params) -> list[tuple[float, float]] | None:
+    """The finite samples of one series; None when the read fails (unknown, never zero)."""
+    try:
+        return [(t, v) for t, v in client.range(signal, target, minutes, step, end_offset_s=end_offset_s, **params)
+                if math.isfinite(v)]
+    except ExecutorError:
+        return None
+
+
+def onset(series: list[tuple[float, float]], warning: float, direction: str) -> float | None:
+    """The time of the first of two consecutive samples past the warning line (at or beyond it)."""
+    past = [v >= warning if direction == "above" else v <= warning for _, v in series]
+    return next((series[i][0] for i in range(len(series) - 1) if past[i] and past[i + 1]), None)
+
+
+def _baseline(samples: list[tuple[float, float]] | None) -> dict | None:
+    """p5 / p50 / p95 of the baseline window; None under half of it sampled (unknown, never a made-up normal)."""
+    values = sorted(v for _, v in samples or [])
+    expected = ANOMALY_BASELINE_MINUTES * 60 // ANOMALY_BASELINE_STEP_S + 1
+    if not values or len(values) < 0.5 * expected:
+        return None
+    return {q: round(_quantile(values, p), 6) for q, p in (("p5", 0.05), ("p50", 0.5), ("p95", 0.95))}
+
+
+def _series_facts(signal: str, target: TargetRef, series, base, line) -> dict:
+    row: dict[str, Any] = {"target": str(target), "signal": signal}
+    if not series:
+        row["read"] = "no data" if series == [] else "failed"
+        return row
+    values = [v for _, v in series]
+    direction = line[1] if line else None
+    peak = min(values) if direction == "below" else max(values)
+    row.update({"samples": len(values), "last": round(values[-1], 6), "peak": round(peak, 6),
+                "warning": line[0] if line else None, "direction": direction,
+                "onset": None, "baseline": _baseline(base)})
+    if line:
+        at = onset(series, *line)
+        row["onset"] = None if at is None else _iso_time(at)
+    if row["baseline"]:
+        ref = row["baseline"]["p5"] if direction == "below" else row["baseline"]["p95"]
+        row["beyond_baseline"] = round(ref - peak if direction == "below" else peak - ref, 6)
+    return row
+
+
+def _row_text(row: dict) -> str:
+    name = row["target"].split(":", 1)[-1]
+    head = f"{row['signal']} on {name}"
+    if "read" in row:
+        return f"{head}: NO DATA (unknown, not zero)" if row["read"] == "no data" else f"{head}: read failed (unknown)"
+    text = f"{head}: last {row['last']:g}, {'lowest' if row['direction'] == 'below' else 'highest'} {row['peak']:g}"
+    if row["warning"] is None:
+        text += "; no warning line (onset not computed)"
+    elif row["onset"]:
+        text += f"; past the warning line ({row['warning']:g}, {row['direction']}) since {row['onset']}"
+    else:
+        text += f"; not past the warning line ({row['warning']:g}, {row['direction']})"
+    b = row["baseline"]
+    if b is None:
+        text += "; baseline unknown (under half of the 24 h sampled)"
+    else:
+        ref = "p5" if row["direction"] == "below" else "p95"
+        text += (f"; 24 h baseline p50 {b['p50']:g}, {ref} {b[ref]:g} "
+                 f"({row['beyond_baseline']:+g} beyond {ref})")
+    return text
+
+
+def anomaly_summary(args: AnomalyArgs, target: TargetRef, info, client) -> CapabilityResult:
+    """ACR-0024 §3.7 (T-0047 H5): the class's signals (`config/ui-incident-signals.yaml`) on the target and its
+    declared dependencies on the same host, and the host-scope ones on its host: onset (first two consecutive samples
+    past the warning line), the deviation from the 24 h baseline, and which onset came first. Facts with numbers; the
+    order of onsets is not a cause."""
+    specs = (getattr(client, "class_signals", None) or {}).get(args.incident_class)
+    if not specs:
+        return CapabilityResult(values={}, status="error", error_category="not_found",
+                                model_text=f"no signal list for {args.incident_class} (unknown, nothing summarized)")
+    lines = {**STATE_LINES, **(getattr(client, "lines", None) or {})}
+    host = TargetRef(host=target.host, kind="host", name=target.host)
+    deps = [d for d in (info.depends_on if info else []) if d.host == target.host][:ANOMALY_MAX_DEPENDENCIES]
+    mounts = "|".join(info.mounts) if info is not None and getattr(info, "mounts", None) else ""
+    step = max(30, args.minutes * 60 // 120)
+    rows, seen = [], set()
+    for signal, scope in specs:
+        for t in ([host] if scope == "host" else [target, *deps]):
+            if (str(t), signal) in seen:
+                continue
+            seen.add((str(t), signal))
+            params = {}
+            if signal in MOUNT_SIGNALS:
+                if t != target or not mounts:
+                    continue                                   # only the incident target's declared mounts
+                params["mounts"] = mounts
+            series = _range(client, signal, t, args.minutes, step, **params)
+            base = _range(client, signal, t, ANOMALY_BASELINE_MINUTES, ANOMALY_BASELINE_STEP_S,
+                          end_offset_s=args.minutes * 60 + ANOMALY_BASELINE_LEAD_S, **params)
+            rows.append(_series_facts(signal, t, series, base, lines.get(signal)))
+    order = sorted((r for r in rows if r.get("onset")), key=lambda r: r["onset"])
+    if order:
+        first = order[0]
+        tail = "; then " + ", ".join(f"{r['signal']} on {r['target'].split(':', 1)[-1]} at {r['onset']}"
+                                     for r in order[1:]) if len(order) > 1 else ""
+        lead = (f"First past its warning line: {first['signal']} on {first['target'].split(':', 1)[-1]} at "
+                f"{first['onset']}{tail}.")
+    else:
+        lead = f"No signal was past its warning line in the last {args.minutes} min."
+    read = [r for r in rows if "read" not in r]
+    text = (f"Anomaly facts for {args.incident_class} on {target} (last {args.minutes} min; facts, not a cause). "
+            + lead + "\n" + "\n".join(_row_text(r) for r in rows))
+    return CapabilityResult(values={"incident_class": args.incident_class, "minutes": args.minutes, "series": rows,
+                                    "onsets": [{"target": r["target"], "signal": r["signal"], "at": r["onset"]}
+                                               for r in order]},
+                            model_text=text, partial=len(read) < len(rows),
+                            status="ok" if read else "error", error_category="none" if read else "not_found",
+                            coverage=f"{len(read)} of {len(rows)} series read, {args.minutes} min")
+
+
 # --- ACR-0028 (G-006): the value paths each sensitive read keeps, from the gateways' answers ----------------------------
 _LINES = ("lines", "truncated", "collected_at")
 _TOP = ("by", "pids_read", "truncated", "cpus", "sample_s", "collected_at", "processes[].pid", "processes[].command",
@@ -990,6 +1139,13 @@ def build_catalog() -> list[CapabilitySpec]:
                        "the change. No stored baseline.", "is this level unusual for this target, or normal for it",
                        CompareArgs, C | H, 3, "READ_ONLY_SAFE", frozenset({"baseline"}), "prometheus",
                        compare_baseline),   # T-0038, offered to no class yet
+        CapabilitySpec("analysis.anomaly_summary", "summarize_anomalies",
+                       "Facts about the incident class's signals on the target, its declared dependencies on the same "
+                       "host and its host: when each first crossed its warning line, how far it is from its 24 h "
+                       "baseline, and which crossed first. Numbers, not a cause.",
+                       "which signal moved first, and is the level unusual for this target", AnomalyArgs, C | H, 3,
+                       "READ_ONLY_SAFE", frozenset({"anomaly"}), "prometheus",
+                       anomaly_summary),   # T-0047 H5 (ACR-0024 §3.7), offered to no class yet
         CapabilitySpec("analysis.diagnostic_snapshot", "capture_diagnostic_snapshot",
                        "A container's status, resources and recent logs, and its host's memory and CPU, in one call "
                        "(each part stored as its own evidence).", "a first broad look at a container and its host",

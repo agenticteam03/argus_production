@@ -93,7 +93,7 @@ function ApprovalItem({ approval, canDecide, onDecide }) {
       <p className="mt-0.5 text-xs text-muted">{approval.target} · {expired ? "Expired" : `Expires in ${clock}`}</p>
       {canDecide ? (
         <div className="mt-3 flex gap-2">
-          <button disabled={expired} onClick={() => onDecide(approval.id, "approve")} className="h-9 flex-1 cursor-pointer rounded-lg bg-accent text-sm font-medium text-white transition enabled:hover:bg-accent-hover disabled:cursor-not-allowed disabled:bg-[#10141b] disabled:text-[#4b5363]">Approve</button>
+          <button disabled={expired} onClick={() => onDecide(approval.id, "approve")} className="h-9 flex-1 cursor-pointer rounded-lg bg-accent-solid text-sm font-medium text-white transition enabled:hover:bg-accent-solid-hover disabled:cursor-not-allowed disabled:bg-[#10141b] disabled:text-[#4b5363]">Approve</button>
           <button disabled={expired} onClick={() => onDecide(approval.id, "deny")} className="h-9 flex-1 cursor-pointer rounded-lg border border-line text-sm transition enabled:hover:bg-white/5 disabled:cursor-not-allowed disabled:text-[#4b5363]">Reject</button>
         </div>
       ) : (
