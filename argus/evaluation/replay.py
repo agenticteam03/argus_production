@@ -242,13 +242,18 @@ def run_case(case: Case, workdir: Path, llm: Any | None = None, settings: Settin
     return result
 
 
+# The capabilities whose values describe another target (the database's sessions name its clients). A listing such as
+# `container.list` names every container of its host without observing any: it must not make them all "observed".
+NAMING_CAPABILITIES = frozenset({"database.health"})
+
+
 def _observed(evidence: list, refs: list[TargetRef]) -> list[str]:
     """The targets the run observed: those of its `ok` observations and metric snapshots, and the inventory targets an
-    `ok` observation on the same host names in its values."""
+    `ok` observation of a NAMING_CAPABILITIES read on the same host names in its values."""
     ok = [e for e in evidence if e.target and e.status == "ok" and e.kind in ("observation", "metric_snapshot")]
     seen = {e.target for e in ok}
     for e in ok:
-        if e.kind == "observation":
+        if e.kind == "observation" and getattr(e, "capability", None) in NAMING_CAPABILITIES:
             values = json.dumps(e.values, default=str)
             seen |= {str(r) for r in refs if e.target.startswith(f"{r.host}/")
                      and re.search(rf"(?<![\w-]){re.escape(r.name)}(?![\w-])", values)}
