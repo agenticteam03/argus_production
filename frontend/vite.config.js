@@ -50,7 +50,7 @@ export default defineConfig({
       include: ["src/**/*.{js,jsx}"],
       exclude: ["src/**/*.test.{js,jsx}"],
       reporter: ["text-summary"],
-      thresholds: { lines: 43, statements: 43, functions: 39, branches: 40 },
+      thresholds: { lines: 45, statements: 44, functions: 41, branches: 44 },
     },
   },
 });

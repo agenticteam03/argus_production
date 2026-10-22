@@ -230,7 +230,8 @@ diff-coverage gates, LLM injection regression testing, CI security scanners.)
    `@vitest/coverage-v8` over every source file and fails under floors set just below the current figures; raised
    as tests are added, never lowered. First 33 / 33 / 28 / 26 % (lines, statements, functions, branches); then
    43 / 43 / 39 / 40 % with tests for SafeMarkdown, the incident's answer, why-card, timeline, evidence, audit and
-   charts (`task/OP-014-frontend-tests`). A floor, not a
+   charts (`task/OP-014-frontend-tests`); then 45 / 44 / 41 / 44 % with the shared badges, live pill, tabs, runbook
+   card and incident row (`task/OP-014-frontend-tests-2`). A floor, not a
    changed-lines gate: the pages are mostly covered by Playwright, which it does not count.
 5. **Static analysis (SAST):** `ruff` for Python; `bandit` or `semgrep` (OWASP / Python rulesets) failing on high
    severity. CodeQL code scanning is not available for private repositories on the free plan, so these run as
