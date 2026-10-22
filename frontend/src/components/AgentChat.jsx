@@ -90,7 +90,7 @@ export default function AgentChat() {
           aria-label="Message for the agent"
           className="h-11 min-w-0 flex-1 rounded-[10px] border border-field-line bg-field px-3.5 text-sm outline-none transition placeholder:text-[#4b5363] focus:border-accent focus:ring-[3px] focus:ring-accent/20"
         />
-        <button type="submit" disabled={!input.trim() || !!status} className="inline-flex h-11 cursor-pointer items-center gap-2 rounded-[10px] bg-accent px-4 text-sm font-medium text-white transition enabled:hover:bg-accent-hover disabled:cursor-not-allowed disabled:bg-[#10141b] disabled:text-[#4b5363]">
+        <button type="submit" disabled={!input.trim() || !!status} className="inline-flex h-11 cursor-pointer items-center gap-2 rounded-[10px] bg-accent-solid px-4 text-sm font-medium text-white transition enabled:hover:bg-accent-solid-hover disabled:cursor-not-allowed disabled:bg-[#10141b] disabled:text-[#4b5363]">
           Send <Send width="16" height="16" />
         </button>
       </form>

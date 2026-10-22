@@ -60,7 +60,7 @@ export default function DiagnoseForm({ fixedTarget = null, compact = false }) {
     return (
       <div className="flex flex-wrap items-center gap-3">
         <button type="button" onClick={submit} disabled={busy}
-          className="cursor-pointer rounded-xl bg-accent px-4 py-2 text-sm font-medium text-white hover:bg-accent-hover disabled:opacity-60">
+          className="cursor-pointer rounded-xl bg-accent-solid px-4 py-2 text-sm font-medium text-white hover:bg-accent-solid-hover disabled:opacity-60">
           {busy ? "Starting…" : "Investigate again"}
         </button>
         {error && <p role="alert" className="text-[13px] text-danger">{error}</p>}
@@ -99,7 +99,7 @@ export default function DiagnoseForm({ fixedTarget = null, compact = false }) {
 
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2 md:col-span-2">
           <button type="submit" disabled={!target || busy}
-            className="inline-flex h-11 cursor-pointer items-center rounded-[10px] bg-accent px-5 text-sm font-medium text-white transition enabled:hover:bg-accent-hover disabled:cursor-not-allowed disabled:bg-[#10141b] disabled:text-[#4b5363] motion-reduce:transition-none">
+            className="inline-flex h-11 cursor-pointer items-center rounded-[10px] bg-accent-solid px-5 text-sm font-medium text-white transition enabled:hover:bg-accent-solid-hover disabled:cursor-not-allowed disabled:bg-[#10141b] disabled:text-[#4b5363] motion-reduce:transition-none">
             {busy ? "Starting…" : "Start investigation"}
           </button>
           <p className="text-xs text-muted">Argus only reads: it never changes the target. Investigations are limited per account.</p>

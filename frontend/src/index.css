@@ -11,6 +11,9 @@
   --color-field-line: #232a37;
   --color-accent: #3b82f6;
   --color-accent-hover: #5b9bff;
+  /* Solid buttons with white text (OP-014 step 12): white on accent is 3.7:1; these give 5.2:1 and 6.7:1 (AA 4.5:1). */
+  --color-accent-solid: #2563eb;
+  --color-accent-solid-hover: #1d4ed8;
   --color-danger: oklch(74% 0.115 25);
 
   /* Status palette. The status/risk badges use Tailwind's built-in shades (emerald/amber/red/sky/blue); overriding
