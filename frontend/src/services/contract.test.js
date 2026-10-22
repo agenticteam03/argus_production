@@ -50,7 +50,8 @@ describe("the real adapters against contracts/ui-api.json", () => {
     await httpArgusAdapter.getTopology();                                            // ACR-0017: the system map
     await httpArgusAdapter.getTopology("inc_1");                                     // the incident overlay
     await httpArgusAdapter.getIncidentMetrics("inc_1", "15m");                       // the incident's metric window
-    expect(calls.length).toBeGreaterThanOrEqual(14);
+    await httpArgusAdapter.getTargetMetrics("vm-166/container:argus-lab-api", "15m"); // ACR-0021: the map drawer's signals
+    expect(calls.length).toBeGreaterThanOrEqual(15);
     expect(undeclared(calls)).toEqual([]);
   });
 

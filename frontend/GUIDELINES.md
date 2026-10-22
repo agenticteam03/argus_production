@@ -20,6 +20,13 @@ _Status: drafted by the agent from the code I already built (outside the repo, w
   zoom, every chart of the page on one shared time window; ranges 15m to 24h as the API lists them; "Focus incident"
   and "Reset zoom". Each chart's badge (Fired, Warning, Normal, No data…) explains itself on hover with the help
   cursor. A missing sample is a gap, never zero.
+- System map (as in the ui-graphs prototype), on the Dashboard and on each incident: one section per host, boxes
+  with the health hexagon (green healthy, amber degraded or with an incident that needs a look, red failed, dashed
+  grey unknown, dashed faint idle), problems as badges, every checked link with its state (OK, slow, broken, not
+  checked; "Argus reads" on demand). Idle scenario containers are grouped and hidden until asked for. On an
+  incident the root cause and the affected box are marked and "Focus cause path" dims the rest. A box is a button:
+  it opens a drawer with its facts, problems against their thresholds, the last 15 minutes of signals and, when the
+  account may, "Investigate this". No zoom: the map scrolls inside its card.
 - The Refresh button spins for at least a moment and then says in a toast whether the data was refreshed.
 
 ## Framework

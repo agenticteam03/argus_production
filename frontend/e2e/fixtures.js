@@ -73,6 +73,7 @@ async function fakeApi(page, { role = "operator", overrides = {} } = {}, state =
         : json(route, { detail: "role may not read the incident overlay" }, 403);
     }
     if (key === `GET /api/v1/incidents/${DIAGNOSED_ID}/metrics`) return json(route, sample("incident-metrics"));
+    if (key === "GET /api/v1/target-metrics") return json(route, sample("target-metrics"));     // ACR-0021: the map drawer
     if (key === "POST /api/v1/investigations") return json(route, { ...sample("investigation"), incident_id: DIAGNOSED_ID }, 202);
     if (key === `GET /api/v1/incidents/${DIAGNOSED_ID}`) return json(route, incident);
     if (key === `GET /api/v1/incidents/${DIAGNOSED_ID}/events`) return json(route, sample("events"));

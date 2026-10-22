@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import DiagnoseForm from "../components/DiagnoseForm.jsx";
 import IncidentRow from "../components/IncidentRow.jsx";
 import StatusBanner from "../components/StatusBanner.jsx";
-import { SystemMapCard } from "../components/SystemMap.jsx";
+import SystemMap from "../components/map/SystemMap.jsx";
 import { Arrow, Bell, Card, Empty, Inbox, LivePill, OutcomeBadge, Pill, Shield } from "../components/ui.jsx";
 import { useAuth } from "../context/AuthContext.jsx";
 import { useLiveOverview } from "../hooks/useLiveOverview.js";
@@ -173,7 +173,7 @@ export default function Dashboard() {
         </div>
       </div>
 
-      <SystemMapCard topology={topology} />
+      {topology?.nodes?.length > 0 && <SystemMap topology={topology} incidents={incidents} />}
     </div>
   );
 }

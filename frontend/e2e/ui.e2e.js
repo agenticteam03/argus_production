@@ -36,8 +36,23 @@ test.describe("dashboard (guideline 2)", () => {
   test("shows the live system map (ACR-0017)", async ({ page, api }) => {
     await api();
     await logIn(page);
-    await expect(page.getByText("System map")).toBeVisible();
-    await expect(page.locator('svg[aria-label^="System map"]')).toBeVisible();
+    const map = page.getByRole("region", { name: /^System map/ });
+    await expect(map).toBeVisible();
+    // A box is a button: Tab reaches it, Enter opens its drawer with its signals, Esc closes it.
+    const box = map.getByRole("button", { name: /argus-lab-worker: Failed/ });
+    await box.focus();
+    await page.keyboard.press("Enter");
+    const drawer = page.getByRole("dialog", { name: /argus-lab-worker/ });
+    await expect(drawer).toBeVisible();
+    await expect(drawer.getByText("Recent signals")).toBeVisible();
+    await expect(drawer.getByText("CPU quota used")).toBeVisible();                  // GET /api/v1/target-metrics
+    await page.keyboard.press("Escape");
+    await expect(drawer).toHaveCount(0);
+    await expect(box).toBeFocused();
+    // Idle scenario containers stay out of the way until asked for.
+    await expect(map.getByRole("button", { name: /argus-lab-nginx/ })).toHaveCount(0);
+    await page.getByLabel(/Show idle/).check();
+    await expect(map.getByRole("button", { name: /argus-lab-nginx/ })).toBeVisible();
   });
 
   test("shows current host metrics with their level", async ({ page, api }) => {
@@ -133,8 +148,8 @@ test.describe("incidents", () => {
     // VITE_ARGUS_INSIGHTS=1 and the faked API serve GET /api/v1/topology and .../metrics, so both tabs appear and
     // render the real shapes. "unknown" edges must show, never as "dependency ok".
     await page.getByRole("tab", { name: "Map", exact: true }).click();
-    await expect(page.locator('svg[aria-label^="System map"]')).toBeVisible();
-    await expect(page.getByText("unknown", { exact: true })).toBeVisible();          // the legend entry
+    await expect(page.getByRole("region", { name: /^System map/ })).toBeVisible();
+    await expect(page.getByText("Not checked", { exact: true }).first()).toBeVisible();   // an unknown link, never "OK"
     await page.getByRole("tab", { name: "Metrics", exact: true }).click();
     await expect(page.getByRole("heading", { name: /Incident metrics/ })).toBeVisible();
     const ranges = page.getByRole("group", { name: "Time range" });
@@ -153,7 +168,7 @@ test.describe("incidents", () => {
     await page.goto(`/incidents/${DIAGNOSED_ID}`);
     await overlay;                                                     // the incident page asks for the overlay
     await page.getByRole("tab", { name: "Map", exact: true }).click();
-    await expect(page.locator('svg[aria-label^="System map"]')).toBeVisible();
+    await expect(page.getByRole("region", { name: /^System map/ })).toBeVisible();
   });
 
   test("a viewer never asks for the overlay and still sees the plain map (ACR-0017)", async ({ page, api }) => {
@@ -163,7 +178,7 @@ test.describe("incidents", () => {
     await logIn(page);
     await page.goto(`/incidents/${DIAGNOSED_ID}`);
     await page.getByRole("tab", { name: "Map", exact: true }).click();
-    await expect(page.locator('svg[aria-label^="System map"]')).toBeVisible();
+    await expect(page.getByRole("region", { name: /^System map/ })).toBeVisible();
     expect(seen.some((u) => u.includes("incident_id"))).toBe(false);   // a viewer gets the plain map only
   });
 
@@ -180,7 +195,7 @@ test.describe("incidents", () => {
     await logIn(page);
     await page.goto(`/incidents/${DIAGNOSED_ID}`);
     await page.getByRole("tab", { name: "Map", exact: true }).click();
-    await expect(page.locator('svg[aria-label^="System map"]')).toBeVisible();
+    await expect(page.getByRole("region", { name: /^System map/ })).toBeVisible();
   });
 
   test("an unknown incident shows 'Incident not found'", async ({ page, api }) => {

@@ -132,7 +132,8 @@ export function Toast({ tone = "ok", onDone, ms = 4000, children }) {
 }
 
 // A term with an explanation: the help cursor (the arrow with the small "?") on hover, and the text in a tooltip on
-// hover or keyboard focus. Text only, never HTML.
+// hover or keyboard focus. Text only, never HTML. The tooltip is `hidden` (not just transparent) until shown, so near
+// the edge of the screen it never widens the page.
 export function Hint({ text, children, align = "right", className = "" }) {
   const id = useId();
   return (
@@ -140,7 +141,7 @@ export function Hint({ text, children, align = "right", className = "" }) {
       className={`group/hint relative inline-flex cursor-help rounded-full focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-hover ${className}`}>
       {children}
       <span role="tooltip" id={id}
-        className={`pointer-events-none absolute bottom-full z-40 mb-2 w-64 rounded-xl border border-line bg-card px-3 py-2.5 text-left text-[13px] font-normal leading-relaxed text-ink opacity-0 shadow-[0_16px_48px_-12px_rgb(0_0_0/0.35)] transition-opacity group-hover/hint:opacity-100 group-focus-visible/hint:opacity-100 motion-reduce:transition-none ${align === "right" ? "right-0" : "left-0"}`}>
+        className={`pointer-events-none absolute bottom-full z-40 mb-2 hidden w-64 max-w-[calc(100vw-2rem)] rounded-xl border border-line bg-card px-3 py-2.5 text-left text-[13px] font-normal normal-case leading-relaxed tracking-normal text-ink shadow-[0_16px_48px_-12px_rgb(0_0_0/0.35)] group-hover/hint:block group-focus-visible/hint:block ${align === "right" ? "right-0" : "left-0"}`}>
         {text}
       </span>
     </span>

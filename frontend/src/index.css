@@ -179,6 +179,18 @@
 @keyframes toast-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) { .toast-in { animation: none; } }
 
+/* System map (components/map): a dotted canvas, a soft glow on broken / cause-path links, and dots that flow along
+   checked links (no flow with reduced motion). */
+.map-viewport {
+  background-color: color-mix(in srgb, var(--color-page) 55%, var(--color-card));
+  background-image: radial-gradient(color-mix(in srgb, var(--color-ink) 12%, transparent) 1px, transparent 1px);
+  background-size: 22px 22px;
+}
+.edge-glow { opacity: calc(0.22 * var(--glow-strength, 1) + 0.08); filter: blur(3px); }
+.edge-flow { stroke-width: 2.4; stroke-dasharray: 2 16; stroke-linecap: round; opacity: 0.85; animation: edge-flow 1.4s linear infinite; }
+@keyframes edge-flow { to { stroke-dashoffset: -18; } }
+@media (prefers-reduced-motion: reduce) { .edge-flow { display: none; } }
+
 /* Health hexagons (StatusBanner): a soft glow on a failing one, and a pulse that stops with reduced motion. */
 .hex-glow { filter: drop-shadow(0 0 calc(5px * var(--glow-strength, 1)) color-mix(in srgb, currentColor 65%, transparent)); }
 .hex-pulse { transform-box: fill-box; transform-origin: center; animation: hex-pulse 2.2s ease-out infinite; }

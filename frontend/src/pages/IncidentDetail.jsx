@@ -7,7 +7,8 @@ import IncidentChat from "../components/IncidentChat.jsx";
 import { AuditSection, EvidenceSection, RestrictedNotice } from "../components/EvidenceAudit.jsx";
 import RawOutputDialog from "../components/RawOutputDialog.jsx";
 import RunTimeline from "../components/RunTimeline.jsx";
-import { MapTab, MiniMapCard, miniNodes } from "../components/SystemMap.jsx";
+import MiniMap, { miniPair } from "../components/map/MiniMap.jsx";
+import SystemMap from "../components/map/SystemMap.jsx";
 import { ErrorCard, Disclosure, Fact, OUTCOME_META, OutcomeBadge, Skeleton, STATUS_META, StatusBadge, TabList, TabPanel } from "../components/ui.jsx";
 import WhyCard from "../components/WhyCard.jsx";
 import { useAuth } from "../context/AuthContext.jsx";
@@ -120,7 +121,7 @@ export default function IncidentDetail() {
   const decided = by === "rules" ? `decided by rules${modelCalls(inc) === 0 ? " (no AI)" : ""}` : by === "AI" ? "decided with AI" : null;
   const subtitle = [inc.reason, inc.incident_class, decided, inc.closed_at ? `took ${duration(inc.opened_at, inc.closed_at)}` : null].filter(Boolean).join(" · ");
 
-  const showMini = showMap && miniNodes(topology, inc);
+  const showMini = showMap && miniPair(topology, inc);
 
   return (
     <div className="space-y-5">
@@ -170,13 +171,13 @@ export default function IncidentDetail() {
         <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)]">
           <WhyCard incident={inc} events={events} cited={cited} onJump={jumpToEvidence} />
           <div className="space-y-4">
-            {showMini && <MiniMapCard topology={topology} incident={inc} onOpen={() => setTab("map")} />}
+            {showMini && <MiniMap topology={topology} incident={inc} onOpen={() => setTab("map")} />}
             {showMetrics && <Suspense fallback={<Skeleton className="h-72" />}><MiniCharts metrics={metrics} onOpen={() => setTab("metrics")} /></Suspense>}
             <IncidentChat key={inc.id} incident={inc} events={events} cited={cited} />
           </div>
         </div>
       </TabPanel>
-      <TabPanel id="map" value={tab}>{showMap && <MapTab topology={topology} incident={inc} />}</TabPanel>
+      <TabPanel id="map" value={tab}>{showMap && <SystemMap topology={topology} incident={inc} title="System map around the incident" />}</TabPanel>
       <TabPanel id="metrics" value={tab}>{showMetrics && <Suspense fallback={<Skeleton className="h-96" />}><MetricsTab metrics={metrics} incident={inc} range={range} onRange={setRange} /></Suspense>}</TabPanel>
       <TabPanel id="timeline" value={tab}>
         <RunTimeline incident={inc} events={events} active={active} reconnecting={reconnecting} evidenceIds={evidenceIds} onJump={jumpToEvidence} />
