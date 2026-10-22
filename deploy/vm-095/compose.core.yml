@@ -70,6 +70,10 @@ services:
       ARGUS_LANGFUSE_UI_URL: ${ARGUS_LANGFUSE_UI_URL:-}        # ACR-0013: operator link only; empty = no link
       ARGUS_LANGFUSE_PROJECT_ID: ${ARGUS_LANGFUSE_PROJECT_ID:-}
       ARGUS_HOME_HOST: vm-095                          # ACR-0017: the map marks the host Argus runs on
+      # ACR-0018 phase 16 step 3 (D2): the UI's DNS name and https origin, from hosts.env (never in Git); empty = the
+      # second-factor routes answer 503
+      ARGUS_WEBAUTHN_RP_ID: ${ARGUS_WEBAUTHN_RP_ID:-}
+      ARGUS_WEBAUTHN_ORIGIN: ${ARGUS_WEBAUTHN_ORIGIN:-}
     networks: [argus-v18-core]          # reaches vm-095 executors directly and vm-166 through argus-v18-tunnel
     depends_on:
       argus-v18-tunnel: {condition: service_started}

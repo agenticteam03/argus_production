@@ -21,7 +21,8 @@ export const routes = [
 ];
 
 // Routes that exist but are not menu entries.
-export const subRoutes = [{ path: "/incidents/:id", label: "Incident" }];
+// /account/security: the second factor (ACR-0018 step 3), linked from the account menu when /me lists the action.
+export const subRoutes = [{ path: "/incidents/:id", label: "Incident" }, { path: "/account/security", label: "Security keys" }];
 
 export const flat = routes.flatMap((r) => r.children ?? [r]);
 export const canSee = (item, role) => !item.roles || item.roles.includes(role);
