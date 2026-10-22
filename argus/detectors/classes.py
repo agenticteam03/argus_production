@@ -139,11 +139,13 @@ CLASSES: list[IncidentClassSpec] = [
     IncidentClassSpec(name="container_restart_loop", family="stability", target_kinds={"container"},
                       required_signals={"restarts_10m", "oom_killed", "last_exit_code"},
                       runbook_ids=["RB-001", "RB-008"], strategy="model_loop",
-                      tool_tags={"stability", "memory", "logs", "container"}, detector=container_restart_loop),
+                      tool_tags={"stability", "memory", "logs", "container", "anomaly"},   # anomaly: T-0047 H5
+                      detector=container_restart_loop),
     IncidentClassSpec(name="dependency_unavailable", family="dependency", target_kinds={"container"},
                       required_signals={"dependency_probe_min"}, runbook_ids=["RB-003"],
                       branch_runbook_ids=["RB-004", "RB-009"], strategy="baseline",   # D-003 (§21.2)
-                      tool_tags={"dependency", "network", "logs", "container", "availability", "knowledge", "connectivity"},
+                      tool_tags={"dependency", "network", "logs", "container", "availability", "knowledge", "connectivity",
+                                 "anomaly"},   # T-0047 H5: which onset came first, the victim's or its dependency's
                       detector=dependency_unavailable),
     IncidentClassSpec(name="health_check_failed", family="availability", target_kinds={"container"},
                       required_signals={"health_unhealthy"}, runbook_ids=["RB-002"],

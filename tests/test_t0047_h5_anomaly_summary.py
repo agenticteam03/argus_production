@@ -49,10 +49,11 @@ def _call(client, target=API, info=None, **args):
     return S.impl(S.args_model(**{"incident_class": "dependency_unavailable", **args}), target, info, client)
 
 
-def test_a_level_3_safe_prometheus_read_offered_to_no_class():
+def test_a_level_3_safe_prometheus_read_offered_to_the_two_classes_of_step_2():
     assert (S.model_name, S.level, S.safety_class, S.executor, S.tags) == (
         "summarize_anomalies", 3, "READ_ONLY_SAFE", "prometheus", frozenset({"anomaly"}))
-    assert [c.name for c in CLASSES if S.tags & c.tool_tags] == []
+    # step 2 part B: the classes whose cause is another target or an earlier change (which onset came first)
+    assert sorted(c.name for c in CLASSES if S.tags & c.tool_tags) == ["container_restart_loop", "dependency_unavailable"]
     pol = yaml.safe_load((ROOT / "config" / "policy.yaml").read_text(encoding="utf-8"))
     assert pol["capabilities"]["analysis.anomaly_summary"]["max_per_incident"] == 1
 

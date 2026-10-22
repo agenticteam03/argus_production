@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | `in progress` — [ACR-0024](../../architecture/changes/ACR-0024-hypotheses-and-cause-ranking.md) accepted (#215); H1 merged (#228); H2 merged (#236); H3 merged (#237); both deployed on vm-095 (#239); H4 step 1 (the metrics) merged (#245); H5 step 1 (`analysis.anomaly_summary`, offered to no class) merged (#252); H5 step 2 part A (per-target range fixtures in the replay) in review (`task/T-0047-h5s2-range-by-target`) |
+| Status | `in progress` — [ACR-0024](../../architecture/changes/ACR-0024-hypotheses-and-cause-ranking.md) accepted (#215); H1 merged (#228); H2 merged (#236); H3 merged (#237); both deployed on vm-095 (#239); H4 step 1 (the metrics) merged (#245); H5 step 1 (`analysis.anomaly_summary`, offered to no class) merged (#252); H5 step 2 part A (per-target range fixtures in the replay) merged (#267); part B (the read offered to two classes) in review (`task/T-0047-h5s2b-anomaly-offer`), its model batch not run yet |
 | Phase | next phase, area C (separate track of [NEXT-PHASE](NEXT-PHASE-supervised-remediation.md)) |
 | Architecture | ACR-0024 (`accepted`, applied in 1.8.27 by H1) |
 | Branch | one branch per step: `task/T-0047-h<n>-<slug>` |
@@ -88,10 +88,15 @@ So offering them alone is not the next step. H4 measures them again with hypothe
     history and scaled so the last sample is the snapshot's value (three cases' restart-count history undercounts
     it: `restart-crash-01`, `restart-crash-02`, `restart-oom-01`). `range_earlier` (the baseline window) stays one
     series per signal, not per target: a dependency's 24 h baseline in the replay is the case target's.
-  - Step 2, part B (next): the `anomaly` tag on `dependency_unavailable` and `container_restart_loop` (a
-    class-registry change: `conantkd` reviews), and its model batch, before/after, 5 trials, accuracy not lower and
-    hard 0. `dependency_unavailable` runs `baseline` (D-003), which asks no model, so its batch runs
-    `--strategy model_loop`.
+  - Step 2, part B (built, batch pending): the `anomaly` tag on `dependency_unavailable` and `container_restart_loop`
+    (a class-registry change: `conantkd` reviews). The offline evaluation of `tests/eval/cases` is unchanged
+    (registered 32/61, `--strategy baseline` 57/61, hard 0): the baseline asks no model, so a tool offer changes nothing
+    without one. The model batch decides whether the offer stays: the 12 cases of the two classes (`dep-*`,
+    `ambiguous-dep-all-running`, `restart-*`) in their own folder on vm-095, `--strategy model_loop` (the registered
+    strategy of `container_restart_loop`; `dependency_unavailable` runs `baseline`, D-003, which asks no model),
+    5 trials, before (an image of main, the read registered but offered to no class) and after (an image of this
+    branch); accuracy not lower per class and hard 0, else the tag is removed. The deployed `6c83da3` predates H5, so
+    both runs need images built for the evaluation (`ARGUS_EVAL_IMAGE`), or the next deploy for "before".
 
 ### H6 — Deploy (vm-095 lease)
 - `db-migrate.sh` (the new migration), the new image; `nonint-check`; SC-03 and SC-07 once each: the hypotheses, the ruled-out cause
