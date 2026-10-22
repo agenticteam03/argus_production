@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ageLabel, fleetStatus, nodeHealth, nodeIcon, STALE_MS } from "./fleetStatus.js";
+import { ageLabel, fleetStatus, incidentLevels, nodeHealth, nodeIcon, STALE_MS } from "./fleetStatus.js";
 
 const NOW = Date.parse("2026-10-20T15:00:00Z");
 const HOSTS = { "vm-095": "Host A", "vm-166": "Host T" };
@@ -64,8 +64,32 @@ describe("fleetStatus", () => {
     expect(s.level).toBe("critical");
     expect(s.attention[0].text).toBe("Dependency broken: client → backend (connection refused)");
     expect(s.stats.links).toEqual({ ok: 1, total: 2 });
-    expect(s.stats.components).toEqual({ total: 3, unknown: 2 });
+    expect(s.stats.components).toEqual({ total: 3, unknown: 2, idle: 0 });
     expect(s.nodes.map((n) => n.health)).toEqual(["failed", "failed", "unknown"]);
+  });
+
+  it("colours a component by its incident: escalated or open is amber, a critical one red", () => {
+    const topology = {
+      nodes: [
+        { id: "n", label: "argus-lab-nginx", target: "vm-166/container:argus-lab-nginx", health: "idle", idle: true },
+        { id: "w", label: "argus-lab-worker", target: "vm-166/container:argus-lab-worker", health: "healthy" },
+        { id: "a", label: "argus-lab-api", target: "vm-166/container:argus-lab-api", health: "healthy" },
+        { id: "c", label: "argus-lab-cache", target: "vm-166/container:argus-lab-cache", health: "healthy" },
+      ],
+      edges: [],
+    };
+    const incidents = [
+      { id: "1", target: "vm-166/container:argus-lab-nginx", status: "escalated", opened_at: new Date(NOW - 3600e3).toISOString() },
+      { id: "2", target: "vm-166/container:argus-lab-worker", status: "running", severity: "critical", opened_at: new Date(NOW - 60e3).toISOString() },
+      { id: "3", target: "vm-166/container:argus-lab-api", status: "closed", opened_at: new Date(NOW - 60e3).toISOString() },
+    ];
+    expect(run({ topology, incidents }).nodes.map((n) => n.health)).toEqual(["degraded", "failed", "ok", "ok"]);
+  });
+
+  it("counts idle lab containers apart from unknown ones", () => {
+    const topology = { nodes: [{ id: "i", label: "x", health: "idle", idle: true }, { id: "u", label: "y", health: "unknown" }], edges: [] };
+    expect(run({ topology }).stats.components).toEqual({ total: 2, unknown: 1, idle: 1 });
+    expect(run({ topology }).nodes.map((n) => n.health)).toEqual(["idle", "unknown"]);
   });
 
   it("has no link or component stats without a topology", () => {
@@ -80,7 +104,27 @@ describe("nodeHealth / ageLabel", () => {
     expect(nodeHealth({ id: "x", status: "unknown" })).toBe("unknown");
     expect(nodeHealth({ id: "x", status: "running" })).toBe("ok");
     expect(nodeHealth({ id: "x", status: "restarting" })).toBe("degraded");
-    expect(nodeHealth({ id: "x", status: "running" }, new Set(["x"]))).toBe("failed");
+    expect(nodeHealth({ id: "x", status: "running" }, { broken: new Set(["x"]) })).toBe("failed");
+  });
+  it("prefers the API's own health and lets problems, broken links and incidents make it worse, never better", () => {
+    expect(nodeHealth({ id: "x", health: "healthy", status: "unknown" })).toBe("ok");
+    expect(nodeHealth({ id: "x", health: "idle" })).toBe("idle");
+    expect(nodeHealth({ id: "x", health: "failed" }, { incident: "warning" })).toBe("failed");
+    expect(nodeHealth({ id: "x", health: "healthy", problems: [{ severity: "warning" }] })).toBe("degraded");
+    expect(nodeHealth({ id: "x", health: "healthy", problems: [{ severity: "critical" }] })).toBe("failed");
+    expect(nodeHealth({ id: "x", health: "unknown" }, { incident: "warning" })).toBe("degraded");
+    expect(nodeHealth({ id: "x", health: "healthy" }, { incident: "critical" })).toBe("failed");
+  });
+  it("knows which targets have an incident that still needs attention", () => {
+    const at = (h) => new Date(NOW - h * 3600e3).toISOString();
+    const levels = incidentLevels([
+      { target: "a", status: "escalated", opened_at: at(1) },
+      { target: "b", status: "escalated", opened_at: at(30) },                  // older than 24 h
+      { target: "c", status: "queued", opened_at: at(0) },
+      { target: "c", status: "running", severity: "critical", opened_at: at(0) },
+      { target: "d", status: "closed", opened_at: at(0) },
+    ], NOW);
+    expect(Object.fromEntries(levels)).toEqual({ a: "warning", c: "critical" });
   });
   it("says how old a sample is", () => {
     expect(ageLabel(4000)).toBe("4 s ago");

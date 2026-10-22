@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import { fleetStatus } from "../utils/fleetStatus.js";
-import { Box, CircleAlert, CircleCheck, Database, Pill, Radio, Server, Warning } from "./ui.jsx";
+import { HEALTH_META, HexGlyph } from "./Glyph.jsx";
+import { CircleAlert, CircleCheck, Pill, Radio, Warning } from "./ui.jsx";
 
 // The Dashboard's summary: is anything wrong, or is everything fine? Built from the overview and (when it answers)
 // the topology; see utils/fleetStatus.js for exactly what counts.
@@ -11,37 +12,18 @@ const TONE = {
   checking: { box: "border-line bg-card/80", icon: "text-muted", Icon: Radio },
 };
 const DOT = { critical: "bg-red-400", warning: "bg-amber-400" };
-const HEALTH_WORD = { ok: "running", degraded: "degraded", failed: "failing", unknown: "unknown" };
-// Health -> [edge/fill colour, icon colour]. Same idea as the MVP: tone = health, icon = what the component is.
-const HEX_TONE = { ok: ["text-emerald-400", "text-emerald-300"], degraded: ["text-amber-400", "text-amber-300"], failed: ["text-red-400", "text-red-300"], unknown: ["text-slate-500", "text-muted"] };
-const KIND_ICON = { box: Box, database: Database, server: Server };
-const HEX_POINTS = "20,1.5 38.2,12 38.2,32 20,42.5 1.8,32 1.8,12";
-
-// One hexagon per monitored component: its colour says how it is (green running, amber degraded, red failing, dashed
-// grey unknown), its icon says what it is, and a failing one pulses. Decorative: the counts say the same in words.
-function Hex({ node }) {
-  const [tone, iconTone] = HEX_TONE[node.health];
-  const Ico = KIND_ICON[node.icon] ?? Box;
-  return (
-    <span title={`${node.label}: ${HEALTH_WORD[node.health]}`} className={`relative inline-grid h-[33px] w-[30px] shrink-0 place-items-center ${tone}`}>
-      <svg viewBox="0 0 40 44" aria-hidden="true" className="absolute inset-0 size-full overflow-visible">
-        <polygon points={HEX_POINTS} strokeWidth="1.6" strokeDasharray={node.health === "unknown" ? "4 3" : undefined} className={`fill-current/15 stroke-current ${node.health === "failed" ? "hex-glow" : ""}`} />
-        {node.health === "failed" && <polygon points={HEX_POINTS} strokeWidth="1.5" className="hex-pulse fill-none stroke-current" />}
-      </svg>
-      <Ico width="13" height="13" className={`relative ${iconTone}`} />
-    </span>
-  );
-}
-
+// One hexagon per monitored component (Glyph.jsx): its colour says how it is (green running, amber degraded or with an
+// incident that needs attention, red failing, dashed grey unknown, dashed faint idle), its icon what it is, and a
+// failing one pulses. Decorative: the counts say the same in words.
 function Honeycomb({ nodes }) {
   const PER_ROW = 5;
   const rows = Array.from({ length: Math.ceil(nodes.length / PER_ROW) }, (_, r) => nodes.slice(r * PER_ROW, (r + 1) * PER_ROW));
-  const label = ["ok", "degraded", "failed", "unknown"].map((h) => `${nodes.filter((n) => n.health === h).length} ${HEALTH_WORD[h]}`).join(", ");
+  const label = Object.keys(HEALTH_META).map((h) => `${nodes.filter((n) => n.health === h).length} ${HEALTH_META[h].word}`).join(", ");
   return (
     <div role="img" aria-label={`${nodes.length} components: ${label}`} className="shrink-0 pt-1">
       {rows.map((row, r) => (
         <div key={r} className="flex gap-1" style={{ marginLeft: r % 2 ? 17 : 0, marginTop: r ? -7 : 0 }}>
-          {row.map((n) => <Hex key={n.id} node={n} />)}
+          {row.map((n) => <HexGlyph key={n.id} health={n.health} icon={n.icon} title={`${n.label}: ${HEALTH_META[n.health]?.word ?? n.health}`} />)}
         </div>
       ))}
     </div>
@@ -113,7 +95,7 @@ export default function StatusBanner({ incidents, hostMetrics, topology, hosts, 
           <Stat label="Hosts reporting" value={`${st.hostsReporting}/${st.hostsTotal}`} sub={st.hostsReporting === st.hostsTotal ? "Fresh samples" : "Some signals are missing"} />
           <Stat label="Active runs" value={st.running} sub={st.escalated ? `${st.escalated} escalated in 24 h` : "Nothing escalated in 24 h"} />
           {st.links && <Stat label="Checked links OK" value={`${st.links.ok}/${st.links.total}`} sub={st.links.ok === st.links.total ? "All dependencies answer" : `${st.links.total - st.links.ok} not ok or not checked`} />}
-          {st.components && <Stat label="Components" value={st.components.total} sub={st.components.unknown ? `${st.components.unknown} unknown` : "All states known"} />}
+          {st.components && <Stat label="Components" value={st.components.total} sub={[st.components.unknown ? `${st.components.unknown} unknown` : null, st.components.idle ? `${st.components.idle} idle (expected)` : null].filter(Boolean).join(" · ") || "All states known"} />}
         </dl>
       )}
     </section>

@@ -14,12 +14,35 @@ export function ageLabel(ms) {
   return s < 60 ? `${s} s ago` : s < 3600 ? `${Math.round(s / 60)} min ago` : `${Math.round(s / 3600)} h ago`;
 }
 
-// Health of one map component, for the honeycomb: broken link -> failed; unknown/missing status -> unknown; a running
-// component -> ok; anything else (exited, restarting...) -> degraded.
-export function nodeHealth(node, brokenIds = new Set()) {
-  if (brokenIds.has(node.id)) return "failed";
-  if (!node.status || node.status === "unknown") return "unknown";
-  return ["running", "healthy", "ok"].includes(node.status) ? "ok" : "degraded";
+const API_HEALTH = { healthy: "ok", degraded: "degraded", failed: "failed", unknown: "unknown", idle: "idle" };
+const RANK = { ok: 0, idle: 0, unknown: 0, degraded: 1, failed: 2 };
+const worse = (a, b) => (RANK[b] > RANK[a] ? b : a);
+
+// Health of one component (honeycomb and system map): the API's own `health` (ACR-0021) when it sends one, else from
+// the container status (unknown/missing -> unknown, running -> ok, anything else -> degraded). Then only ever worse:
+// a problem (warning -> degraded, critical -> failed), a broken link (failed), and an incident on this target that
+// still needs attention (`incident`: "warning" -> at least degraded, "critical" -> failed; see incidentLevels).
+export function nodeHealth(node, { broken = new Set(), incident = null } = {}) {
+  let h = API_HEALTH[node.health]
+    ?? (!node.status || node.status === "unknown" ? "unknown" : ["running", "healthy", "ok"].includes(node.status) ? "ok" : "degraded");
+  for (const p of node.problems ?? []) h = worse(h, p.severity === "critical" ? "failed" : p.severity === "warning" ? "degraded" : h);
+  if (broken.has(node.id)) h = "failed";
+  if (incident) h = worse(h, incident === "critical" ? "failed" : "degraded");
+  return h;
+}
+
+// Targets whose incident still needs attention: open (queued/running) or escalated to a person in the last 24 h, as
+// in the banner's list. "critical" when the incident says so (ACR-0021 `severity`), else "warning".
+export function incidentLevels(incidents = [], now = Date.now()) {
+  const levels = new Map();
+  for (const i of incidents) {
+    const open = i.status === "queued" || i.status === "running";
+    const escalated = i.status === "escalated" && now - Date.parse(i.opened_at) <= DAY_MS;
+    if (!i.target || !(open || escalated)) continue;
+    if (i.severity === "critical") levels.set(i.target, "critical");
+    else if (!levels.has(i.target)) levels.set(i.target, "warning");
+  }
+  return levels;
 }
 
 // What a component is, for its icon in the honeycomb: a database, a host, or (by default) a container.
@@ -76,13 +99,15 @@ export function fleetStatus({ incidents = [], hostMetrics = [], topology = null,
   const total = counts.critical + counts.warning;
 
   const brokenIds = new Set(broken.flatMap((e) => [e.from, e.to]));
+  const levels = incidentLevels(incidents, now);
+  const health = (n) => nodeHealth(n, { broken: brokenIds, incident: levels.get(n.target) });
   const stats = {
     running: counts.running,
     escalated: escalated.length,
     hostsReporting: beats.filter((b) => b.reporting).length,
     hostsTotal: beats.length,
     links: topology ? { ok: links.filter((e) => (e.state ?? "ok") === "ok").length, total: links.length } : null,
-    components: topology ? { total: nodes.length, unknown: nodes.filter((n) => nodeHealth(n) === "unknown").length } : null,
+    components: topology ? { total: nodes.length, unknown: nodes.filter((n) => nodeHealth(n) === "unknown").length, idle: nodes.filter((n) => nodeHealth(n) === "idle").length } : null,
   };
 
   return {
@@ -92,6 +117,6 @@ export function fleetStatus({ incidents = [], hostMetrics = [], topology = null,
       ? `Host metrics are within limits${topology ? ", checked links are OK" : ""} and nothing was escalated to a person in the last 24 h.`
       : level === "critical" ? "Something is failing right now." : "Nothing is down, but it is worth a look.",
     attention, counts, hosts: beats, stats,
-    nodes: nodes.map((n) => ({ id: n.id, label: n.label, icon: nodeIcon(n), health: nodeHealth(n, brokenIds) })),
+    nodes: nodes.map((n) => ({ id: n.id, label: n.label, icon: nodeIcon(n), health: health(n) })),
   };
 }

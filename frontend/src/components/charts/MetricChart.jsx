@@ -65,7 +65,7 @@ export default function MetricChart({ series, metrics, variant = "compact", colo
       // A window of 12 h or more spans two days: name the day too.
       const long = end - start >= 12 * 3_600_000;
       const fmt = (x) => (long ? new Date(x).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false }) : clock(x));
-      setViewLabel(`${fmt(start)}–${fmt(end)} ${zoneLabel(end)}`);
+      setViewLabel(`${fmt(start)} – ${fmt(end)} ${zoneLabel(end)}`);
     };
 
     const draw = (animate) => {
