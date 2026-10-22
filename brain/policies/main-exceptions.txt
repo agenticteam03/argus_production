@@ -46,3 +46,4 @@ pr 148  2026-10-14  conantkd  fast-track: AFTER-MERGE record (both VMs on main) 
 pr 149  2026-10-14  conantkd  fast-track: the missing fast-track line for #147 (documentation only)
 pr 158  2026-10-15  juanes6554  fast-track: T-0016 incident-page and dashboard redesign (frontend only; tests, docs; Map/Metrics wait on two read routes)
 pr 212  2026-10-20  conantkd  retroactive: self-merged one push behind main (#207 merged during its CI; no overlap: OP-002 section and a journal entry only); content reviewed in this exception's PR
+pr 245  2026-10-21  juanbetancurm  retroactive: self-merged one push behind main (#246 merged during its CI; no overlap: #246 touched frontend/, OPEN_PROBLEMS and its journal entry, #245 argus/evaluation/, tests/eval/, the T-0047 task); content reviewed by conantkd on #245 (one finding, fixed in #250)
