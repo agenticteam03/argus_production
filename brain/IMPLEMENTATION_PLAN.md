@@ -37,6 +37,7 @@ calls); the phases below replace each simplification.
 | 21 | Operator terminal | broker, SSH CA, per-person accounts, recording off-host, incident linking, card-limited "Insert" | manual repair from the UI, recorded, humans only | ⬜ planned | ACR-0020 (`proposed`) |
 | 22 | More autonomous investigation | follow-up checks after any fix, new reads (recent changes, config files, vendor reference corpus), open investigations for unclassified incidents (lab) | investigate more without acting more | ⬜ planned | ACR-0022 (`proposed`) |
 | 23 | Isolated research | a research container behind a domain allowlist; a quarantined reader; suggestions for the operator only; disabled by default | outside knowledge without letting the web steer Argus | ⬜ planned | ACR-0022 |
+| 24 | Agent skills (developer track) | the team's repeated procedures (`code.bash` blocks, pull request review, ACR version lines, new capabilities, migrations) as reviewed skills in `.claude/skills/` with tested scripts; the runtime keeps its classes and runbooks | the same procedural mistakes recur (#245 merged behind main, PS 5.1 quoting, version-line conflicts) and policy prose alone does not catch them | ⬜ planned | [T-0049](tasks/current/T-0049-agent-skills.md); S0 (governance, protected) first |
 
 **Order of the remaining work (2026-10-13):** offer the new capabilities (T-0036 to T-0040) to their classes, each
 with evaluation cases → the evaluation again on `main` → the small open items (OP-004 and OP-008 first `--apply`, the
@@ -45,6 +46,8 @@ first `db_probe` rotation T-0041, T-0016's Playwright tests) → 14 only if time
 **Next phase (proposed 2026-10-18, not yet approved; juanbetancurm's and conantkd's proposals merged):** 15 → 16 →
 17 → 18 → 19 → 20 is the critical path; 21 and 22 run in parallel once 16 is deployed; 23 comes last. Nothing in
 16–23 starts before the NEXT-PHASE proposal and its ACRs are accepted.
+
+**Agent skills (proposed 2026-10-21):** 24 runs in parallel and changes no runtime code: S0 governance, then `code-bash-step` and `pr-review`, then the P1 skills. Its runtime steps (R1 evaluate the planned class offers, R2 per-class pre-checks only if they win, R3 runbook diffs from confirmed incidents) and the operator skill (O1, after 16) each wait for their own ACR.
 
 **Scenarios on the real VMs:** every scenario (H-1/H-2, SC-01 to SC-12, the identity proof) five runs through the
 runner, NO INTERFERENCE after every run (Phase 12). SC-12 4/5, its miss read (E2E-8 step 2).
