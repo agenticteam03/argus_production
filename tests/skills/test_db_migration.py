@@ -1,7 +1,7 @@
 """T-0049 S3c: the `db-migration` checker. A missing migration, grant, store or db check makes it FAIL, not pass.
 
 Each fixture is a copy of the committed migrations and the two stores in a temporary folder, with one new table
-(`widget`, migration 013) added completely and then one piece taken out. The checker only reads files.
+(`widget`, the next free migration number) added completely and then one piece taken out. The checker only reads files.
 """
 from __future__ import annotations
 
@@ -23,8 +23,11 @@ _spec.loader.exec_module(cm)
 SQLITE = Path("argus/adapters/outbound/sqlite_store.py")
 POSTGRES = Path("argus/adapters/outbound/postgres_store.py")
 MIGRATIONS = Path("deploy/migrations")
+# The next free number on this checkout, so a migration merged on main does not take the fixture's number.
+NEXT = max(int(m.name[:3]) for m in (ROOT / MIGRATIONS).glob("[0-9][0-9][0-9]_*.sql")) + 1
+WIDGET = f"{NEXT:03d}_widget.sql"
 
-WIDGET_SQL = """-- 013: a test table.
+WIDGET_SQL = """-- the next migration: a test table.
 CREATE TABLE widget (
   id    bigserial PRIMARY KEY,
   name  text NOT NULL,
@@ -39,7 +42,7 @@ CREATE TRIGGER IF NOT EXISTS widget_no_update BEFORE UPDATE ON widget
 CREATE TRIGGER IF NOT EXISTS widget_no_delete BEFORE DELETE ON widget
   BEGIN SELECT RAISE(ABORT, 'widget is insert-only'); END;
 """
-CHECK_INSERT = ('    ("insert widget (migration 013)", "INSERT INTO widget (name, at) VALUES (\'dbcheck\', now())", '
+CHECK_INSERT = ('    ("insert widget (the new migration)", "INSERT INTO widget (name, at) VALUES (\'dbcheck\', now())", '
                 'True),\n')
 CHECK_REFUSALS = ('    ("widget is insert-only (UPDATE refused)", "UPDATE widget SET name = \'x\' WHERE name = '
                   '\'dbcheck\'", False),\n'
@@ -47,7 +50,7 @@ CHECK_REFUSALS = ('    ("widget is insert-only (UPDATE refused)", "UPDATE widget
                   'False),\n')
 
 
-def repo(tmp_path: Path, *, sql=WIDGET_SQL, name="013_widget.sql", sqlite=WIDGET_SQLITE, sqlite_insert=True,
+def repo(tmp_path: Path, *, sql=WIDGET_SQL, name=WIDGET, sqlite=WIDGET_SQLITE, sqlite_insert=True,
          pg_insert=True, checks=CHECK_INSERT + CHECK_REFUSALS) -> Path:
     """The committed files plus `widget`; an argument set to "" (or False) leaves that piece out."""
     for rel in (SQLITE, POSTGRES):
@@ -70,7 +73,7 @@ def repo(tmp_path: Path, *, sql=WIDGET_SQL, name="013_widget.sql", sqlite=WIDGET
     return tmp_path
 
 
-def problems(root: Path, migration="013_widget.sql") -> list[str]:
+def problems(root: Path, migration=WIDGET) -> list[str]:
     return cm.check(root, migration)
 
 
@@ -136,21 +139,21 @@ def test_an_insert_only_table_needs_its_refusal_and_its_sqlite_trigger(tmp_path,
     assert any(f"no SQLite {verb} trigger" in p for p in problems(repo(tmp_path / "b", sqlite=sqlite)))
 
 
-@pytest.mark.parametrize("name, why", [("015_widget.sql", "not the next number"),
-                                       ("012_widget.sql", "not the next number"),
+@pytest.mark.parametrize("name, why", [(f"{NEXT + 2:03d}_widget.sql", "not the next number"),
+                                       (f"{NEXT - 1:03d}_widget.sql", "not the next number"),
                                        ("13_widget.sql", "NNN_name.sql")])
 def test_a_wrong_migration_number_or_name_fails(tmp_path, name, why):
     assert any(why in p for p in problems(repo(tmp_path, name=name), name))
 
 
 def test_a_new_column_the_sqlite_store_does_not_add_fails(tmp_path):
-    root = repo(tmp_path, sql="-- 013\nALTER TABLE incident ADD COLUMN owner_x text;\n", sqlite="",
+    root = repo(tmp_path, sql="-- the next migration\nALTER TABLE incident ADD COLUMN owner_x text;\n", sqlite="",
                 sqlite_insert=False, pg_insert=False, checks="")
     assert any("incident.owner_x" in p and "SQLite" in p for p in problems(root))
 
 
 def test_an_unknown_migration_fails(tmp_path):
-    assert any("no such migration" in p for p in problems(repo(tmp_path), "013_nothing.sql"))
+    assert any("no such migration" in p for p in problems(repo(tmp_path), f"{NEXT:03d}_nothing.sql"))
 
 
 def tree_hash(root: Path) -> str:
@@ -164,11 +167,11 @@ def tree_hash(root: Path) -> str:
 def test_the_cli_is_read_only_and_gives_the_same_answer_twice(tmp_path):
     root = repo(tmp_path)
     before = tree_hash(root)
-    runs = [subprocess.run([sys.executable, str(SCRIPT), "013_widget.sql", "--root", str(root)],
+    runs = [subprocess.run([sys.executable, str(SCRIPT), WIDGET, "--root", str(root)],
                            capture_output=True, text=True, encoding="utf-8") for _ in range(2)]
     assert runs[0].returncode == 0, runs[0].stderr
     assert (runs[0].stdout, runs[0].stderr) == (runs[1].stdout, runs[1].stderr)
     assert tree_hash(root) == before
-    bad = subprocess.run([sys.executable, str(SCRIPT), "013_widget.sql", "--root", str(repo(tmp_path / "x",
+    bad = subprocess.run([sys.executable, str(SCRIPT), WIDGET, "--root", str(repo(tmp_path / "x",
                          checks=CHECK_INSERT))], capture_output=True, text=True, encoding="utf-8")
     assert bad.returncode == 1 and "FAIL" in bad.stderr
