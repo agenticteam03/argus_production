@@ -31,6 +31,9 @@ def test_a_real_bearer_token_is_still_masked(token):
     assert token not in out and "Bearer [REDACTED]" in out and n >= 1, out
 
 
-def test_bearer_does_not_reach_across_a_line_for_its_token():
-    out, _ = Redactor().text("the word Bearer\nplain-log-line-here")
-    assert "plain-log-line-here" in out
+@pytest.mark.parametrize("text", ["Authorization: Bearer\nabc123def456ghi", "bearer\r\n  abc123def456ghi end"])
+def test_a_short_token_on_the_next_line_is_still_masked(text):
+    # #278 review: over-masking the line after "Bearer" is better than a short token in clear (the high-entropy rule
+    # needs 40+ characters)
+    out, n = Redactor().text(text)
+    assert "abc123def456ghi" not in out and "Bearer [REDACTED]" in out and n >= 1, out
