@@ -114,6 +114,7 @@ it cannot be self-merged). A teammate may object in any PR; an objection goes to
    - `brain/architecture/` (ARCHITECTURE.md and every ACR; a safety-principle change still needs its second approval,
      AGENT_PROTOCOL §4);
    - `brain/policies/` and `brain/agents/` (the security, git and review rules; the agents' stop conditions and rails);
+   - `.claude/skills/` (agent procedures, executable helpers and templates);
    - the enforcement: `brain/tools/brain.py`, `.github/`, `.pre-commit-config.yaml`;
    - `ops/` (`deploy.sh`, `nonint-check.sh`, `write-gate-check.sh` run as root on the VMs; `local_ci.py`);
    - safety data: `config/policy.yaml` (write gate, scope), `config/inventory.yaml` (host isolation);

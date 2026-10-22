@@ -640,6 +640,7 @@ SELF_MERGE_CHECKS = ("test", "frontend")
 SELF_MERGE_PROTECTED = (
     "brain/architecture/",                                   # ARCHITECTURE.md and the ACRs
     "brain/policies/", "brain/agents/",                      # security, git and review rules; stop conditions, rails
+    ".claude/skills/",                                       # agent procedures; changes need a teammate's review
     "brain/tools/brain.py", ".github/", ".pre-commit-config.yaml",   # the enforcement and the merge check itself
     "ops/",                                                  # deploy, nonint-check, write-gate-check (root on the VMs), local CI
     "config/policy.yaml", "config/inventory.yaml",           # write gate, scope, host isolation

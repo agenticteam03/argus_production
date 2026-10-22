@@ -306,7 +306,11 @@ def test_a_self_merge_needs_every_required_check_green_on_its_last_push(checks, 
                                   # phase 15: the action path, before it exists
                                   "config/actions/container.start.yaml", "config/risk.yaml", "config/ranking.yaml",
                                   "argus/capabilities/write_contract.py", "argus/actions/dispatch.py",
-                                  "services/action-gateway/service.py"])
+                                  "services/action-gateway/service.py",
+                                  # T-0049 S0: skills are agent procedures, including their executable helpers.
+                                  ".claude/skills/code-bash-step/SKILL.md",
+                                  ".claude/skills/code-bash-step/scripts/check_block.py",
+                                  ".claude/skills/code-bash-step/templates/comment.ps1"])
 def test_a_self_merge_never_covers_a_protected_path(path):
     why = brain.self_merge_problem(_pr(7, "alice", "h7"), GREEN, ["argus/x.py", path], [])
     assert why and path in why and "teammate" in why
