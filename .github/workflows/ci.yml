@@ -122,10 +122,10 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
       - name: Install
         run: npm ci
-      # OP-014 step 6: a high or critical advisory in a production dependency (what the built UI ships) fails the
-      # build. Dev-only tooling (Vite, Vitest) is tracked in OP-017 until its major upgrades are done.
-      - name: Dependency audit (npm, production)
-        run: npm audit --omit=dev --audit-level=high
+      # OP-014 step 6, OP-017: a high or critical advisory in any dependency fails the build, the dev tooling (Vite,
+      # Vitest) included since its major upgrades (2026-10-21).
+      - name: Dependency audit (npm, every dependency)
+        run: npm audit --audit-level=high
       - name: Lint (ESLint)
         run: npm run lint
       - name: Unit tests (Vitest)

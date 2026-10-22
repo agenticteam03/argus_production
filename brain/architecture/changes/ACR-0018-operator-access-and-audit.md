@@ -172,6 +172,11 @@ Applied in steps (phase 16). Each step writes into `ARCHITECTURE.md` only what i
 - [x] EdDSA token signing: with the secret `jwt_ed25519_key` (an Ed25519 PEM) the API signs EdDSA and accepts only
       EdDSA; without it, HS256 as before. `PyJWT[crypto]`. `policies/SECURITY.md` names the new secret. Switching the
       lab on is a deploy step (generate the key on vm-095, never printed; every session logs in again)
+- [x] `auth_session` retention (#240): `argus db prune-sessions`, owner-only, preview unless `--apply`, sessions whose
+      token expired more than 90 days ago; audited `maintenance.sessions_pruned`. Maintenance audit rows are written
+      chained (`append_chained`), so a prune never breaks `argus audit verify`
+- [ ] step 2: the agent mounts `jwt_ed25519_key` (`deploy/vm-095/compose.core.yml`); the key generated on vm-095
+      before `up` (`execution/history/PHASE-16/step-02/code.bash`)
 
 **Not yet** (step 2 on): WebAuthn and step-up; separation of duties; the signed daily digest off
 Host A; security alerts (§18), which wait for the team's alert route (no receiver exists: Argus only reads its
