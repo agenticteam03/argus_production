@@ -22,6 +22,13 @@ export async function apiFetch(path, options = {}) {
     const err = httpError(res.status, `Request failed (${res.status}).`);
     const wait = Number(res.headers?.get?.("Retry-After"));
     if (Number.isFinite(wait) && wait > 0) err.retryAfter = wait;
+    // The API's own reason, when it gives a short text one (e.g. a refused second-factor ceremony, ACR-0018)
+    try {
+      const detail = (await res.json())?.detail;
+      if (typeof detail === "string" && detail.length <= 300) err.detail = detail;
+    } catch {
+      // no JSON body: the generic message stands
+    }
     throw err;
   }
   return res;

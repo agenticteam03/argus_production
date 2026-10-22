@@ -35,6 +35,11 @@ than 90 days ago (`ARGUS_SESSION_RETENTION_DAYS`), audited as `maintenance.sessi
 - Every session logs in again (old HS256 tokens are refused). A rollback is removing the mount.
 
 ### Step 3 — WebAuthn and step-up
+**Built (3a, `task/PHASE-16-step-3-webauthn`):** migration 013, `argus/application/second_factor.py`, the routes (also through the
+public edge), `argus webauthn allow-enrol|reset`, ARCHITECTURE 1.8.29; `tests/test_acr0018_webauthn.py`. **3b built (`task/PHASE-16-step-3b-ui`):** the UI's `/account/security` page
+(enrol, confirm the login, a further key by step-up) and the browser's ceremony helpers. **Next:** the deploy (migration 013 before the image; `ARGUS_WEBAUTHN_RP_ID` and
+`ARGUS_WEBAUTHN_ORIGIN` in `hosts.env`); the first tickets (each administrator for the other).
+
 - **Open decisions:** the library (`webauthn` / py_webauthn, pinned, `pip-audit` clean); the relying party id (the
   UI's public domain, which is not in Git); two keys per person and the recovery by another administrator (§4, risk).
 - A migration: `webauthn_credential` (principal, credential id, public key, sign count, created, last used), insert
@@ -45,7 +50,7 @@ than 90 days ago (`ARGUS_SESSION_RETENTION_DAYS`), audited as `maintenance.sessi
 - UI: enrolment and the step-up dialog (frontend lane, `juanes6554`).
 - Tests: a software authenticator for the ceremonies; replay of a step-up token; the wrong object; the sign counter.
 
-#### Step 3 — proposed decisions (2026-10-21, `conantkd` + agent; for the team)
+#### Step 3 — decisions (proposed 2026-10-21, decided 2026-10-22)
 Found while preparing: **the lab's public UI is served on an IPv4 address** (`ARGUS_UI_DOMAIN` on vm-095 is an
 address, with Let's Encrypt's 6-day IP certificate; checked without printing it). **WebAuthn cannot use an address as
 its relying party id**: browsers refuse it. So D2 blocks the step; D1 and D3 do not.
@@ -55,6 +60,23 @@ its relying party id**: browsers refuse it. So D2 blocks the step; D1 and D3 do 
 | D1 | The library | `webauthn` (py_webauthn, Duo Labs) / write the ceremonies by hand | **`webauthn==3.0.1`** (released 2026-09-25, BSD-3, no advisory recorded for any version; its crypto is `cryptography`, already a dependency; adds `cbor2`, `pyasn1`, `pyasn1-modules`, `pyOpenSSL`). Pinned, `pip-audit` in CI as today. |
 | D2 | The relying party id (blocker) | (a) a DNS name for the UI, kept in `vm-095.env` like `ARGUS_UI_DOMAIN` (never in Git); (b) `localhost` through the SSH tunnel to the loopback UI (`compose.loopback.yml`), privileged actions only there; (c) a wildcard-DNS name for the address (`<address>.sslip.io` style) | **(a)** for anything past the lab: phishing resistance is the reason for WebAuthn over TOTP (ACR-0018 §3, option C), and it holds only with a real name. **(b) as the lab's interim**: it works today (a browser treats `http://localhost` as secure), matches step 4's idea (privileged routes off the public edge) and needs no purchase; its cost: a credential is bound to `localhost`, so it moves to the real name later (re-enrolment). (c) rejected: a third party's DNS decides who the relying party is. |
 | D3 | Keys per person, recovery | one key / two keys; recovery by the person / by another administrator | **Two registered credentials per privileged person** (e.g. a platform passkey and a security key); a privileged permission is refused until two exist. **Recovery** by the other administrator (`conantkd` ↔ `juanbetancurm`, §4): an `argus webauthn reset <user> --as <admin>` CLI on vm-095 (the lease holder, like `argus session revoke`), audited `security.webauthn_reset`, which also revokes the user's sessions. |
+
+**Decided 2026-10-22 (`conantkd`):** D1 as proposed (`webauthn==3.0.1`). **D2 (a):** the UI is served by a DNS name
+(the team's subdomain, kept in `deploy/ui/vm-095.env` as `ARGUS_UI_DOMAIN`, never in Git), resolved straight to vm-095
+(no CDN proxy: a proxy would end TLS and see every password and token), with its own Let's Encrypt certificate (90
+days, HTTP-01 through the edge, renewed by the existing timer); the address now redirects to the name
+([evidence](../../execution/history/D2-ui-domain/step-01/evidence.md)). The relying party id and the expected origin
+are that name, read from the VM's environment like `ARGUS_UI_DOMAIN`. No re-enrolment is foreseen: (b)'s
+`localhost` interim is not needed. D3 as proposed (two credentials per privileged person; recovery by the other
+administrator through an audited CLI that revokes the user's sessions).
+**D4 (new, decided 2026-10-22, `conantkd`): the first credential.** A password alone must not bind a key: whoever
+stole it could enrol theirs before the owner. (a) **An enrolment ticket from the other administrator**: `argus
+webauthn allow-enrol <user> --as <admin>` on vm-095 (the lease holder), single-use, valid
+`ARGUS_WEBAUTHN_ENROL_TICKET_HOURS` (default 24) or until used, audited `security.webauthn_enrol_allowed`; nobody
+issues their own. The second credential is enrolled with a step-up of the first. Rejected: (b) a free first enrolment
+while the person has no key (the gap above, even with an alert); (c) the first enrolment through the `localhost`
+tunnel only (a credential bound to `localhost` does not work on the name). The keys themselves do not expire; a new
+ticket is needed only after a reset (both keys lost).
 
 Also for the code (no decision needed): the expected origin is checked with its port; the challenge is server-side,
 single-use, ≤ 5 min; the sign counter refuses a clone (a counter that goes back); the step-up token's object

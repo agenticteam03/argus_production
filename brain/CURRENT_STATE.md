@@ -7,6 +7,14 @@ shared-Brain setup B1–B8 under way (three developers).
 > The VMs are authoritative for what runs there: run `sudo bash /opt/argus-v18/app/ops/deploy.sh status` (or read
 > `/opt/argus-v18/DEPLOYED`) and the state probe before trusting this file.
 
+> **Update 2026-10-22 (`conantkd`, DEPLOY-afb72e8, OBSERVED with `deploy.sh status`):** **vm-095 runs `main`
+> `afb72e8`**: EdDSA access tokens with the Ed25519 key mounted (phase 16 step 2; every session logged in again),
+> `db prune-sessions` (#240; first dry run: 0 sessions), T-0047 H4/H5 (`analysis.anomaly_summary` registered, offered
+> to no class), the UI with Vite 8 and the contrast fix (#242, #257). No migration (012). 38/38 database checks. OP-008:
+> the approved `prune --apply` removed 18 backup sets (`KEEP=7`). vm-166 stays on `bdcd048`. Evidence:
+> [DEPLOY-afb72e8 step 01](execution/history/DEPLOY-afb72e8/step-01/evidence.md),
+> [OP-008 step 05](execution/history/OP-008/step-05/evidence.md).
+
 > **Update 2026-10-21 (`conantkd`, T-0047 H2/H3 deploy, OBSERVED with `deploy.sh status`):** **vm-095 runs `main`
 > `6c83da3`**: migration **012** `incident_hypothesis` (#236), the hypotheses ranked and stored and shown in the
 > incident answer (#237). 38/38 database checks. vm-166 stays on `bdcd048`. Evidence:
