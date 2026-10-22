@@ -1,23 +1,23 @@
 {
   "holder": "juanbetancurm",
-  "session_id": "1edb901770a8",
+  "session_id": "2072e5a55d80",
   "task": "T-0047-H5B",
   "branch": "task/T-0048-acceptance-memo",
   "base_commit": "99fa24ce8d05f4198c5156b65e3f12b25bc034e3",
-  "started_at": "2026-10-22T15:59:57+00:00",
-  "expires_at": "2026-10-22T18:00:07+00:00",
-  "released": true,
+  "started_at": "2026-10-22T17:32:49+00:00",
+  "expires_at": "2026-10-22T18:32:49+00:00",
+  "released": false,
   "handoff": null,
   "vms": {
     "vm-095": {
       "holder": "juanbetancurm",
-      "session_id": "1edb901770a8",
+      "session_id": "2072e5a55d80",
       "task": "T-0047-H5B",
       "branch": "task/T-0048-acceptance-memo",
       "base_commit": "99fa24ce8d05f4198c5156b65e3f12b25bc034e3",
-      "started_at": "2026-10-22T15:59:57+00:00",
-      "expires_at": "2026-10-22T18:00:07+00:00",
-      "released": true,
+      "started_at": "2026-10-22T17:32:49+00:00",
+      "expires_at": "2026-10-22T18:32:49+00:00",
+      "released": false,
       "handoff": null
     },
     "vm-166": {
