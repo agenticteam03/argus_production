@@ -29,7 +29,10 @@ UI_ROUTES = [("post", "/api/v1/auth/token"), ("post", "/api/v1/auth/logout"), ("
              ("post", "/api/v1/investigations"), ("get", "/api/v1/targets"),
              ("get", "/api/v1/host-metrics"), ("get", "/api/v1/incidents/{incident_id}/metrics"),
              ("get", "/api/v1/topology"), ("get", "/api/v1/target-metrics"),
-             ("get", "/api/v1/overview")]
+             ("get", "/api/v1/overview"),
+             # ACR-0018 phase 16 step 3: the WebAuthn ceremonies and the caller's credentials
+             *[("post", f"/api/v1/auth/webauthn/{c}/{s}") for c in ("register", "login", "step-up")
+               for s in ("options", "verify")], ("get", "/api/v1/auth/webauthn/credentials")]
 PASSWORD = "a-long-password"
 SC03 = "vm-166/container:argus-lab-worker"          # OOM restart loop, diagnosed
 UNSUPPORTED = "vm-095/container:argus-lab-worker"   # healthy metrics + report -> unsupported, escalated

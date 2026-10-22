@@ -178,7 +178,13 @@ Applied in steps (phase 16). Each step writes into `ARCHITECTURE.md` only what i
 - [ ] step 2: the agent mounts `jwt_ed25519_key` (`deploy/vm-095/compose.core.yml`); the key generated on vm-095
       before `up` (`execution/history/PHASE-16/step-02/code.bash`)
 
-**Not yet** (step 2 on): WebAuthn and step-up; separation of duties; the signed daily digest off
+- [x] step 3 (1.8.29): WebAuthn (`webauthn==3.0.1`, D1) and the step-up token: migration 013; the relying party
+      is the UI's DNS name (D2); two credentials per privileged person and a reset by the other administrator (D3);
+      the first credential by another administrator's ticket (D4); privileged permissions only after this login's
+      second factor; the routes through the public edge; `tests/test_acr0018_webauthn.py` (a software authenticator).
+      The step-up's binding to approvals comes with ACR-0019's routes (phase 17); the UI dialogs are step 3b
+
+**Not yet** (step 4 on): separation of duties; the signed daily digest off
 Host A; security alerts (§18), which wait for the team's alert route (no receiver exists: Argus only reads its
 Alertmanager), including the alert on `security.audit_chain_broken`; the private path (mTLS, `deploy/ui/nginx/`) and `policies/NETWORK.md`;
 `policies/SECURITY.md` (the new secrets).

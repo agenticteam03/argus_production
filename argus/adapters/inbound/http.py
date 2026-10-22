@@ -31,8 +31,15 @@ READ_METHODS = ("GET", "HEAD")          # a read-only token (ACR-0001) may use o
 INVESTIGATE_WRITES = {("POST", "/api/v1/investigations")}   # the one non-GET of an `investigate` token (ACR-0012)
 SCOPES = {"read", "investigate"}        # what a login may ask for; none = a full token (loopback only)
 ANY_TOKEN_WRITES = {("POST", "/api/v1/auth/logout")}   # ACR-0018: every token may end its own session
+# ACR-0018 step 3: every token may complete its own second factor (the UI's tokens are read or investigate ones): a
+# ceremony binds a key or marks a session only with the principal's credential, a ticket or a step-up
+SECOND_FACTOR_WRITES = {("POST", f"/api/v1/auth/webauthn/{c}/{s}") for c in ("register", "login", "step-up")
+                        for s in ("options", "verify")}
 # ACR-0018 §17.3: permissions are explicit and checked per route; a role is a bundle of them. Only the permissions of
 # what is built are listed; propose_action, approve_action, place_hold, open_terminal and admin come with their routes.
+# ACR-0018: a privileged permission counts only for a session completed with a WebAuthn credential, held by a person
+# with two (D3). None is granted yet: they come with their routes (phase 17 on).
+PRIVILEGED_PERMISSIONS = frozenset({"propose_action", "approve_action", "place_hold", "open_terminal", "admin"})
 ROLE_PERMISSIONS: dict[str, frozenset[str]] = {
     "viewer": frozenset({"view"}),
     "operator": frozenset({"view", "view_evidence", "investigate"}),
@@ -42,6 +49,12 @@ ROLE_PERMISSIONS: dict[str, frozenset[str]] = {
 
 def permissions_of(p: Principal) -> frozenset[str]:
     return ROLE_PERMISSIONS.get(p.role, frozenset())
+
+
+def granted_permissions(p: Principal, second_factor_ready: bool) -> frozenset[str]:
+    """What this request may use: the role's permissions, without the privileged ones until the second factor holds."""
+    perms = permissions_of(p)
+    return perms if second_factor_ready else perms - PRIVILEGED_PERMISSIONS
 
 log = logging.getLogger("argus.api")
 
@@ -53,6 +66,24 @@ oauth2 = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/token")
 
 
 INCIDENT_ID = r"^inc_[A-Za-z0-9_-]+$"   # an incident id in a request (never a path or free text)
+
+
+class EnrolIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    ticket: str | None = Field(None, max_length=64)            # D4: the first credential
+    step_up_token: str | None = Field(None, max_length=64)     # a further one
+
+
+class CeremonyIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    challenge_id: str = Field(pattern=r"^wch_[0-9a-f]{32}$")
+    credential: dict                                           # the browser's PublicKeyCredential as JSON
+    label: str = Field("", max_length=64)
+
+
+class StepUpIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    object: str = Field(max_length=224)
 
 
 class InvestigationIn(BaseModel):
@@ -160,11 +191,12 @@ def _principal_dep(app_ctx):
             raise HTTPException(status.HTTP_401_UNAUTHORIZED, "session ended; log in again",
                                 headers={"WWW-Authenticate": "Bearer"})
         request.state.jti = session["jti"]
+        request.state.session = session
         # ACR-0001: a read-only token only narrows what the role allows; tokens without the claim are full
         access = claims.get("access", "full")
         request.state.access = access
-        if (request.method, request.url.path) in ANY_TOKEN_WRITES:
-            pass                                    # ACR-0018: ending one's own session is allowed to every token
+        if (request.method, request.url.path) in ANY_TOKEN_WRITES | SECOND_FACTOR_WRITES:
+            pass                                    # ACR-0018: ending one's own session, one's second factor
         elif access == "read" and request.method not in READ_METHODS:
             app_ctx.store.append(AuditRecord(
                 audit_id=f"aud_{uuid.uuid4().hex[:16]}", incident_id=None, at=utcnow(), category="access",
@@ -192,11 +224,26 @@ def build_api(app_ctx) -> FastAPI:
         api.add_middleware(CORSMiddleware, allow_origins=app_ctx.settings.ui_origins, allow_methods=["GET", "POST"],
                            allow_headers=["Authorization", "Content-Type"], allow_credentials=False)
 
+    from argus.application.second_factor import SecondFactor, SecondFactorRefused
+    second = SecondFactor(app_ctx.store, app_ctx.settings.webauthn_rp_id, app_ctx.settings.webauthn_origin,
+                          ticket_hours=app_ctx.settings.webauthn_enrol_ticket_hours)
+    api.state.second_factor = second
+
+    def granted(request: Request, p: Principal) -> frozenset[str]:
+        perms = permissions_of(p)
+        if not perms & PRIVILEGED_PERMISSIONS:
+            return perms
+        return granted_permissions(p, second.privileged_ready(p.id, getattr(request.state, "session", None)))
+
     def require(permission: str):
-        """ACR-0018: a route names the permission it needs; the principal's role must grant it."""
-        def dep(p: Annotated[Principal, Depends(current)]) -> Principal:
+        """ACR-0018: a route names the permission it needs; the principal's role must grant it, and a privileged one
+        needs the session's second factor and two credentials (step 3)."""
+        def dep(request: Request, p: Annotated[Principal, Depends(current)]) -> Principal:
             if permission not in permissions_of(p):
                 raise HTTPException(status.HTTP_403_FORBIDDEN, f"role {p.role} lacks the permission {permission}")
+            if permission not in granted(request, p):
+                raise HTTPException(status.HTTP_403_FORBIDDEN,
+                                    f"the permission {permission} needs a second factor (two credentials, this login)")
             return p
         return dep
 
@@ -270,16 +317,69 @@ def build_api(app_ctx) -> FastAPI:
     def me(request: Request, p: Annotated[Principal, Depends(current)]):
         """Who is logged in, and the actions this token may use (ACR-0001). A UI shows a control only when its
         action is listed: new features add actions here, never permission logic in the UI."""
-        access, granted = request.state.access, permissions_of(p)
+        access, granted_now = request.state.access, granted(request, p)
         actions = ["view_incidents", "view_timeline"]
-        if "view_evidence" in granted and s.langfuse_ui_url.startswith(("http://", "https://")):
+        if "view_evidence" in granted_now and s.langfuse_ui_url.startswith(("http://", "https://")):
             actions.append("view_traces")                   # ACR-0013 C: only when the Langfuse UI link is configured
-        if "view_evidence" in granted:
+        if "view_evidence" in granted_now:
             actions.append("view_evidence")
-            if "investigate" in granted and access in ("full", "investigate"):   # ACR-0012: an investigate token
-                actions.append("start_investigation")                              # may start one
-        # ACR-0018: what the role grants; the token's access may narrow it (a read token starts nothing)
-        return {"user": p.id, "role": p.role, "access": access, "actions": actions, "permissions": sorted(granted)}
+            if "investigate" in granted_now and access in ("full", "investigate"):   # ACR-0012: an investigate token
+                actions.append("start_investigation")                                  # may start one
+        if second.configured:
+            actions.append("manage_second_factor")          # ACR-0018 step 3: enrol a key, complete the login
+        # ACR-0018: what the role grants; the token's access may narrow it (a read token starts nothing); a privileged
+        # permission is listed only once the second factor holds
+        return {"user": p.id, "role": p.role, "access": access, "actions": actions, "permissions": sorted(granted_now),
+                "second_factor": second.status(p.id, request.state.session) if second.configured else None}
+
+    # --- ACR-0018 step 3: WebAuthn (D1-D4) ------------------------------------------------------------------------------
+    def ceremony(request: Request, p: Principal, fn, *args):
+        if not second.configured:
+            raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "the second factor is not configured here")
+        try:
+            return fn(p.id, request.state.jti, *args)
+        except SecondFactorRefused as e:
+            raise HTTPException(status.HTTP_403_FORBIDDEN, str(e))
+
+    @api.post("/api/v1/auth/webauthn/register/options", tags=["auth"])
+    def webauthn_register_options(request: Request, body: EnrolIn, p: Annotated[Principal, Depends(current)]):
+        """D4: the first credential with another administrator's ticket; a further one with a step-up
+        (object `webauthn.register:<user>`)."""
+        cid, options = ceremony(request, p, second.register_options, body.ticket, body.step_up_token)
+        return {"challenge_id": cid, "options": options}
+
+    @api.post("/api/v1/auth/webauthn/register/verify", tags=["auth"])
+    def webauthn_register_verify(request: Request, body: CeremonyIn, p: Annotated[Principal, Depends(current)]):
+        return ceremony(request, p, second.register_verify, body.challenge_id, body.credential, body.label)
+
+    @api.post("/api/v1/auth/webauthn/login/options", tags=["auth"])
+    def webauthn_login_options(request: Request, p: Annotated[Principal, Depends(current)]):
+        cid, options = ceremony(request, p, second.login_options)
+        return {"challenge_id": cid, "options": options}
+
+    @api.post("/api/v1/auth/webauthn/login/verify", tags=["auth"])
+    def webauthn_login_verify(request: Request, body: CeremonyIn, p: Annotated[Principal, Depends(current)]):
+        """Completes this session's login with a credential: its privileged permissions count from now on."""
+        ceremony(request, p, second.login_verify, body.challenge_id, body.credential)
+        return {"verified": True}
+
+    @api.post("/api/v1/auth/webauthn/step-up/options", tags=["auth"])
+    def webauthn_step_up_options(request: Request, body: StepUpIn, p: Annotated[Principal, Depends(current)]):
+        cid, options = ceremony(request, p, second.step_up_options, body.object)
+        return {"challenge_id": cid, "options": options}
+
+    @api.post("/api/v1/auth/webauthn/step-up/verify", tags=["auth"])
+    def webauthn_step_up_verify(request: Request, body: CeremonyIn, p: Annotated[Principal, Depends(current)]):
+        """A single-use token for the object named in its options, valid 5 minutes, in this session only; the route
+        that does the privileged thing consumes it (never shown in the audit)."""
+        token_value, expires = ceremony(request, p, second.step_up_verify, body.challenge_id, body.credential)
+        return {"step_up_token": token_value, "expires_at": expires}
+
+    @api.get("/api/v1/auth/webauthn/credentials", tags=["auth"])
+    def webauthn_credentials(p: Annotated[Principal, Depends(current)]):
+        """The caller's enrolled credentials: a short id, the label and dates (never the key)."""
+        return [{"credential": c["id"][:8], "label": c["label"], "created_at": c["created_at"],
+                 "last_used_at": c["last_used_at"]} for c in second.credentials(p.id)]
 
     def over_quota(principal: str, idempotency_key: str | None) -> tuple[str, int] | None:
         """ACR-0012: (which quota, seconds to wait) when an investigate token may not start one more; None = allowed.
