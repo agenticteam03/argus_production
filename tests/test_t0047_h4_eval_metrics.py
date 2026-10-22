@@ -155,6 +155,27 @@ def test_a_target_named_by_an_observation_on_its_host_counts_as_observed():
     db = "vm-166/container:argus-lab-db"
     refs = [TargetRef.parse(t) for t in (db, "vm-166/container:argus-lab-leaker", "vm-095/container:argus-lab-leaker",
                                          "vm-166/container:argus-lab-leak")]
-    health = SimpleNamespace(target=db, status="ok", kind="observation", values={"top_clients": ["argus-lab-leaker"]})
-    failed = SimpleNamespace(target=db, status="timeout", kind="observation", values={"x": "argus-lab-leak"})
+    health = SimpleNamespace(target=db, status="ok", kind="observation", capability="database.health",
+                             values={"top_clients": ["argus-lab-leaker"]})
+    failed = SimpleNamespace(target=db, status="timeout", kind="observation", capability="database.health",
+                             values={"x": "argus-lab-leak"})
     assert _observed([health, failed], refs) == [db, "vm-166/container:argus-lab-leaker"]
+
+
+def test_a_listing_that_names_every_container_does_not_count_as_observing_them():
+    """`container.list` names every container of its host: the root cause it lists is still unobserved, so a diagnosis
+    of it with no read of it stays `unsupported_root_cause` (ACR-0024 §3.8, never relaxed)."""
+    from types import SimpleNamespace
+
+    from argus.domain.model import TargetRef
+    from argus.evaluation.replay import _observed
+    from argus.evaluation.score import unsupported_root_cause
+    api, cache = "vm-166/container:argus-lab-api", "vm-166/container:argus-lab-cache"
+    refs = [TargetRef.parse(t) for t in (api, cache)]
+    listing = SimpleNamespace(target="vm-166/host", status="ok", kind="observation", capability="container.list",
+                              values={"containers": [{"name": "argus-lab-api"}, {"name": "argus-lab-cache"}]})
+    status = SimpleNamespace(target=api, status="ok", kind="observation", capability="container.status", values={})
+    observed = _observed([listing, status], refs)
+    assert observed == [api, "vm-166/host"]
+    run = SimpleNamespace(observed=observed, outcome="diagnosed", root_cause_target=cache)
+    assert unsupported_root_cause(run) == 1
