@@ -45,6 +45,22 @@ than 90 days ago (`ARGUS_SESSION_RETENTION_DAYS`), audited as `maintenance.sessi
 - UI: enrolment and the step-up dialog (frontend lane, `juanes6554`).
 - Tests: a software authenticator for the ceremonies; replay of a step-up token; the wrong object; the sign counter.
 
+#### Step 3 — proposed decisions (2026-10-21, `conantkd` + agent; for the team)
+Found while preparing: **the lab's public UI is served on an IPv4 address** (`ARGUS_UI_DOMAIN` on vm-095 is an
+address, with Let's Encrypt's 6-day IP certificate; checked without printing it). **WebAuthn cannot use an address as
+its relying party id**: browsers refuse it. So D2 blocks the step; D1 and D3 do not.
+
+| # | Decision | Options | Proposal |
+|---|---|---|---|
+| D1 | The library | `webauthn` (py_webauthn, Duo Labs) / write the ceremonies by hand | **`webauthn==3.0.1`** (released 2026-09-25, BSD-3, no advisory recorded for any version; its crypto is `cryptography`, already a dependency; adds `cbor2`, `pyasn1`, `pyasn1-modules`, `pyOpenSSL`). Pinned, `pip-audit` in CI as today. |
+| D2 | The relying party id (blocker) | (a) a DNS name for the UI, kept in `vm-095.env` like `ARGUS_UI_DOMAIN` (never in Git); (b) `localhost` through the SSH tunnel to the loopback UI (`compose.loopback.yml`), privileged actions only there; (c) a wildcard-DNS name for the address (`<address>.sslip.io` style) | **(a)** for anything past the lab: phishing resistance is the reason for WebAuthn over TOTP (ACR-0018 §3, option C), and it holds only with a real name. **(b) as the lab's interim**: it works today (a browser treats `http://localhost` as secure), matches step 4's idea (privileged routes off the public edge) and needs no purchase; its cost: a credential is bound to `localhost`, so it moves to the real name later (re-enrolment). (c) rejected: a third party's DNS decides who the relying party is. |
+| D3 | Keys per person, recovery | one key / two keys; recovery by the person / by another administrator | **Two registered credentials per privileged person** (e.g. a platform passkey and a security key); a privileged permission is refused until two exist. **Recovery** by the other administrator (`conantkd` ↔ `juanbetancurm`, §4): an `argus webauthn reset <user> --as <admin>` CLI on vm-095 (the lease holder, like `argus session revoke`), audited `security.webauthn_reset`, which also revokes the user's sessions. |
+
+Also for the code (no decision needed): the expected origin is checked with its port; the challenge is server-side,
+single-use, ≤ 5 min; the sign counter refuses a clone (a counter that goes back); the step-up token's object
+(`approval_id + proposal_digest`) waits for ACR-0019's routes, so step 3 builds enrolment, login's second factor and a
+step-up bound to a test object, with the binding to approvals added in phase 17.
+
 ### Step 4 — the private path (mTLS) and separation of duties
 - The team's client CA, its private key off vm-095; one 90-day certificate per person; a CRL.
 - `deploy/ui/nginx/`: `ssl_verify_client optional`; privileged locations answer 404 unless the certificate verifies

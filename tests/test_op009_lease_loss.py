@@ -131,17 +131,19 @@ def test_renewals_failing_until_the_lease_expires_cancel_the_run(make_app):
 
 def test_a_failing_renewer_cancels_at_the_lease_expiry_not_at_its_next_attempt(make_app):
     """Review of PR #53: with renewals failing, the run is cancelled when the lease expires, not up to one renewal
-    interval later (lease 1 s, attempts every 0.7 s: before the fix the cancel came at 1.4 s)."""
+    interval later. Lease 2 s, attempts every 1.9 s: the first attempt fails at 1.9 s; the fix cancels at 2.0 s, the
+    bug at 3.8 s (the next attempt). The bound sits a second from each, so a slow CI runner does not fail it (it
+    measured 1.53 s against the old 1.25 s bound on 2026-10-22)."""
     app = make_app()
     incident(app, T)
-    app.runner = CancelAwareRunner(seconds=5)
+    app.runner = CancelAwareRunner(seconds=8)
 
     def down(*a, **k):
         raise RuntimeError("database down")
 
     app.store.renew_claim = down
     started = time.monotonic()
-    Worker(app, worker_id="w1", lease_s=1, renew_every_s=0.7).run_once()
+    Worker(app, worker_id="w1", lease_s=2, renew_every_s=1.9).run_once()
     elapsed = time.monotonic() - started
     assert app.runner.cancelled is True
-    assert 0.9 <= elapsed < 1.25, elapsed
+    assert 1.9 <= elapsed < 3.0, elapsed
