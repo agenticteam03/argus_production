@@ -23,7 +23,7 @@ When a problem is fixed, set its status to `fixed` with the date, and add a jour
 | **OP-014** | The self-merge rule relies on the tests: gaps where a green CI does not yet mean "safe to merge" | in progress — steps 1-7 and 10 done (TEST-HARDEN-1, the CI gates, Vitest coverage 2026-10-21); 8, 9, 11-13 left | 2026-10-17 |
 | **OP-015** | ARCHITECTURE §14 says the approval/action machinery "exists from the start"; the code has none of it | open — implemented by ACR-0019 (phase 18) if accepted; until then the text must say "designed, not built" | 2026-10-18 |
 | **OP-016** | `policies/SECURITY.md` lists "the team's shared Argus password"; §17.3 and ACR-0011 require one account per person | open — fixed in phase 15 | 2026-10-18 |
-| **OP-017** | The frontend's dependencies have known advisories: React Router (production, moderate), Vite, Vitest and esbuild (dev tooling, up to critical); every fix is a major upgrade | in progress — React Router 7, Vite 8 and Vitest 5 (2026-10-21): `npm audit` clean on the whole tree; CI's gate left | 2026-10-20 |
+| **OP-017** | The frontend's dependencies have known advisories: React Router (production, moderate), Vite, Vitest and esbuild (dev tooling, up to critical); every fix is a major upgrade | **fixed** 2026-10-21 — React Router 7, Vite 8, Vitest 5; CI runs `npm audit --audit-level=high` on every dependency | 2026-10-20 |
 
 ---
 
@@ -328,8 +328,8 @@ disabled. No shared account, so nothing to disable.
 
 ## OP-017 — The frontend's dependencies have known advisories
 
-**Status:** in progress 2026-10-21: `react-router-dom` 7.18.4, then `vite` 8.3.5 and `vitest` 5.0.5
-(`task/OP-017-vite8`); `npm audit` on the whole tree finds nothing. Left: CI's gate on the whole tree (fix 3) · **Opened:** 2026-10-20 (OP-014 step 6, `npm audit`) · **Found by:** `conantkd`
+**Status:** **fixed** 2026-10-21: `react-router-dom` 7.18.4, `vite` 8.3.5 and `vitest` 5.0.5 (#229, #242); CI's
+`frontend` job runs `npm audit --audit-level=high` on every dependency (#244) · **Opened:** 2026-10-20 (OP-014 step 6, `npm audit`) · **Found by:** `conantkd`
 (+ agent) · **Owner:** the frontend lane (T-0016)
 
 **Problem.** `npm audit` in `frontend/` on 2026-10-20 reports the following. Python: `pip-audit` found nothing.
