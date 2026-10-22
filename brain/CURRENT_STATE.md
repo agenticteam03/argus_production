@@ -7,6 +7,12 @@ shared-Brain setup B1–B8 under way (three developers).
 > The VMs are authoritative for what runs there: run `sudo bash /opt/argus-v18/app/ops/deploy.sh status` (or read
 > `/opt/argus-v18/DEPLOYED`) and the state probe before trusting this file.
 
+> **Update 2026-10-22 (`conantkd`, DEPLOY-77c4524, OBSERVED with `deploy.sh status`):** **vm-095 runs `main`
+> `77c4524`**: migration **013** (WebAuthn credentials, challenges, enrolment tickets, step-up tokens; #280), the UI's
+> security keys page (#284), the Bearer redaction fix (#278). The relying party is the UI's DNS name (`hosts.env`).
+> 49/49 database checks. No key enrolled yet; no privileged permission exists. vm-166 stays on `bdcd048`. Evidence:
+> [DEPLOY-77c4524 step 01](execution/history/DEPLOY-77c4524/step-01/evidence.md).
+
 > **Update 2026-10-22 (`conantkd`, DEPLOY-afb72e8, OBSERVED with `deploy.sh status`):** **vm-095 runs `main`
 > `afb72e8`**: EdDSA access tokens with the Ed25519 key mounted (phase 16 step 2; every session logged in again),
 > `db prune-sessions` (#240; first dry run: 0 sessions), T-0047 H4/H5 (`analysis.anomaly_summary` registered, offered
