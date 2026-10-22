@@ -2,6 +2,29 @@
 
 **Last updated:** 2026-10-12 (roll-up) · **Commit:** `main` after #96 (`817d88f`)
 
+No code change. The workflow parses; this PR's own CI runs on the pinned actions.
+
+`ruff check argus services ops`: all checks passed. `bandit -lll`: no issue. Full suite green.
+
+No code change. The two audit commands pass locally (exit 0).
+
+- `tests/test_t0045_b7_baseline_deploy.py` is new: ranges, baseline (values, window, sparse, failed read, read once),
+  deploy events, the store and the CLI. All red first, except the unknown-range guard.
+- `tests/test_deploy.py`: two new tests (the record call before the verdict; a failure never stops the deploy), seen
+  red first. Its helper never reaches the machine's Docker.
+- `tests/test_postgres.py`: `test_deploy_events_migration_008` (CI's Postgres).
+- `tests/test_acr0017_incident_metrics.py`: the key set gains `baseline`; the cache test counts the chart's reads apart
+  from the baseline's.
+- `contracts/ui-api.json` and `incident-metrics.json` regenerated; the other samples untouched.
+- Full offline suite green.
+
+- `tests/brain/test_brain.py` gains six tests.
+  - **Retries:** a cut-off answer is retried; a failure is retried then raised after `GH_TRIES`; a good answer is
+    read once; a 404 is raised at once. The first two were seen red first (no retry).
+  - **Merges (#183):** another branch merged after the approval, and main reaching the branch through another branch.
+    Both pass on `main` as it is: they guard existing behaviour.
+- `tests/brain` green locally.
+
 New: `tests/test_op014_property_policy.py`, 11 tests, green. No code change. Full suite green.
 
 No code change in this record. CI on `main` at `bdcd048`: `test` and `frontend` green on #195.

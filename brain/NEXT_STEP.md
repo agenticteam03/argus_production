@@ -1,5 +1,44 @@
 # Next step
 
+**Now (2026-10-21, roll-up, `conantkd`; work by the agent).**
+- **On the VMs:** **vm-095 runs `main` `6c83da3`** (migration **012**: T-0047 H2/H3, the hypotheses ranked, stored and
+  shown; T-0046 L5, link recording on; phase 16 step 1, sessions and the audit chain). **vm-166 stays on `bdcd048`.**
+  Merged since that deploy, not yet on vm-095: #240 (`argus db prune-sessions`; maintenance audit rows chained), #242
+  (Vite 8, Vitest 5: build tooling only), #245 (T-0047 H4 step 1, the evaluation's hypothesis metrics), #246 (Vitest
+  coverage floors). Backups: today's verified (`VERIFY OK`, OP-008 step 04).
+- **In review (a teammate's approval):**
+  - #241 phase 16 step 2: the agent mounts `jwt_ed25519_key` (EdDSA on); deploy with
+    `execution/history/PHASE-16/step-02/code.bash` (every session logs in again; the first `prune-sessions` dry run);
+  - #243 phase 16 step 3: WebAuthn decisions. **Blocker:** the public UI is on an IP address and WebAuthn needs a
+    domain (D2: a DNS name, or `localhost` through the tunnel as the lab's interim);
+  - #244 OP-017 fixed: CI audits every npm dependency (`.github/`);
+  - #247 OP-008 step 04: approve one `prune --apply` (`KEEP=7`) on vm-095;
+  - #250 T-0047 H4: only `database.health` names other targets as observed (a listing is not an observation).
+- **Self-merge after CI:** #248 (frontend unit tests, coverage floors 43/43/39/40), #249 (axe-core accessibility
+  checks; `color-contrast` left to the frontend lane: `text-muted/60` and white on `bg-accent`).
+
+Next, in order:
+1. Review the five PRs above.
+2. Deploy #241 (EdDSA) to vm-095 with its code.bash, after #241 merges; everyone logs in again.
+3. OP-008: the approved `prune --apply`, re-previewed first.
+4. Decide D2 (a domain for the UI), then phase 16 step 3's code.
+5. T-0047 H4: the model batches (`juanbetancurm`); T-0046 before L6: record the probe sample's time.
+6. Frontend lane: the two contrast fixes, then remove `KNOWN` from `e2e/a11y.e2e.js`.
+
+Below: the rolled-up "next steps" of the entries folded today (some already done), then the 2026-10-20 roll-up.
+
+A teammate reviews and merges. The rest of step 7: `zizmor`, `hadolint`, `shellcheck`, Trivy.
+
+A teammate reviews and merges. Later: a bandit gate at medium severity once each finding has a reviewed `# nosec` with
+its reason.
+
+A teammate reviews and merges. The frontend lane upgrades React Router, then Vite and Vitest (OP-017).
+
+Review (protected paths: `ops/`, `deploy/migrations/`, `contracts/`). Then deploy with migration 008 and record that
+deploy. B8 is optional.
+
+A teammate's review and merge (protected paths: no self-merge).
+
 **Now (2026-10-20, roll-up, `conantkd`; night work by the agent).**
 - **On the VMs:** **both run `main` `bdcd048`** (DEPLOY-195: T-0045 B8, finer link reasons; #195, the redaction fix).
   The UI is built with `VITE_ARGUS_INSIGHTS=1` (DEPLOY-189: B6, the Map and Metrics tabs). Database at migration 007.

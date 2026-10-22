@@ -3139,3 +3139,938 @@ Decision / result:
 Consequences:
 - OP-014 step 10 is done; steps 4 to 9 and 11 to 13 remain (most touch `.github/`, a protected path).
 References: OP-014 in `OPEN_PROBLEMS.md`.
+
+## 2026-10-19 — MAIN-GUARD hardening: `gh_json` retries; #183's open test case
+
+Type: implementation
+Who: conantkd (+ agent)
+Context: main-guard once went red on `unexpected end of JSON input` (a cut-off `gh api` answer) and passed on a
+rerun. The review of #183 left one case untested: a clean merge of a branch other than `main` after an approval.
+Decision / result:
+- **Retries:** `gh_json` tries a failed call or a non-JSON answer again, `GH_TRIES` = 3 in all, 2 s then 4 s apart. A
+  real failure still raises `BrainError` after the last try.
+- **404 is final:** a 404 is an answer, not a glitch (`verify-main` reads a deleted branch that way: not kept), so it
+  raises at once with no wait.
+- **#183's open case:** two tests pin that only a merge with `main` keeps an approval.
+  - A clean merge of another branch needs a new approval.
+  - The same code arriving through a branch that merged `main` first also needs one.
+  - `only_main_merged_since` already refused both; the tests keep it so.
+Consequences: no rule changes. `brain/tools/brain.py` and `tests/brain/` are protected, so a teammate approves.
+References: `brain/agents/REVIEW_PROTOCOL.md` ("An update that only brings in main"), #183.
+
+## 2026-10-19 — T-0045 B7: baseline, the 6h and 24h ranges, deploy events (migration 008)
+
+Type: implementation
+Who: conantkd (+ agent)
+Context: the redesigned UI's incident charts draw a "normal" band, a longer lead-in and deploy markers. Step B7 of
+[T-0045](../tasks/current/T-0045-ui-insights-backend.md), after ACR-0021's acceptance and B5.
+Decision / result:
+- **Ranges:** `GET /api/v1/incidents/{id}/metrics` accepts `6h` and `24h`, with at most ~130 points per series as
+  before. The answer lists `ranges_available`.
+- **Baseline:** each series gains `baseline`, `{p50, p95, from, to}`.
+  - It covers the same signal over the 24 h that end an hour before the incident opened, scaled like the values.
+  - It is `null` when under half of that window has samples, or when the read fails: unknown, never a guessed band.
+  - It takes one 289-sample `MetricsPort.range` read per incident and signal, kept for the incident's life. The
+    quantiles are computed in Python (linear between ranks, as `quantile_over_time`), so there is no new port method.
+  - This answers T-0045's open decision 4 (the window and its cost).
+- **Deploy events:**
+  - `deploy_event` (migration **008**; B5 took 007), insert-only for the runtime role, with the commit checked as hex.
+  - `argus deploy record --commit --ref --as [--host]` validates against the inventory and the formats, writes it and
+    audits it (`deploy.recorded`).
+  - `ops/deploy.sh` calls it through the running agent before its `DEPLOY OK` line. It is never fatal: on the deploy
+    that first brings the verb (the old image still runs), or on vm-166 (no agent), it prints the command to run after
+    the rebuild.
+  - The charts show the incident host's deploys inside the window, labelled with ref and short commit, never who.
+- `db-check` gains three checks: the insert succeeds; an UPDATE and a DELETE are refused.
+Consequences:
+- Additive fields only. ARCHITECTURE 1.8.20 (§7.1, §16.1; B6 took 1.8.19).
+- **Deploying this step:** `db-migrate.sh` (008) before the image; then record that deploy itself with
+  `argus deploy record` after the rebuild.
+- vm-166's deploys are recorded from vm-095 with `--host vm-166`, since the database lives there.
+References: [ACR-0021](../architecture/changes/ACR-0021-ui-insights-v2.md), `docs/API-FOR-UI.md`.
+
+## 2026-10-20 — OP-014 step 6: dependency audit in CI; the frontend's advisories recorded as OP-017
+
+Type: CI
+Who: conantkd (+ agent, autonomous night work)
+Context: OP-014 step 6 asks for a dependency audit on every pull request.
+Decision / result:
+- Ran locally:
+  - `pip-audit`: no known vulnerability.
+  - `npm audit`: React Router 6 (moderate, shipped in the UI), and Vite, esbuild, Vitest and tinypool (dev tooling,
+    up to critical). Every fix is a major upgrade.
+- CI gets two steps, inside the existing jobs so that `SELF_MERGE_CHECKS` and `verify-main` stay as they are:
+  - `pip-audit` in `test`;
+  - `npm audit --omit=dev --audit-level=high` in `frontend`.
+  Both pass today.
+- OP-017 records the frontend advisories and the upgrade order. The upgrades belong to the frontend lane (T-0016)
+  and were not done at night without a review.
+Consequences:
+- A new high advisory in a Python package or in what the UI ships fails the build.
+- This pull request changes `.github/`, so it needs a teammate's approval.
+References: OP-014 and OP-017 in `OPEN_PROBLEMS.md`.
+
+## 2026-10-20 — OP-014 step 5: static analysis in CI (ruff, bandit)
+
+Type: CI
+Who: conantkd (+ agent, autonomous night work)
+Context: OP-014 step 5 asks for static analysis of the Python code in CI.
+Decision / result:
+- `ruff` with its default rules on `argus/`, `services/` and `ops/`:
+  - 5 findings: two unused imports (removed) and three named lambdas;
+  - E731, the named-lambda rule, is style only and ignored in `pyproject.toml`, rather than rewriting working code.
+- `bandit`:
+  - no high-severity finding;
+  - the medium ones were reviewed: SQL built from constant table names and `?`/`%s` placeholders, the API's
+    `0.0.0.0` bind inside its container, URL reads of allowlisted targets. Not a gate yet.
+- CI: one step at the end of the `test` job (so `SELF_MERGE_CHECKS` is unchanged) runs both, pinned.
+- `tests/` is left out: ruff reports 211 F811 there, the pytest fixture pattern.
+Consequences:
+- A new pyflakes error or a high-severity bandit finding in the production code fails the build.
+- This pull request changes `.github/` and `ops/`, so it needs a teammate's approval.
+References: OP-014 step 5 in `OPEN_PROBLEMS.md`.
+
+## 2026-10-20 — OP-014 step 7 (part): CI actions pinned by commit SHA; the gitleaks download verified
+
+Type: CI
+Who: conantkd (+ agent, autonomous night work)
+Context: OP-014 step 7 asks to pin every action by commit SHA. A tag can be moved to other code; the Trivy action
+was compromised that way in March 2026.
+Decision / result:
+- `.github/workflows/ci.yml`: the four actions pinned by commit SHA, each with its tag in a comment:
+  - `checkout` v4.4.0, `setup-python` v5.6.0, `setup-node` v4.4.0, `upload-artifact` v4.6.2;
+  - each SHA was resolved on 2026-10-20 from the major tag the workflow used, so the code that runs is unchanged.
+- The gitleaks archive is checked against the release's published SHA-256 before it runs.
+Consequences:
+- A moved tag or a swapped release archive cannot change what CI runs.
+- Updating an action means changing its SHA in a reviewed PR.
+- This PR changes `.github/`, so it needs a teammate's approval.
+References: OP-014 step 7 in `OPEN_PROBLEMS.md`.
+
+## 2026-10-20 — DEPLOY-B7: vm-095 to main 999b5bb (T-0045 B7, migration 008)
+
+Type: deployment
+Who: conantkd (+ agent)
+Context: #188 (T-0045 B7: the baseline, the 6h and 24h ranges, deploy events) merged; the deploy was prepared in
+`task/DEPLOY-B7-B8-prep`.
+Decision / result:
+- vm-095 runs `main` `999b5bb`: backup, `008_deploy_event` applied (schema 001 to 008), agent, worker and scheduler on
+  one image, the deploy recorded in `deploy_event`.
+- Checks: `26/26` database checks, `55/55`, `WRITE GATE CLOSED`, `LAB BASELINE OK`, `NO INTERFERENCE` on both VMs.
+  vm-166 unchanged (`bdcd048`).
+- D.3 (logged in, by conantkd): ranges 15m to 24h, a baseline on the host CPU and memory series.
+Consequences: T-0047 step 0 can start (`metrics.compare_baseline` has B7's baseline on vm-095). #203 comes with the
+next deploy.
+References: [evidence](../execution/history/DEPLOY-B7/step-01/evidence.md), #188, #203.
+
+## 2026-10-20 — T-0045 B7 follow-up: a failed baseline read is not kept
+
+Type: implementation
+Who: juanbetancurm (+ agent)
+Context: the review of #188 (B7, merged): when the baseline's Prometheus read failed, `IncidentMetrics._baseline`
+stored the `None` for the incident's life, so one hiccup hid the "normal" band on every later answer.
+Decision / result:
+- A failed read (`MetricsUnavailable`, `StaleMetrics`, `ValueError`) returns `None` without storing it; the next
+  answer reads it again. "Under half the samples" is still kept, since that window never moves.
+- `tests/test_t0045_b7_baseline_deploy.py`: `test_a_failed_baseline_read_is_not_kept_and_the_next_answer_reads_it_again`,
+  seen red first.
+- Not changed: `008_deploy_event.sql` says the verb runs "after `DEPLOY OK`" (it runs just before that line).
+  `db-migrate.sh` refuses a migration whose file changed after it was applied, so the comment stays as it is.
+Consequences: no route, field or contract change; reaches vm-095 with the B7 deploy.
+References: #188, [T-0045](../tasks/current/T-0045-ui-insights-backend.md).
+
+## 2026-10-20 — T-0045 B8: its line in the 1.8.20 changelog
+
+Type: documentation
+Who: juanbetancurm (+ agent)
+Context: #193 described B8's finer link reasons in `ARCHITECTURE.md` (§7.1, §8.1) without a version bump, leaving
+the bump and the changelog line to whichever of #193 and #188 merged second. #188 merged second as 1.8.20 for B7
+only.
+Decision / result: the 1.8.20 version line and changelog row also record B8 (the topology's broken-link reason from
+`argus_probe_error`; `ProbeSample.error_kind`). No other text changes.
+Consequences: none beyond the record.
+References: #193, #188, [ACR-0021](../architecture/changes/ACR-0021-ui-insights-v2.md).
+
+## 2026-10-20 — ACR-0024 (hypotheses and cause ranking) and ACR-0025 (live dependency graph) proposed
+
+Type: decision proposal
+Who: juanbetancurm (+ agent)
+Context: the next-phase plan had areas B (dependency graph with live checks), C (reasoning and cause ranking), G
+(memory and feedback) and F (external knowledge). #170 kept the remediation, access, terminal and autonomous
+investigation parts and called B and C "separate tracks", but no ACR or task file recorded them, so they dropped out
+of the backlog. The incident answer still returns `"hypotheses": []`, and five built reads are offered to no class.
+Decision / result:
+- [ACR-0024](../architecture/changes/ACR-0024-hypotheses-and-cause-ranking.md) (`proposed`, second approval:
+  evidence integrity): hypotheses with evidence for and against in the decisions, checked by the harness (a supported
+  cause needs an observation of its own target); a support score computed in code from configured weights, never a
+  percentage, never changing the conclusion; an insert-only `incident_hypothesis` table (a new migration); the
+  incident answer fills `hypotheses`; `analysis.anomaly_summary`; evaluation labels and the hard check
+  `unsupported_root_cause`.
+- [ACR-0025](../architecture/changes/ACR-0025-live-dependency-graph.md) (`proposed`, no safety principle): the
+  scheduler records link-state transitions from the probes the exporter already runs (insert-only `link_event`,
+  a new migration); the map gets `since` and `required`, the incident charts get link events, and a Level 2 read
+  `network.link_states` gives them to the investigation. No new target traffic.
+- Tasks: [T-0046](../tasks/current/T-0046-live-dependency-graph.md) (B),
+  [T-0047](../tasks/current/T-0047-hypotheses-cause-ranking.md) (C; the built reads, which EVAL-offers found change little
+  when offered alone, are measured again with hypotheses in H4), [T-0048](../tasks/current/T-0048-incident-feedback.md) (G, waits for
+  ACR-0018). F stays in ACR-0022 §3.4–3.5. NEXT-PHASE links them.
+Consequences: no code before acceptance.
+References: #170, [NEXT-PHASE](../tasks/current/NEXT-PHASE-supervised-remediation.md).
+
+## 2026-10-20 — Phase 15 foundations: OP-015 and OP-016 fixed, the action path protected
+
+Type: implementation
+Who: conantkd (+ agent)
+Context: phase 15 of the [NEXT-PHASE plan](../tasks/current/NEXT-PHASE-supervised-remediation.md) (#170 merged):
+fix OP-015 and OP-016, and extend `SELF_MERGE_PROTECTED` before anything can act. Three items, one pull request.
+Decision / result:
+- **OP-015 fixed:** ARCHITECTURE §14 says the approval and action machinery is **designed, not built** (1.8.21); the
+  plan's phase 9 and its "Escalation / approval" exit line no longer list HITL against a fake endpoint (phase 18).
+- **OP-016 fixed:** `policies/SECURITY.md` lists "Each developer's Argus password (one account per person, no
+  shared login)" instead of a shared team password. The read-only `principal` query on vm-095 (run by conantkd)
+  shows five personal `human` principals, two of them disabled (`conantkd-viewer`, `olav`); no shared account.
+- **`SELF_MERGE_PROTECTED`** gains the action path before it exists: `config/actions/`, `config/risk.yaml`,
+  `config/ranking.yaml` (ACR-0024), `argus/capabilities/write_contract.py`, and the reserved names `argus/actions/`
+  (the dispatch module) and `services/action-gateway/`. `REVIEW_PROTOCOL.md` lists them; `tests/brain` covers each.
+- The NEXT-PHASE status says the plan is approved (its ACRs are still `proposed`).
+Consequences: the first PR that builds the dispatch module or the gateway uses those names, or updates the list in
+the same PR. Nothing left for OP-015 or OP-016.
+References: [OPEN_PROBLEMS](../OPEN_PROBLEMS.md) OP-015, OP-016; ACR-0019; #170.
+
+## 2026-10-20 — OP-002 reviewed: the eight P0 gaps against ARCHITECTURE 1.8.20 and the code
+
+Type: review
+Who: conantkd (+ agent)
+Context: OP-002 (open since 2026-09-30) held a first, unverified assessment of the library's eight P0 gaps. Phase 17
+and the NEXT-PHASE ACRs depend on several of them.
+Decision / result: every gap checked against the text, the code on `main` and the proposed ACRs (table in
+OPEN_PROBLEMS OP-002):
+- **G-008 closed:** tools come only from the catalog; runbook text never offers one; the standing write-gate test.
+- **G-002, G-004 assigned to ACR-0019** (action-card preconditions with a minimal interpreter; the frozen proposal
+  and its preview in the digest).
+- **G-005:** ACR-0019 gives each card a verify window but no provisional/final recovery; asked as an addition in its
+  review.
+- **G-001, G-003, G-007 built but not in the text** (the code calls them "lab additions"): the policy profile, the
+  observation provenance fields, "unknown is never healthy". One small ACR writes them down. `config/policy.yaml`
+  says `profile: production` on the lab, which matters once ACR-0018 ties separation of duties to the profile.
+- **G-006 open:** redaction exists, field allowlists do not; its own ACR after ACR-0026.
+Consequences: OP-002 stays open with an owner per gap. Next: the ACR for G-001, G-003 and G-007.
+References: [OPEN_PROBLEMS](../OPEN_PROBLEMS.md) OP-002, [ACR-0019](../architecture/changes/ACR-0019-human-approved-remediation.md),
+[ACR-0018](../architecture/changes/ACR-0018-operator-access-and-audit.md).
+
+## 2026-10-20 — PR #212 self-merged while behind main; main-guard red, recorded as an exception
+
+Type: incident
+Who: conantkd (+ agent)
+Context: #212 (the OP-002 review, documentation only, no protected path) was self-merged once its CI was green.
+`juanbetancurm` merged #207 while that CI ran, so #212 was one push behind main at its merge, which breaks condition
+3 of the self-merge rule. `main-guard` on `fb3b28b` went red: "the branch was not up to date with main when it was
+merged".
+Decision / result: the content is unaffected (#207 does not touch the OP-002 section; the merged diff is the same
+two files). Per REVIEW_PROTOCOL ("If `main-guard` is red"), this pull request adds a `retroactive` line to
+`policies/main-exceptions.txt` and asks a teammate to review #212's content with it.
+Cause: the agent ran the up-to-date check, the self-review comment and the merge in one shell command, and the merge
+ran although the check printed nothing. From now on the up-to-date check gates the merge (`&&`), and it is re-run
+right before the merge, not before the CI wait.
+Consequences: `main-guard` turns green again when this merges with a teammate's approval.
+References: [REVIEW_PROTOCOL](../agents/REVIEW_PROTOCOL.md) self-merge rule, condition 3; PR #212, #207.
+
+## 2026-10-20 — OP-014 steps 4 and 7: coverage on changed lines; workflow, image and script linting (Trivy included)
+
+Type: implementation
+Who: conantkd (+ agent)
+Context: phase 15 of the [NEXT-PHASE plan](../tasks/current/NEXT-PHASE-supervised-remediation.md): the gates of
+OP-014 before anything can act. Step 4 had paused because the full suite under coverage ran out of memory on a laptop;
+step 7 had only pinned the actions.
+Decision / result:
+- **Step 4 (Python):** the `test` job runs the suite under `pytest-cov` (`argus/`, `services/`), and `diff-cover`
+  fails a PR whose changed lines there are under 80 % covered, against `origin/main`. CI only. Vitest coverage waits
+  for OP-017.
+- **Step 7:** `zizmor` on the workflows (3 medium findings fixed: `persist-credentials: false` on every checkout),
+  `hadolint` on the four Dockerfiles (binary checked against its SHA-256; DL3008/DL3018 ignored with the reason in
+  `.hadolint.yaml`), `shellcheck -S warning` on `ops/*.sh`. One real finding fixed in `ops/db-backup.sh`
+  (`>&"$fd" 2>/dev/null` read as both streams, now `1>&"$fd"`); the rest annotated. Trivy 0.75.0's configuration
+  scan (the binary, never the action) at high and critical: its one finding, DS-0002 (root in the container) on the
+  target services and the tunnel, is an exception for those two files (`.trivyignore.yaml`, with the reason), since a
+  non-root user there is a VM change.
+- All are steps of the `test` job: `SELF_MERGE_CHECKS` is unchanged.
+Consequences: a PR that adds untested lines in `argus/` or `services/` now fails CI; a workflow, Dockerfile or ops
+script finding fails it too, and so does a new Dockerfile running as root. Left in OP-014: the target services and
+the tunnel as non-root (step 7, a VM change), the weekly model evaluation (step 8), Vitest coverage.
+References: [OPEN_PROBLEMS](../OPEN_PROBLEMS.md) OP-014, OP-017.
+
+## 2026-10-20 — T-0047: what is measured of the built reads, as recorded
+
+Type: documentation
+Who: juanbetancurm (+ agent)
+Context: conantkd's approval of #202 noted that T-0047 "Before H1" credited EVAL-offers with all five built reads.
+EVAL-offers measured `cpu_history`, `disk_history`, `request_path`, `search_logs` and `baseline`; `diagnostic_snapshot`
+was EVAL-snapshot (#121); `prior_incidents` was not measured.
+Decision / result: "Before H1" lists each measurement with its source and result; H4 names the reads it measures
+again, `prior_incidents` only once the replay store holds recorded incidents. No step changes.
+Consequences: none beyond the record.
+References: #202, #121, [logbook](logbook.md) 2026-10-19 EVAL-offers, 2026-10-13 EVAL-snapshot.
+
+## 2026-10-20 — ACR-0025 accepted: link-state transitions recorded and used by the map, the charts and the investigation
+
+Type: decision
+Who: juanbetancurm (+ agent); accepted by the approval of `task/ACR-0025-accepted`
+Context: ACR-0025 (area B of the next-phase plan, a live dependency graph) was proposed in #202. `conantkd`'s review
+asked for eight changes; with them made, he approved the text as recorded, and both ACRs stayed `proposed`.
+Decision / result:
+- **Accepted as written:** the scheduler records link-state transitions from the probes the exporter already runs
+  (`link_event`, insert-only, the next free migration), skipping a host whose Prometheus cannot be read; host-kind
+  dependencies are never probed; the map gets `since` and `required` and a `dependency_broken` problem; the incident
+  charts get link events; `network.link_states` is a Level 2 read with its own tag, offered to no class until an
+  evaluation batch and a teammate's review.
+- No safety principle touched (ACR-0025 §4): one teammate's approval.
+Consequences: T-0046 is `ready`. L1 (the link rules in one place and the inventory mapping) applies the ACR to
+`ARCHITECTURE.md` with its first code.
+References: [ACR-0025](../architecture/changes/ACR-0025-live-dependency-graph.md),
+[T-0046](../tasks/current/T-0046-live-dependency-graph.md), #202.
+
+## 2026-10-20 — ACR-0024 accepted: explicit hypotheses and a transparent cause ranking
+
+Type: decision
+Who: juanbetancurm (+ agent); accepted by the two approvals of `task/ACR-0024-accepted`
+Context: ACR-0024 (area C of the next-phase plan, reasoning and cause ranking) was proposed in #202. `conantkd`'s
+review asked for changes; with them made, he approved the text as recorded, and both ACRs stayed `proposed`. It
+touches evidence integrity, so it needs a second approval.
+Decision / result:
+- **Accepted as written:** `conclude`, `escalate` and `use_read_tools` carry up to five hypotheses, each with a
+  status and evidence for and against; the harness checks every cited id, a supported cause's own-target evidence and
+  the chosen cause (log-only first); a support score from `config/ranking.yaml` (protected) that never changes the
+  conclusion; `incident_hypothesis` (insert-only, the next free migration); the incident answer's `hypotheses`;
+  `analysis.anomaly_summary`; evaluation labels and the hard check `unsupported_root_cause` = 0.
+- Two approvals: one teammate's, plus a second for evidence integrity.
+Consequences: T-0047 is `ready`. H1 (the hypothesis format and the checks, log-only) applies the ACR to
+`ARCHITECTURE.md` with its first code.
+References: [ACR-0024](../architecture/changes/ACR-0024-hypotheses-and-cause-ranking.md),
+[T-0047](../tasks/current/T-0047-hypotheses-cause-ranking.md), #202.
+
+## 2026-10-20 — ACR-0027: the policy profile, observation provenance and "unknown is never healthy" written down
+
+Type: architecture
+Who: conantkd (+ agent)
+Context: the OP-002 review (#212) found three gaps the code already closes as "lab additions" but the architecture
+never states: G-001 (the policy profile), G-003 (observation provenance), G-007 (missing data is never healthy).
+Decision / result:
+- [ACR-0027](../architecture/changes/ACR-0027-built-gaps.md) proposed and applied (ARCHITECTURE 1.8.23): §13.1
+  states `profile: lab | production`, required, fail closed; §5.4 and §12.3 replace `observed_at` with `source_time`
+  and `collected_at` and add `units`, `partial`, `coverage`, `identities`; §10's `<evidence>` tag says `source_time`
+  as the runner writes it; §12.3 gains the rule "unknown is never healthy", and `MetricSnapshot` allows `None`.
+- No code change. `tests/test_acr0027_built_gaps.py` pins the text to the code.
+- `config/policy.yaml` keeps `profile: production`: the profile changes nothing yet; which profile the lab runs is
+  decided in phase 16's ACR-0018 pull request, where separation of duties starts to depend on it.
+Consequences: when this merges, G-001, G-003 and G-007 of OP-002 are closed; G-005 and G-006 remain.
+References: [OPEN_PROBLEMS](../OPEN_PROBLEMS.md) OP-002, [ACR-0018](../architecture/changes/ACR-0018-operator-access-and-audit.md).
+
+## 2026-10-20 — ACR-0018 accepted: mTLS private path, who holds which permission, the off-host store
+
+Type: decision
+Who: conantkd (+ agent); accepted by the two approvals of `task/ACR-0018-accepted`
+Context: ACR-0018 (operator access and audit, proposed in #170) is the precondition of phase 16 and of ACR-0019 and
+ACR-0020: neither may be built before it is applied and deployed. Three of the NEXT-PHASE open decisions belong to it.
+Decision / result:
+- **§3 accepted as written:** WebAuthn second factor and step-up, server-side sessions checked by `jti`, EdDSA token
+  signing, explicit per-route permissions, separation of duties, a persisted login limiter, the audit hash chain with
+  a signed daily digest off Host A, the private path for privileged routes, security alerts.
+- **Private path (decision 2):** mTLS client certificates plus an address allowlist on the existing `tcp/443` edge;
+  privileged locations answer 404 without both. No VPN: `wg0` belongs to the protected deployment.
+- **Permissions (decision 3):** `approve_action` and `place_hold` for `conantkd`, `juanbetancurm`, `juanes6554`;
+  `admin` for `conantkd` and `juanbetancurm` (a WebAuthn recovery is done by another administrator);
+  `open_terminal:<host>` for nobody until ACR-0020 decides. Separation of duties enforced in production; in the lab a
+  self-approval is allowed, recorded and counted.
+- **Off-host store (decision 7):** a versioned bucket with a retention lock and a put-only credential, outside both
+  VMs; digests 1 year, recordings 90 days. The provider is chosen when phase 16 is deployed; without it the digest
+  job fails closed.
+- It merges only with both approvals (one teammate's, plus a second for least privilege, secrets and evidence
+  integrity).
+Consequences: phase 16 may start once this merges: it applies ACR-0018 (ARCHITECTURE, `policies/SECURITY.md`,
+`policies/NETWORK.md`) with its first code in one pull request. The client CA and the bucket are new secrets and
+infrastructure, created with a lease and `code.bash`.
+References: [ACR-0018](../architecture/changes/ACR-0018-operator-access-and-audit.md),
+[NEXT-PHASE](../tasks/current/NEXT-PHASE-supervised-remediation.md) open decisions 2, 3, 7, [OPEN_PROBLEMS](../OPEN_PROBLEMS.md) OP-016.
+
+## 2026-10-20 — ACR-0026: one scheme of safety classes (OP-003)
+
+Type: architecture
+Who: conantkd (+ agent)
+Context: OP-003 (open since 2026-09-30): §12.3 describes capabilities with `risk: low…very_high`, the code with a
+two-value `safety_class`, the runbooks with the library's five classes. Phase 17 (`config/risk.yaml`, the action
+cards) needs one answer first.
+Decision / result:
+- [ACR-0026](../architecture/changes/ACR-0026-safety-classes.md) proposed and applied (ARCHITECTURE 1.8.22,
+  §12.3 and §13.1): five classes, `READ_ONLY_SAFE`, `READ_ONLY_SENSITIVE`, `MUTATING_LOW_RISK`,
+  `MUTATING_HIGH_RISK`, `FORBIDDEN`; `risk` is gone; `permission` and `side_effect` derive from the class;
+  `FORBIDDEN` is never registered; the colour per target (ACR-0019) may only raise the class's minimum.
+- Found while mapping: `container.detailed_logs` and `container.search_logs` returned log lines as
+  `READ_ONLY_SAFE`, unlike `container.logs`. In review (`juanbetancurm`): `analysis.diagnostic_snapshot` carries
+  `container.logs` lines, and `host.directory_sizes` returns names found on the host. All four are now
+  `READ_ONLY_SENSITIVE`, and a combined read is as sensitive as its most sensitive sub-read (declared in `SUBREADS`,
+  tested against the reads it makes). No runtime change (the lab profile allows both read classes).
+- `tests/test_acr0026_safety_classes.py`: the registry follows the scheme; red seen on the old catalog.
+- Needs a second approval (read-only).
+Consequences: OP-003 is in progress. Left: the runbooks' "Safety class" column (54 rows in 19 runbooks differ from
+the catalog) rewritten from it with a test; G-006's field allowlists for the sensitive reads; phase 17 adds the
+`MUTATING_*` values to the code.
+References: [OPEN_PROBLEMS](../OPEN_PROBLEMS.md) OP-003, OP-002 (G-006), [ACR-0019](../architecture/changes/ACR-0019-human-approved-remediation.md) §3.7.
+
+## 2026-10-21 — DEPLOY-215: vm-095 to main b2e3548 (#203, #208's ops scripts)
+
+Type: deployment
+Who: conantkd (+ agent, over ssh)
+Context: since DEPLOY-B7 (999b5bb), main gained #203 (a failed baseline read is not kept) and #208 (CI gates; a
+`db-backup.sh` fix and shellcheck annotations in `ops/`); the rest is CI, Brain and tests.
+Decision / result: vm-095 runs `main` `b2e3548`; agent, worker and scheduler rebuilt on one image; no migration
+(008 stays the newest); 26/26 database checks, 55/55, write gate closed, `NO INTERFERENCE` on both VMs; the new
+`db-backup.sh` made a good backup. vm-166 stays on `bdcd048`. Evidence:
+[DEPLOY-215](../execution/history/DEPLOY-215/step-01/evidence.md).
+Consequences: `deploy.sh` records the deploy event itself now; the code.bash recorded it a second time (two rows
+for this deploy). Later deploy steps drop the manual `argus deploy record`.
+References: #203, #208, [DEPLOY-B7](../execution/history/DEPLOY-B7/step-01/evidence.md).
+
+## 2026-10-21 — T-0046 L1: one link-state rule, `{ref, port, required}` dependencies, ACR-0025 applied (1.8.24)
+
+Type: implementation
+Who: juanbetancurm (+ agent)
+Context: ACR-0025 (a live dependency graph) was accepted in #214. L1 is its first step: the rule that turns a probe
+sample into a link state moves to one place, so the topology and the transitions recorded in L3 never disagree, and
+an inventory dependency can name its port and whether it is required.
+Decision / result:
+- `application/links.py`: `link_state(sample, port, warn_ms)`, moved out of `topology.py` unchanged; the topology
+  tests stay green.
+- `depends_on` accepts `{ref, port, required}` beside a plain ref (`DependencyLink` on `TargetInfo.links`). The loader
+  refuses a port the dependency does not list, a `port` on a host ref, a dependency on another host and any other
+  key. A plain ref and the same mapping give the same edge.
+- Found while applying: `ops/render_target_config.py` builds the exporter's probe list from `depends_on` too, so it
+  follows the mapping (a declared port is the only one probed); the rendered config for today's inventory is
+  unchanged, and a test keeps it equal to the committed files. And a host dependency is drawn `unknown` ("declared
+  dependency"), not `not_checked` as ACR-0025 §3.1 says; ARCHITECTURE says what the code does.
+- ARCHITECTURE 1.8.24 describes the whole accepted change (§5.8, §7.1, §7.3, §12.2, §16.1); what later steps build is
+  marked with its step (L2 to L4).
+Consequences: `config/inventory.yaml` is unchanged; giving a link `required: false` or a port is an inventory change
+of its own. Next: L2, `link_event` and its stores.
+References: [ACR-0025](../architecture/changes/ACR-0025-live-dependency-graph.md),
+[T-0046](../tasks/current/T-0046-live-dependency-graph.md), #214.
+
+## 2026-10-21 — ACR-0028 proposed: field allowlists for the sensitive reads (OP-002 G-006)
+
+Type: architecture
+Who: conantkd (+ agent)
+Context: OP-002 G-006 (data minimization) was the last gap without an owner. A read's `values` are, in 34 of 49
+results, the gateway's JSON answer as it came; the dispatcher redacts patterns and declared literals but keeps every
+field, and the model sees the values in each `<evidence>` tag. The gateways minimise at the source, with no check on
+Argus's side.
+Decision / result: [ACR-0028](../architecture/changes/ACR-0028-field-allowlists.md) proposed: `allowed_fields` on
+`CapabilitySpec`, required for every `READ_ONLY_SENSITIVE` read (13 today, after ACR-0026); the dispatcher keeps only
+the declared paths before redaction, truncation and storage, and audits the names of the dropped keys; a canary test
+per sensitive read. The initial lists come from the gateways' answers on `main`. Rejected: a deny list (fails open),
+typed answer models (a new gateway field would turn into a failed read).
+Consequences: one implementation PR after ACR-0026 merges; agent image only. Needs a second approval (secrets,
+evidence integrity).
+References: [OPEN_PROBLEMS](../OPEN_PROBLEMS.md) OP-002, ACR-0026 (#210).
+
+## 2026-10-21 — T-0046 L2: `link_event` (migration 009), insert-only, on both stores
+
+Type: implementation
+Who: juanbetancurm (+ agent)
+Context: ACR-0025 §3.2. L3's scheduler records link-state transitions, and L4's map and charts read them; both need a
+table first. Built on L1 (#219).
+Decision / result:
+- Migration `009_link_event.sql`: `owner`, `dependency`, `state` (only `ok`, `slow`, `broken`, `unknown`: a table
+  check), `latency_ms`, `reason`, `at`; indexed by owner and by dependency. The runtime role gets SELECT and INSERT
+  only, as for `deploy_event`.
+- `add_link_event` and `link_events(target, start, end)` (the links a target owns or is the dependency of, oldest
+  first) on the Postgres and SQLite stores; SQLite refuses UPDATE and DELETE with triggers.
+- `argus db check` gains three checks: an insert that must succeed first, then UPDATE and DELETE refused.
+Consequences: deploying this needs `db-migrate.sh` (009) before the new image. Nothing writes the table until L3.
+References: [ACR-0025](../architecture/changes/ACR-0025-live-dependency-graph.md),
+[T-0046](../tasks/current/T-0046-live-dependency-graph.md), #219.
+
+## 2026-10-21 — T-0046 L1 follow-ups; `host.read_file` raised on every successful read
+
+Type: implementation
+Who: conantkd (+ agent)
+Context: conantkd's review of #219 (T-0046 L1) left two non-blocking notes.
+Decision / result:
+- The inventory loader refuses a `depends_on` that names the same dependency twice (as a plain ref or with another
+  port): `TargetInfo.link()` would keep the first one silently and the map would draw two edges on one port. Red seen
+  on the old loader (`tests/test_t0046_l1_links.py`, two new cases).
+- `trace_request_path`'s docstring: a dependency on another host is refused by the inventory (ACR-0025); the branch
+  that lists one stays as a guard (`test_t0040` feeds one directly).
+- **Found while writing ACR-0028's canary test:** `host_read_file` passed `truncated=` to `CapabilityResult`, which
+  has no such field, so every successful `host.read_file` raised `TypeError`. The gateway's tests never ran the Argus
+  side. It is offered to no class today, so it never fired on the VMs. Now "more lines before" is `partial` with a
+  `coverage`, and `tests/test_t0019_batch3b_host_verbs.py` runs the capability (red seen).
+Consequences: none for today's inventory (no repeated dependency; it still loads and renders the same).
+References: #219, ACR-0025.
+
+## 2026-10-21 — DEPLOY-NIGHT: vm-095 to main 024aa6f (migration 009); OP-004 and OP-008 previewed
+
+Type: deployment
+Who: conantkd (+ agent, unattended night session, over ssh)
+Context: main gained migration 009 `link_event` (#220), T-0046 L1 (#219) and #221 since DEPLOY-215.
+Decision / result: vm-095 runs `main` `024aa6f`; `+ 009_link_event applied`; agent, worker and scheduler on one
+image; 29/29 database checks, 55/55, write gate closed, `NO INTERFERENCE` on both VMs; the deploy event recorded once
+(the manual `argus deploy record` is gone from the code.bash). vm-166 stays on `bdcd048`. Previews only: OP-004 finds
+no checkpoint past 30 days; OP-008 would remove 13 backup sets, none removed (a deletion is a stop condition).
+Evidence: [DEPLOY-NIGHT](../execution/history/DEPLOY-NIGHT/step-01/evidence.md).
+Consequences: OP-004 and OP-008 wait only for the team's decision on their timers; the backup prune is conantkd's call.
+References: #219, #220, #221, OP-004, OP-008.
+
+## 2026-10-21 — Unattended night session: what merged, what waits, what was found
+
+Type: summary
+Who: conantkd's agent, unattended (22:45 to 04:00 local, UTC-5), at conantkd's request: "avanzar en las fases de
+implementación… pocos PR… al final sacar todos los que se puedan via selfmerge… correr una última vez todo".
+Context: the plan was four pull requests (small fixes, ACR-0028 applied, phase 16 step 1, the night's records), a
+deploy of main, and a final check of main, the VMs and #210.
+Decision / result:
+- **Reviewed and merged first (asked):** #220 (T-0046 L2, `link_event`, migration 009), conantkd's approval.
+- **Self-merged:** #221 (one link per dependency; `host.read_file` raised `TypeError` on every successful read, found
+  by the ACR-0028 canary test); this records pull request.
+- **Deployed:** vm-095 to `024aa6f` with migration 009 ([DEPLOY-NIGHT](../execution/history/DEPLOY-NIGHT/step-01/evidence.md)):
+  29/29 database checks, 55/55, write gate closed, `NO INTERFERENCE` on both VMs. OP-004 and OP-008 previewed only
+  (13 backup sets would be pruned; nothing deleted: a stop condition).
+- **Waiting for a teammate (protected paths):** #222 (ACR-0028 applied, 1.8.25), #223 (phase 16 step 1: sessions,
+  revocation, persisted login limiter, permissions, the audit hash chain with a scheduled check, EdDSA; 1.8.26,
+  migrations 010 and 011), #210 (ACR-0026: approved on an earlier push; a hand-resolved merge needs a re-approval).
+- **Found and fixed on the way:** a key-like literal in a database check tripped gitleaks on every PR's CI (the scan
+  covers all fetched branches), replaced by `md5('dbcheck')`; two existing UI tests followed the intended changes.
+  **A mistake of mine, caught before any merge:** squashing #223 with `git reset --soft origin/main` after #221 had
+  merged made its single commit revert #221 (the read_file fix, its tests, its journal); restored, and every PR's
+  diff against main re-checked file by file.
+  A flaky property test on main (`test_op014_property_based`: a URL user named `passwd` is masked by the key rule,
+  in another form; no leak) failed #223's CI once; fixed in #223.
+- **Not done, and why:** the `compare_baseline` evaluation for `container_restart_loop` (T-0047; needs constructed
+  earlier-window fixtures and OpenAI spend not approved for tonight); phase 16 steps 3 to 5 (WebAuthn needs a library
+  choice and the UI; the private path, the off-host store and the alert receiver need team decisions). The plan for
+  them is [PHASE-16](../tasks/current/PHASE-16-operator-access.md).
+Consequences: next for conantkd: approvals of #222 / #223 / #210 from `juanbetancurm`; then the prepared deploy of
+phase 16 step 1 ([code.bash](../execution/history/PHASE-16/step-01/code.bash)); the backup prune is conantkd's call.
+References: #210, #220, #221, #222, #223, ACR-0018, ACR-0028, OP-004, OP-008.
+
+## 2026-10-21 — Softened: any team member's approval is the second approval for a safety-principle change
+
+Type: decision
+Who: conantkd (proposed), juanbetancurm (approved) (+ agent)
+Context: a safety-principle change needs an ACR with a second approval (AGENT_PROTOCOL §4, SECURITY.md). ACR-0018 and
+ACR-0024 read that as two teammates other than the author approving the same pull request, and ACR-0012 recorded the
+same person approving twice as a conscious deviation. conantkd proposed on #209 to soften it.
+Decision / result:
+- Agreed: any team member's approval counts as the second approval, the author's included, and one person may give
+  both approvals (accepting the ACR and approving the pull request); that is no longer a deviation.
+- Unchanged: a safety-principle change still needs an ACR, and every protected path (every ACR is under
+  `brain/architecture/`) still needs a teammate's approval on the last push (REVIEW_PROTOCOL).
+- AGENT_PROTOCOL §4, REVIEW_PROTOCOL (checklist and protected paths), SECURITY.md and ACR-TEMPLATE.md say so.
+Consequences: ACR-0012, #209 (ACR-0018), #215 (ACR-0024) and #218 (ACR-0028) meet the softened rule; #222 rewrites
+the ACR-0018 and ACR-0024 tables to match.
+References: [AGENT_PROTOCOL §4](../agents/AGENT_PROTOCOL.md), #209, #215, #218, #222.
+
+## 2026-10-21 — ACR-0028 applied: the sensitive reads keep only their declared fields (OP-002 G-006)
+
+Type: implementation
+Who: conantkd (+ agent)
+Context: ACR-0028 (accepted in #218) asks every `READ_ONLY_SENSITIVE` read to declare the value paths it keeps, and
+the dispatcher to drop the rest before redaction and storage.
+Decision / result:
+- `CapabilitySpec.allowed_fields`; the 13 lists in `ALLOWED_FIELDS` (`argus/capabilities/catalog.py`), read from the
+  gateways' answers; the catalog refuses a sensitive read without one, a malformed path, or a list naming no read.
+- `argus/domain/minimize.py`: the rule ("a", "a[].b", "a.b"). `Dispatcher.call` and a combined read
+  (`InvokeCapability._combined`) apply it; the dropped names go to the `tool.completed` audit detail
+  (`dropped_fields`), never to the evidence.
+- `tests/test_acr0028_field_allowlists.py`: the rule, the registry checks, and a canary per sensitive read through the
+  real dispatcher (a marker at the top, in each row and each object never reaches the values or the model's text).
+  The full suite stays green with the lists on, which shows they hold every field a read uses.
+- ARCHITECTURE 1.8.25 (§5.4, §12.3, §17.1 layer 4).
+- **Correction:** ACR-0018 and ACR-0024 said they "merge only with two approvals". AGENT_PROTOCOL §4 asks for the
+  developer's acceptance and one more team member's approval; their tables now record the one approval each got.
+Consequences: OP-002 G-006 is closed when this merges and deploys (agent image only). The canary found that
+`host.read_file` raised on every successful read (fixed in #221).
+References: [ACR-0028](../architecture/changes/ACR-0028-field-allowlists.md), [OPEN_PROBLEMS](../OPEN_PROBLEMS.md) OP-002.
+
+## 2026-10-21 — T-0046 L3: the scheduler records link-state changes (off until deployed)
+
+Type: implementation
+Who: juanbetancurm (+ agent)
+Context: ACR-0025 §3.1. L2 (#220) added `link_event`; nothing wrote it. ARCHITECTURE §7.3 already describes this step
+(1.8.24), so no architecture change.
+Decision / result:
+- `application/link_transitions.py` (`LinkTransitions`): for every container owner with a declared container
+  dependency on its own host, read `dependency_probes(owner)` and derive each link's state with `application/links.py`
+  and the owner's `link_warning_ms`. A row and an audit event `link.changed` (actor `scheduler`, the previous and the
+  new state) only when the state changes, and once when the process starts. A broken link's reason is the map's.
+- A host whose Prometheus cannot be read (`MetricsUnavailable`) is skipped for the tick: no `unknown` burst and no
+  recovery burst. A stale read is `unknown`. A host-kind dependency is never probed or recorded.
+- `reconcile_firing_alerts.link_states.enabled` in `deploy/scheduler/schedules.yaml`, shipped `false`; refused when the
+  reconcile itself is off (it runs on that tick). The scheduler runs it after the alert reconciliation; its failure is
+  logged and never stops the alerts.
+- Not recorded: the topology's fallback for an owner whose exporter has no per-dependency samples (it shows the
+  owner's `dependency_probe_min`); without a per-dependency sample the recorder writes `unknown`.
+Consequences: no deploy change while it stays off; L5 turns it on on vm-095 (migration 009 is already applied there).
+Next: L4, the map, the charts and the investigation read the table.
+References: [ACR-0025](../architecture/changes/ACR-0025-live-dependency-graph.md),
+[T-0046](../tasks/current/T-0046-live-dependency-graph.md), #220.
+
+## 2026-10-21 — Phase 16 step 1 (ACR-0018): sessions, revocation, a persisted login limiter, permissions
+
+Type: implementation
+Who: conantkd (+ agent, unattended night session)
+Context: ACR-0018 (accepted in #209) is the precondition of phase 16 and of ACR-0019 / ACR-0020. Its parts that need
+no infrastructure decision come first; WebAuthn, step-up, the audit chain and the private path follow.
+Decision / result:
+- **Sessions:** every token's `jti` is a row in `auth_session` (migration 010); every request checks it (missing,
+  another principal's, or revoked: 401). `POST /api/v1/auth/logout` (allowed to read and investigate tokens too);
+  also routed by the public edge (nginx, `contracts/ui-api.json`), and the UI's sign-out calls it before forgetting
+  the token (`frontend/src/services/httpAuthAdapter.js`, best effort), so a UI's logout ends the session on the server;
+  `argus user add|disable` end a principal's open sessions; `argus session revoke <name> --as <who>` (audited
+  `access.sessions_revoked`). The runtime role may set only a session's revocation columns and never deletes one
+  (column-level grant; a SQLite trigger in the lab store). A token from before this deploy has no session: one new
+  login.
+- A correctly signed token whose session is revoked, missing or another principal's is audited as
+  `security.session_refused` (a stolen token used after logout shows up); a badly signed one writes nothing.
+- A successful login is audited (`access.login`, never the token): until now only failures were.
+- **Login limiter** kept in Postgres (`login_failure`): a restart keeps a lockout; each new failure prunes the rows past
+  the window (a success clears only its user's). `auth_session` keeps a row per login (small; its owner-run retention is a
+  follow-up, like OP-004).
+- **Permissions:** routes check `view`, `view_evidence` or `investigate`; roles are bundles; `/me` lists them
+  (`contracts/samples/me.json`, `docs/API-FOR-UI.md`). Only built routes' permissions exist.
+- **Audit hash chain** (migration 011): each audit row carries `prev_hash` and `hash`; Postgres writes one row at a
+  time under an advisory lock, so the agent, worker and scheduler never fork the chain; `argus audit verify` names
+  the first row edited, removed or inserted outside the store. Rows from before 011 are counted, not chained. One
+  continuous chain instead of the per-day chain of ACR-0018 §3 (recorded in its §6).
+  The scheduler verifies it at start and daily (`audit_chain` in `schedules.yaml`) and records a `security` event;
+  the alert on a broken chain waits for the team's alert route (none exists: Argus only reads its Alertmanager).
+- **EdDSA tokens:** with an Ed25519 key in the secret `jwt_ed25519_key` the API signs and accepts EdDSA only (an
+  HS256 token, even one signed with the old key and a live session, is 401); without it, HS256 as before.
+  `PyJWT[crypto]`; `policies/SECURITY.md` names the secret. The lab switches in a deploy step.
+- **The authorization matrix** (`tests/test_acr0018_authz_matrix.py`): every route × role × token kind against a
+  declared table; a new route without a declared permission fails CI (part of phase 16's exit proof).
+- `argus db check` gains six checks for 010 (insert first, then the refusals). Tests:
+  `tests/test_acr0018_sessions.py`, `tests/test_postgres.py`.
+- ARCHITECTURE 1.8.26 (§7.1, §16.1, §17.1 layer 1, §17.3); ACR-0018 §6 records step 1 and what is not built.
+Consequences: deploy = `db-migrate.sh` (010, 011) before the image; every open session must log in once. Next (step 2):
+WebAuthn and step-up, then the signed daily digest off Host A, then the private path.
+References: [ACR-0018](../architecture/changes/ACR-0018-operator-access-and-audit.md),
+[IMPLEMENTATION_PLAN](../IMPLEMENTATION_PLAN.md) phase 16.
+
+## 2026-10-21 — OP-017: React Router 7, so what ships in the UI image has no known advisory
+
+Type: implementation
+Who: conantkd (+ agent)
+Context: OP-017: `npm audit` reported two moderate React Router 6 advisories in the UI image (an open redirect through a
+backslash in `<Link>` / `useNavigate`; a constructor injection in SSR hydration, which the UI does not use).
+Decision / result:
+- `react-router-dom` `^6.26.0` to `^7.18.4` (released 2026-09-15); `package-lock.json` regenerated by `npm install`.
+- No code change: the UI uses only the classic API (`BrowserRouter`, `Routes`, `Route`, `Navigate`, `Outlet`, `Link`,
+  `NavLink` and the hooks), which 7 keeps.
+- Checked locally: ESLint (no errors), Vitest 131 passed, `vite build`, Playwright 21 passed with the read-only guard;
+  `npm audit --omit=dev`: 0 vulnerabilities.
+Consequences: the UI image needs a rebuild at the next deploy to ship it. The dev-tooling advisories (Vite 5, Vitest
+3) stay open in OP-017: their fixes are major upgrades, done together in their own pull request.
+References: [OP-017](../OPEN_PROBLEMS.md).
+
+## 2026-10-21 — T-0046 L4: the map, the incident charts and the investigation read the recorded link changes
+
+Type: implementation
+Who: juanbetancurm (+ agent)
+Context: ACR-0025 §3.3 to §3.5. L3 (#226) records each declared container link's state changes in `link_event`;
+nothing read them. ARCHITECTURE (1.8.24) already describes this step, so no architecture change.
+Decision / result:
+- The map: each dependency edge adds `required` and `since` (its last recorded transition, only when that state is
+  the state now; else `null`). A broken required link is a critical `dependency_broken` problem of its owner, except
+  when the owner is idle. The overlay of an incident re-judges a box with the same rule. New store read
+  `latest_link_events()` (Postgres `DISTINCT ON`, SQLite `MAX(id)`).
+- The incident charts: `link_broken`, `link_slow` and `link_recovered` events in the window, for the links of the
+  target and of its declared dependencies (same host). `link_recovered` is an `ok` after `broken` or `slow`, judged
+  with the state before the window (24 h back); an `ok` after nothing or `unknown`, and `unknown` itself, are no event.
+- `network.link_states` (`read_link_states`): Level 2, `READ_ONLY_SAFE`, in-worker (`argus_internal`), tag
+  `link_states`, which no class has; `max_per_incident: 2` in `config/policy.yaml`. Per link: the state now (the
+  recorder's own rule, `link_transitions.read_links`, on the latest probe), else the last recorded state, `since`,
+  and the transitions of the last `minutes` (≤ 240). An unreadable Prometheus gives a partial answer.
+- The recorder's per-link logic moved into `read_links`, shared by the recorder and the read.
+- `contracts/samples/topology*.json` and `docs/API-FOR-UI.md` show the new fields.
+Consequences: the map shows a new critical problem when a required link breaks, and the overview counts that owner
+as failed. Offering the read to classes is L6, after an evaluation batch. Next: L5, deploy and measure on vm-095.
+References: [ACR-0025](../architecture/changes/ACR-0025-live-dependency-graph.md),
+[T-0046](../tasks/current/T-0046-live-dependency-graph.md), #226.
+
+## 2026-10-21 — T-0047 H1: hypotheses on the decisions, the harness checks log-only, ACR-0024 applied (1.8.27)
+
+Type: implementation
+Who: juanbetancurm (+ agent)
+Context: ACR-0024 (hypotheses and a transparent cause ranking) was accepted in #215. H1 is its first step: a model
+strategy states the candidate causes it considered, and the harness checks them without refusing anything yet, so
+the evaluation (H4) can show whether enforcing the checks costs accuracy.
+Decision / result:
+- `domain/model.py`: `Hypothesis`; optional `hypotheses` on `Conclude`, `Escalate` and `UseReadTools`, `chosen` on
+  `Conclude`, and `hypothesis_problems` on the three.
+- `tooling/model_harness.py`: the `conclude` and `escalate` tools carry `hypotheses` (at most five, ids `h1`–`h5`,
+  the target an enum of the scope plus null) and `conclude` carries `chosen`; the system prompt says how to state
+  them. `check_hypotheses` and `check_conclusion` implement the §11.3 rows and return each would-be refusal as a
+  sentence; the decision stands. A hypothesis that fails its schema is dropped and reported.
+- Both runners audit `hypothesis.invalid` (category `decision`: step, decision, at most 10 problems) after the
+  decision's own audit.
+- Found while applying: the checks need to know what each cited evidence id is about, and `EvidenceRef` did not
+  say. It now carries the stored record's `target` and `kind` (set in `invoke_capability.py` and `runner.py`).
+- ARCHITECTURE 1.8.27 describes the whole accepted change; what later steps build is marked with its step (H2–H5).
+Consequences: deterministic strategies are untouched. A read step has no tool to carry its list, so
+`UseReadTools.hypotheses` stays empty until H2 gives the list a place in the context. A model conclusion without
+hypotheses is audited (`a conclusion without hypotheses`) but still concludes. Next: H2, storage and the ranking.
+References: [ACR-0024](../architecture/changes/ACR-0024-hypotheses-and-cause-ranking.md),
+[T-0047](../tasks/current/T-0047-hypotheses-cause-ranking.md), #215.
+
+## 2026-10-21 — DEPLOY-A4479DF: vm-095 to main a4479df (phase 16 step 1, migrations 010 and 011)
+
+Type: deploy
+Who: conantkd (+ agent)
+Context: main gained nine pull requests since DEPLOY-NIGHT (024aa6f): #210, #222, #223, #225, #226, #227, #228,
+#229. Phase 16 step 1 (#223) brings migrations 010 and 011.
+Decision / result:
+- vm-095 at `a4479df`: backup, deploy, migrations 010 and 011, agent, worker and scheduler on one image, UI image
+  rebuilt (React Router 7, the edge routes logout). 35/35 database checks, `AUDIT CHAIN OK`, the scheduler's chain
+  check verified, 55/55, `WRITE GATE CLOSED`, `NO INTERFERENCE` on both VMs. vm-166 unchanged (`bdcd048`).
+- ACR-0028 checked on real gateway answers: six sensitive reads `ok` through the worker's MCP tools process; the
+  declared paths keep the data; only the gateway's envelope (`host`, `role`) is dropped, and the attribution guard
+  reads `host` before minimization.
+Consequences: every UI session logs in once (pre-010 tokens have no session row). The audit chain starts after 3893
+unchained rows. EdDSA stays off until the key is installed (phase 16 step 2).
+Next: leave the gateway envelope out of `dropped_fields` (it hides a real new field in the audit); conantkd's logged-in
+check (D.3); T-0046 L5 turns `link_states` on.
+References: [evidence](../execution/history/DEPLOY-A4479DF/step-01/evidence.md), #223, #222.
+
+## 2026-10-21 — T-0046 L4 follow-up: a scheduler restart is not a link transition
+
+Type: implementation
+Who: juanbetancurm (+ agent)
+Context: reviewing #227, `conantkd` noted that the recorder writes every link's state once at startup (ARCHITECTURE
+§7.3), so each deploy repeated the states it already had: the map's `since` restarted at the deploy, and a link that
+stayed broken showed a second `link_broken` on the incident charts. He also noted that the two stores picked the
+latest row by different rules (Postgres by time then id, SQLite by id).
+Decision / result:
+- Fixed where the rows are read, not where they are written: the stores' `link_events` and `latest_link_events` skip
+  a row whose state is its link's previous state (a window `LAG` over time, then id), so the map, the charts and
+  `network.link_states` all read transitions only. The recorder keeps its startup row, as §7.3 says, so the table
+  still shows when a scheduler started; seeding the recorder from the table would have changed §7.3.
+- Both stores now order a link's rows by time, then id.
+- The L3 test that checks the startup row reads the table directly.
+Consequences: no architecture change; ARCHITECTURE §7.1 already defines `since` as the last recorded transition.
+References: [T-0046](../tasks/current/T-0046-live-dependency-graph.md), #227.
+
+## 2026-10-21 — The gateway envelope is not a dropped field; T-0046 L5 turns `link_states` on
+
+Type: implementation
+Who: conantkd (+ agent)
+Context: DEPLOY-A4479DF ran every sensitive read on real gateway answers: each dropped exactly `host` and `role`, the
+envelope the read gateway adds to every answer, so the audit's `dropped_fields` could never show a field the gateway
+grew. T-0046 L5 turns link recording on once the restart follow-up (#231) is merged.
+Decision / result:
+- `tooling/dispatch.py`: `GATEWAY_ENVELOPE` (`host`, `role`) is still dropped from a minimized read's values but no
+  longer named in `dropped_fields`. The attribution guard reads `host` before minimization, unchanged (test). Red
+  seen for the envelope test on the old code.
+- T-0046 L5: `reconcile_firing_alerts.link_states.enabled: true` in `deploy/scheduler/schedules.yaml`; the shipped-file
+  test now expects it on.
+- Dropped from this change: the same restart fix as #231 (started here without seeing it); #231's version filters in
+  the stores' reads and is the one kept.
+Consequences: the deploy rebuilds the agent image and restarts the scheduler; the first tick writes one row per
+declared link. L5's scenario runs (SC-03, SC-07) follow, with conantkd's go.
+References: [DEPLOY-A4479DF](../execution/history/DEPLOY-A4479DF/step-01/evidence.md), #222, #231,
+[T-0046](../tasks/current/T-0046-live-dependency-graph.md).
+
+## 2026-10-21 — main-guard: a 15-minute limit instead of 5
+
+Type: process
+Who: juanbetancurm (+ agent)
+Context: the `main-guard` run after #226 (main `f3d831c`) was cancelled at its 5-minute limit while `brain.py
+verify-main` waited on GitHub's API; nothing was red. `verify-main` asks GitHub about every merge on `main` (222
+first-parent commits today, several calls each), and the runs before took 3.5 to 4.5 minutes, so a slow API is enough
+to cross the limit. Run locally the same day, the same calls stalled at random and answered in a second when retried.
+Decision / result:
+- `.github/workflows/ci.yml`: `main-guard` gets `timeout-minutes: 15`. The rule it checks is unchanged.
+Consequences: a cancelled `main-guard` is still not a pass: it is re-run, and a merge waits for it to be green. The run
+time grows with every merge; if it nears 15 minutes, `verify-main` could check only the commits since the last green
+run, which changes the enforcement and needs its own review.
+References: [REVIEW_PROTOCOL](../agents/REVIEW_PROTOCOL.md), #226.
+
+## 2026-10-21 — A flaky overview test: incidents tied on their creation time
+
+Type: fix (tests only)
+Who: juanbetancurm (+ agent)
+Context: `test_t0045_b6_overview.py::test_open_incidents_are_counted_by_severity_and_the_worst_one_is_the_status`
+failed once in a full local run and passed alone. The stores sort incidents by the `opened_at` column, which is
+written at creation and never updated; the test created three incidents a moment apart and then changed `opened_at`
+only in their stored bodies. When the clock gave two of them the same creation time, the order was the insertion
+order (oldest first) and "newest first" failed. Forcing equal creation times reproduces it every time.
+Decision / result:
+- `tests/test_core.py`: `incident()` takes an optional `opened_at`, so a test can create an incident at its real time.
+- `tests/test_t0045_b6_overview.py`: `_inc` passes it instead of changing `opened_at` after the insert.
+Consequences: no product change; in Argus an incident's `opened_at` is set once, at creation.
+References: T-0045 B6 (`d6ba12a`).
+
+## 2026-10-21 — T-0046 L5: link recording is on in vm-095
+
+Type: deploy
+Who: conantkd (+ agent)
+Context: ACR-0025 §3.1. L3 built the recorder (off), L4 the readers, #231 made a restart's repeated row no transition,
+#234 turned `link_states` on.
+Decision / result:
+- vm-095 at `2324186` (no migration; agent image). The first tick recorded the 4 declared container links (`api →
+  cache` ok; three scenario owners not running: unknown), the next ticks nothing.
+- A deliberate scheduler restart wrote one row per link again and left `since` unchanged (18:13:04): #231 holds on
+  Postgres. 35/35, the audit chain OK, 55/55, `WRITE GATE CLOSED`, `NO INTERFERENCE` on both VMs.
+Consequences: the map's `since`, the chart events and `network.link_states` now read live data on vm-095.
+Next: SC-03 and SC-07 once each (lab scenarios; conantkd's go), then L6 offers the read to its classes after an
+evaluation batch and a teammate's review.
+References: [evidence](../execution/history/T-0046-L5/step-01/evidence.md), #231, #234.
+
+## 2026-10-21 — T-0046 L5: SC-03 and SC-07 with link recording on; SC-01 shows H1's hypotheses live
+
+Type: verification
+Who: conantkd (+ agent)
+Context: T-0046 L5 asks for SC-03 and SC-07 once each with `link_states` on. SC-01 added to see a model strategy's
+hypotheses (T-0047 H1, log-only); `dependency_unavailable` runs the deterministic baseline (D-003).
+Decision / result:
+- SC-03, SC-07 and SC-01 PASS (runner run by conantkd). SC-03 recorded `api → cache` broken (name not resolved) and
+  recovered, shown on the incident's chart. SC-07 left no link row: its fault lasted about 30 s, between two 60 s
+  ticks.
+- A row's time is the recorder's write time, not the probe sample's: SC-03's `broken` lands 10 s after the incident
+  opened, after the errors it caused.
+- SC-01: three hypotheses, `chosen` h1 matching the root cause, h2 ruled out, no `hypothesis.invalid`.
+Consequences: before L6 offers `network.link_states`, record the sample's time and decide the tick (or measure it in
+L6's evaluation batch). H4's labels: a hypothesis with evidence against it should be ruled out, not untested.
+References: [evidence](../execution/history/T-0046-L5/step-02/evidence.md),
+[T-0046](../tasks/current/T-0046-live-dependency-graph.md), [T-0047](../tasks/current/T-0047-hypotheses-cause-ranking.md).
+
+## 2026-10-21 — T-0047 H2: the hypotheses ranked, stored and carried to the next step (ARCHITECTURE 1.8.28)
+
+Type: implementation
+Who: juanbetancurm (+ agent)
+Context: H1 (#228) gave the decisions their hypotheses and the harness its log-only checks. H2 is ACR-0024 §3.3-§3.5:
+the score and the ranking, the `incident_hypothesis` table and the "Hypotheses under test" slot of the context.
+Decision / result:
+- `application/ranking.py`: the score by what each cited record is evidence of (own target per record up to
+  `max_target_records`; the generic kinds once per kind and side; an unknown id counts for nothing); ties by records
+  no other hypothesis cites, then the order given; `ranking_disagrees`. Weights in `config/ranking.yaml` (validated
+  at startup, fail closed; the defaults when the file is missing).
+- Migration 012 `incident_hypothesis` (insert-only for the runtime role; the db-check proves it) and the same table
+  with insert-only triggers in SQLite; `add_hypotheses` and `hypotheses` on both stores.
+- Both runners rank and store each decision's hypotheses after its audit; a step already stored is skipped (a run
+  resumed after a crash), and a failure to store never stops the run.
+- Found while building: §3.1's optional list on `UseReadTools` had no way to arrive, so a read step now states its list
+  in one `state_hypotheses` call beside its read calls (not a read; refused alone, twice or beside a decision). The
+  context shows the latest list (≤ 1200 characters, about 300 tokens). ARCHITECTURE 1.8.28 says so (§5.5, §11.3).
+- The T-0047 H4 step now says to leave out problems on evidence references without `target` / `kind` (#228 review).
+Consequences: nothing is shown yet: H3 adds the hypotheses and `ranking_disagrees` to the incident answer. Migration
+012 must run before the image that writes the table (`db-migrate.sh`); until then a store without the table logs the
+failure and the run goes on.
+References: [ACR-0024](../architecture/changes/ACR-0024-hypotheses-and-cause-ranking.md),
+[T-0047](../tasks/current/T-0047-hypotheses-cause-ranking.md), #228.
+
+## 2026-10-21 — T-0047 H3: the hypotheses in the incident answer
+
+Type: implementation
+Who: juanbetancurm (+ agent)
+Context: H2 (#236) stores each decision's hypotheses with their score and rank. H3 is ACR-0024 §3.6: show them in
+`GET /api/v1/incidents/{id}`, the slot the UI already had (`"hypotheses": []`). ARCHITECTURE §7.1 already describes
+this answer, so the version stays 1.8.28.
+Decision / result:
+- `incident_view.hypotheses_view`: the final decision's rows, by rank: `{id, statement, cause_class, target, relation,
+  status, rank, chosen, support: {score, for, against}}`, plus `ranking_disagrees` (the chosen one is not ranked
+  first). Derived from the stored rows; no model call.
+- `for` / `against` count the cited records that are stored evidence of the incident, each once (an id cited twice,
+  or not stored, is not counted). Operators and approvers also get `support_ids` / `against_ids`; a viewer gets the
+  counts only, as for `evidence_highlights`.
+- The UI contract's scripted run now concludes with two hypotheses; `contracts/samples/incident.json` gained them by
+  hand (the other samples are unchanged). `docs/API-FOR-UI.md` describes the fields.
+Consequences: the frontend can show the list and the "the evidence favours <first>" note. H4 measures the ranking.
+References: [ACR-0024](../architecture/changes/ACR-0024-hypotheses-and-cause-ranking.md),
+[T-0047](../tasks/current/T-0047-hypotheses-cause-ranking.md), #236.
+
+## 2026-10-21 — T-0047 H2/H3 deployed on vm-095 (migration 012)
+
+Type: deploy
+Who: conantkd (+ agent)
+Context: #236 (H2: ranking, storage, `state_hypotheses`, the context slot) and #237 (H3: the incident answer) merged;
+H2 needs migration 012 before its image.
+Decision / result:
+- vm-095 at `6c83da3`: backup, migration 012 applied, agent image rebuilt; 38/38 database checks, the audit chain OK,
+  55/55, `WRITE GATE CLOSED`, `NO INTERFERENCE` on both VMs. vm-166 unchanged.
+Consequences: the next model-strategy investigation stores its hypotheses with Argus's score and rank, and the
+incident answer shows them. H4 (the evaluation) can now run on stored rows.
+References: [evidence](../execution/history/T-0047-H2-deploy/step-01/evidence.md), #236, #237.
+
+## 2026-10-21 — Phase 16: auth_session retention; maintenance audit rows chained
+
+Type: implementation
+Who: conantkd (+ agent)
+Context: step 1 left `auth_session` growing by one row per login, with its owner-run retention as a follow-up (like
+OP-004). Reading OP-004's code for the pattern showed its audit row is a bare `INSERT`: after migration 011 that row
+has no hash, and `argus audit verify` (and the scheduler's daily check) would report the chain broken at the first
+checkpoint prune that removes anything. None has yet (the last dry run found `threads=0`).
+Decision / result:
+- `argus db prune-sessions [--days N] [--apply]`: owner-only, preview by default, one transaction, the maintenance
+  lock of OP-004; removes rows whose token expired more than 90 days ago (`ARGUS_SESSION_RETENTION_DAYS`), revoked or
+  not; audited `maintenance.sessions_pruned` (`access`). The audit keeps each login and refusal.
+- `append_chained` (postgres_store): the one way to write an audit row; the store and both maintenance commands use it.
+- Tests: `tests/test_session_retention.py`; `tests/test_checkpoint_retention.py` now checks the chain after a prune.
+Consequences: no migration and no new grant (the owner deletes). The VM dry run goes with phase 16 step 2's deploy.
+ACR-0018 §6 gets its line in step 2's PR (a protected path).
+References: [PHASE-16](../tasks/current/PHASE-16-operator-access.md), OP-004.
+
+## 2026-10-21 — OP-017: Vite 8 and Vitest 5; `npm audit` clean on the whole frontend tree
+
+Type: implementation
+Who: conantkd (+ agent)
+Context: OP-017 left the dev tooling's advisories (Vite 5 / esbuild high, Vitest 3 critical) after React Router 7.
+Decision / result:
+- `vite` 8.3.5, `@vitejs/plugin-react` 6.1.2 (it needs Vite 8), `vitest` 5.0.5; `@tailwindcss/vite` 4 already accepts
+  Vite 8. Node 24 in CI and in the UI image meets every engine range. No code or config change.
+- Lint, Vitest (136), the production build and Playwright (21, with the read-only guard) pass locally;
+  `npm audit` finds 0 vulnerabilities, dev included.
+- The bundle warning (one chunk over 500 kB) is unchanged in kind; Vite 8 now names Rolldown's option for it.
+Consequences: the UI image is rebuilt with the next deploy (its build stage only; nginx serves the same static
+files). CI's gate on the whole tree (OP-017 fix 3) is a `.github/` change, in its own pull request for review.
+References: [OP-017](../OPEN_PROBLEMS.md).
+
+## 2026-10-21 - OP-014 step 4 for the frontend: Vitest coverage floors
+
+Type: implementation
+Who: conantkd (+ agent)
+Context: OP-014 step 4 (coverage) was done for Python; the frontend waited for Vitest 5 (OP-017, #242).
+Decision / result:
+- `@vitest/coverage-v8` 5.0.5; `npm test` = `vitest run --coverage`, so CI's `frontend` job applies it with no
+  workflow change and `SELF_MERGE_CHECKS` is unchanged.
+- Coverage counts every file under `src/` (Vitest 5 counts only loaded files by default): lines 33.9 %, statements
+  33.8 %, functions 28.7 %, branches 26.6 %. Floors 33 / 33 / 28 / 26 in `vite.config.js`. Red seen: a floor of 90 %
+  fails `npm test` (exit 1).
+Consequences: a frontend change that drops coverage fails CI. The floors go up with new tests; the low figure is
+mostly pages, covered by Playwright instead.
+References: [OP-014](../OPEN_PROBLEMS.md).
+
+## 2026-10-21 — T-0047 H4 step 1: the evaluation measures the hypotheses
+
+Type: implementation
+Who: juanbetancurm (+ agent)
+Context: H2 (#236) stores each decision's ranked hypotheses. ACR-0024 §3.8 asks the evaluation for labels, top-1 /
+top-3 accuracy over the ranking, ruled-out recall, the `ranking_disagrees` rate and a new hard check. This step
+builds the measuring; the batches with the configured model (and the decision to enforce the H1 checks) come next.
+Decision / result:
+- A case label may name `expected_hypotheses: {supported, ruled_out}` (targets or cause classes); `supported` falls
+  back to `root_cause`. 15 cases are labeled, the ones whose cause is not the target (`dep-*`, `nginx-slow-*`,
+  `pg-leaker-*`): the cause supported, the victim ruled out.
+- A replay keeps the final decision's list (`incident_hypothesis`), `ranking_disagrees`, the H1 problems
+  (`hypothesis.invalid`) and the targets it observed.
+- The summary adds `hypotheses` (stated share, top-1, top-3, ruled-out recall, disagreement rate, problem rate),
+  each over the runs it applies to (`None` for a strategy that states none). The CLI prints them on one line.
+- `unsupported_root_cause` (a diagnosis whose root cause the run never observed) counts in the summary's `hard` and
+  the CLI's hard line, apart from `hard_violations`: the protected prompt-injection test pins that function's three
+  §21.2 rules. Every case still gives 0 with the baseline.
+- Found while building: in the `pg-leaker-*` cases nothing reads the leaker itself; the database's sessions name it.
+  Read literally ("no observation of its target"), the check flagged 5 correct baseline diagnoses, so a target named
+  by an `ok` observation on its host counts as observed. The H1 check on a `supported` hypothesis has the same gap
+  (it asks for an observation of its own target); the model batches will show whether it fires on these cases.
+Consequences: the next step runs the batches with the configured model (with the H1 checks log-only, then
+enforced if accuracy is not lower) and measures the built reads again.
+References: [ACR-0024](../architecture/changes/ACR-0024-hypotheses-and-cause-ranking.md),
+[T-0047](../tasks/current/T-0047-hypotheses-cause-ranking.md), #236.
