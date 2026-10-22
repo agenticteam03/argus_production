@@ -11,5 +11,6 @@
     "view_evidence"
   ],
   "role": "operator",
+  "second_factor": null,
   "user": "alice"
 }

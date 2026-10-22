@@ -105,6 +105,11 @@ on. Anything else can change without notice.
 | `POST /api/v1/investigations` | operator, approver; full or **investigate** token | `incident_id`, `status`, `duplicate` (202); quotas for an investigate token (ACR-0012) | [`investigation.json`](../contracts/samples/investigation.json) |
 | `GET /api/v1/target-metrics?target=<host/kind:name>&range=15m` | any authenticated role | one inventory target's recent signals (ACR-0021): `target`, `range` (`15m` or `1h`), `from`, `to`, `step_s`, `series[]` of `{key, kind, title, unit, max, thresholds, points: [[time, value or null]]}`; a container gives CPU quota used and memory, a host CPU, memory used and disk used; `404` for a target not in `/api/v1/targets`, `422` for a bad range; shared for 30 s | [`target-metrics.json`](../contracts/samples/target-metrics.json) |
 | `GET /api/v1/overview` | any authenticated role | the dashboard in one answer (ACR-0021): `observed_at`, `status` (the worst open severity: `critical`, `warning`, `info`, or `ok` when nothing is open), `open_incidents` (`{critical, warning, info}`), `latest_open[]` (the 5 newest open: `{id, target, host, severity, kind, summary, opened_at, next_action}`; `info` = no class yet; `next_action` `null` for now), `hosts[]` (the `/host-metrics` rows), `fleet` (boxes by `health`: `{healthy, degraded, failed, unknown, idle}`), `links` (`{ok, total}` of the declared dependencies), `last_closed_at`; built from the store and the topology and host-metrics snapshots, no new host read; shared for 15 s | [`overview.json`](../contracts/samples/overview.json) |
+| `POST /api/v1/auth/webauthn/register/options` | any token | body `{ticket}` for the first key (the code another administrator gave), or `{step_up_token}` (a step-up for `webauthn.register:<user>`) for a further one; `{challenge_id, options}`: pass `options` to `navigator.credentials.create` (ACR-0018 step 3) | — |
+| `POST /api/v1/auth/webauthn/register/verify` | any token | body `{challenge_id, credential, label}` (`credential` = the PublicKeyCredential as JSON); `{credential, enrolled}` | — |
+| `POST /api/v1/auth/webauthn/login/options`, `…/login/verify` | any token | completes this login with a key (`navigator.credentials.get`); `{verified: true}`; `/me`'s `second_factor.verified` turns true | — |
+| `POST /api/v1/auth/webauthn/step-up/options`, `…/step-up/verify` | any token | body `{object}` (`kind:reference`) for the options; the verify answers `{step_up_token, expires_at}`: single-use, 5 minutes, for that object only; the privileged route takes it | — |
+| `GET /api/v1/auth/webauthn/credentials` | any token | the caller's keys: `{credential, label, created_at, last_used_at}` | — |
 
 Errors: `401` no token, invalid or expired token; `403` the role or a read-only token may not do this; `404` unknown
 incident or evidence id; `400` a login asked for a scope other than `read`.
@@ -117,6 +122,7 @@ incident or evidence id; `400` a login asked for a scope other than `read`.
 | `view_timeline` | every role | the run events (detect → recall → investigate ⇄ act → record) |
 | `view_evidence` | operator, approver | evidence records and the audit trail |
 | `start_investigation` | operator, approver, with a full or an **investigate** token | the "Start an investigation" form and "Investigate again" (ACR-0012) |
+| `manage_second_factor` | every role, when the second factor is configured | enrolling a key and completing the login with it; `/me`'s `second_factor` is `{enrolled, verified}` (`null` when not configured) (ACR-0018 step 3) |
 
 ## Examples
 

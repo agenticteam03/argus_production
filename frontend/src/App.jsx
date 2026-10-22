@@ -8,6 +8,7 @@ import IncidentDetail from "./pages/IncidentDetail.jsx";
 import Incidents from "./pages/Incidents.jsx";
 import Login from "./pages/Login.jsx";
 import Runbooks from "./pages/Runbooks.jsx";
+import Security from "./pages/Security.jsx";
 import { canSee, flat, subRoutes } from "./routes.js";
 
 const Placeholder = ({ title }) => (
@@ -17,7 +18,8 @@ const Placeholder = ({ title }) => (
   </div>
 );
 
-const pages = { "/agent": Agent, "/incidents": Incidents, "/incidents/:id": IncidentDetail, "/tools/runbooks": Runbooks };
+const pages = { "/agent": Agent, "/incidents": Incidents, "/incidents/:id": IncidentDetail, "/tools/runbooks": Runbooks,
+  "/account/security": Security };
 
 // Keyed on the path so an error on one page does not stick when the user navigates elsewhere.
 const Shell = () => {
