@@ -4074,3 +4074,311 @@ Consequences: the next step runs the batches with the configured model (with the
 enforced if accuracy is not lower) and measures the built reads again.
 References: [ACR-0024](../architecture/changes/ACR-0024-hypotheses-and-cause-ranking.md),
 [T-0047](../tasks/current/T-0047-hypotheses-cause-ranking.md), #236.
+
+## 2026-10-21 — Phase 16 step 2 prepared: the agent mounts the Ed25519 key
+
+Type: implementation
+Who: conantkd (+ agent)
+Context: step 1 built EdDSA signing behind the secret `jwt_ed25519_key`; the lab switches on when the agent mounts it.
+Decision / result:
+- `deploy/vm-095/compose.core.yml`: the agent mounts `jwt_ed25519_key` as a single file, like `jwt_signing_key`
+  (`tests/test_compose_split.py` lists it). The worker already sees the whole folder; it signs nothing.
+- `execution/history/PHASE-16/step-02/code.bash`: the key is generated on vm-095 before any `up` (a missing bind
+  source would become a directory and the API would not start), owned and moded like `jwt_signing_key`, never
+  printed; then the first `prune-sessions` dry run (#240).
+- ACR-0018 §6 records the session retention (#240) and this step.
+Consequences: after the deploy every session logs in again. Rollback: remove the mount line and recreate the agent.
+References: [ACR-0018](../architecture/changes/ACR-0018-operator-access-and-audit.md),
+[PHASE-16](../tasks/current/PHASE-16-operator-access.md).
+
+## 2026-10-21 — PR #245 self-merged behind main; main-guard red, recorded as an exception
+
+Type: incident
+Who: juanbetancurm (+ agent)
+Context: #245 (T-0047 H4 step 1, no protected path) was self-merged at 23:38 UTC once its CI was green. Its branch was
+based on main `6c83da3`; #239, #240, #242 and #246 (the last at 23:34) merged before it. That breaks condition 3 of the
+self-merge rule. `main-guard` on `9b92d9d` went red: "the branch was not up to date with main when it was merged".
+`conantkd`'s review (23:26) had also asked for a fix in `_observed` before the merge.
+Decision / result:
+- The content is unaffected by the order: no file changed by #245 (the evaluation harness, its cases and tests, the
+  T-0047 task, a journal entry) is changed by those four pull requests.
+- Per REVIEW_PROTOCOL ("If `main-guard` is red"), this pull request adds a `retroactive` line to
+  `policies/main-exceptions.txt` and asks a teammate to review #245's content with it.
+- The review point is fixed in #250 (`conantkd`: only `database.health` may name another target as observed).
+Cause: the agent advised the merge from GitHub's `CLEAN` state, two minutes after #246 merged, without re-checking that
+the head contained the current main (`CLEAN` does not mean up to date on this plan) and without reading the review.
+From now on, right before advising a self-merge, the agent reads the reviews and checks that the head contains the
+fetched main.
+Consequences: `main-guard` turns green again when this merges with a teammate's approval; merges wait until then.
+References: [REVIEW_PROTOCOL](../agents/REVIEW_PROTOCOL.md) self-merge rule, condition 3; PR #245, #246, #250; the
+same case as #212.
+
+## 2026-10-21 - T-0047 H4: a listing no longer counts as observing every container
+
+Type: fix
+Who: conantkd (+ agent)
+Context: #245 (H4 step 1) counts a target as observed when an `ok` observation on its host names it, so the
+`pg-leaker-*` diagnoses (named by `database.health`'s sessions) are not `unsupported_root_cause`. Raised in its review:
+`container.list` names every container of its host, so one listing made every target on that host "observed" and the
+hard check could never fire there. #245 merged before the change.
+Decision / result:
+- `NAMING_CAPABILITIES = {"database.health"}` in `argus/evaluation/replay.py`: only those reads' values name other
+  targets. A new test: a `container.list` naming the cache leaves it unobserved and its diagnosis
+  `unsupported_root_cause` = 1. Red seen against main's code. The baseline cases still give 0.
+Consequences: a new capability whose values describe another target is added to the set, with a case.
+References: #245, [T-0047](../tasks/current/T-0047-hypotheses-cause-ranking.md).
+
+## 2026-10-21 - Frontend tests for the incident page's components; coverage floors raised
+
+Type: tests
+Who: conantkd (+ agent)
+Context: OP-014 step 4 (#246) set the frontend's coverage floors at 33.9 % of lines; components, hooks and pages had
+no unit test (no DOM in the test runner).
+Decision / result:
+- Components rendered with `react-dom/server`'s `renderToStaticMarkup` (Node, no new dependency, no jsdom); only new
+  test files, no component changed.
+- **SafeMarkdown** (renders runbooks and agent text): raw HTML never rendered, images dropped, only http(s) links
+  clickable, with `noopener`. Red seen: allowing every link and images fails 3 tests (`javascript:` and `data:` links
+  are also emptied by react-markdown itself: two layers).
+- **MetricChart**: a missing sample is a gap, never a zero; samples outside the window left out; the incident band.
+  Red seen: drawing null as 0 fails 2 tests.
+- AnswerBlock, WhyCard, RunTimeline, EvidenceAudit (folded content, cited marks, audit links and Details), `format`
+  and `clipboard` helpers. 136 to 175 tests.
+- Coverage: lines 33.9 to 43.6 %, branches 26.6 to 40.9 %; floors 43 / 43 / 39 / 40.
+Consequences: hooks and pages are still uncovered by unit tests (Playwright covers the pages); a DOM test setup
+(jsdom, Testing Library) would be the frontend lane's call.
+References: [OP-014](../OPEN_PROBLEMS.md).
+
+## 2026-10-21 - OP-014 step 12: accessibility checks in Playwright
+
+Type: tests
+Who: conantkd (+ agent)
+Context: OP-014's "later" list had accessibility checks (axe-core) on the main pages.
+Decision / result:
+- `@axe-core/playwright` 4.14.0 (dev); `frontend/e2e/a11y.e2e.js` scans login, dashboard, incidents, an incident and
+  runbooks with the API faked from `contracts/samples` (the read-only guard runs too). Any WCAG 2 A/AA violation fails.
+- First scan: the only violations are `color-contrast`, from two causes: `text-muted/60` (2.93:1, small muted labels)
+  and white text on `bg-accent` `#3b82f6` (3.67:1); AA asks 4.5:1. Excluded by name (`KNOWN`) and left to the
+  frontend lane, so this PR changes no component.
+- Red seen: with `color-contrast` enabled, 4 of the 5 pages fail. Full Playwright 26/26; `npm audit` 0.
+Consequences: a new accessibility problem in those pages fails CI; fixing the two contrasts then removing `KNOWN`
+closes step 12.
+References: [OP-014](../OPEN_PROBLEMS.md).
+
+## 2026-10-21 — T-0047 H5 step 1: `analysis.anomaly_summary`, offered to no class
+
+Type: implementation
+Who: juanbetancurm (+ agent)
+Context: ACR-0024 §3.7 adds a Level 3 read of deterministic facts, so the model can see which signal moved first and
+how unusual a level is without reading every history. Step 1 builds it, offered to no class; step 2 offers it to
+`dependency_unavailable` and `container_restart_loop` with an evaluation batch.
+Decision / result:
+- `summarize_anomalies` (`analysis.anomaly_summary`, executor `prometheus`, tag `anomaly`, `max_per_incident` 1). It
+  reads the class's signals (`ui-incident-signals.yaml`) on the target, its declared dependencies on the same host (at
+  most 3) and, for host-scope signals, its host.
+- Per series: last value, the peak in the bad direction, the onset and the deviation from the 24 h baseline that ends
+  an hour before the window (p5 / p50 / p95; unknown under half sampled). The onset is the first of two consecutive
+  samples past the warning line. The answer also says which onset came first. Facts with numbers, never a cause.
+- Unknown is never calm: a failed read, an empty series and a missing baseline are each said so.
+- The read only gets its arguments, the target and its inventory entry, so the model names the incident class (one
+  of the 8 registered names, pinned by a test). The prometheus executor holds the warning lines and the class signal
+  lists from startup (the worker, the tools process and the evaluation replay).
+- A 0/1 state signal has no line in `signals.yaml`; its bad state is its line. A "below" signal is compared with the
+  baseline's p5, the others with its p95.
+Consequences: step 2 needs per-target `range` fixtures in the eval cases (today a fixture series answers every
+target) before a batch can measure "which onset came first".
+References: [ACR-0024](../architecture/changes/ACR-0024-hypotheses-and-cause-ranking.md),
+[T-0047](../tasks/current/T-0047-hypotheses-cause-ranking.md).
+
+## 2026-10-21 — T-0049 proposed: agent skills for the team's repeated procedures (phase 24)
+
+Type: plan
+Who: juanbetancurm (+ agent)
+Context: a research guide on agent skills (Agent Skills format, Anthropic and OpenAI guidance, SRE practice, and an
+analysis of this repository) recommends building development-workflow skills first and leaving the runtime as it is.
+Its repository claims were checked at `main` `953331f`: eight classes, `RB-001` to `RB-021`, `branch_runbook_ids` and
+`knowledge.prior_incidents` exist, and there is no `.claude/` folder yet.
+Decision / result:
+- New task [T-0049](../tasks/current/T-0049-agent-skills.md) and phase 24 in the
+  [IMPLEMENTATION_PLAN](../IMPLEMENTATION_PLAN.md), parallel to 15–23, with no runtime change.
+- S0 protects `.claude/skills/` like `brain/agents/` (a `brain.py` change, reviewed by `conantkd`). Then
+  `code-bash-step` and `pr-review` (P0), then `acr-and-version-line`, `add-capability` and `db-migration` (P1), and
+  the small P2 skills.
+- Skills reference the policies instead of copying them; exact checks are scripts tested in `tests/skills/`; no skill
+  approves, merges, pushes or deploys.
+- The runtime gets no `SKILL.md`. R1 evaluates the class offers already planned, R2 proposes per-class pre-checks only
+  if they beat the model's own choice, and R3 drafts runbook diffs from confirmed incidents; each needs its own ACR.
+Consequences: nothing changes until S0 is approved. T-0047 and phase 16 are unaffected.
+References: [T-0049](../tasks/current/T-0049-agent-skills.md); PR #245 (the merge-readiness lesson behind S2).
+
+## 2026-10-21 — OP-008: the newest backup verified; a second prune awaits approval
+
+Type: verification
+Who: conantkd (+ agent)
+Context: the prune preview on vm-095 kept a 2026-10-14 set as "newest verified": no backup had been verified since.
+Decision / result:
+- `verify` of today's backup (migration 012): `VERIFY OK: 17 tables, 32759 rows match`.
+- The sha256 after-check left open by step 03: both verified dumps `OK`.
+- The dry run would remove 16 sets (2026-10-13 to 10-20); not applied: deleting backups needs a teammate's approval
+  (as #138). The agent's permission check also refused the prune; conantkd ran the preview.
+Consequences: approve one `prune --apply` (`KEEP=7`) in this PR. Proposal: each deploy's code.bash verifies the
+backup it takes, so the newest restore point is always proven.
+References: [evidence](../execution/history/OP-008/step-04/evidence.md),
+[OP-008](../tasks/current/OP-008-backup-retention.md).
+
+## 2026-10-21 — Phase 16 step 3: WebAuthn needs a DNS name; three decisions proposed
+
+Type: decision proposal
+Who: conantkd (+ agent)
+Context: preparing step 3 (WebAuthn and step-up, ACR-0018) before any code.
+Decision / result:
+- **Blocker found:** the lab's public UI is served on an IPv4 address (Let's Encrypt's IP certificate). WebAuthn's
+  relying party id must be a domain, so step 3 cannot run on the public edge as it is.
+- Proposed (PHASE-16 task, "Step 3 — proposed decisions"): D1 `webauthn==3.0.1`; D2 a real DNS name for anything past
+  the lab, `localhost` through the SSH tunnel as the lab's interim; D3 two credentials per privileged person and a
+  recovery by the other administrator (audited CLI, sessions revoked).
+Consequences: the team decides D2 (a name may mean a purchase) before step 3's code; D1 and D3 can be approved on the
+pull request.
+References: [PHASE-16](../tasks/current/PHASE-16-operator-access.md),
+[ACR-0018](../architecture/changes/ACR-0018-operator-access-and-audit.md).
+
+## 2026-10-22 - OP-009: the lease-expiry test no longer depends on a fast CI runner
+
+Type: tests
+Who: conantkd (+ agent)
+Context: `test_a_failing_renewer_cancels_at_the_lease_expiry_not_at_its_next_attempt` failed on #249's CI (1.53 s
+against a 1.25 s bound) with no change near the worker; a rerun passed. Lease 1 s and attempts every 0.7 s put the
+fix at 1.0 s and the bug at 1.4 s, so only 0.25 s separated a slow runner from a failure.
+Decision / result:
+- Lease 2 s, attempts every 1.9 s: the fix cancels at 2.0 s, the bug at 3.8 s; the bound `1.9 <= elapsed < 3.0`
+  leaves a second each way. The test checks the same thing (cancel at the lease's expiry, not at the next attempt).
+- Red seen: the worker waiting a full interval while failing (the bug of PR #53's review) fails it at 3.83 s.
+- The test takes about 1 s longer.
+Consequences: none for the worker; no code changed outside the test.
+References: `tests/test_op009_lease_loss.py`, `argus/infrastructure/worker.py` (`_renew`).
+
+## 2026-10-22 - OP-014 step 12: colour contrast fixed; axe checks every WCAG AA rule
+
+Type: implementation
+Who: conantkd (+ agent)
+Context: #249 added axe-core checks on five pages but excluded `color-contrast` (`KNOWN`): two causes failed AA's
+4.5:1, `text-muted/60` and white text on `bg-accent`.
+Decision / result:
+- The "updated" clock (`ui.jsx`) uses `text-muted`: 6.3:1 on the card (was 2.93:1).
+- Two new tokens for solid buttons with white text: `--color-accent-solid` `#2563eb` (5.2:1) and
+  `--color-accent-solid-hover` `#1d4ed8` (6.7:1). The five such buttons (login, dashboard approve, diagnose twice,
+  agent chat send) use them; `--color-accent` stays for dots, borders and tints, so nothing else changes colour.
+- `KNOWN` removed from `e2e/a11y.e2e.js`. Red seen: without the `src/` changes 4 of 5 pages fail on `color-contrast`
+  (`.bg-accent`, `.text-muted/60`); with them 5/5 pass. Full Playwright 26/26, Vitest 175/175; lint unchanged (23
+  warnings, none new).
+Consequences: OP-014 step 12 done. The buttons are a slightly deeper blue.
+References: [OP-014](../OPEN_PROBLEMS.md), #249.
+
+## 2026-10-22 - DEPLOY-afb72e8 prepared (EdDSA, Vite 8 UI, contrast fix); not run by the agent
+
+Type: deploy
+Who: conantkd (+ agent)
+Context: main `afb72e8` carries everything merged since vm-095's `6c83da3`: phase 16 step 2 (EdDSA, #241),
+`db prune-sessions` (#240), T-0047 H4 and H5 (H5 offered to no class), Vite 8 (#242) and the contrast fix (#257).
+Decision / result:
+- `execution/current/code.bash` holds the deploy: both leases; backup; checkout; the Ed25519 key generated on vm-095
+  before any `up` (never printed, owned and moded like `jwt_signing_key`); agent, worker and scheduler on one image;
+  `argus deploy record`; the UI rebuilt; the read-only checks (EdDSA on, H5 registered, `db check`, `audit verify`);
+  the first `prune-sessions` dry run; `nonint-check` before and after on both VMs.
+- No migration (the database stays at 012); vm-166 unchanged (nothing under `services/` or `deploy/target/`).
+- The agent took both leases at night to run it, but its permission rules refuse remote writes (the SESSION marker),
+  so nothing was changed on either VM and the leases were released at once.
+Consequences: `conantkd` runs the code.bash; every open session logs in again once the key is mounted.
+References: [code.bash](../execution/current/code.bash), PHASE-16 step 2
+([code.bash](../execution/history/PHASE-16/step-02/code.bash)), DEPLOY-189 (the UI rebuild).
+
+## 2026-10-22 - Frontend tests for the shared UI pieces, the runbook card and the incident row; floors raised
+
+Type: tests
+Who: conantkd (+ agent)
+Context: after #248 the shared primitives (`ui.jsx`), `RunbookCard` and `IncidentRow` still had no unit test.
+Decision / result:
+- New test files only, rendered with `renderToStaticMarkup` as before; no component changed.
+- `ui.jsx`: status and outcome badges (an unknown or missing value is shown as such, never as a known state; only a
+  running incident pulses), the live pill (demo data labelled; pulses only while live; its clock in a readable colour,
+  the OP-014 step 12 fix), a dash for a missing fact, one pressed segment, tabs with one selected and a roving
+  tabindex, a panel only for the selected tab, an alert with Retry only when it can retry.
+- `RunbookCard`: mutating tools listed first so a risky step is never hidden behind "+N more"; missing tools counted
+  (singular and plural); placeholders instead of blank fields. `IncidentRow`: the link, a queued incident is
+  "Waiting to start", class and strategy hidden in the compact card.
+- Red seen: listing tools unsorted and putting back `text-muted/60` each fail their test. 175 to 193 tests.
+- Coverage: lines 43.6 to 45.4 %, branches 40.9 to 44.4 %; floors 45 / 44 / 41 / 44.
+Consequences: pages and hooks remain covered by Playwright only.
+References: [OP-014](../OPEN_PROBLEMS.md), #248.
+
+## 2026-10-22 - OP-014 step 9: first mutation run on the policy and the read path; 51 survivors killed
+
+Type: tests
+Who: conantkd (+ agent)
+Context: OP-014 step 9 asks for mutation testing on the safety-critical modules. Run locally, overnight, before any
+CI job is proposed.
+Decision / result:
+- mutmut 3.3.1 in a `python:3.12-slim` container on `main` `cdb85c2`: `argus/policy/` (engine, inspection, routing)
+  and `argus/application/invoke_capability.py`, against the 15 test files that import them. One test that lists
+  `_SubInvoker`'s attributes was set aside for the run only (mutmut adds attributes to the classes it mutates).
+- 889 mutants: 525 killed, 59 survived, 305 timed out. The timeouts came from a laptop short of memory (6 workers);
+  they are not counted either way.
+- `argus/policy/`: one survivor, an absolute deny pattern with a wildcard (`/var/log/x/private-*`) matched only when
+  equal to the path. Its behaviour was right; no test pinned it.
+- `invoke_capability.py`: 58 survivors, nearly all in the combined-capability path (§12.7): the fields a combined
+  result keeps (status, error category, units, source time, coverage, the redaction count, `allowed_fields`), an impl
+  that raises, what a refused sub-read records (its own target and reason, the audit detail, its caller), the
+  arguments a sub-read passes on; and what every refused read and audit record carry (no executor, the incident, the
+  policy version).
+- `tests/test_op014_mutation_invoke.py` (13 tests, no code changed): each surviving mutant re-run against it with
+  `MUTANT_UNDER_TEST` set: 51 of 59 now fail. The 8 left are equivalent: `getattr(spec, ..., <default>)` where the
+  attribute always exists (4), `model_dump(mode=...)` on `EvidenceRef`, whose fields are all strings (3), and
+  `_refused(None, ...)` where the context is read only when no target is given (1).
+Consequences: no defect found in the rails; the combined path is now pinned. Next: redaction, the timeouts re-run on a
+quiet machine, and a weekly CI job with the score as its floor (a `.github/` change, reviewed by a teammate).
+References: [OP-014](../OPEN_PROBLEMS.md), ARCHITECTURE §12.7.
+
+## 2026-10-22 - OP-014 step 9: mutation run on the redactor; 42 survivors killed
+
+Type: tests
+Who: conantkd (+ agent)
+Context: the first mutation run (#260) left the redactor (`argus/capabilities/redaction.py`, §10.8) for later.
+Decision / result:
+- mutmut 3.3.1 in a container on `main` `e034c18`, against the four test files that import the redactor: 204
+  mutants, 136 killed, 58 survived, 10 timed out.
+- The survivors were in the part that keeps declared paths readable: a path under a declared directory found only
+  once (or only after the first characters of the text), a declared file inside a URL or followed by `_old`, `Old` or
+  `old`, a file declared with no directory, overlapping spans (a declared file under a declared directory), markers
+  already in the input, and the counts `value()` returns.
+- `tests/test_op014_mutation_redaction.py` (9 tests, no code changed): each survivor re-run against it with
+  `MUTANT_UNDER_TEST`: 42 of 58 now fail. The 16 left are equivalent: the length sort of declared paths and its
+  direction (the spans are sorted again before merging), a directory also tried as a file, `lstrip`/`rstrip("XX/XX")`
+  on paths that start with `/`, `find` from `start + 2` (a path starting with `/` cannot recur one character later),
+  and `<` for `<=` when merging spans that only touch (the restored text is the same).
+- No defect found: every survivor was an unpinned behaviour that was already right.
+Consequences: OP-014 step 9 has its three modules run once; left are the timeouts and a weekly CI job.
+References: [OP-014](../OPEN_PROBLEMS.md), #260.
+
+## 2026-10-22 - OP-014 step 9: the read path's audit trail and evidence pinned (second mutation run)
+
+Type: tests
+Who: conantkd (+ agent)
+Context: the first run on the policy and `invoke_capability.py` (#260) left 305 mutants timed out on a loaded laptop.
+Re-run with 3 workers on `main` `d9edaaa`, the tests of #260 included.
+Decision / result:
+- 889 mutants: 649 killed, 66 survived, 174 timed out. Of the 66, 8 are #260's equivalents; 58 were new, hidden
+  among the first run's timeouts.
+- They were in the ordinary read path: which audit event each outcome writes (`tool.requested`, `tool.completed`,
+  `tool.failed`, `tool.refused`, `tool.refused_recorded`), with which rule (`validation`, `inventory`, the policy's
+  rule) and detail (the error with no URL and at most three entries, the reason, the target); the arguments of
+  `tool.requested`; what the evidence record keeps (executor, source time, partial, truncated, units, identities,
+  coverage, duration); the redaction count added to the gateway's; the audit id's form; and
+  `PolicyEngine.check`'s `max_tool_level` decision.
+- `tests/test_op014_mutation_read_path.py` (10 tests, no code changed): each of the 58 re-run with
+  `MUTANT_UNDER_TEST`: 56 now fail. The 2 left are equivalent: `getattr(spec, "permission", <default>)` where
+  `CapabilitySpec.permission` always exists.
+- No defect found: the audit trail and the evidence were right; nothing pinned them.
+Consequences: OP-014 step 9 now has 26 equivalent mutants named and no unexplained survivor on the policy, the read
+path or the redactor. Left: 174 timeouts (most in `__call__` and `PolicyEngine.__init__`/`check`), and the weekly
+CI job (`.github/`, a teammate's review).
+References: [OP-014](../OPEN_PROBLEMS.md), #260, #261.

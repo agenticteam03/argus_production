@@ -1,6 +1,30 @@
 # Next step
 
-**Now (2026-10-21, roll-up, `conantkd`; work by the agent).**
+**Now (2026-10-22, roll-up, `conantkd`; night work by the agent).**
+- **On the VMs:** unchanged: **vm-095 runs `main` `6c83da3`**, **vm-166 `bdcd048`**. The agent took both leases at
+  night to deploy, but its permission rules refuse remote writes; nothing was changed and the leases were released.
+- **Ready to deploy:** `execution/current/code.bash` (DEPLOY-afb72e8, #258): EdDSA (the Ed25519 key generated on
+  vm-095, never printed), `db prune-sessions` and its first dry run, T-0047 H4/H5 (H5 offered to no class), the UI
+  with Vite 8 and the contrast fix. No migration; vm-166 unchanged. Everyone logs in again. What merged after
+  `afb72e8` is tests and records only, so `BR=afb72e8` or the current `main` deploy the same runtime.
+- **Merged on 2026-10-21/22:** #240-#253, #255 (T-0049 skills plan), #256 (OP-009 timing test with a second of
+  margin), #257 (OP-014 step 12 done: colour contrast, axe checks every AA rule), #258 (the deploy prepared), #259
+  (frontend tests, floors 45/44/41/44), #260-#262 (OP-014 step 9: mutation runs on the policy, the read path and the
+  redactor; 149 survivors killed, 26 equivalents named, no defect found). `main-guard` green throughout.
+- **Open:** no pull request in review (only the draft #157).
+
+Next, in order:
+1. `conantkd` runs the deploy code.bash (both leases; `nonint-check` before and after).
+2. OP-008: the approved `prune --apply` (#247, `KEEP=7`), re-previewed first; `conantkd` runs it.
+3. Decide D2 (a domain for the UI, #243), then phase 16 step 3's code (WebAuthn).
+4. T-0047 (`juanbetancurm`): H5 step 2 needs per-target `range` fixtures in the eval cases; H4's model batches.
+   T-0046 before L6: whether a link row's `at` becomes the probe sample's time (ACR-0025's text; a teammate decides).
+5. OP-014: a weekly mutation job with today's score as its floor (`.github/`, reviewed) and the 174 timeouts re-run;
+   step 8 (the scheduled model evaluation).
+
+Below: the 2026-10-21 roll-up.
+
+**Then (2026-10-21, roll-up, `conantkd`; work by the agent).**
 - **On the VMs:** **vm-095 runs `main` `6c83da3`** (migration **012**: T-0047 H2/H3, the hypotheses ranked, stored and
   shown; T-0046 L5, link recording on; phase 16 step 1, sessions and the audit chain). **vm-166 stays on `bdcd048`.**
   Merged since that deploy, not yet on vm-095: #240 (`argus db prune-sessions`; maintenance audit rows chained), #242
