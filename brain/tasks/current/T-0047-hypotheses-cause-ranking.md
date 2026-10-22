@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | `in progress` — [ACR-0024](../../architecture/changes/ACR-0024-hypotheses-and-cause-ranking.md) accepted (#215); H1 merged (#228); H2 merged (#236); H3 merged (#237); both deployed on vm-095 (#239); H4 step 1 (the metrics) in review (`task/T-0047-h4-eval-metrics`) |
+| Status | `in progress` — [ACR-0024](../../architecture/changes/ACR-0024-hypotheses-and-cause-ranking.md) accepted (#215); H1 merged (#228); H2 merged (#236); H3 merged (#237); both deployed on vm-095 (#239); H4 step 1 (the metrics) merged (#245); H5 step 1 (`analysis.anomaly_summary`, offered to no class) in review (`task/T-0047-h5-anomaly-summary`) |
 | Phase | next phase, area C (separate track of [NEXT-PHASE](NEXT-PHASE-supervised-remediation.md)) |
 | Architecture | ACR-0024 (`accepted`, applied in 1.8.27 by H1) |
 | Branch | one branch per step: `task/T-0047-h<n>-<slug>` |
@@ -73,6 +73,12 @@ So offering them alone is not the next step. H4 measures them again with hypothe
 - Onset, deviation from the B7 baseline, which onset came first (ACR-0024 §3.7); offered to no class; then offered to
   `dependency_unavailable` and `container_restart_loop` with an evaluation batch (a class-registry change: a teammate
   reviews it).
+  - Step 1 (built): the read, offered to no class. The model names the incident class (the 8 registered names); the
+    prometheus executor holds the warning lines and the per-class signal lists from startup. A 0/1 state signal
+    (`dependency_probe_min`, `db_up`, `health_unhealthy`, `oom_killed`, `scrape_targets_down`) has no line in
+    `signals.yaml`: its bad state is its line. A "below" signal is compared with the baseline's p5, the others with its
+    p95. Left for step 2: the eval fixtures read one series per signal whatever the target, so a dependency case needs
+    per-target `range` fixtures before the batch can tell which onset came first.
 
 ### H6 — Deploy (vm-095 lease)
 - `db-migrate.sh` (the new migration), the new image; `nonint-check`; SC-03 and SC-07 once each: the hypotheses, the ruled-out cause
