@@ -752,25 +752,34 @@ def check_main(commits: list[tuple[str, int]], pr_for, reviews_for, allowed: set
 
 
 GH_TRIES = 3                                    # main-guard once went red on "unexpected end of JSON input"
+# 2026-10-22: `commits/{sha}/pulls` answered HTTP 500 with an empty body (gh: "unexpected end of JSON input") on a
+# different commit each run, for longer than 2 s + 4 s; verify-main asks about every merge on main
+GH_TRIES_5XX = 6
+_GH_5XX = re.compile(r"HTTP 5\d\d|unexpected end of JSON input")
 
 
 def gh_json(path: str):
     """`gh api` as JSON. A failed call or a cut-off answer is tried again (GH_TRIES in all, 2 s then 4 s apart): a
-    passing rule must not go red on one bad answer from GitHub, and a real failure still raises. A 404 is an answer
-    (e.g. a deleted branch), raised at once."""
-    for attempt in range(1, GH_TRIES + 1):
+    passing rule must not go red on one bad answer from GitHub, and a real failure still raises. GitHub's own 5xx, an
+    empty answer or one that is not JSON is waited out longer (GH_TRIES_5XX in all, 2, 4, 8, 16 and 30 s apart, about a
+    minute) and then raised. A 404 is an answer (e.g. a deleted branch), raised at once."""
+    attempt = 0
+    while True:
+        attempt += 1
         p = subprocess.run(["gh", "api", path], capture_output=True, text=True, encoding="utf-8", timeout=60)
         if p.returncode == 0:
             try:
                 return json.loads(p.stdout or "null")
             except json.JSONDecodeError as e:
-                why = f"not JSON ({e})"
+                why, server = f"not JSON ({e})", True
         else:
             why = (p.stderr or p.stdout).strip()
             if "HTTP 404" in why:
                 break
-        if attempt < GH_TRIES:
-            time.sleep(2 * attempt)
+            server = not why or bool(_GH_5XX.search(why))
+        if attempt >= (GH_TRIES_5XX if server else GH_TRIES):
+            break
+        time.sleep(min(2 ** attempt, 30))
     raise BrainError(f"gh api {path}: {why}")
 
 
