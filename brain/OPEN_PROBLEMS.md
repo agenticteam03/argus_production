@@ -277,8 +277,14 @@ diff-coverage gates, LLM injection regression testing, CI security scanners.)
    trail and the stored evidence of an ordinary read. `tests/test_op014_mutation_read_path.py` kills 56; the 2 left
    and the 8 of the first run are equivalent. *The 174 timeouts re-run with 2 workers
    (`task/OP-014-9-mutation-decisions`):* 93 killed, 45 survived, 36 still timed out;
-   `tests/test_op014_mutation_policy_decisions.py` kills 37, the 8 left are equivalent. **Left:** 36 timeouts, and
-   the weekly CI job (`.github/`, a teammate's review).
+   `tests/test_op014_mutation_policy_decisions.py` kills 37, the 8 left are equivalent. *The last 36 timeouts, one
+   worker, then each left one without mutmut's time limit (`task/OP-014-9-mutation-timeouts`):* 15 detected, 21
+   survived (10 of them had only been slow, not hung); `tests/test_op014_mutation_timeouts.py` kills 13, the 8 left are
+   equivalent (a default replaced by `None` before an `or`, a `getattr` default on a field every spec has, the context
+   when the target is given) or one edge: `_normal` accepts `//` as a directory, the same as `/` (not a gap: `/` is
+   allowed as a directory and the deny floor applies; refusing it is a change under `argus/policy/`, a teammate's
+   review). In all: 199 survivors killed, 42 equivalents named, no timeout left. **Left:** the weekly CI job
+   (`.github/`, a teammate's review).
 10. **Property-based tests** (Hypothesis) for redaction, target parsing and the policy engine. *Redaction and target
     parsing done 2026-10-20 (`tests/test_op014_property_based.py`).* They found a real gap: a token glued to a
     non-ASCII letter (`é<token>`) escaped the high-entropy rule, because Unicode `\b` saw no word boundary; fixed with
