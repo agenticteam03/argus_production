@@ -268,8 +268,10 @@ diff-coverage gates, LLM injection regression testing, CI security scanners.)
    525 killed, 59 survived, 305 timed out (a loaded laptop: re-run them before counting). `argus/policy/` had one
    survivor; the others were in the combined-capability path. `tests/test_op014_mutation_invoke.py` kills 51 of the
    59; the 8 left are equivalent (a `getattr` default never used, `model_dump` mode on string-only fields, a context
-   used only when the target is missing). **Left:** redaction, the timeouts, and the weekly CI job (`.github/`, a
-   teammate's review).
+   used only when the target is missing). *Redaction 2026-10-22 (`task/OP-014-9-mutation-redaction`):* 204
+   mutants, 136 killed, 58 survived, 10 timed out; `tests/test_op014_mutation_redaction.py` kills 42 of the 58, the
+   16 left are equivalent (sort order of spans that are sorted again, `find` from `start + 2`, merging spans that
+   only touch). **Left:** the timeouts, and the weekly CI job (`.github/`, a teammate's review).
 10. **Property-based tests** (Hypothesis) for redaction, target parsing and the policy engine. *Redaction and target
     parsing done 2026-10-20 (`tests/test_op014_property_based.py`).* They found a real gap: a token glued to a
     non-ASCII letter (`é<token>`) escaped the high-entropy rule, because Unicode `\b` saw no word boundary; fixed with
