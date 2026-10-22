@@ -14,7 +14,7 @@ from argus.adapters.outbound.sqlite_store import SqliteStore
 from argus.capabilities.spec import ExecutorError
 from argus.domain.model import Incident, MetricSnapshot, RequestKind, TargetRef, TriggerKind, utcnow
 from argus.evaluation.cases import Case
-from argus.infrastructure.wiring import Settings, build
+from argus.infrastructure.wiring import Settings, build, load_anomaly_inputs, read_signals
 from argus.ports.ports import StaleMetrics
 from argus.tooling.executors import ExecutorRegistry
 
@@ -65,8 +65,9 @@ class FixtureExecutor:
     `fixtures["*"]`; `{error: <category>}` fails the read, as the target service would. A container's long log,
     `/containers/<name>/log` {lines}, answers its `logs`, `logs_window` and `search` routes as the gateway does."""
 
-    def __init__(self, answers: dict[str, Any]):
+    def __init__(self, answers: dict[str, Any], lines: dict | None = None, class_signals: dict | None = None):
         self.answers = answers
+        self.lines, self.class_signals = lines or {}, class_signals or {}       # T-0047 H5, as PrometheusClient
 
     def get(self, path: str, params: dict | None = None) -> Any:
         keyed = path + "?" + "&".join(f"{k}={v}" for k, v in sorted((params or {}).items()))
@@ -190,8 +191,10 @@ def run_case(case: Case, workdir: Path, llm: Any | None = None, settings: Settin
     s = dataclasses.replace(base, secrets_dir=secrets, db_path=str(db), db_backend="sqlite",
                             tool_catalogue="direct")
     reg = ExecutorRegistry()
+    lines, class_signals = load_anomaly_inputs(base.config_dir, set(read_signals(base.config_dir)))   # T-0047 H5
     for kind in EXECUTORS:
-        reg.register(kind, lambda url, token, kind=kind: FixtureExecutor(case.fixtures.get(kind, {})))
+        reg.register(kind, lambda url, token, kind=kind: FixtureExecutor(case.fixtures.get(kind, {}),
+                                                                         lines, class_signals))
     rec = RecordingLLM(llm) if llm is not None else None
     hidden = os.environ.pop("OPENAI_API_KEY", None)
     try:

@@ -219,11 +219,35 @@ def declared_paths(policy: dict | None, inventory: dict | None) -> list[str]:
     return sorted(out)
 
 
-def _target_executors(signals: dict) -> ExecutorRegistry:
+def anomaly_inputs(thresholds, ui_signals) -> tuple[dict, dict]:
+    """T-0047 H5: what `analysis.anomaly_summary` reads beside the templates: the warning line and direction per signal
+    and the (signal, scope) list per class. Empty when either file is missing or refused (the read then says so)."""
+    lines = {name: (t.warning, t.direction) for name in (thresholds.signals() if thresholds else [])
+             for t in [thresholds.get(name)]}
+    by_class = (ui_signals.by_class or {}) if ui_signals else {}
+    return lines, {name: [(s.signal, s.scope) for s in specs] for name, specs in by_class.items()}
+
+
+def load_anomaly_inputs(config_dir: Path, signals: set[str]) -> tuple[dict, dict]:
+    """`anomaly_inputs` for a process that does not validate the files itself (the tools process); a refused file
+    leaves its part empty (the worker's startup validation reports it)."""
+    try:
+        thresholds = load_thresholds(config_dir, signals)
+    except ValueError:
+        thresholds = None
+    try:
+        ui_signals = load_ui_signals(config_dir, signals)
+    except ValueError:
+        ui_signals = None
+    return anomaly_inputs(thresholds, ui_signals)
+
+
+def _target_executors(signals: dict, lines: dict | None = None, class_signals: dict | None = None) -> ExecutorRegistry:
     executors = ExecutorRegistry()
     for kind in ("docker_read", "host_probe", "network_probe", "db_probe"):
         executors.register(kind, lambda url, tok: TargetAgentClient(url, tok))
-    executors.register("prometheus", lambda url, tok: PrometheusClient(url, tok, signals))
+    executors.register("prometheus", lambda url, tok: PrometheusClient(url, tok, signals, lines=lines,
+                                                                       class_signals=class_signals))
     return executors
 
 
@@ -239,7 +263,8 @@ def tools_dispatcher(s: Settings):
     if errors:
         raise SystemExit("tools process: startup validation failed:\n  " + "\n  ".join(errors))
     redactor = Redactor(declared_paths(policy, yaml.safe_load(inv_text)))
-    return build_catalog(), Dispatcher(inventory, _target_executors(signals), creds, redactor,
+    lines, class_signals = load_anomaly_inputs(s.config_dir, set(signals))           # T-0047 H5
+    return build_catalog(), Dispatcher(inventory, _target_executors(signals, lines, class_signals), creds, redactor,
                                        reload=lambda host, ex: s.secret(f"{host}/{ex}_token")), inventory
 
 
@@ -321,7 +346,7 @@ def build(settings: Settings | None = None, llm=None, metrics=None, executors: E
 
     redactor = Redactor(declared_paths(yaml.safe_load(pol_text), yaml.safe_load(inv_text)))   # #107 review
     if executors is None:
-        executors = _target_executors(signals)
+        executors = _target_executors(signals, *anomaly_inputs(thresholds, ui_signals))   # T-0047 H5
     knowledge = TfidfRunbooks(str(s.runbooks_dir), s.runbooks_commit and f"commit {s.runbooks_commit}")
     store = store or make_store(s)
     if "argus_internal" not in executors.names():              # in-worker capabilities (knowledge.*)
