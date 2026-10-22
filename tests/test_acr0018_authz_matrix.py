@@ -32,6 +32,11 @@ MATRIX = {
     ("GET", "/api/v1/overview"): ("view", ALL),
     ("GET", "/api/v1/evidence/{evidence_id}"): ("view_evidence", ALL),
     ("GET", "/api/v1/escalations"): ("view", ALL),
+    # phase 16 step 3: every token may run its own ceremonies; the ceremony itself needs a credential, a ticket or a
+    # step-up (tests/test_acr0018_webauthn.py). Unconfigured here, they answer 503 or 422, never 401 or 403.
+    **{("POST", f"/api/v1/auth/webauthn/{c}/{s}"): (None, ALL) for c in ("register", "login", "step-up")
+       for s in ("options", "verify")},
+    ("GET", "/api/v1/auth/webauthn/credentials"): (None, ALL),
 }
 UNAUTHENTICATED = {("POST", "/api/v1/auth/token"), ("GET", "/healthz")}
 BODY = {("POST", "/api/v1/investigations"): {"target": "vm-166/container:argus-lab-worker", "reason": "matrix"}}

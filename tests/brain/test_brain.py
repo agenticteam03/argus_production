@@ -491,12 +491,47 @@ def test_gh_json_retries_a_truncated_answer(monkeypatch):
 
 
 def test_gh_json_retries_a_failed_call_then_gives_up(monkeypatch):
-    calls = []
-    monkeypatch.setattr(brain.subprocess, "run", lambda *a, **k: calls.append(a) or _Done(1, "", "HTTP 502"))
-    monkeypatch.setattr(brain.time, "sleep", lambda s: None)
-    with pytest.raises(brain.BrainError, match="HTTP 502"):
+    calls, waits = [], []
+    monkeypatch.setattr(brain.subprocess, "run",
+                        lambda *a, **k: calls.append(a) or _Done(1, "", "gh: Resource not accessible (HTTP 403)"))
+    monkeypatch.setattr(brain.time, "sleep", waits.append)
+    with pytest.raises(brain.BrainError, match="HTTP 403"):
         brain.gh_json("repos/o/r/pulls")
     assert len(calls) == brain.GH_TRIES
+    assert waits == [2, 4]
+
+
+# main-guard on main, 2026-10-22: `commits/{sha}/pulls` answered HTTP 500 with an empty body (gh: "unexpected end of
+# JSON input") on a different commit each run, for longer than the 2 s + 4 s of GH_TRIES
+@pytest.mark.parametrize("err", ["unexpected end of JSON input", "gh: Server Error (HTTP 500)",
+                                 "gh: Bad Gateway (HTTP 502)", ""])
+def test_gh_json_waits_out_a_github_5xx_or_empty_answer(monkeypatch, err):
+    answers = [_Done(1, "", err)] * (brain.GH_TRIES_5XX - 1) + [_Done(0, '[{"number": 7}]')]
+    waits = []
+    monkeypatch.setattr(brain.subprocess, "run", lambda *a, **k: answers.pop(0))
+    monkeypatch.setattr(brain.time, "sleep", waits.append)
+    assert brain.gh_json("repos/o/r/commits/abc/pulls") == [{"number": 7}]
+    assert answers == []
+    assert waits == [2, 4, 8, 16, 30]
+
+
+def test_gh_json_still_fails_when_github_keeps_answering_5xx(monkeypatch):
+    calls = []
+    monkeypatch.setattr(brain.subprocess, "run",
+                        lambda *a, **k: calls.append(a) or _Done(1, "", "unexpected end of JSON input"))
+    monkeypatch.setattr(brain.time, "sleep", lambda s: None)
+    with pytest.raises(brain.BrainError, match="unexpected end of JSON input"):
+        brain.gh_json("repos/o/r/commits/abc/pulls")
+    assert len(calls) == brain.GH_TRIES_5XX
+
+
+def test_gh_json_still_fails_on_an_answer_that_is_never_json(monkeypatch):
+    calls = []
+    monkeypatch.setattr(brain.subprocess, "run", lambda *a, **k: calls.append(a) or _Done(0, "<html>oops"))
+    monkeypatch.setattr(brain.time, "sleep", lambda s: None)
+    with pytest.raises(brain.BrainError, match="not JSON"):
+        brain.gh_json("repos/o/r/commits/abc/pulls")
+    assert len(calls) == brain.GH_TRIES_5XX
 
 
 def test_gh_json_does_not_retry_a_good_answer(monkeypatch):
