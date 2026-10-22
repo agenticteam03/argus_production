@@ -3,7 +3,7 @@
 # READ-ONLY. Replace the VM tag/alias together if targeting vm-166; use the current lease holder.
 # Expected: deployed commit, Argus container names/status; VERDICT: CB.1 PASS.
 # ---------------------------------------------------------------------------------------------------------
-if grep -Fxq 'holder=__SESSION_HOLDER__' /opt/argus-v18/SESSION; then
+if grep -Eq '^holder=__SESSION_HOLDER__ session=' /opt/argus-v18/SESSION; then
   if cat /opt/argus-v18/DEPLOYED && sudo docker ps --filter 'name=argus-v18-' --format '{{.Names}} {{.Status}}'; then
     printf '%s\n' 'VERDICT: CB.1 PASS'
   else

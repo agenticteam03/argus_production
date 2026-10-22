@@ -1,7 +1,9 @@
-"""Exercise the checker's CLI; fixture commands are data and are never executed."""
+"""Exercise the static CLI and a local template simulation; never run fixture commands."""
 
 from __future__ import annotations
 
+import shlex
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -35,6 +37,7 @@ TRAPS = {
     "vm-reboot": "reboot is not allowed in a VM block",
     "vm-missing-session": "mutation requires a preceding SESSION check",
     "vm-late-session": "mutation requires a preceding SESSION check",
+    "vm-single-quote-backslash": "mutation requires a preceding SESSION check",
     "ipv4": "IPv4 address is not allowed",
     "token-assignment": "secret/token/password assignment is not allowed",
     "password-assignment": "secret/token/password assignment is not allowed",
@@ -243,3 +246,126 @@ def test_missing_input_has_a_sanitized_diagnostic(tmp_path):
 def test_supplied_templates_satisfy_the_static_contract(tmp_path, template):
     result = run_checker(tmp_path, (SKILL / "templates" / template).read_text(encoding="utf-8"))
     assert result.returncode == 0, result.stdout + result.stderr
+
+
+def vm_block(commands: str) -> str:
+    return (
+        "# --------------------------------------------------------------\n"
+        "# VM.1 [VM vm-095 · bash] Local checker test data\n"
+        "# Expected: only authorized SESSION forms pass.\n" + commands + "\n"
+    )
+
+
+@pytest.mark.parametrize("option", ["-q", "-Eq"])
+def test_accepts_anchored_session_holder_guard(tmp_path, option):
+    text = vm_block(
+        f"if grep {option} '^holder=example ' /opt/argus-v18/SESSION; then\n"
+        "  sudo touch /opt/argus-v18/example\nfi"
+    )
+    result = run_checker(tmp_path, text)
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
+@pytest.mark.parametrize("option", ["-vq", "--invert-match -q", "-Lq"])
+def test_rejects_session_guard_that_succeeds_for_another_holder(tmp_path, option):
+    text = vm_block(
+        f"if grep {option} 'holder=example' /opt/argus-v18/SESSION; then\n"
+        "  sudo touch /opt/argus-v18/example\nfi"
+    )
+    result = run_checker(tmp_path, text)
+    assert result.returncode == 1
+    assert "mutation requires a preceding SESSION check" in result.stdout
+
+
+@pytest.mark.parametrize("option, pattern", [("-q", "holder=example"), ("-q", "^holder=example"), (
+    "-qx", "holder=example"
+)])
+def test_rejects_session_holder_guard_without_a_real_holder_boundary(tmp_path, option, pattern):
+    text = vm_block(
+        f"if grep {option} '{pattern}' /opt/argus-v18/SESSION; then\n"
+        "  sudo touch /opt/argus-v18/example\nfi"
+    )
+    result = run_checker(tmp_path, text)
+    assert result.returncode == 1
+    assert "mutation requires a preceding SESSION check" in result.stdout
+
+
+@pytest.mark.parametrize("option", ["-Fxq", "--quiet --fixed-strings --line-regexp"])
+def test_accepts_full_two_field_session_line_guard(tmp_path, option):
+    text = vm_block(
+        f"if grep {option} 'holder=example session=fixture-01' /opt/argus-v18/SESSION; then\n"
+        "  sudo touch /opt/argus-v18/example\nfi"
+    )
+    result = run_checker(tmp_path, text)
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
+SESSION_WRITE = "echo 'holder=example session=fixture-01' | sudo tee /opt/argus-v18/SESSION"
+
+
+@pytest.mark.parametrize("suffix", ["", "\ncat /opt/argus-v18/DEPLOYED", (
+    "\nif grep -q '^holder=example ' /opt/argus-v18/SESSION; then\n"
+    "  sudo touch /opt/argus-v18/example\nfi"
+)])
+def test_accepts_one_initial_literal_session_marker_write(tmp_path, suffix):
+    result = run_checker(tmp_path, vm_block(SESSION_WRITE + suffix))
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
+@pytest.mark.parametrize("redirect", [">/dev/null", "> /dev/null"])
+def test_accepts_initial_session_marker_stdout_to_dev_null(tmp_path, redirect):
+    result = run_checker(tmp_path, vm_block(SESSION_WRITE + " " + redirect + "\ncat /opt/argus-v18/DEPLOYED"))
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
+@pytest.mark.parametrize("commands", [
+    "cat /opt/argus-v18/DEPLOYED\n" + SESSION_WRITE,
+    SESSION_WRITE + "\n" + SESSION_WRITE,
+    SESSION_WRITE + "\nsudo touch /opt/argus-v18/example",
+    SESSION_WRITE + "; sudo touch /opt/argus-v18/example",
+    SESSION_WRITE + " && sudo touch /opt/argus-v18/example",
+    SESSION_WRITE.replace("sudo tee", "sudo tee -a"),
+    SESSION_WRITE.replace("sudo tee", "tee"),
+    SESSION_WRITE.replace("/opt/argus-v18/SESSION", "/tmp/SESSION"),
+    SESSION_WRITE.replace("/opt/argus-v18/SESSION", "/opt/argus-v18/SESSION.extra"),
+    SESSION_WRITE + " > /opt/argus-v18/example",
+    SESSION_WRITE + " >>/dev/null",
+    SESSION_WRITE + " 2>/dev/null",
+    SESSION_WRITE + " >/dev/null >/dev/null",
+    SESSION_WRITE + " >/dev/null\nsudo touch /opt/argus-v18/example",
+    SESSION_WRITE.replace("'holder=example session=fixture-01'", '"holder=example session=$USER"'),
+    SESSION_WRITE.replace(" session=fixture-01", ""),
+    SESSION_WRITE.replace("fixture-01", "fixture-01 extra=value"),
+    SESSION_WRITE.replace(" | ", " | \\\n"),
+])
+def test_initial_marker_exception_never_authorizes_other_unguarded_writes(tmp_path, commands):
+    result = run_checker(tmp_path, vm_block(commands))
+    assert result.returncode == 1, result.stdout + result.stderr
+    assert "mutation requires a preceding SESSION check" in result.stdout
+
+
+@pytest.mark.parametrize("holder, allowed", [("example", True), ("other", False), ("example-long", False)])
+def test_readonly_template_checks_the_real_two_field_session_marker(tmp_path, holder, allowed):
+    bash = shutil.which("bash")
+    if not bash:
+        pytest.skip("Bash is required for the local template simulation")
+    session = tmp_path / "SESSION"
+    deployed = tmp_path / "DEPLOYED"
+    trace = tmp_path / "local-sudo-call"
+    session.write_text(f"holder={holder} session=fixture-01\n", encoding="utf-8")
+    deployed.write_text("fixture-commit\n", encoding="utf-8")
+    # Replace every VM path and intercept sudo locally; no connection or VM command can run.
+    template = (SKILL / "templates" / "vm-readonly.sh").read_text(encoding="utf-8")
+    local = template.replace("__SESSION_HOLDER__", "example")
+    local = local.replace("/opt/argus-v18/SESSION", shlex.quote(session.as_posix()))
+    local = local.replace("/opt/argus-v18/DEPLOYED", shlex.quote(deployed.as_posix()))
+    stub = "sudo() { printf '%s\\n' local-stub > " + shlex.quote(trace.as_posix()) + "; }\n"
+    result = subprocess.run([bash, "-c", stub + local], capture_output=True, text=True, check=False, timeout=10)
+    assert result.returncode == 0, result.stderr
+    assert trace.exists() is allowed
+    if allowed:
+        assert "fixture-commit" in result.stdout
+        assert "VERDICT: CB.1 PASS" in result.stdout
+    else:
+        assert "fixture-commit" not in result.stdout
+        assert "VERDICT: CB.1 STOP: NOT YOUR SESSION" in result.stdout

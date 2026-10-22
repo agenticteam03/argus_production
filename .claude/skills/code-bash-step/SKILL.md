@@ -39,3 +39,21 @@ The checker covers these templates' static conventions, not all shell syntax or
 runtime safety. PowerShell strings/comments do not affect brace depth: newline
 `else`/`elseif` is rejected at console top level, but allowed inside an enclosing block.
 The native-command argument check applies to laptop blocks; bash quoting is different.
+
+For the team's current blocks, the checker deliberately enforces stricter conventions
+than the older Brain examples: use a positive quiet `if grep ... /opt/argus-v18/SESSION; then ... fi`,
+and omit `exit` in VM blocks so a failed check does not close the developer's SSH session.
+The legacy `grep ... || { ...; exit 1; }` guard therefore fails this template checker.
+Every IPv4 literal is rejected, including otherwise permitted lab addresses; use inventory
+names. These diagnostics describe the template contract. Report policy mismatches;
+this skill cannot change the policy.
+
+The marker contains both `holder=<who> session=<id>` on one line. Match the holder's
+boundary as the VM template does; bare `holder=<who>` substring guards are refused.
+Anchored `^holder=<who> ` patterns and `-x` guards matching the full marker are supported.
+When an existing lease authorizes initialization, exactly one literal
+`echo 'holder=<who> session=<id>' | sudo tee /opt/argus-v18/SESSION` may be the first
+command of a VM block, with at most one optional stdout redirect `>/dev/null`.
+Fill the holder and session id from the authorized lease before checking; literal placeholders are refused.
+This exception covers only that line; every later mutation
+still needs the successful SESSION guard. It grants no lease or execution permission.

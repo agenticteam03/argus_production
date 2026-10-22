@@ -73,7 +73,8 @@ def lex(text: str, shell: str) -> list[Token]:
             quote = char
             i += 1
             while i < len(text):
-                if text[i] == escape and (quote == '"' or shell == "bash"):
+                # Backslashes in Bash single quotes are literal, including before the closing quote.
+                if text[i] == escape and quote == '"':
                     i += 2
                 elif text[i] == quote:
                     if shell == "powershell" and text[i + 1:i + 2] == quote:
@@ -184,6 +185,11 @@ READ_COMMANDS = {
     "test", "[", "stat", "wc", "cut", "date", "id", "whoami", "uname", "df", "du",
     "readlink", "sha256sum", "ps", "ss", "getent", "set", "cd",
 }
+SESSION_FILE = "/opt/argus-v18/SESSION"
+INITIAL_SESSION_WRITE = re.compile(
+    r"echo[ \t]+'holder=[A-Za-z0-9_.:-]+ session=[A-Za-z0-9_.:-]+'"
+    r"[ \t]+\|[ \t]+sudo[ \t]+tee[ \t]+" + re.escape(SESSION_FILE) + r"(?:[ \t]+>[ \t]*/dev/null)?"
+)
 
 
 def vm_command(chunk: list[Token]) -> list[Token]:
@@ -223,20 +229,44 @@ def mutates_vm(command: list[Token]) -> bool:
     return name not in READ_COMMANDS
 
 
-def check_vm(tokens: list[Token]) -> list[str]:
+def positive_session_grep(command: list[Token]) -> bool:
+    """Recognize the positive quiet grep forms used by the SESSION templates."""
+    values = [token.value for token in command]
+    if len(values) < 4 or values[0] != "grep" or values[-1] != SESSION_FILE:
+        return False
+    options, pattern = values[1:-2], values[-2]
+    allowed = {"--quiet", "--fixed-strings", "--extended-regexp", "--line-regexp"}
+    if not all(option in allowed or re.fullmatch(r"-[qFEx]+", option) for option in options):
+        return False
+    quiet = any(option == "--quiet" or (option.startswith("-") and "q" in option) for option in options)
+    fixed = any(option == "--fixed-strings" or (option.startswith("-") and "F" in option) for option in options)
+    whole_line = any(option == "--line-regexp" or (option.startswith("-") and "x" in option)
+                     for option in options)
+    boundary = re.fullmatch(r"\^?holder=[A-Za-z0-9_.:-]+ (?:session=)?", pattern) is not None
+    full_marker = whole_line and re.fullmatch(r"\^?holder=[A-Za-z0-9_.:-]+ session=[A-Za-z0-9_.:-]+\$?", pattern)
+    return bool(quiet and (boundary or full_marker) and not (fixed and pattern.startswith("^")))
+
+
+def after_initial_session_write(text: str, tokens: list[Token]) -> list[Token]:
+    """Exempt only the literal first-line lease marker pipeline, never a later write."""
+    start = next((index for index, token in enumerate(tokens) if token.raw != "\n"), len(tokens))
+    end = next((index for index in range(start, len(tokens)) if tokens[index].raw == "\n"), len(tokens))
+    if end > start and INITIAL_SESSION_WRITE.fullmatch(text[tokens[start].start:tokens[end - 1].end]):
+        return tokens[end:]
+    return tokens
+
+
+def check_vm(text: str, tokens: list[Token]) -> list[str]:
     problems: list[str] = []
     depth = 0
     pending_guard: int | None = None
     guard: int | None = None
-    for chunk in statements(tokens):
+    for chunk in statements(after_initial_session_write(text, tokens)):
         word = chunk[0].value
         if word == "if":
             depth += 1
             chunk = chunk[1:]
-            values = [token.value for token in chunk]
-            if (values and values[0] == "grep" and "/opt/argus-v18/SESSION" in values
-                    and any(value.startswith("holder=") for value in values)
-                    and any(value == "--quiet" or (value.startswith("-") and "q" in value) for value in values)):
+            if positive_session_grep(chunk):
                 pending_guard = depth
         elif word == "then":
             if pending_guard == depth:
@@ -317,7 +347,7 @@ def check(text: str) -> list[str]:
         if location == "LAPTOP · PowerShell":
             issues.extend(check_laptop(block, tokens, label))
         elif location and location.startswith("VM"):
-            issues.extend(check_vm(tokens))
+            issues.extend(check_vm(block, tokens))
         problems.extend(f"{label}: {issue}" for issue in issues)
     return problems
 
