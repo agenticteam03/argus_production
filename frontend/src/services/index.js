@@ -8,6 +8,7 @@ import { httpAuthAdapter } from "./httpAuthAdapter.js";
 import { httpRunbooksAdapter } from "./httpRunbooksAdapter.js";
 import { mockArgusAdapter } from "./mockArgusAdapter.js";
 import { mockAuthAdapter } from "./mockAuthAdapter.js";
+import { httpSecondFactorAdapter, mockSecondFactorAdapter } from "./secondFactorAdapter.js";
 
 const USE_MOCK = import.meta.env.VITE_ARGUS_MOCK !== "0";
 
@@ -18,3 +19,4 @@ export const dataSource = USE_MOCK ? "demo" : "api";
 export const auth = USE_MOCK ? mockAuthAdapter : httpAuthAdapter;
 export const argus = USE_MOCK ? mockArgusAdapter : httpArgusAdapter;
 export const runbooks = USE_MOCK ? fileRunbooksAdapter : httpRunbooksAdapter;
+export const secondFactor = USE_MOCK ? mockSecondFactorAdapter : httpSecondFactorAdapter;   // ACR-0018 step 3
