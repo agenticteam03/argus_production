@@ -2,10 +2,10 @@
 
 | Field | Value |
 |---|---|
-| Status | `proposed` — needs its own ACR (a new human write route) after phase 16 (ACR-0018: step-up and permissions) |
+| Status | `proposed` — [ACR-0029](../../architecture/changes/ACR-0029-incident-feedback.md) drafted; acceptance and phase 16's required access/audit deployment gates pending; no implementation |
 | Phase | next phase, area G (separate track of [NEXT-PHASE](NEXT-PHASE-supervised-remediation.md)) |
-| Architecture | an ACR to write; depends on ACR-0018 |
-| Owner | unassigned |
+| Architecture | [ACR-0029](../../architecture/changes/ACR-0029-incident-feedback.md) (`proposed`); depends on ACR-0018 |
+| Owner | `juanbetancurm` (+ agent); review: `conantkd` |
 | Needs the VM lease | the deploy only |
 
 ## Goal (plain language)

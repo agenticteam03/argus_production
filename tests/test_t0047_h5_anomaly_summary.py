@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
 import yaml
 
 from argus.capabilities.catalog import STATE_LINES, build_catalog, onset
@@ -133,3 +134,70 @@ def test_disk_signals_use_the_targets_declared_mounts_only():
     c2 = Client({}, lines=lines, class_signals=cls)
     assert _call(c2, target=HOST, info=TargetInfo(ref=HOST, host="vm-166"), incident_class="disk_pressure").status == "error"
     assert c2.asked == []
+
+
+# --- step 2: per-target range fixtures in the replay ------------------------------------------------------------------
+# The replay answered every target with the same series per signal (`range.<signal>`), so for a dependency incident the
+# victim and its dependency looked identical and "which onset came first" meant nothing. `range` stays the case
+# target's series; `range_by_target.<target>.<signal>` gives another target its own; a target named there has no
+# fallback (its missing signals are no data, never the case target's).
+CASES = ROOT / "tests" / "eval" / "cases"
+BACKEND = TargetRef.parse("vm-166/container:argus-lab-backend")
+DEP_CASES = {"dep-backend-stopped": BACKEND, "dep-backend-wrong-network": BACKEND, "dep-cache-paused": CACHE,
+             "dep-cache-restarting": CACHE, "dep-cache-stopped": CACHE, "ambiguous-dep-all-running": CACHE}
+
+
+def _fixture_client(case_id: str):
+    from argus.evaluation.cases import load_cases
+    from argus.evaluation.replay import FixtureExecutor
+    case = next(c for c in load_cases(CASES) if c.id == case_id)
+    lines, class_signals = load_anomaly_inputs(ROOT / "config", set(read_signals(ROOT / "config")))
+    return case, FixtureExecutor(case.fixtures.get("prometheus", {}), lines, class_signals)
+
+
+def test_a_range_by_target_answers_that_target_only():
+    from argus.evaluation.replay import FixtureExecutor
+    ex = FixtureExecutor({"range": {"container_restart_count": [[-60, 1], [0, 1]]},
+                          "range_by_target": {str(CACHE): {"container_restart_count": [[-60, 5], [0, 6]]}}})
+    assert [v for _, v in ex.range("container_restart_count", API, 30, 60)] == [1.0, 1.0]
+    assert [v for _, v in ex.range("container_restart_count", CACHE, 30, 60)] == [5.0, 6.0]
+    assert ex.range("container_memory_bytes", CACHE, 30, 60) == []                  # named target: no fallback
+    assert [v for _, v in ex.range("container_restart_count", HOST, 30, 60)] == [1.0, 1.0]   # unnamed: as before
+
+
+@pytest.mark.parametrize("case_id", DEP_CASES)
+def test_every_dependency_case_gives_the_victim_a_probe_and_the_dependency_its_own_series(case_id):
+    case, client = _fixture_client(case_id)
+    dep = DEP_CASES[case_id]
+    victim = TargetRef.parse(case.target)
+    r = S.impl(S.args_model(incident_class="dependency_unavailable"), victim,
+               TargetInfo(ref=victim, host="vm-166", depends_on=[dep]), client)
+    rows = {(x["target"], x["signal"]): x for x in r.values["series"]}
+    assert rows[(str(victim), "dependency_probe_min")]["onset"], case_id         # the probe failed: an onset
+    own = case.fixtures["prometheus"].get("range_by_target", {}).get(str(dep), {}).get("container_restart_count")
+    assert own, f"{case_id}: no series of its own for {dep}"
+    assert [v for _, v in client.range("container_restart_count", dep, 30, 60)] == [float(v) for _, v in own]
+
+
+def test_a_restarting_dependency_shows_its_restarts_beside_the_victims_probe():
+    case, client = _fixture_client("dep-cache-restarting")
+    r = S.impl(S.args_model(incident_class="dependency_unavailable"), API,
+               TargetInfo(ref=API, host="vm-166", depends_on=[CACHE]), client)
+    rows = {(x["target"], x["signal"]): x for x in r.values["series"]}
+    assert rows[(str(CACHE), "container_restart_count")]["peak"] > rows[(str(API), "container_restart_count")]["peak"]
+    assert r.values["onsets"][0]["target"] == str(API)                            # only the probe has a line
+
+
+@pytest.mark.parametrize("case_id", ["restart-crash-01", "restart-crash-02", "restart-exit0-job-01", "restart-oom-01",
+                                     "restart-oom-02", "restart-sigkill-01"])
+def test_every_restart_case_has_the_series_its_class_fires_on(case_id):
+    """`container_restart_loop` fires on `restarts_10m`; `oom_killed` tells RB-001 from RB-008. Each series ends at
+    the case's snapshot value, and the read finds the loop's onset."""
+    case, client = _fixture_client(case_id)
+    (target, snap), = case.metrics.items()
+    ref = TargetRef.parse(target)
+    for signal in ("restarts_10m", "oom_killed"):
+        assert client.range(signal, ref, 30, 60)[-1][1] == snap[signal], (case_id, signal)
+    r = S.impl(S.args_model(incident_class="container_restart_loop"), ref, TargetInfo(ref=ref, host=ref.host), client)
+    rows = {x["signal"]: x for x in r.values["series"]}
+    assert rows["restarts_10m"]["onset"] and "read" not in rows["oom_killed"], case_id
