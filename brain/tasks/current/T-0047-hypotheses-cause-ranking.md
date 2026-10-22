@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | `in progress` — [ACR-0024](../../architecture/changes/ACR-0024-hypotheses-and-cause-ranking.md) accepted (#215); H1 merged (#228); H2 merged (#236); H3 merged (#237); both deployed on vm-095 (#239); H4 step 1 (the metrics) merged (#245); H5 step 1 (`analysis.anomaly_summary`, offered to no class) in review (`task/T-0047-h5-anomaly-summary`) |
+| Status | `in progress` — [ACR-0024](../../architecture/changes/ACR-0024-hypotheses-and-cause-ranking.md) accepted (#215); H1 merged (#228); H2 merged (#236); H3 merged (#237); both deployed on vm-095 (#239); H4 step 1 (the metrics) merged (#245); H5 step 1 (`analysis.anomaly_summary`, offered to no class) merged (#252); H5 step 2 part A (per-target range fixtures in the replay) in review (`task/T-0047-h5s2-range-by-target`) |
 | Phase | next phase, area C (separate track of [NEXT-PHASE](NEXT-PHASE-supervised-remediation.md)) |
 | Architecture | ACR-0024 (`accepted`, applied in 1.8.27 by H1) |
 | Branch | one branch per step: `task/T-0047-h<n>-<slug>` |
@@ -79,6 +79,19 @@ So offering them alone is not the next step. H4 measures them again with hypothe
     `signals.yaml`: its bad state is its line. A "below" signal is compared with the baseline's p5, the others with its
     p95. Left for step 2: the eval fixtures read one series per signal whatever the target, so a dependency case needs
     per-target `range` fixtures before the batch can tell which onset came first.
+  - Step 2, part A (built): `range_by_target.<target>.<signal>` in the replay's prometheus fixtures gives a target
+    other than the case's its own series (a target named there never falls back to `range`, which stays the case
+    target's). The six dependency cases (`dep-*`, `ambiguous-dep-all-running`) got the victim's `dependency_probe_min`
+    and the dependency's own memory and restart series; labels unchanged. The offline evaluation of
+    `tests/eval/cases` is identical before and after (registered: 32/61; `--strategy baseline`: 57/61; hard 0).
+    The six `restart-*` cases got `restarts_10m` and `oom_killed` series in `range`, derived from their own restart
+    history and scaled so the last sample is the snapshot's value (three cases' restart-count history undercounts
+    it: `restart-crash-01`, `restart-crash-02`, `restart-oom-01`). `range_earlier` (the baseline window) stays one
+    series per signal, not per target: a dependency's 24 h baseline in the replay is the case target's.
+  - Step 2, part B (next): the `anomaly` tag on `dependency_unavailable` and `container_restart_loop` (a
+    class-registry change: `conantkd` reviews), and its model batch, before/after, 5 trials, accuracy not lower and
+    hard 0. `dependency_unavailable` runs `baseline` (D-003), which asks no model, so its batch runs
+    `--strategy model_loop`.
 
 ### H6 — Deploy (vm-095 lease)
 - `db-migrate.sh` (the new migration), the new image; `nonint-check`; SC-03 and SC-07 once each: the hypotheses, the ruled-out cause

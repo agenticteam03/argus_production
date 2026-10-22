@@ -133,13 +133,17 @@ class FixtureExecutor:
         """Metric history (the prometheus executor): `fixtures.prometheus.range.<signal>` as [seconds before now,
         value] pairs, cut to the window asked; none = no samples (the capability answers NO DATA, unknown). A window
         ending `end_offset_s` ago (T-0038) reads `range_earlier.<offset>.<signal>`, [seconds before that end, value];
-        never the current series (EVAL-offers: "now" and "earlier" were the same points)."""
+        never the current series (EVAL-offers: "now" and "earlier" were the same points). `range` is the case target's
+        series; `range_by_target.<target>.<signal>` gives another target (a dependency) its own, and a target named
+        there never falls back to `range` (T-0047 H5 step 2: the victim and its dependency were the same points)."""
         now = time.time()
         if end_offset_s:
             earlier = (self.answers.get("range_earlier") or {})
             series = earlier.get(int(end_offset_s)) or earlier.get(str(int(end_offset_s))) or {}
             points = series.get(signal) or []
             now -= int(end_offset_s)
+        elif str(target) in (self.answers.get("range_by_target") or {}):
+            points = self.answers["range_by_target"][str(target)].get(signal) or []
         else:
             points = (self.answers.get("range") or {}).get(signal) or []
         return [(now + float(dt), float(v)) for dt, v in points if -float(dt) <= minutes * 60]
