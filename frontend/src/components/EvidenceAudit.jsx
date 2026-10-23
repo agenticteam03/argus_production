@@ -35,7 +35,7 @@ function EvidenceItem({ e, cited, open, onToggle }) {
       <button aria-expanded={open} aria-controls={panel} onClick={onToggle} className={`mt-1.5 ${toggle}`}>{open ? "Hide content" : "Show content"}</button>
       <div id={panel} hidden={!open} className="mt-2 space-y-2 border-t border-line pt-2">
         <dl className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs md:grid-cols-4">
-          {facts.map(([k, v]) => <div key={k} className="min-w-0"><dt className="text-muted">{k}</dt><dd className="break-words text-[#d6dbe6]">{v ?? "—"}</dd></div>)}
+          {facts.map(([k, v]) => <div key={k} className="min-w-0"><dt className="text-muted">{k}</dt><dd className="break-words text-body">{v ?? "—"}</dd></div>)}
         </dl>
         <div className="markdown-body !text-[13px]"><SafeMarkdown>{e.model_text ?? "—"}</SafeMarkdown></div>
         <p className="break-all font-mono text-[11px] text-muted">{e.sha256 ?? "—"}</p>
@@ -74,8 +74,8 @@ export function EvidenceSection({ items, cited, host, open, onToggle }) {
 function AuditDetail({ detail }) {
   const d = auditDetail(detail);
   if (d.kind === "empty") return <p className="text-[13px] text-muted">—</p>;
-  if (d.kind === "json") return <pre className="overflow-x-auto rounded-lg bg-card p-3 text-xs text-[#d6dbe6]">{d.text}</pre>;
-  return <p className="whitespace-pre-wrap text-[13px] text-[#d6dbe6]">{d.text}</p>;
+  if (d.kind === "json") return <pre className="overflow-x-auto rounded-lg bg-card p-3 text-xs text-body">{d.text}</pre>;
+  return <p className="whitespace-pre-wrap text-[13px] text-body">{d.text}</p>;
 }
 
 export function AuditSection({ items, evidenceIds, onJump }) {
@@ -98,10 +98,10 @@ export function AuditSection({ items, evidenceIds, onJump }) {
               <InsetRow as="li" key={i} className="text-[13px]">
                 <div className="grid grid-cols-[4.5rem_minmax(0,1fr)] items-baseline gap-x-3 gap-y-0.5 md:grid-cols-[4.5rem_minmax(0,14rem)_minmax(0,1fr)_9rem]">
                   <time dateTime={a.at} title={dateTime(a.at)} className="font-mono text-xs text-muted">{clock(a.at)}</time>
-                  <span className="min-w-0 break-words font-mono text-xs text-white">{a.event ?? "—"}</span>
+                  <span className="min-w-0 break-words font-mono text-xs text-ink">{a.event ?? "—"}</span>
                   <span className="col-start-2 min-w-0 break-words md:col-start-auto">
                     {linked ? <button onClick={() => onJump(a.evidence_id)} className={link}>{a.evidence_id}</button>
-                      : detail.kind === "text" ? <span className="text-[#d6dbe6]">{detail.text}</span>
+                      : detail.kind === "text" ? <span className="text-body">{detail.text}</span>
                         : a.evidence_id ? <span className="font-mono text-xs text-muted">{a.evidence_id}</span>
                           : <span className="text-muted">—</span>}
                     {expandable && <button aria-expanded={open.has(i)} aria-controls={panel} onClick={() => flip(i)} className={`ml-3 ${toggle}`}>Details</button>}

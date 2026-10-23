@@ -45,6 +45,12 @@ export const httpArgusAdapter = {
     return getJson(`/api/v1/incidents/${encodeURIComponent(id)}/metrics?range=${encodeURIComponent(range)}`);
   },
 
+  // ACR-0021 (T-0045 B6): one inventory target's recent signals, for the system map's node drawer. Range 15m or 1h.
+  async getTargetMetrics(target, range = "15m") {
+    if (!insights()) return null;
+    return getJson(`/api/v1/target-metrics?target=${encodeURIComponent(target)}&range=${encodeURIComponent(range)}`);
+  },
+
   async getHostMetrics() {
     return getJson("/api/v1/host-metrics");
   },

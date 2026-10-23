@@ -33,5 +33,7 @@ describe("real-mode build", () => {
     // ACR-0011: no runbook text either; the edge serves them after login (/runbooks/, httpRunbooksAdapter)
     expect(js).not.toContain("Container OOM restart loop");
     expect(js).toContain("/runbooks/index.json");
+    // The login is the form alone, with no picture (dark and light alike): no photo is shipped.
+    expect(readdirSync(join(out, "assets")).filter((f) => /\.(jpe?g|png|webp)$/i.test(f))).toEqual([]);
   }, 120_000);
 });

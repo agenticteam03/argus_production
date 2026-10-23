@@ -2,7 +2,7 @@ import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { copyText, downloadText } from "../utils/clipboard.js";
 import { Dialog, Segmented } from "./ui.jsx";
 
-const ghost = "cursor-pointer rounded-lg border border-line bg-field px-3 py-1.5 text-xs text-[#d6dbe6] transition hover:border-field-line hover:text-white motion-reduce:transition-none";
+const ghost = "cursor-pointer rounded-lg border border-line bg-field px-3 py-1.5 text-xs text-body transition hover:border-field-line hover:text-ink motion-reduce:transition-none";
 const TOKEN = /("(?:\\.|[^"\\])*")(\s*:)?|\b(true|false|null)\b|(-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)/g;
 
 // Colours the pretty-printed JSON as React nodes (never as HTML), using the theme's own shades.
@@ -65,7 +65,7 @@ export default function RawOutputDialog({ open, onClose, incident, events }) {
         </>
       }
     >
-      <pre tabIndex={0} className="h-full overflow-auto whitespace-pre p-4 font-mono text-[13px] leading-relaxed text-[#d6dbe6] outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent-hover">{highlight(text)}</pre>
+      <pre tabIndex={0} className="h-full overflow-auto whitespace-pre p-4 font-mono text-[13px] leading-relaxed text-body outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent-hover">{highlight(text)}</pre>
     </Dialog>
   );
 }

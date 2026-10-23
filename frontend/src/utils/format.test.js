@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { auditDetail, duration, isActive, liveLabel, shortHash, timeAgo } from "./format.js";
+import { auditDetail, browserTimeZone, clock, clockHM, clockZone, dateTime, duration, isActive, liveLabel, shortHash, timeAgo, zoneLabel } from "./format.js";
 
 describe("liveLabel", () => {
   it("says Live only when the API answered and we are not in demo mode", () => {
@@ -43,6 +43,40 @@ describe("auditDetail", () => {
 
   it("stringifies scalar detail", () => {
     expect(auditDetail(7)).toEqual({ kind: "text", text: "7" });
+  });
+});
+
+// Times use the browser's own zone and always say which zone it is. The tests pass the zone explicitly so they do
+// not depend on the machine that runs them. 21:12:55 UTC is 16:12:55 in Colombia (UTC-5, no daylight saving).
+describe("browser time zone, labelled", () => {
+  it("defaults to the browser's zone", () => {
+    expect(browserTimeZone()).toBe(Intl.DateTimeFormat().resolvedOptions().timeZone);
+  });
+  it("names the zone: COT for Colombia, the standard abbreviation or the GMT offset elsewhere", () => {
+    const at = "2026-01-14T21:12:55Z";
+    expect(zoneLabel(at, "America/Bogota")).toBe("COT");
+    expect(zoneLabel(at, "America/New_York")).toBe("EST");
+    expect(zoneLabel(at, "UTC")).toBe("UTC");
+    expect(zoneLabel(at, "Asia/Kolkata")).toBe("GMT+5:30");
+  });
+  it("shows the clock in the given zone and labels it", () => {
+    expect(clock("2026-10-14T21:12:55Z", "America/Bogota")).toMatch(/16:12:55/);
+    expect(clockZone("2026-10-14T21:12:55Z", "America/Bogota")).toMatch(/^16:12:55 COT$/);
+    expect(clockZone("2026-10-14T21:12:55Z", "UTC")).toMatch(/^21:12:55 UTC$/);
+  });
+  it("has a short hours:minutes clock for chart axes", () => {
+    expect(clockHM("2026-10-14T21:02:55Z", "America/Bogota")).toBe("16:02");
+    expect(clockHM(Date.parse("2026-10-14T05:07:00Z"), "UTC")).toBe("05:07");
+  });
+  it("accepts a timestamp in milliseconds, as the Live pill passes", () => {
+    expect(clockZone(Date.parse("2026-10-14T21:12:55Z"), "America/Bogota")).toMatch(/^16:12:55 COT$/);
+  });
+  it("labels full dates with the zone and keeps the dash for no date", () => {
+    expect(dateTime("2026-10-14T21:12:55Z", "America/Bogota")).toMatch(/ COT$/);
+    // 24 h or 12 h depending on the browser's locale
+    expect(dateTime("2026-10-14T21:12:55Z", "America/Bogota")).toMatch(/(16|4):12:55/);
+    expect(dateTime("2026-10-14T21:12:55Z", "Asia/Tokyo")).toMatch(/(06|6):12:55.* GMT\+9$/);
+    expect(dateTime(null)).toBe("—");
   });
 });
 

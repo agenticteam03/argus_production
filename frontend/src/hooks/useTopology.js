@@ -4,7 +4,7 @@ import { argus } from "../services/index.js";
 // ACR-0017: GET /api/v1/topology, or with `incidentId` the overlay that adds the incident's target and root cause
 // from its stored evidence (the API allows the overlay to operators and approvers only). Returns null when the
 // adapter has no such call, the route answers 404/empty, or it fails, so the Map tab and the mini map stay hidden.
-// Expected shape: see components/SystemMap.jsx.
+// Expected shape: docs/API-FOR-UI.md item 12 (drawn by components/map/SystemMap.jsx).
 export function useTopology(incidentId) {
   const [topology, setTopology] = useState(null);
   useEffect(() => {
