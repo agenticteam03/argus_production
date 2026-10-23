@@ -51,6 +51,7 @@ Record the lesson: the journal entry gets a `Learned:` line; a problem seen twic
 | 16 | `DEPLOY STOP: NOT YOUR SESSION` | `/opt/argus-v18/SESSION` names someone else, or the marker line was not pasted | `brain.py start`, then paste its VM-marker line on the VM |
 | 18 | a pasted block **hangs with no output** at `db-migrate.sh`, `argus diagnose` or another `docker exec -i` command | `docker exec -i` forwards the terminal's stdin, so it waits on (or swallows) the rest of the pasted block; a `\| tail` hides that it is waiting | Ctrl+C (check `pg_stat_activity`: nothing half-applied); run it with `< /dev/null` and without `\| tail` (DEPLOY-MAIN D.2) |
 | 19 | a `--check` on a lab service says DIAGNOSED instead of HEALTHY | the lab is not in its baseline state (e.g. `argus-lab-cache` left stopped after a scenario) — Argus is right | `sudo bash /opt/argus-v18/app/ops/deploy.sh status` (it ends with `LAB BASELINE OK` or names the stopped/unhealthy lab containers); restore the baseline, then re-check (DEPLOY-MAIN D.3b) |
+| 20 | `argus: command not found` on a VM, and `apt` suggests installing `argus-server` | the Argus CLI is not installed on the host: it lives in the `argus-v18-agent` container (`argus-server` is an unrelated Debian package) | `sudo docker exec argus-v18-agent argus ... < /dev/null`; never install `argus-server` (PHASE-16 enrolment, 2026-10-23) |
 
 ## First diagnostic commands
 
