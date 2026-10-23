@@ -5,7 +5,7 @@
   "branch": "HEAD",
   "base_commit": "a4ee19b6dc2db78ea9feb7add5e5cfc7ba4fae52",
   "started_at": "2026-10-23T01:33:03+00:00",
-  "expires_at": "2026-10-23T02:33:03+00:00",
+  "expires_at": "2026-10-23T03:33:09+00:00",
   "released": false,
   "handoff": null,
   "vms": {
@@ -16,7 +16,7 @@
       "branch": "HEAD",
       "base_commit": "a4ee19b6dc2db78ea9feb7add5e5cfc7ba4fae52",
       "started_at": "2026-10-23T01:33:03+00:00",
-      "expires_at": "2026-10-23T02:33:03+00:00",
+      "expires_at": "2026-10-23T03:33:09+00:00",
       "released": false,
       "handoff": null
     },
