@@ -3,22 +3,14 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext.jsx";
 import { argus } from "../services/index.js";
 import { Card, Segmented, Select, textareaClass } from "./ui.jsx";
+import { investigationError } from "../utils/investigationError.js";
 
 // ACR-0012: start an investigation from the UI. Shown only when /me lists `start_investigation` (an operator or
 // approver with an investigate token): the UI never decides who may act. The target comes from the inventory's list
 // (GET /api/v1/targets), never free text; the API applies its own quotas and checks.
 export const REASON_MAX = 500;
 
-const KINDS = [{ value: "report", label: "Report", hint: "Something is wrong" }, { value: "check", label: "Check", hint: "Is it healthy?" }];
-
-const errorText = (err) => {
-  if (err?.status === 429) {
-    const min = err.retryAfter ? Math.max(1, Math.ceil(err.retryAfter / 60)) : null;
-    return `Too many investigations right now${min ? `: try again in about ${min} min` : ""}.`;
-  }
-  if (err?.status === 403) return "Your account may not start investigations.";
-  return "Could not start the investigation. Please try again.";
-};
+const KINDS = [{ value: "report", label: "Report", hint: "Something's wrong" }, { value: "check", label: "Check", hint: "Is it healthy?" }];
 
 export default function DiagnoseForm({ fixedTarget = null, compact = false }) {
   const { user } = useAuth();
@@ -50,7 +42,7 @@ export default function DiagnoseForm({ fixedTarget = null, compact = false }) {
       const { incident_id } = await argus.startInvestigation({ target, requestKind: kind, reason: reason.trim() });
       navigate(`/incidents/${incident_id}`);
     } catch (err) {
-      setError(errorText(err));
+      setError(investigationError(err));
     } finally {
       setBusy(false);
     }
@@ -70,7 +62,7 @@ export default function DiagnoseForm({ fixedTarget = null, compact = false }) {
 
   return (
     <Card title="Start an investigation">
-      <form aria-labelledby={ids.form} onSubmit={submit} className="grid gap-5 md:grid-cols-[minmax(0,22rem)_minmax(0,1fr)]" aria-describedby={error ? ids.error : undefined}>
+      <form aria-labelledby={ids.form} onSubmit={submit} className="grid gap-5 md:grid-cols-[minmax(0,15rem)_minmax(0,1fr)]" aria-describedby={error ? ids.error : undefined}>
         <h3 id={ids.form} className="sr-only">Start an investigation</h3>
 
         <div className="space-y-4">
@@ -94,12 +86,12 @@ export default function DiagnoseForm({ fixedTarget = null, compact = false }) {
         <div className="flex flex-col space-y-1.5">
           <label htmlFor={ids.reason} className="block text-[13px] font-medium">Reason</label>
           <textarea id={ids.reason} value={reason} maxLength={REASON_MAX} rows={4} onChange={(e) => setReason(e.target.value)}
-            placeholder="What did you see? (optional)" className={`${textareaClass} flex-1`} />
+            placeholder="What did you see? (optional)" className={`${textareaClass} min-h-24 flex-1`} />
         </div>
 
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2 md:col-span-2">
           <button type="submit" disabled={!target || busy}
-            className="inline-flex h-11 cursor-pointer items-center rounded-[10px] bg-accent-solid px-5 text-sm font-medium text-white transition enabled:hover:bg-accent-solid-hover disabled:cursor-not-allowed disabled:bg-[#10141b] disabled:text-[#4b5363] motion-reduce:transition-none">
+            className="inline-flex h-11 cursor-pointer items-center rounded-[10px] bg-accent-solid px-5 text-sm font-medium text-white transition enabled:hover:bg-accent-solid-hover disabled:cursor-not-allowed disabled:bg-disabled disabled:text-faint motion-reduce:transition-none">
             {busy ? "Starting…" : "Start investigation"}
           </button>
           <p className="text-xs text-muted">Argus only reads: it never changes the target. Investigations are limited per account.</p>

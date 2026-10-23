@@ -5,12 +5,26 @@ export const timeAgo = (iso) => {
   return m < 1 ? "just now" : m < 60 ? `${m}m ago` : m < 1440 ? `${Math.round(m / 60)}h ago` : `${Math.round(m / 1440)}d ago`;
 };
 
-export const dateTime = (iso) => (iso ? new Date(iso).toLocaleString([], { dateStyle: "medium", timeStyle: "medium" }) : "—");
+// Times are shown in the browser's own time zone, always followed by the zone's name so nobody has to guess it.
+// Intl only knows abbreviations for a few zones in English (EST, PDT, UTC...) and writes the rest as "GMT-5", so the
+// zones the team is likely to use get their usual abbreviation here; any other zone shows its GMT offset.
+const ZONE_ABBR = { "America/Bogota": "COT", "America/Lima": "PET", "America/Guayaquil": "ECT", "America/Caracas": "VET" };
+export const browserTimeZone = () => Intl.DateTimeFormat().resolvedOptions().timeZone;
+export const zoneLabel = (iso, timeZone = browserTimeZone()) =>
+  ZONE_ABBR[timeZone] ??
+  new Intl.DateTimeFormat("en-US", { timeZone, timeZoneName: "short" }).formatToParts(new Date(iso)).find((p) => p.type === "timeZoneName")?.value ??
+  timeZone;
+export const dateTime = (iso, timeZone = browserTimeZone()) =>
+  (iso ? `${new Date(iso).toLocaleString([], { dateStyle: "medium", timeStyle: "medium", timeZone })} ${zoneLabel(iso, timeZone)}` : "—");
 
 // The "Live" pill: mock data is labelled as demo whatever the poll says, so it is never mistaken for a
 // live deployment; otherwise it reflects whether the last request to the API actually succeeded.
 export const liveLabel = (live, source) => (source === "demo" ? "Demo data" : live ? "Live" : "Reconnecting…");
-export const clock = (iso) => new Date(iso).toLocaleTimeString([], { hour12: false });
+export const clock = (iso, timeZone = browserTimeZone()) => new Date(iso).toLocaleTimeString([], { hour12: false, timeZone });
+// Hours and minutes only (chart axes), always 24 h with two digits.
+export const clockHM = (iso, timeZone = browserTimeZone()) =>
+  new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit", hourCycle: "h23", timeZone }).format(new Date(iso));
+export const clockZone =(iso, timeZone = browserTimeZone()) => `${clock(iso, timeZone)} ${zoneLabel(iso, timeZone)}`;
 export const shortHash = (hash) => (hash ? `${hash.slice(0, 12)}…` : "—");
 
 export const duration = (from, to) => {

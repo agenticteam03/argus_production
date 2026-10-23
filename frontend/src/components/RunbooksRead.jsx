@@ -30,10 +30,10 @@ export default function RunbooksRead({ ids }) {
       {rows.map(({ id, title }) => {
         return (
           <InsetRow as="li" key={id} className="p-0">
-            <Link to={`/tools/runbooks?runbook=${encodeURIComponent(id)}`} className="flex items-center gap-2.5 rounded-xl px-3 py-2 text-[13px] transition hover:bg-white/[0.04] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent-hover motion-reduce:transition-none">
+            <Link to={`/tools/runbooks?runbook=${encodeURIComponent(id)}`} className="flex items-center gap-2.5 rounded-xl px-3 py-2 text-[13px] transition hover:bg-ink/[0.04] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent-hover motion-reduce:transition-none">
               <Book width="15" height="15" className="shrink-0 text-muted" />
               <span className="font-mono text-xs text-accent-hover">{id}</span>
-              {title && <span className="min-w-0 truncate text-[#d6dbe6]">{title}</span>}
+              {title && <span className="min-w-0 truncate text-body">{title}</span>}
               <span className="ml-auto shrink-0 text-xs text-muted">Read runbook</span>
             </Link>
           </InsetRow>

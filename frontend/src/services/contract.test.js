@@ -52,6 +52,7 @@ describe("the real adapters against contracts/ui-api.json", () => {
     await httpArgusAdapter.getTopology();                                            // ACR-0017: the system map
     await httpArgusAdapter.getTopology("inc_1");                                     // the incident overlay
     await httpArgusAdapter.getIncidentMetrics("inc_1", "15m");                       // the incident's metric window
+    await httpArgusAdapter.getTargetMetrics("vm-166/container:argus-lab-api", "15m"); // ACR-0021: the map drawer's signals
     const key = { id: "AQ", rawId: new Uint8Array([1]), type: "public-key",                // ACR-0018 step 3
       response: { clientDataJSON: new Uint8Array([1]), attestationObject: new Uint8Array([2]),
         authenticatorData: new Uint8Array([3]), signature: new Uint8Array([4]) } };
@@ -62,7 +63,7 @@ describe("the real adapters against contracts/ui-api.json", () => {
     await httpSecondFactorAdapter.confirmLogin(keys);
     await httpSecondFactorAdapter.stepUp("test:x", keys);
     await httpAuthAdapter.signOut();                                                 // ACR-0018: ends the session
-    expect(calls.length).toBeGreaterThanOrEqual(23);
+    expect(calls.length).toBeGreaterThanOrEqual(24);
     expect(undeclared(calls)).toEqual([]);
   });
 

@@ -15,6 +15,7 @@ export default defineConfig({
   use: {
     baseURL: `http://127.0.0.1:${PORT}`,
     trace: "retain-on-failure",
+    timezoneId: "America/Bogota",   // the UI shows the browser's zone; pin it so the zone label (COT) is stable
   },
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
   webServer: {

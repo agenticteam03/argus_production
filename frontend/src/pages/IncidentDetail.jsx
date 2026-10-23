@@ -1,13 +1,14 @@
-import { useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import AnswerBlock from "../components/AnswerBlock.jsx";
 import CopySummary from "../components/CopySummary.jsx";
 import DiagnoseForm from "../components/DiagnoseForm.jsx";
+import IncidentChat from "../components/IncidentChat.jsx";
 import { AuditSection, EvidenceSection, RestrictedNotice } from "../components/EvidenceAudit.jsx";
-import { MetricsTab, MiniCharts } from "../components/MetricChart.jsx";
 import RawOutputDialog from "../components/RawOutputDialog.jsx";
 import RunTimeline from "../components/RunTimeline.jsx";
-import { MapTab, MiniMapCard, miniNodes } from "../components/SystemMap.jsx";
+import MiniMap, { miniPair } from "../components/map/MiniMap.jsx";
+import SystemMap from "../components/map/SystemMap.jsx";
 import { ErrorCard, Disclosure, Fact, OUTCOME_META, OutcomeBadge, Skeleton, STATUS_META, StatusBadge, TabList, TabPanel } from "../components/ui.jsx";
 import WhyCard from "../components/WhyCard.jsx";
 import { useAuth } from "../context/AuthContext.jsx";
@@ -17,10 +18,14 @@ import { useTopology } from "../hooks/useTopology.js";
 import { dateTime, duration, isActive } from "../utils/format.js";
 import { citedEvidence, decidedBy, hostOf, modelCalls } from "../utils/incidentView.js";
 
+// The charts (ECharts, ~190 KB gzipped) load only when an incident has metrics to draw, not with the first page.
+const MetricsTab = lazy(() => import("../components/charts/ChartGrid.jsx").then((m) => ({ default: m.MetricsTab })));
+const MiniCharts = lazy(() => import("../components/charts/ChartGrid.jsx").then((m) => ({ default: m.MiniCharts })));
+
 const Back = () => (
   <Link to="/incidents" state={{ restore: true }} className="inline-flex text-[13px] text-accent-hover hover:underline">← Incidents</Link>
 );
-const ghost = "cursor-pointer rounded-xl border border-line bg-field px-4 py-2 text-sm text-[#d6dbe6] transition hover:border-field-line hover:text-white motion-reduce:transition-none";
+const ghost = "cursor-pointer rounded-xl border border-line bg-field px-4 py-2 text-sm text-body transition hover:border-field-line hover:text-ink motion-reduce:transition-none";
 
 export default function IncidentDetail() {
   const { id } = useParams();
@@ -116,8 +121,7 @@ export default function IncidentDetail() {
   const decided = by === "rules" ? `decided by rules${modelCalls(inc) === 0 ? " (no AI)" : ""}` : by === "AI" ? "decided with AI" : null;
   const subtitle = [inc.reason, inc.incident_class, decided, inc.closed_at ? `took ${duration(inc.opened_at, inc.closed_at)}` : null].filter(Boolean).join(" · ");
 
-  const showMini = showMap && miniNodes(topology, inc);
-  const hasSide = Boolean(showMini || showMetrics);
+  const showMini = showMap && miniPair(topology, inc);
 
   return (
     <div className="space-y-5">
@@ -130,7 +134,7 @@ export default function IncidentDetail() {
           <span className="flex flex-wrap gap-1.5"><StatusBadge status={inc.status} /><OutcomeBadge outcome={inc.outcome} /></span>
         </div>
         <h1 ref={headingRef} tabIndex={-1} className="mt-2 text-[26px] font-semibold leading-tight tracking-[-0.03em] outline-none">{inc.target}</h1>
-        {subtitle && <p className="mt-1.5 text-sm leading-relaxed text-[#a3abba]">{subtitle}</p>}
+        {subtitle && <p className="mt-1.5 text-sm leading-relaxed text-soft">{subtitle}</p>}
 
         <div className="mt-4 border-t border-line pt-4"><AnswerBlock incident={inc} active={active} /></div>
 
@@ -164,18 +168,17 @@ export default function IncidentDetail() {
       <TabList tabs={tabs} value={tab} onChange={setTab} label="Incident information" />
 
       <TabPanel id="overview" value={tab}>
-        <div className={`grid items-start gap-4 ${hasSide ? "lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)]" : ""}`}>
+        <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-4 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)]">
           <WhyCard incident={inc} events={events} cited={cited} onJump={jumpToEvidence} />
-          {hasSide && (
-            <div className="space-y-4">
-              {showMini && <MiniMapCard topology={topology} incident={inc} onOpen={() => setTab("map")} />}
-              {showMetrics && <MiniCharts metrics={metrics} incident={inc} onOpen={() => setTab("metrics")} />}
-            </div>
-          )}
+          <div className="space-y-4">
+            {showMini && <MiniMap topology={topology} incident={inc} onOpen={() => setTab("map")} />}
+            {showMetrics && <Suspense fallback={<Skeleton className="h-72" />}><MiniCharts metrics={metrics} onOpen={() => setTab("metrics")} /></Suspense>}
+            <IncidentChat key={inc.id} incident={inc} events={events} cited={cited} />
+          </div>
         </div>
       </TabPanel>
-      <TabPanel id="map" value={tab}>{showMap && <MapTab topology={topology} incident={inc} />}</TabPanel>
-      <TabPanel id="metrics" value={tab}>{showMetrics && <MetricsTab metrics={metrics} incident={inc} range={range} onRange={setRange} />}</TabPanel>
+      <TabPanel id="map" value={tab}>{showMap && <SystemMap topology={topology} incident={inc} title="System map around the incident" />}</TabPanel>
+      <TabPanel id="metrics" value={tab}>{showMetrics && <Suspense fallback={<Skeleton className="h-96" />}><MetricsTab metrics={metrics} incident={inc} range={range} onRange={setRange} /></Suspense>}</TabPanel>
       <TabPanel id="timeline" value={tab}>
         <RunTimeline incident={inc} events={events} active={active} reconnecting={reconnecting} evidenceIds={evidenceIds} onJump={jumpToEvidence} />
       </TabPanel>
