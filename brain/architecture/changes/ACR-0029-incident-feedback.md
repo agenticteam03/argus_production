@@ -30,8 +30,13 @@ can currently become another investigation's precedent without an operator confi
   ([API-FOR-UI](../../../docs/API-FOR-UI.md), rules 1, 2 and 6).
 
 These are observed schema/interface gaps on main, not a measured claim about diagnostic quality. No quality gain
-from feedback or similarity has been measured. ACR-0018 is accepted and partially built; WebAuthn, step-up, the
-private path and off-host audit protection remain deployment gates for this feature.
+from feedback or similarity has been measured. ACR-0018 is accepted. On main `f480152`, WebAuthn and step-up are
+implemented (PRs #280/#284); PR #288 is open and its deployment record on that branch documents migration 013,
+the WebAuthn relying party and the audit chain on vm-095 at `77c4524` (49/49 database checks). The record says
+operator enrollment remains pending. The private path (phase 16 step 4) and signed off-host audit digest/protection
+(step 5) are not met on main or vm-095. The on-host audit chain is not evidence of off-host protection. All four
+gates must be satisfied on the deployed profile before the feedback route is enabled; acceptance of this ACR remains
+pending.
 
 ## 2. Why the current architecture is insufficient
 
