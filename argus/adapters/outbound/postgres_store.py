@@ -561,6 +561,24 @@ CHECKS_SQL: list[tuple[str, str, bool]] = [
     ("a step-up token's object is fixed (UPDATE object refused)", "UPDATE step_up_token SET object = 'x' "
                                                                   "WHERE id = repeat('a', 64)", False),
     ("a step-up token is never deleted (DELETE refused)", "DELETE FROM step_up_token WHERE id = repeat('a', 64)", False),
+    ("insert enrolment ticket (migration 013)", "INSERT INTO webauthn_enrol_ticket (id, principal, issued_by, "
+                                                "created_at, expires_at) VALUES (repeat('e', 64), 'dbcheck', "
+                                                "'dbcheck-admin', now(), now() + interval '1 day')", True),
+    ("an enrolment ticket may be used once (UPDATE used_at)", "UPDATE webauthn_enrol_ticket SET used_at = now() "
+                                                              "WHERE id = repeat('e', 64)", True),
+    ("an enrolment ticket's person is fixed (UPDATE principal refused)", "UPDATE webauthn_enrol_ticket SET "
+                                                                         "principal = 'x' WHERE id = repeat('e', 64)",
+     False),
+    ("insert WebAuthn challenge (migration 013)", "INSERT INTO webauthn_challenge (id, principal, session, kind, "
+                                                  "challenge, created_at, expires_at) VALUES ('wch_' || md5('dbcheck'), "
+                                                  "'dbcheck', 'dbcheck', 'login', '\\x00', now(), "
+                                                  "now() + interval '5 minutes')", True),
+    ("a challenge may be used (UPDATE used_at)", "UPDATE webauthn_challenge SET used_at = now() "
+                                                 "WHERE id = 'wch_' || md5('dbcheck')", True),
+    ("a challenge's bytes are fixed (UPDATE challenge refused)", "UPDATE webauthn_challenge SET challenge = '\\x01' "
+                                                                 "WHERE id = 'wch_' || md5('dbcheck')", False),
+    ("a challenge is never deleted (DELETE refused)", "DELETE FROM webauthn_challenge "
+                                                      "WHERE id = 'wch_' || md5('dbcheck')", False),
     ("nobody issues their own enrolment ticket", "INSERT INTO webauthn_enrol_ticket (id, principal, issued_by, "
                                                  "created_at, expires_at) VALUES (repeat('c', 64), 'dbcheck', 'dbcheck', "
                                                  "now(), now() + interval '1 day')", False),
