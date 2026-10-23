@@ -23,6 +23,7 @@ server {
     ssl_session_cache shared:argus_tls:10m;
     ssl_session_timeout 1d;
     ssl_session_tickets off;
+    include /etc/nginx/ops/*.conf;                # ACR-0018 step 4: the client certificate when ARGUS_OPS_PATH=on
 
     include /etc/nginx/argus/locations.conf;
 }

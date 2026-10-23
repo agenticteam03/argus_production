@@ -1,0 +1,8 @@
+[Unit]
+Description=Drop the expired entries of the Argus v1.8 private path allowlist and reload the edge
+Requires=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/bash /opt/argus-v18/app/ops/edge-allow.sh prune --scheduled

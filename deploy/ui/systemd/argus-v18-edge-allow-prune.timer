@@ -1,0 +1,11 @@
+[Unit]
+Description=Daily Argus v1.8 private path allowlist: drop the expired entries (ACR-0018 phase 16 step 4)
+
+[Timer]
+OnCalendar=daily
+RandomizedDelaySec=15m
+Persistent=true
+Unit=argus-v18-edge-allow-prune.service
+
+[Install]
+WantedBy=timers.target
