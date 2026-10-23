@@ -7,6 +7,12 @@ shared-Brain setup B1–B8 under way (three developers).
 > The VMs are authoritative for what runs there: run `sudo bash /opt/argus-v18/app/ops/deploy.sh status` (or read
 > `/opt/argus-v18/DEPLOYED`) and the state probe before trusting this file.
 
+> **Update 2026-10-23 (`conantkd`, OBSERVED with a read-only database check on vm-095):** WebAuthn enrolment tickets were
+> issued and keys registered: **`conantkd` 2, `juanes6554` 2, `juanbetancurm` 1** (D3 asks for two; the check's verdict is
+> `STOP` until the second key). No privileged permission exists yet. vm-095 still runs `77c4524`; `NO INTERFERENCE`.
+> Evidence: [step 03](execution/history/PHASE-16/step-03-enrolment/evidence.md),
+> [step 03b](execution/history/PHASE-16/step-03b-keys-check/evidence.md).
+
 > **Update 2026-10-22 (`conantkd`, DEPLOY-77c4524, OBSERVED with `deploy.sh status`):** **vm-095 runs `main`
 > `77c4524`**: migration **013** (WebAuthn credentials, challenges, enrolment tickets, step-up tokens; #280), the UI's
 > security keys page (#284), the Bearer redaction fix (#278). The relying party is the UI's DNS name (`hosts.env`).
