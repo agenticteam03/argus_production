@@ -8,6 +8,7 @@
 | vm-095 ↔ vm-166 (SSH tunnel: gateways, probes, Prometheus) | private network | KB per read | stays inside the cloud network; not internet egress |
 | Prometheus, exporter, Postgres, evidence storage | local | — | no `remote_write`; metrics and evidence never leave the VMs |
 | **Agent → OpenAI API (vm-095)** | **out** | ≈ 5–30 KB per model step; ≤ 8 steps per incident | context = runbook passages + the last evidence bodies (bounded) + findings; healthy checks, refused targets and evidence packs make **no** model call |
+| **Scheduler → OCI Object Storage (vm-095)** | **out** | a few hundred bytes a day: one signed audit digest | `https` to the Object Storage endpoint of the account's region, with a create-and-inspect credential (ACR-0018 §5); the only destination the scheduler reaches outside the private network; off until the schedule is turned on |
 | Swagger / CLI through `ssh -L` | out | KB | — |
 | Privileged UI routes (`/api/v1/ops/`) through the public edge | in | KB | only with a client certificate of the team's CA and an allowlisted address (ACR-0018 step 4); else 404 |
 

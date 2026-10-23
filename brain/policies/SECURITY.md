@@ -8,8 +8,8 @@
 | Executor tokens (gateways, probes) | `/opt/argus-v18/secrets/` on the VMs (0700 root) | Git, `code.bash`, `output.bash` |
 | Tunnel key | `/opt/argus-v18/secrets/tunnel/` on vm-095 | anywhere else |
 | JWT signing keys (the HS256 key; the Ed25519 private key `jwt_ed25519_key`, ACR-0018, generated on vm-095 and never printed), Postgres passwords | `/opt/argus-v18/secrets/agent/`, `/opt/argus-v18/secrets/postgres/` on vm-095 | anywhere else |
-| The audit digest key (the Ed25519 private key `audit_digest_ed25519_key`, ACR-0018 step 5, generated on vm-095 and never printed) | `/opt/argus-v18/secrets/agent/` on vm-095 | anywhere else |
-| The OCI credential for the audit digests (ACR-0018 §5: an API key of a service user that can only create and inspect objects in one bucket; `config` and `key.pem`; created 2026-10-23) | its owner's laptop until it is copied; then `/opt/argus-v18/secrets/agent/oci_digest/` on vm-095 | Git, the Brain, chats, the other VM |
+| The audit digest key (the Ed25519 private key `audit_digest_ed25519_key`, ACR-0018 step 5, generated on vm-095 and never printed) | `/opt/argus-v18/secrets/digest/` on vm-095: a folder of its own, because the worker mounts all of `secrets/agent/`; only the scheduler mounts it | anywhere else |
+| The OCI credential for the audit digests (ACR-0018 §5: an API key of a service user that can only create and inspect objects in one bucket; `config` and `key.pem`; created 2026-10-23) | its owner's laptop until it is copied; then `/opt/argus-v18/secrets/digest/oci_digest/` on vm-095 (the scheduler only) | Git, the Brain, chats, the other VM |
 | OpenAI API key | `/opt/argus-v18/secrets/agent/openai_api_key` on vm-095 | anywhere else |
 | Each developer's Argus password (one account per person, no shared login: ARCHITECTURE §17.3) | their password manager; stored only as an argon2 hash in Postgres | anywhere written; never shared with another person |
 | Deploy keys (read-only, one per VM) | `/opt/argus-v18/secrets/deploy/` on each VM | anywhere else |

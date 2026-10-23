@@ -104,3 +104,30 @@ def check_against_chain(signed: dict[str, Any], rows: Iterable[Row]) -> list[str
             return [f"{day}: the chain holds {position} rows up to {audit_id}, the digest says {body['chained_rows']}"]
         return []
     return [f"{day}: {body['last_audit_id']} is not in the chain (rows removed)"]
+
+
+def check_series(items: list[dict[str, Any]], rows: Iterable[Row], public_key) -> list[str]:
+    """The shipped digests as a whole (empty = all well): each is signed by the audit digest key and agrees with the
+    chain, none is twice for a day, and no day is missing between the first and the last (a gap hides a removed digest).
+    Problems come ordered by day."""
+    rows = list(rows)
+    found: list[tuple[str, str]] = []
+    days: list[date] = []
+    for item in items:
+        day = date.fromisoformat(item["digest"]["day"])
+        if day in days:
+            found.append((day.isoformat(), f"{day}: more than one digest for this day"))
+            continue
+        days.append(day)
+        if not verify_signed(item, public_key):
+            found.append((day.isoformat(), f"{day}: the signature does not verify"))
+            continue
+        found.extend((day.isoformat(), p) for p in check_against_chain(item, rows))
+    if days:
+        have = set(days)
+        first, last = min(days), max(days)
+        for i in range((last - first).days):
+            missing = first + timedelta(days=i)
+            if missing not in have:
+                found.append((missing.isoformat(), f"{missing}: no digest for this day (a gap in the series)"))
+    return [message for _, message in sorted(found, key=lambda t: t[0])]
