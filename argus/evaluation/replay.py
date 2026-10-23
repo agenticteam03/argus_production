@@ -58,6 +58,8 @@ class CaseRun:
     # targets with an `ok` observation or metric snapshot, or named in the values of an `ok` observation on their host
     # (the database's sessions name the leaking client) (`unsupported_root_cause`); None = not recorded
     observed: list[str] | None = None
+    input_tokens: int = 0
+    output_tokens: int = 0
 
 
 class FixtureExecutor:
@@ -171,11 +173,16 @@ class RecordingLLM:
 
     def __init__(self, llm: Any):
         self.llm, self.requests, self.calls = llm, [], 0
+        self.input_tokens = self.output_tokens = 0
 
     def decide(self, messages, tools):
         self.calls += 1
         self.requests.append("\n".join(str(getattr(m, "content", m)) for m in messages))
-        return self.llm.decide(messages, tools)
+        reply = self.llm.decide(messages, tools)
+        usage = getattr(reply, "usage", None)
+        self.input_tokens += int(getattr(usage, "input_tokens", 0) or 0)
+        self.output_tokens += int(getattr(usage, "output_tokens", 0) or 0)
+        return reply
 
 
 def run_case(case: Case, workdir: Path, llm: Any | None = None, settings: Settings | None = None,
@@ -233,6 +240,7 @@ def run_case(case: Case, workdir: Path, llm: Any | None = None, settings: Settin
         case_id=case.id, outcome=done.outcome.value if done.outcome else None, incident_class=done.incident_class,
         root_cause_target=done.root_cause_target, diagnosis=done.diagnosis, findings=list(done.findings),
         model_calls=rec.calls if rec else 0,
+        input_tokens=rec.input_tokens if rec else 0, output_tokens=rec.output_tokens if rec else 0,
         reads=[(e.capability, e.target, e.status) for e in evidence if e.capability and e.target],
         passages=passages, audit_events=[a.event for a in audit],
         model_requests=rec.requests if rec else [], duration_ms=ms,

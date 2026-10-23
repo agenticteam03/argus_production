@@ -32,6 +32,8 @@ def runs_from_file(path: Path, cases: list[Case]) -> list[tuple[Case, CaseRun]]:
         out.append((case, CaseRun(case_id=r["case"], outcome=r.get("outcome"), incident_class=r.get("incident_class"),
                                   root_cause_target=r.get("root_cause_target"), diagnosis=r.get("diagnosis"),
                                   findings=list(r.get("findings") or []), model_calls=int(r.get("model_calls") or 0),
+                                  input_tokens=int(r.get("input_tokens") or 0),
+                                  output_tokens=int(r.get("output_tokens") or 0),
                                   reads=[tuple(x) for x in r.get("reads") or []],
                                   passages=[tuple(x) for x in r.get("passages") or []],
                                   audit_events=list(r.get("audit_events") or []),
