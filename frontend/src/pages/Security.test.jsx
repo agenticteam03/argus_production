@@ -41,6 +41,23 @@ describe("SecurityView", () => {
     expect(out).not.toContain("Add a second key");
   });
 
+  // T-0016: the page follows the app's style and both themes: the same title as the other pages, a state badge, tinted
+  // boxes for errors and results, and only theme tokens (no fixed colour), so light mode needs no extra rule.
+  it("looks like the rest of the app in both themes", () => {
+    const out = view({ error: "x", notice: "y" });
+    expect(out).toContain("text-[28px]");
+    expect(out).toMatch(/role="alert" class="[^"]*border-red-400\/30[^"]*bg-red-400\/10/);
+    expect(out).toMatch(/role="status" class="[^"]*border-emerald-400\/30[^"]*bg-emerald-400\/10/);
+    expect(out).toMatch(/<code class="[^"]*font-mono/);
+    expect(out).not.toMatch(/#[0-9a-f]{3,6}\b|bg-black|bg-white|text-black/i);
+  });
+
+  it("says the state of this login with a badge", () => {
+    expect(view()).toMatch(/No key yet<\/span>/);
+    expect(view({ status: { enrolled: 1, verified: false } })).toMatch(/Not confirmed<\/span>/);
+    expect(view({ status: { enrolled: 2, verified: true } })).toMatch(/>Confirmed<\/span>/);
+  });
+
   it("announces errors and results, and says when the browser cannot use keys", () => {
     expect(view({ error: "the enrolment ticket was used or has expired" })).toMatch(/role="alert"[^>]*>the enrolment ticket was used/);
     expect(view({ notice: "Key registered." })).toMatch(/role="status"[^>]*>Key registered\./);
