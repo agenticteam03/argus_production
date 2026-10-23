@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | `proposed` — [ACR-0029](../../architecture/changes/ACR-0029-incident-feedback.md) drafted; acceptance and phase 16's required access/audit deployment gates pending; no implementation |
+| Status | `proposed` - [ACR-0029](../../architecture/changes/ACR-0029-incident-feedback.md) acceptance by `conantkd` pending; WebAuthn and step-up are implemented on main and deployed on vm-095; the private path and off-host audit digest remain unmet; no T-0048 implementation |
 | Phase | next phase, area G (separate track of [NEXT-PHASE](NEXT-PHASE-supervised-remediation.md)) |
 | Architecture | [ACR-0029](../../architecture/changes/ACR-0029-incident-feedback.md) (`proposed`); depends on ACR-0018 |
 | Owner | `juanbetancurm` (+ agent); review: `conantkd` |
@@ -18,7 +18,8 @@ stayed fixed. Later investigations, the similar-case search and the ranking weig
 
 - Insert-only `incident_feedback` (verdict, actual class and root-cause target, fix kind and a redacted summary;
   corrections are new rows) and `incident_verification`; an `incident_outcome` view.
-- `POST /api/v1/incidents/{id}/feedback`: human only, a `feedback` permission, step-up when it labels a cause (ACR-0018).
+- `POST /api/v1/incidents/{id}/feedback`: human only, a `feedback` permission, step-up when it labels a cause
+  (ACR-0018).
 - `knowledge.prior_incidents` gains `confirmed_only`; a failed fix is never a precedent for that fix.
 - Case similarity (`incident_features`, an interpretable weighted match) and a prior for the T-0047 ranking.
 - An offline export of a confirmed incident to a draft evaluation case, reviewed in a PR, never automatic.
@@ -27,6 +28,25 @@ stayed fixed. Later investigations, the similar-case search and the ranking weig
 
 Labels steer future diagnoses, so they are privileged writes: they need the per-person accounts, step-up and audit of
 ACR-0018 first. Until then, T-0047 ranks with evidence weights only.
+
+## ACR-0018 gate status (snapshot: main `f480152`; vm-095 deployment `77c4524`)
+
+For this table, `met` means the gate implementation is merged and, for vm-095, deployed according to its record. It does
+not mean operator credential enrollment or a feedback-route operation has been exercised. PR #288 is open; its
+deployment evidence is on that PR branch. The record says the reciprocal enrollment tickets and two-key registration
+remain to be done.
+
+| ACR-0018 gate | Main `f480152` | vm-095 | Evidence |
+|---|---|---|---|
+| WebAuthn second factor | Met | Met (deployed; operator enrollment pending) | Main: `deploy/migrations/013_webauthn.sql`, `argus/adapters/inbound/http.py`, `tests/test_acr0018_webauthn.py`; PRs #280/#284. vm-095: PR #288 `brain/execution/history/DEPLOY-77c4524/step-01/evidence.md` records migration 013 and the relying party set. |
+| Step-up token | Met | Met (code deployed; live privileged use not recorded) | Main: migration 013, `argus/adapters/inbound/http.py`, `tests/test_acr0018_webauthn.py`; PR #280. vm-095: PR #288 records deployment of #280's migration 013 and code at `77c4524`; its checks do not exercise a privileged step-up operation. |
+| Private path (mTLS and allowlist) | Not met | Not met | `brain/tasks/current/PHASE-16-operator-access.md` step 4 and `brain/architecture/changes/ACR-0018-operator-access-and-audit.md` say it is not yet built; PR #288 records step 3 only. |
+| Signed off-host audit digest/protection | Not met | Not met | Phase 16 step 5 and ACR-0018 completion notes leave the signed daily digest off Host A pending. PR #288 verifies the on-host audit chain (137 rows), not an off-host digest. |
+
+After conantkd accepts ACR-0029 and its decisions, the first allowed implementation slice is the insert-only feedback
+and verification tables, outcome projection/use cases, minimum grants, and SQLite/Postgres tests, with no HTTP route.
+Keep feedback writes unavailable and `prior_weight=0`. Do not deploy or expose the route until the private-path and
+off-host audit gates are met on the deployed profile and the route/edge authorization checks receive team approval.
 
 ## Acceptance decisions (proposed answers)
 
