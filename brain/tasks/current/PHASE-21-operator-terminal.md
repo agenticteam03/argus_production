@@ -34,6 +34,7 @@ reads or types in the session.
 - Open, close, refusal and recording-failure events go through a required audit sink; an audit failure prevents a
   session from opening.
 - At most two sessions for one principal may be open at once.
+- A session closes at its 30-minute absolute limit; continuing requires a new step-up and ticket.
 - No permission is granted and no runtime path can invoke this package in 21A.
 
 ## Next exact step

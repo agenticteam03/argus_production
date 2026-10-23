@@ -50,11 +50,17 @@ A new section **§17.4 Operator terminal**:
 - **The hosts:** sshd accepts only certificates of that CA, only for the operator accounts, only from the broker's
   address and the team's admin path; port 22 is not reachable from the Internet; `sudo` I/O logging and `auditd`
   record commands and access to `/opt/argus-v18/secrets/` and the sshd/sudoers configuration.
-- **Session limits:** idle 15 min, absolute 4 h (re-authenticate to continue), at most 2 concurrent sessions per
-  user; an administrator can kill any session; logout or revocation closes it.
-- **The page:** its own origin (or at least its own strict page) with a strict CSP (no inline or third-party
-  scripts, Trusted Types); a host banner always visible (vm-095 / vm-166, user, incident, time left); multi-line
-  paste asks for confirmation.
+- **Session limits:** absolute 30 min, renewable only with a new step-up and ticket; at most 2 concurrent sessions per
+  user; an administrator can kill any session; logout or revocation closes it. There is no separate idle timer: the
+  short absolute limit is simpler and bounds a forgotten terminal.
+- **The UI contract:** `/me` exposes `terminal_hosts`, derived server-side from effective `open_terminal:<host>`
+  permissions, and the second-factor readiness already needed to explain a missing grant. The UI never infers access
+  from a role. An incident may prefill its id and reason, but the server validates both.
+- **The page:** the UI may present a resizable right panel, tabs and a permanent host/user/incident/countdown banner,
+  but the terminal document and byte channel live on their own origin in a tightly sandboxed frame. The parent SPA
+  receives lifecycle state only: never the ticket, keystrokes or output. The terminal origin has a strict CSP (no
+  inline or third-party scripts, Trusted Types); multi-line paste asks for confirmation. The ticket is never in a
+  URL, log, `localStorage` or `sessionStorage` and is erased after the WebSocket's first message.
 - **Exposure:** the ticket route and `/terminal/*` only on the private path (ACR-0018 layer 15); the public edge
   answers 404.
 - **Recording and audit:** the full session (input, output, timing) recorded by the broker and shipped **off-host**
@@ -120,8 +126,11 @@ proof because they add privileged routes, credentials, connectivity or deploymen
 4. **21D — isolated deployment:** broker container, SSH CA, one Unix account per operator, sshd restrictions,
    `sudo` I/O logging, `auditd`, off-host recording storage and the network proof that Argus processes cannot reach
    the broker.
-5. **21E — exit drill:** replay/refusal tests, idle and absolute expiry, revoke/kill, recording loss, public 404,
+5. **21E — exit drill:** replay/refusal tests, absolute expiry, revoke/kill, recording loss, public 404,
    CA revocation and break-glass rehearsal. Only this step may grant `open_terminal:<host>`.
+
+The UI suggestions from PR #307 were reconciled here during 21A. Its separate ACR-0030 session-lifetime proposal is
+not part of ACR-0020 and remains a separate decision.
 
 **Alternatives considered:**
 - A: **keep laptop SSH only.** Works, but unlinked to incidents, unrecorded, a shared account.

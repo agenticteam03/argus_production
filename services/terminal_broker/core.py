@@ -90,6 +90,7 @@ class TerminalSession:
     incident_id: str
     lease_id: str
     opened_at: datetime
+    expires_at: datetime
     state: Literal["open", "closed"] = "open"
     close_reason: str | None = None
     closed_at: datetime | None = None
@@ -144,13 +145,17 @@ class SessionRegistry:
         audit: AuditSink,
         *,
         max_sessions_per_principal: int,
+        session_ttl: timedelta,
     ):
         if max_sessions_per_principal < 1:
             raise ValueError("max_sessions_per_principal must be positive")
+        if not timedelta(0) < session_ttl <= timedelta(minutes=30):
+            raise ValueError("session_ttl must be positive and at most 30 minutes")
         self._accounts = accounts
         self._recorder = recorder
         self._audit = audit
         self._max_sessions = max_sessions_per_principal
+        self._session_ttl = session_ttl
         self._sessions: dict[str, TerminalSession] = {}
         self._used_tickets: set[str] = set()
 
@@ -171,6 +176,7 @@ class SessionRegistry:
             incident_id=ticket.incident_id,
             lease_id=ticket.lease_id,
             opened_at=now,
+            expires_at=now + self._session_ttl,
         )
         self._emit(self._event("terminal.session_opened", ticket, now, ticket.reason))
         self._sessions[session.session_id] = session
@@ -247,6 +253,9 @@ class SessionRegistry:
         session = self.get(session_id)
         if session.state != "open":
             raise SessionRefused("session is not open")
+        if recorded_at >= session.expires_at:
+            self.close(session_id, "absolute_timeout", recorded_at)
+            raise SessionRefused("session expired")
         if direction not in ("input", "output"):
             raise SessionRefused("recording direction is invalid")
         if not isinstance(payload, bytes):

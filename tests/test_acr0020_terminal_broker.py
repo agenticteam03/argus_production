@@ -92,7 +92,13 @@ def ticket(**changes) -> TerminalTicket:
 
 def registry(recorder=None, audit=None) -> SessionRegistry:
     accounts = FixedAccountMap({("conantkd", "vm-166"): "op-conantkd"})
-    return SessionRegistry(accounts, recorder or Recorder(), audit or Audit(), max_sessions_per_principal=2)
+    return SessionRegistry(
+        accounts,
+        recorder or Recorder(),
+        audit or Audit(),
+        max_sessions_per_principal=2,
+        session_ttl=timedelta(minutes=30),
+    )
 
 
 def test_ticket_is_bound_to_a_fixed_host_and_account():
@@ -138,6 +144,19 @@ def test_concurrent_sessions_are_bounded_per_principal():
 
     with pytest.raises(SessionRefused, match="concurrent"):
         sessions.open(ticket(ticket_id="tt_003", session_id="ts_003"), NOW)
+
+
+def test_session_closes_at_the_thirty_minute_absolute_limit():
+    recorder = Recorder()
+    sessions = registry(recorder=recorder)
+    sessions.open(ticket(), NOW)
+
+    with pytest.raises(SessionRefused, match="expired"):
+        sessions.record("ts_001", "output", b"late", NOW + timedelta(minutes=30))
+
+    assert sessions.get("ts_001").state == "closed"
+    assert sessions.get("ts_001").close_reason == "absolute_timeout"
+    assert recorder.manifests[0].close_reason == "absolute_timeout"
 
 
 def test_input_and_output_are_recorded_before_they_are_accepted():

@@ -2542,6 +2542,11 @@ no destination or account. The broker later signs a short-lived SSH certificate,
 output and timing synchronously to the off-host store. A byte is accepted only after the recorder persists it; any
 append or final-manifest failure closes the session. There are at most two open sessions per principal.
 
+Each terminal session has a 30-minute absolute limit and can continue only through a new step-up and ticket. `/me`
+lists the hosts for which `open_terminal:<host>` is effective; the UI never infers access from roles. A right-side
+panel may host the console, but its terminal document and byte channel run on a dedicated origin in a sandboxed
+frame. The parent SPA receives lifecycle state only, never the launch ticket, keystrokes or output.
+
 **Phase 21A as built:** `services/terminal_broker/core.py` contains only the ticket, fixed-account mapping, session
 state machine, recording frames and manifest contract. It has no listener, route, SSH dependency, credential,
 database, object-store adapter or runtime wiring, so it grants no access. Phase 21A may merge after the ACR's
