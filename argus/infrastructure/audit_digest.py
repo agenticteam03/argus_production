@@ -7,13 +7,15 @@ digest of every closed UTC day, signs it with the audit digest key and puts it o
 """
 from __future__ import annotations
 
+import json
 import logging
 import uuid
 from datetime import date
+from pathlib import Path
 from typing import Callable
 
 from argus.domain.audit_chain import verify
-from argus.domain.audit_digest import build_digest, digest_days, object_name, sign, to_bytes
+from argus.domain.audit_digest import build_digest, check_series, digest_days, object_name, sign, to_bytes
 from argus.domain.model import AuditRecord, utcnow
 
 log = logging.getLogger("argus.audit_digest")
@@ -70,3 +72,31 @@ class AuditDigestJob:
     def _ship(self, rows, day: date) -> str:
         body = build_digest(rows, day)
         return self.sink.put_once(object_name(day), to_bytes(sign(body, self.key)))
+
+
+def check_digest_files(paths, rows, public_pem: bytes) -> list[str]:
+    """`argus audit check-digests`: read the shipped digests (files, or folders searched for `*.json`) and check them as a
+    series against the chain and the audit digest key's public half. A file that is not a signed digest is reported by name,
+    and finding nothing to check is a problem, not a pass."""
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
+    from cryptography.hazmat.primitives.serialization import load_pem_public_key
+    key = load_pem_public_key(public_pem)
+    if not isinstance(key, Ed25519PublicKey):
+        raise ValueError("the public key must be an Ed25519 key")
+    files: list[Path] = []
+    for p in map(Path, paths):
+        files += sorted(p.rglob("*.json")) if p.is_dir() else [p]
+    if not files:
+        return ["no digest files found"]
+    items, problems = [], []
+    for f in files:
+        try:
+            item = json.loads(f.read_bytes())
+            date.fromisoformat(item["digest"]["day"])
+            item["signature"], item["digest"]["last_audit_id"], item["digest"]["last_hash"]
+            item["digest"]["chained_rows"]
+        except (ValueError, KeyError, TypeError, OSError):
+            problems.append(f"{f.name}: not a signed digest")
+            continue
+        items.append(item)
+    return problems + check_series(items, rows, key)

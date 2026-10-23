@@ -121,16 +121,21 @@ services:
     volumes:
       - /opt/argus-v18/app/config:/app/config:ro                      # inventory: schedule targets must exist
       - /opt/argus-v18/app/deploy/scheduler:/app/schedules:ro         # the image has no deploy/ folder
-      - /opt/argus-v18/secrets/agent/db_password:/run/argus-secrets/db_password:ro   # the database only: no tokens
+      - /opt/argus-v18/secrets/agent/db_password:/run/argus-secrets/db_password:ro   # the database; no executor tokens
+      # ACR-0018 step 5: the signed daily audit digest. Its own folder, never secrets/agent/ (the worker mounts all of
+      # that): the key that signs and the create-only credential of the OCI bucket. The scheduler is the only reader.
+      - /opt/argus-v18/secrets/digest/audit_digest_ed25519_key:/run/argus-secrets/audit_digest_ed25519_key:ro
+      - /opt/argus-v18/secrets/digest/oci_digest:/run/argus-secrets/oci_digest:ro
     environment:
       ARGUS_DB_BACKEND: postgres        # the scheduler needs the shared database (no SQLite rollback for it)
       ARGUS_SCHEDULES: /app/schedules/schedules.yaml
       ARGUS_SCHEDULE_MIN_INTERVAL_S: "300"
-    networks: [argus-v18-core]          # Postgres only; no host port
+      ARGUS_AUDIT_DIGEST_SINK: ${ARGUS_AUDIT_DIGEST_SINK:-}   # oci:<namespace>/<bucket> in hosts.env; unset = no sink
+    networks: [argus-v18-core]          # Postgres, and the digest's one outbound destination (OCI Object Storage, https)
     depends_on:
       argus-v18-postgres: {condition: service_healthy}
-    mem_limit: 160m
-    memswap_limit: 160m
+    mem_limit: 256m                     # was 160m: the OCI SDK adds ~19 MB at start, and the digest reads the whole chain
+    memswap_limit: 256m
     cpus: 0.2
     pids_limit: 50
     restart: unless-stopped

@@ -226,9 +226,26 @@ def user(args) -> None:
 
 
 def audit(args) -> None:
-    """ACR-0018: recompute the audit hash chain; exit 1 at the first row edited, removed or inserted outside the store."""
+    """ACR-0018: recompute the audit hash chain; exit 1 at the first row edited, removed or inserted outside the store.
+    `check-digests` compares the shipped, signed daily digests with the chain (files downloaded from the store)."""
+    from pathlib import Path
+
     from argus.domain.audit_chain import verify
     store = make_store(Settings())
+    if args.action == "check-digests":
+        from argus.infrastructure.audit_digest import check_digest_files
+        if not args.paths or not args.public_key:
+            raise SystemExit("check-digests needs the digest files or folders and --public-key <pem>")
+        try:
+            problems = check_digest_files(args.paths, store.audit_chain(), Path(args.public_key).read_bytes())
+        except (OSError, ValueError) as e:
+            raise SystemExit(f"check-digests: {e}")
+        for p in problems[:50]:
+            print(f"  PROBLEM  {p}")
+        if problems:
+            raise SystemExit(f"DIGESTS DO NOT MATCH THE CHAIN: {len(problems)} problem(s)")
+        print("DIGESTS OK: signed by the audit digest key, a series without gaps, all matching the chain")
+        return
     chained, before, problems = verify(store.audit_chain())
     for p in problems[:20]:
         print(f"  BROKEN  {p}")
@@ -329,8 +346,10 @@ def build_parser() -> argparse.ArgumentParser:
     m.add_argument("host")
     m.add_argument("--minutes", type=int, required=True, help="1..240")
     m.add_argument("--as", dest="who", required=True, help="who declares it (audited)")
-    au = sub.add_parser("audit", help="ACR-0018: verify the audit hash chain")
-    au.add_argument("action", choices=["verify"])
+    au = sub.add_parser("audit", help="ACR-0018: verify the audit hash chain, or check shipped digests against it")
+    au.add_argument("action", choices=["verify", "check-digests"])
+    au.add_argument("paths", nargs="*", help="check-digests: the digest files or folders")
+    au.add_argument("--public-key", help="check-digests: the audit digest key's public half (PEM)")
     se = sub.add_parser("session", help="ACR-0018: end every open session of a principal now")
     se.add_argument("action", choices=["revoke"])
     se.add_argument("name")
