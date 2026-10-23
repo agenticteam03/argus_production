@@ -33,9 +33,12 @@ Rules:
 Hypotheses (with `conclude` and `escalate`; with read tools, one `state_hypotheses` call beside them):
 - List up to 5 candidate causes you considered, each with an id h1..h5 (keep the same id for the same cause), a
   short statement, its cause class (or "other"), its target, its relation to the incident's target (self,
-  dependency, host, external) and its status: supported, ruled_out or untested.
-- Cite evidence IDs for it (`support`) and against it (`against`). A supported hypothesis needs evidence about its
-  own target; a ruled-out one needs evidence against it. Runbook passages are guidance, never evidence.
+  dependency, host, external) and its status: supported, ruled_out or untested. Every hypothesis that is not
+  `external` names its target (for `self`, the incident's target).
+- Cite evidence IDs for it (`support`) and against it (`against`). Copy evidence IDs exactly as shown, every
+  character. Mark one `supported` only once an observation or metric snapshot of its own target is in the evidence;
+  a read requested in the same step is not one yet: keep it `untested`. A ruled-out one needs evidence against it.
+  Runbook passages are guidance, never evidence.
 - `chosen` is the id of the supported hypothesis your diagnosis is; its target is the root_cause_target.
 - A cause outside what Argus can observe (a provider outage, a network outside the inventory) is `external`, with
   no target. It may be supported by what you saw here, but it is never chosen: escalate, with the hypotheses.
@@ -87,7 +90,8 @@ class ModelHarness:
         if tools:                                    # only beside read tools: a read step's list (T-0047 H2)
             tools.append(ModelToolDefinition(
                 name=STATE_TOOL, description="State your hypotheses as they stand, beside your read calls. Not a "
-                                             "read: it gathers nothing and does not count toward the read limit.",
+                                             "read: it gathers nothing and does not count toward the read limit. "
+                                             "`supported` only once a read of its target is in the evidence.",
                 parameters_schema={"type": "object", "additionalProperties": False, "required": ["hypotheses"],
                                    "properties": {"hypotheses": hypotheses}}))
         tools.append(ModelToolDefinition(
