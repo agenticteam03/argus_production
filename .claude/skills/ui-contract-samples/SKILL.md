@@ -32,6 +32,14 @@ commit, push or change the frontend.
    - the new samples;
    - the samples no longer produced.
 
+   For each `--keep-new NAME`, it keeps regenerated values but restores an old
+   ID at the same JSON position when that ID is referenced by another old
+   sample or a frontend test. It reports each restored or already-matching
+   shared ID, each changed unshared ID it leaves new, and any shared ID it
+   cannot map. If a referenced old ID has no regenerated ID at that position,
+   it restores all samples and `ui-api.json` and exits with an error; inspect
+   the API change before retrying.
+
    It touches only `contracts/samples/` (and the test rewrites
    `ui-api.json`). If the regeneration fails, it puts every sample and
    `ui-api.json` back and removes any sample the run created.

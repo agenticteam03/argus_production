@@ -5,6 +5,8 @@ from __future__ import annotations
 import importlib.util
 import json
 from pathlib import Path
+import sys
+from types import SimpleNamespace
 
 import pytest
 
@@ -73,6 +75,128 @@ def test_keep_new_takes_the_regenerated_bytes():
     new = {"me.json": dump({"actions": ["b"]})}
     keep, _, values, _, _ = load().decide(old, new, {"me.json"})
     assert keep == {} and values == ["me.json"]
+
+
+def test_keep_new_handles_the_five_pr291_id_pairs(tmp_path, monkeypatch, capsys):
+    module = load()
+    samples = tmp_path / "contracts" / "samples"
+    samples.mkdir(parents=True)
+    contract = tmp_path / "contracts" / "ui-api.json"
+    contract.write_text("old contract\n", encoding="utf-8")
+    old_ids = {
+        "incident": "inc_7e49840f50fa",
+        "evidence1": "ev_f5de798421654c48",
+        "evidence2": "ev_45ed7debb7264c5a",
+        "observation1": "obs_9a72f05666764ae7",
+        "observation2": "obs_b5f0c65434884487",
+    }
+    new_ids = {
+        "incident": "inc_77b419ffd2c4",
+        "evidence1": "ev_fbe03b6dd30b4d3f",
+        "evidence2": "ev_fa1751bfec24478b",
+        "observation1": "obs_906e33f1d6d34fe0",
+        "observation2": "obs_1e2ba915fc634a86",
+    }
+    old_target = {
+        "id": old_ids["incident"],
+        "events": [{"incident_id": old_ids["incident"]}, {"incident_id": old_ids["incident"]}],
+        "evidence": [{"evidence_id": old_ids["evidence1"]}, {"evidence_id": old_ids["evidence2"]}],
+        "evidence_highlights": [
+            {"evidence_id": old_ids["evidence1"]}, {"evidence_id": old_ids["evidence2"]}
+        ],
+        "observations": [{"evidence_id": old_ids["observation1"]}, {"evidence_id": old_ids["observation2"]}],
+    }
+    regenerated = {
+        "id": new_ids["incident"],
+        "events": [{"incident_id": new_ids["incident"]}, {"incident_id": new_ids["incident"]}],
+        "evidence": [{"evidence_id": new_ids["evidence1"]}, {"evidence_id": new_ids["evidence2"]}],
+        "evidence_highlights": [
+            {"evidence_id": new_ids["observation1"]}, {"evidence_id": new_ids["observation2"]}
+        ],
+        "observations": [{"evidence_id": new_ids["observation1"]}, {"evidence_id": new_ids["observation2"]}],
+    }
+    (samples / "incident.json").write_text(dump(old_target), encoding="utf-8")
+    (samples / "incidents.json").write_text(dump({"id": old_ids["incident"]}), encoding="utf-8")
+    (samples / "evidence.json").write_text(dump({"evidence_id": old_ids["evidence1"]}), encoding="utf-8")
+    (samples / "events.json").write_text(dump({"ids": [old_ids["observation1"], old_ids["observation2"]]}),
+                                          encoding="utf-8")
+    frontend_test = tmp_path / "frontend" / "src" / "sample.test.js"
+    frontend_test.parent.mkdir(parents=True)
+    frontend_test.write_text(f'{old_ids["incident"]} {old_ids["evidence1"]}', encoding="utf-8")
+    contract_test = tmp_path / "tests" / "test_ui_contract.py"
+    contract_test.parent.mkdir()
+    contract_test.write_text("# fixture\n", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    module.SAMPLES = Path("contracts/samples")
+    module.CONTRACT = Path("contracts/ui-api.json")
+
+    def regenerate(*args, **kwargs):
+        (samples / "incident.json").write_text(dump(regenerated), encoding="utf-8")
+        (samples / "incidents.json").write_text(dump({"id": new_ids["incident"]}), encoding="utf-8")
+        (samples / "evidence.json").write_text(dump({"evidence_id": new_ids["evidence1"]}), encoding="utf-8")
+        (samples / "events.json").write_text(dump({"ids": [new_ids["observation1"], new_ids["observation2"]]}),
+                                              encoding="utf-8")
+        contract.write_text("new contract\n", encoding="utf-8")
+        return SimpleNamespace(returncode=0, stdout="", stderr="")
+
+    monkeypatch.setattr(module.subprocess, "run", regenerate)
+    monkeypatch.setattr(sys, "argv", ["keep_unchanged_samples.py", "--keep-new", "incident.json"])
+
+    assert module.main() == 0
+    result = json.loads((samples / "incident.json").read_text(encoding="utf-8"))
+    assert result["id"] == old_ids["incident"]
+    assert all(event["incident_id"] == old_ids["incident"] for event in result["events"])
+    assert result["evidence"][0]["evidence_id"] == old_ids["evidence1"]
+    assert result["evidence"][1]["evidence_id"] == new_ids["evidence2"]
+    assert result["evidence_highlights"][0]["evidence_id"] == old_ids["evidence1"]
+    assert result["evidence_highlights"][1]["evidence_id"] == new_ids["observation2"]
+    assert result["observations"] == [
+        {"evidence_id": old_ids["observation1"]}, {"evidence_id": old_ids["observation2"]}
+    ]
+    assert json.loads((samples / "incidents.json").read_text(encoding="utf-8")) == {"id": old_ids["incident"]}
+    assert json.loads((samples / "evidence.json").read_text(encoding="utf-8")) == {
+        "evidence_id": old_ids["evidence1"]
+    }
+    output = capsys.readouterr().out
+    for old_id, new_id in (old_ids["incident"], new_ids["incident"]), \
+            (old_ids["evidence1"], new_ids["evidence1"]), \
+            (old_ids["observation1"], new_ids["observation1"]), \
+            (old_ids["observation2"], new_ids["observation2"]):
+        assert f"{new_id} -> {old_id}" in output
+    assert f"{new_ids['observation1']} -> {old_ids['evidence1']}" in output
+    assert f"kept regenerated ID {new_ids['evidence2']}" in output
+    assert old_ids["evidence2"] in output
+    assert "frontend/src/sample.test.js" in output
+
+
+def test_keep_new_rolls_back_when_a_shared_id_has_no_matching_position(tmp_path, monkeypatch, capsys):
+    module = load()
+    samples = tmp_path / "contracts" / "samples"
+    samples.mkdir(parents=True)
+    contract = tmp_path / "contracts" / "ui-api.json"
+    contract.write_bytes(b"original contract")
+    original = dump({"id": "inc_7e49840f50fa"})
+    (samples / "incident.json").write_text(original, encoding="utf-8")
+    (samples / "incidents.json").write_text(dump({"id": "inc_7e49840f50fa"}), encoding="utf-8")
+    contract_test = tmp_path / "tests" / "test_ui_contract.py"
+    contract_test.parent.mkdir()
+    contract_test.write_text("# fixture\n", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    module.SAMPLES = Path("contracts/samples")
+    module.CONTRACT = Path("contracts/ui-api.json")
+
+    def regenerate(*args, **kwargs):
+        (samples / "incident.json").write_text(dump({"replacement": "no id at old position"}), encoding="utf-8")
+        contract.write_bytes(b"rewritten contract")
+        return SimpleNamespace(returncode=0, stdout="", stderr="")
+
+    monkeypatch.setattr(module.subprocess, "run", regenerate)
+    monkeypatch.setattr(sys, "argv", ["keep_unchanged_samples.py", "--keep-new", "incident.json"])
+
+    assert module.main() == 1
+    assert (samples / "incident.json").read_text(encoding="utf-8") == original
+    assert contract.read_bytes() == b"original contract"
+    assert "could not map shared ID inc_7e49840f50fa" in capsys.readouterr().out
 
 
 def test_a_failed_run_puts_back_samples_and_the_contract_and_removes_new_samples(tmp_path):
