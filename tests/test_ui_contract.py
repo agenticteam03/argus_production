@@ -70,12 +70,30 @@ def ui_schema(openapi: dict) -> dict:
 
 
 def shape(value):
-    """The structure of a response (keys and value types), not its values: ids and times change on every run."""
+    """The structure of a response (keys and value types), not its values: ids and times change on every run. A list's
+    shape joins every item's, so a key or type that only a later item has still counts (#291)."""
     if isinstance(value, dict):
         return {k: shape(v) for k, v in value.items()}
     if isinstance(value, list):
-        return [shape(value[0])] if value else []
+        return [_join([shape(v) for v in value])] if value else []
     return type(value).__name__
+
+
+def _join(shapes: list):
+    """One shape for the items of a list: dicts join their keys, lists their items; anything else that differs is
+    kept as a sorted union of the distinct shapes."""
+    dicts = [s for s in shapes if isinstance(s, dict)]
+    lists = [s for s in shapes if isinstance(s, list)]
+    variants = {json.dumps(s, sort_keys=True) for s in shapes if not isinstance(s, (dict, list))}
+    if dicts:
+        variants.add(json.dumps({k: _join([d[k] for d in dicts if k in d]) for k in {k for d in dicts for k in d}},
+                                sort_keys=True))
+    if lists:
+        inner = [i for item in lists for i in item]
+        variants.add(json.dumps([_join(inner)] if inner else [], sort_keys=True))
+    if len(variants) == 1:
+        return json.loads(variants.pop())
+    return {"one of": sorted(variants)}
 
 
 def scripted_run(make_app) -> dict[str, object]:
@@ -175,3 +193,12 @@ def test_samples_cover_a_diagnosis_and_an_escalation(make_app):
     assert {e["node"] for e in run["events"]} >= {"detect", "investigate", "act", "record"}
     assert run["escalations"], "the unsupported report must leave an escalation"
     assert run["login"]["access_token"] == "<a JWT>"
+
+
+def test_shape_reads_every_item_of_a_list():
+    """A key or a type that only a later item has is part of the shape (#291 found three samples it had missed)."""
+    first_only = [{"id": "a"}, {"id": "b", "chosen": True}]
+    assert shape(first_only) != shape([{"id": "a"}, {"id": "b"}])
+    assert shape([{"at": "t"}, {"at": None}]) != shape([{"at": "t"}, {"at": "u"}])
+    assert shape([1, 2]) == shape([3]) and shape([[], ["x"]]) == shape([["y"]])
+    assert shape([{"a": 1}, {"b": "x"}]) == shape([{"b": "y"}, {"a": 2}])
