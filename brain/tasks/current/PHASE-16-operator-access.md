@@ -95,8 +95,12 @@ step-up bound to a test object, with the binding to approvals added in phase 17.
   of ACR-0019; the rule and its test come with them). `config/policy.yaml`'s profile is decided here (ACR-0027).
 
 ### Step 5 — the off-host digest and security alerts
-- **Open decisions:** the bucket's provider (versioned, retention-locked, a put-only credential, outside both VMs);
-  the team's alert receiver (none exists: Argus only reads its Alertmanager).
+- **Decided (ACR-0018 §5, 2026-10-23):** the bucket is OCI Object Storage, administered by `conantkd`: a locked
+  time-bound retention rule with versioning off (OCI cannot combine them) and a create-only credential. **Open:** the
+  team's alert receiver (none exists: Argus only reads its Alertmanager).
+- **5a built (`task/PHASE-16-step-5a-digest`, ARCHITECTURE 1.8.31):** the digest, the signature, the job and a local
+  sink, all offline and tested. **5b:** the OCI sink (a new dependency and the credential's mount, a protected
+  path). **5c:** the key generated on vm-095, the schedule on, `argus audit` to check shipped digests against the chain.
 - The daily digest: the hash of each day's last chained audit row, signed (the audit digest key, §17.2) and shipped;
   the scheduler's chain check (built in step 1) raises the alert on `security.audit_chain_broken`, on lockouts and on
   refused privileged requests.

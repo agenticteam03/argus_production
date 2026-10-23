@@ -46,6 +46,7 @@ class Settings:
     pg_host: str = field(default_factory=lambda: os.getenv("ARGUS_PG_HOST", "argus-v18-postgres"))
     pg_db: str = field(default_factory=lambda: os.getenv("ARGUS_PG_DB", "argus"))
     pg_user: str = field(default_factory=lambda: os.getenv("ARGUS_PG_USER", "argus_runtime"))
+    audit_digest_sink: str = field(default_factory=lambda: os.getenv("ARGUS_AUDIT_DIGEST_SINK", "").strip())
     llm_model: str = field(default_factory=lambda: os.getenv("ARGUS_LLM_MODEL", "gpt-5.6-luna"))
     # ACR-0013: optional, filtered OTLP tracing to a self-hosted Langfuse; off by default. The project keys are the
     # secret files langfuse_public_key / langfuse_secret_key, mounted into the worker only.
@@ -136,9 +137,10 @@ class App:
 
 
 
-def ed25519_signing_key(pem: str | None):
-    """ACR-0018 §17.2: the API's token signing key, an Ed25519 private key in PEM (secret `jwt_ed25519_key`). None when
-    the secret is absent (the lab's HS256 key is used). Any other key type refuses startup."""
+def ed25519_signing_key(pem: str | None, name: str = "jwt_ed25519_key"):
+    """ACR-0018 §17.2: an Ed25519 private key in PEM: the API's token signing key (secret `jwt_ed25519_key`) or the audit
+    digest key (`audit_digest_ed25519_key`). None when the secret is absent (the lab's HS256 key is used for tokens).
+    Any other key type refuses startup."""
     if not pem:
         return None
     from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
@@ -146,10 +148,22 @@ def ed25519_signing_key(pem: str | None):
     try:
         key = load_pem_private_key(pem.encode(), password=None)
     except ValueError:
-        raise SystemExit("jwt_ed25519_key is not a PEM private key")
+        raise SystemExit(f"{name} is not a PEM private key")
     if not isinstance(key, Ed25519PrivateKey):
-        raise SystemExit("jwt_ed25519_key must be an Ed25519 private key")
+        raise SystemExit(f"{name} must be an Ed25519 private key")
     return key
+
+
+def make_digest_sink(s: "Settings"):
+    """ACR-0018 step 5: where the signed audit digests go, from `ARGUS_AUDIT_DIGEST_SINK`. None when unset. `dir:<path>`
+    is the local sink (tests and the lab; it is not off host). The OCI sink is step 5b."""
+    spec = s.audit_digest_sink
+    if not spec:
+        return None
+    if spec.startswith("dir:") and len(spec) > 4:
+        from argus.adapters.outbound.digest_sinks import LocalDirSink
+        return LocalDirSink(spec[4:])
+    raise SystemExit("ARGUS_AUDIT_DIGEST_SINK must be 'dir:<path>'")
 
 def _credentials(s: Settings, inventory: YamlInventory, require: bool, errors: list[str],
                  load: bool = True) -> dict[tuple[str, str], str]:
