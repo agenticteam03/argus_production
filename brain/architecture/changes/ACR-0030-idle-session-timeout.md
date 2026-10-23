@@ -18,7 +18,7 @@ Operators are signed out of the UI 30 minutes after they log in, even while they
 needs the password **and** a security-key assertion (ACR-0018). Evidence (code, `OBSERVED` by reading it):
 
 - `argus/infrastructure/wiring.py`: `jwt_ttl_min` = `ARGUS_JWT_TTL_MIN`, default **30**; no file under `deploy/` sets
-  it, so vm-095 is assumed to use 30 (to be confirmed with the `exp - iat` of a real token).
+  it. `OBSERVED` on vm-095 (2026-10-23, a UI login through the tunnel): the token's `exp - iat` is 30 min.
 - `argus/adapters/inbound/http.py` (`/api/v1/auth/token`): `exp` and the session row's `expires_at` are login time +
   `jwt_ttl_min`; nothing extends them.
 - §17.3: "There are no refresh tokens: the caller logs in again."
