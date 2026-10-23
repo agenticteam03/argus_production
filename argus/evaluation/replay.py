@@ -7,12 +7,14 @@ import os
 import re
 import time
 from dataclasses import dataclass, field
+from datetime import timedelta
 from pathlib import Path
 from typing import Any
 
 from argus.adapters.outbound.sqlite_store import SqliteStore
 from argus.capabilities.spec import ExecutorError
-from argus.domain.model import Incident, MetricSnapshot, RequestKind, TargetRef, TriggerKind, utcnow
+from argus.domain.model import (Incident, IncidentOutcome, IncidentStatus, MetricSnapshot, RequestKind, TargetRef,
+                                TriggerKind, utcnow)
 from argus.evaluation.cases import Case
 from argus.infrastructure.wiring import Settings, build, load_anomaly_inputs, read_signals
 from argus.ports.ports import StaleMetrics
@@ -222,6 +224,7 @@ def run_case(case: Case, workdir: Path, llm: Any | None = None, settings: Settin
         for name in list(app.runner.strategies):
             if name != "evidence_pack":            # unsupported / undiagnosable keep the evidence pack
                 app.runner.strategies[name] = chosen
+    seed_prior_incidents(app.store, case)
     app.store.create_incident(inc, None)
     t0 = time.monotonic()
     done = app.runner.run(inc.id)
@@ -270,6 +273,19 @@ def _observed(evidence: list, refs: list[TargetRef]) -> list[str]:
             seen |= {str(r) for r in refs if e.target.startswith(f"{r.host}/")
                      and re.search(rf"(?<![\w-]){re.escape(r.name)}(?![\w-])", values)}
     return sorted(seen)
+
+
+def seed_prior_incidents(store: Any, case: Case) -> None:
+    """T-0049 R1: store the case's closed precedents (`prior_incidents:`) before the run; none: the store stays
+    empty."""
+    for n, p in enumerate(case.prior_incidents, 1):
+        store.create_incident(Incident(
+            id=f"inc_prior_{n:02d}_{os.urandom(3).hex()}", target=TargetRef.parse(p.target),
+            trigger_kind=TriggerKind.alert, request_kind=RequestKind.report, reason="a seeded precedent",
+            principal="evaluation", trigger_id=f"eval-prior:{case.id}:{n}", incident_class=p.incident_class,
+            status=IncidentStatus.closed, outcome=IncidentOutcome(p.outcome), diagnosis=p.diagnosis,
+            confidence=p.confidence, root_cause_target=p.root_cause, findings=list(p.findings),
+            opened_at=p.closed_at - timedelta(minutes=5), closed_at=p.closed_at), None)
 
 
 def _drop_store(app: Any, db: Path) -> None:
