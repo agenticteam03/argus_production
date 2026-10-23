@@ -2,9 +2,9 @@
 
 | Field | Value |
 |---|---|
-| Status | `approved` as a plan (PR #170 merged); its ACRs are still `proposed`. Phase 15 in progress (2026-10-20) |
+| Status | `approved` as a plan (PR #170 merged); ACR-0020 accepted for offline 21A, safety approval pending |
 | Phase | 15–23 (planned, [`../../IMPLEMENTATION_PLAN.md`](../../IMPLEMENTATION_PLAN.md)) |
-| Architecture | [ACR-0018](../../architecture/changes/ACR-0018-operator-access-and-audit.md) operator access and audit · [ACR-0019](../../architecture/changes/ACR-0019-human-approved-remediation.md) human-approved remediation · [ACR-0020](../../architecture/changes/ACR-0020-operator-terminal.md) operator terminal · [ACR-0022](../../architecture/changes/ACR-0022-autonomous-investigation.md) more autonomous investigation — all `proposed` |
+| Architecture | [ACR-0018](../../architecture/changes/ACR-0018-operator-access-and-audit.md) operator access and audit · [ACR-0019](../../architecture/changes/ACR-0019-human-approved-remediation.md) human-approved remediation · [ACR-0020](../../architecture/changes/ACR-0020-operator-terminal.md) operator terminal (`accepted`, 21A) · [ACR-0022](../../architecture/changes/ACR-0022-autonomous-investigation.md) more autonomous investigation |
 | Sources | this proposal (juanbetancurm) merged with `conantkd`'s "Argus actúa" (2026-10-18) |
 | Branch | `task/NEXT-PHASE-proposal` (documentation only) |
 | Owner | `juanbetancurm` and `conantkd` (+ agents); lanes below |
@@ -123,7 +123,10 @@ memory and feedback are [T-0048](T-0048-incident-feedback.md); controlled extern
 
 ## Open decisions (for the proposal review)
 
-1. Terminal broker: adopt (Teleport Community Edition) or build (OD-17)?
+1. Terminal broker: **decided by ACR-0020 (2026-10-23): build the narrow Argus broker** so it reuses ACR-0018's
+   identity, step-up and private path and binds each session to its incident and lease. Teleport Community Edition
+   remains the scale-out alternative, but adds another identity/UI plane and a licensing decision. The independent
+   safety approval is still pending.
 2. Private path: a team VPN, or mTLS client certificates with an address allowlist? (`wg0` belongs to the protected
    deployment and is not reused without its owner's agreement.) **Answered (ACR-0018 §5):** mTLS with an address
    allowlist on the existing edge.
