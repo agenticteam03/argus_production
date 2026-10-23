@@ -73,7 +73,7 @@ export default function NodeDrawer({ node, incidents = [], incident = null, onCl
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const closeRef = useRef(null);
-  const { user } = useAuth();
+  const user = useAuth()?.user;      // no AuthProvider (a test): no actions, so no "Investigate this"
   const navigate = useNavigate();
   const metrics = useTargetMetrics(node.idle ? null : node.target);
   const meta = HEALTH_META[node.health] ?? HEALTH_META.unknown;
@@ -173,7 +173,7 @@ export default function NodeDrawer({ node, incidents = [], incident = null, onCl
           {canInvestigate && (
             <div>
               <button type="button" onClick={investigate} disabled={busy}
-                className="inline-flex h-10 cursor-pointer items-center gap-2 rounded-xl bg-accent px-4 text-sm font-medium text-white hover:bg-accent-hover disabled:cursor-wait disabled:opacity-70 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-hover">
+                className="inline-flex h-10 cursor-pointer items-center gap-2 rounded-xl bg-accent-solid px-4 text-sm font-medium text-white hover:bg-accent-solid-hover disabled:cursor-wait disabled:opacity-70 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-hover">
                 {busy ? "Starting…" : "Investigate this"}
               </button>
               {error && <p role="alert" className="mt-2 text-sm text-red-300">{error}</p>}

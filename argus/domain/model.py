@@ -132,6 +132,7 @@ class Observation(BaseModel):
                             "budget"] = "none"
     truncated: bool = False
     redactions: int = 0
+    dropped_fields: list[str] = []            # ACR-0028: the paths minimization dropped (names only; audited, not stored)
     model_text: str
 
 
@@ -166,6 +167,8 @@ class EvidenceRef(BaseModel):
     capability: str | None
     status: str
     model_text: str
+    target: str | None = None             # ACR-0024: what it is evidence of (the hypothesis checks need it)
+    kind: str | None = None               # observation, metric_snapshot, alert, reported_symptom
 
 
 class MetricSnapshot(BaseModel):
@@ -191,9 +194,23 @@ class ReadCall(BaseModel):
     arguments: dict[str, JsonValue]
 
 
+class Hypothesis(BaseModel):
+    """ACR-0024: one candidate explanation a model strategy states, with the evidence for and against it."""
+    id: str = Field(pattern=r"^h[1-5]$")             # stable across the steps of one incident
+    statement: str = Field(min_length=1, max_length=200)
+    cause_class: str                                 # an incident class name, or "other"
+    target: str | None = None                        # in the incident's scope; None only for `external`
+    relation: Literal["self", "dependency", "host", "external"]
+    status: Literal["supported", "ruled_out", "untested"]
+    support: list[str] = []                          # evidence ids for it
+    against: list[str] = []                          # evidence ids against it
+
+
 class UseReadTools(BaseModel):
     kind: Literal["use_read_tools"] = "use_read_tools"
     calls: list[ReadCall]
+    hypotheses: list[Hypothesis] = []                # ACR-0024: no tool carries it yet (T-0047 H2)
+    hypothesis_problems: list[str] = []              # ACR-0024 §3.2 would-be refusals, log-only until H4
 
 
 class Conclude(BaseModel):
@@ -202,12 +219,17 @@ class Conclude(BaseModel):
     evidence_ids: list[str]
     confidence: Literal["low", "medium", "high"]
     root_cause_target: str | None = None
+    hypotheses: list[Hypothesis] = []                # ACR-0024: ≤ 5; required of a model strategy (log-only, H1)
+    chosen: str | None = None                        # the hypothesis id the diagnosis is
+    hypothesis_problems: list[str] = []
 
 
 class Escalate(BaseModel):
     kind: Literal["escalate"] = "escalate"
     reason: str
     evidence_ids: list[str] = []
+    hypotheses: list[Hypothesis] = []                # what was considered before giving up
+    hypothesis_problems: list[str] = []
 
 
 AgentDecision = Annotated[UseReadTools | Conclude | Escalate, Field(discriminator="kind")]
@@ -260,10 +282,18 @@ class HostInfo(BaseModel):
     alertmanager: str | None = None           # ACR-0003: the host's Alertmanager URL (not an executor: no token)
 
 
+class DependencyLink(BaseModel):
+    """ACR-0025: one declared dependency of a target, from an inventory `depends_on` entry."""
+    ref: TargetRef
+    port: int | None = None              # None = the dependency's first `tcp_ports` entry (a plain ref)
+    required: bool = True                # a broken required link is a problem of its owner (T-0046 L4)
+
+
 class TargetInfo(BaseModel):
     ref: TargetRef
     scope: str = "lab"
     depends_on: list[TargetRef] = []
+    links: list[DependencyLink] = []     # ACR-0025: per `depends_on` entry its port and `required` (none = plain refs)
     http_endpoints: list[str] = []
     tcp_ports: list[int] = []
     mounts: list[str] = []
@@ -271,6 +301,15 @@ class TargetInfo(BaseModel):
     database: str | None = None          # dbname read by the db-probe (inventory `database`)
     profile: str | None = None           # ACR-0021: "scenario" = a lab container that only runs during a scenario
     link_warning_ms: float | None = None  # ACR-0021: a dependency answer slower than this is `slow` (default 100 ms)
+
+    def link(self, dep: TargetRef) -> DependencyLink:
+        """The declared link to `dep`; a plain ref (or a target built without links) is port None, required."""
+        return next((x for x in self.links if x.ref == dep), DependencyLink(ref=dep))
+
+    def link_port(self, dep: TargetRef, dep_ports: list[int] | None) -> int | None:
+        """The port the link to `dep` uses: the declared one, else the dependency's first `tcp_ports` entry."""
+        port = self.link(dep).port
+        return port if port is not None else (dep_ports[0] if dep_ports else None)
 
 
 # ---------------------------------------------------------------------------------------------

@@ -1,4 +1,5 @@
 #!/bin/sh
+# shellcheck disable=SC3044   # `dirs` below is this script's own function, not the bash builtin
 # ACR-0011 (T-0016 step 4e): the public UI edge's certificate, Let's Encrypt by HTTP-01 through argus-v18-ui's :80.
 #   sudo sh /opt/argus-v18/app/ops/ui-cert.sh bootstrap --as <developer>          a self-signed placeholder, so the
 #                                                                                 edge can start in public mode

@@ -75,6 +75,9 @@ export default function Header() {
               <p className="truncate text-sm">{user.name}</p>
               <p className="text-xs text-muted">{ROLES[user.role]}</p>
             </div>
+            {user.actions?.includes("manage_second_factor") && (   // ACR-0018 step 3: only when Argus offers it
+              <Link to="/account/security" onClick={closeMenu} className="block rounded-lg px-3 py-2 text-sm hover:bg-ink/5">Security keys</Link>
+            )}
             <button onClick={logout} className="w-full cursor-pointer rounded-lg px-3 py-2 text-left text-sm hover:bg-ink/5">Log out</button>
           </div>
         </details>

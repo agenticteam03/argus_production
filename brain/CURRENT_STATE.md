@@ -7,6 +7,35 @@ shared-Brain setup B1–B8 under way (three developers).
 > The VMs are authoritative for what runs there: run `sudo bash /opt/argus-v18/app/ops/deploy.sh status` (or read
 > `/opt/argus-v18/DEPLOYED`) and the state probe before trusting this file.
 
+> **Update 2026-10-22 (`conantkd`, DEPLOY-afb72e8, OBSERVED with `deploy.sh status`):** **vm-095 runs `main`
+> `afb72e8`**: EdDSA access tokens with the Ed25519 key mounted (phase 16 step 2; every session logged in again),
+> `db prune-sessions` (#240; first dry run: 0 sessions), T-0047 H4/H5 (`analysis.anomaly_summary` registered, offered
+> to no class), the UI with Vite 8 and the contrast fix (#242, #257). No migration (012). 38/38 database checks. OP-008:
+> the approved `prune --apply` removed 18 backup sets (`KEEP=7`). vm-166 stays on `bdcd048`. Evidence:
+> [DEPLOY-afb72e8 step 01](execution/history/DEPLOY-afb72e8/step-01/evidence.md),
+> [OP-008 step 05](execution/history/OP-008/step-05/evidence.md).
+
+> **Update 2026-10-21 (`conantkd`, T-0047 H2/H3 deploy, OBSERVED with `deploy.sh status`):** **vm-095 runs `main`
+> `6c83da3`**: migration **012** `incident_hypothesis` (#236), the hypotheses ranked and stored and shown in the
+> incident answer (#237). 38/38 database checks. vm-166 stays on `bdcd048`. Evidence:
+> `execution/history/T-0047-H2-deploy/step-01/evidence.md`.
+> **Update 2026-10-21 (`conantkd`, T-0046 L5, OBSERVED with `deploy.sh status`):** **vm-095 runs `main` `2324186`**
+> with **link recording on** (`link_states`, #234; a restart is no transition, #231): 4 declared container links
+> recorded (1 `ok`, 3 `unknown`: scenario owners not running). vm-166 stays on `bdcd048`. Evidence:
+> `execution/history/T-0046-L5/step-01/evidence.md`.
+> **Update 2026-10-21 (`conantkd`, DEPLOY-A4479DF, OBSERVED with `deploy.sh status`):** **vm-095 runs `main` `a4479df`**
+> (phase 16 step 1 #223: sessions, logout, revocation, permissions, the audit hash chain; ACR-0026 #210; ACR-0028
+> #222; T-0046 L3 #226 with `link_states` off and L4 #227; T-0047 H1 #228; React Router 7 #229). Database at
+> migration **011**; the audit chain starts after 3893 unchained rows. EdDSA off (no key installed). vm-166 stays on
+> `bdcd048`. Evidence: `execution/history/DEPLOY-A4479DF/step-01/evidence.md`.
+> **Update 2026-10-21 (`conantkd`, DEPLOY-NIGHT, OBSERVED with `deploy.sh status`):** **vm-095 runs `main` `024aa6f`**
+> (T-0046 L1 #219, migration **009** `link_event` #220, #221). Database at migration 009. vm-166 stays on `bdcd048`.
+> Evidence: `execution/history/DEPLOY-NIGHT/step-01/evidence.md`.
+
+> **Update 2026-10-21 (`conantkd`, DEPLOY-215, OBSERVED with `deploy.sh status`):** **vm-095 runs `main` `b2e3548`**
+> (#203: a failed baseline read is not kept; #208's ops scripts). Database still at migration 008. vm-166 stays on
+> `bdcd048`. Evidence: `execution/history/DEPLOY-215/step-01/evidence.md`.
+
 > **Update 2026-10-20 (`conantkd`, DEPLOY-B7, OBSERVED with `deploy.sh status`):** **vm-095 runs `main` `999b5bb`**
 > (T-0045 B7: the baseline, the 6h and 24h ranges, deploy events); **database at migration 008** (`deploy_event`).
 > vm-166 stays on `bdcd048`. Evidence: `execution/history/DEPLOY-B7/step-01/evidence.md`.

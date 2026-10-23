@@ -252,7 +252,45 @@
     "container_restart_loop: last exit code=137",
     "container_restart_loop: killed by the kernel OOM killer at its container memory limit (out of memory)"
   ],
-  "hypotheses": [],
+  "hypotheses": [
+    {
+      "against_ids": [],
+      "cause_class": "container_restart_loop",
+      "chosen": true,
+      "id": "h1",
+      "rank": 1,
+      "relation": "self",
+      "statement": "OOM-killed by its memory limit",
+      "status": "supported",
+      "support": {
+        "against": 0,
+        "for": 2,
+        "score": 6.0
+      },
+      "support_ids": [
+        "ev_f5de798421654c48",
+        "ev_45ed7debb7264c5a"
+      ],
+      "target": "vm-166/container:argus-lab-worker"
+    },
+    {
+      "against_ids": [],
+      "cause_class": "other",
+      "chosen": false,
+      "id": "h2",
+      "rank": 2,
+      "relation": "external",
+      "statement": "its database is down",
+      "status": "untested",
+      "support": {
+        "against": 0,
+        "for": 0,
+        "score": -0.5
+      },
+      "support_ids": [],
+      "target": null
+    }
+  ],
   "id": "inc_7e49840f50fa",
   "incident_class": "container_restart_loop",
   "next_actions": [],
@@ -261,6 +299,7 @@
   "outcome": "diagnosed",
   "parent_id": null,
   "principal": "alice",
+  "ranking_disagrees": false,
   "reason": "UI contract sample",
   "request_kind": "report",
   "root_cause_target": "vm-166/container:argus-lab-worker",

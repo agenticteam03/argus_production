@@ -1,4 +1,4 @@
-"""Capability contract (v1.8 §12.3, lab: safety_class OP-003, provenance G-003)."""
+"""Capability contract (v1.8 §12.3, safety classes ACR-0026, provenance G-003)."""
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -33,6 +33,10 @@ class CapabilityResult:
 
 Impl = Callable[[BaseModel, TargetRef, TargetInfo | None, Any], CapabilityResult]
 
+# §12.3 (ACR-0026): the five safety classes. This release registers only the two read classes; the MUTATING ones come
+# with the write contract (§14.8), and FORBIDDEN is never registered (it exists so that risk.yaml and runbooks name it).
+SAFETY_CLASSES = ("READ_ONLY_SAFE", "READ_ONLY_SENSITIVE", "MUTATING_LOW_RISK", "MUTATING_HIGH_RISK", "FORBIDDEN")
+
 
 @dataclass(frozen=True)
 class CapabilitySpec:
@@ -54,3 +58,6 @@ class CapabilitySpec:
     # §12.7 (T-0034): > 0 = a combined capability: its impl gets an invoker bound to InvokeCapability (not an executor
     # client) and may make at most this many sub-reads, each validated, budgeted, policy-checked, audited and stored
     max_subcalls: int = 0
+    # ACR-0028 (G-006): the value paths this read may keep ("a", "a[].b", "a.b"); the rest is dropped before redaction
+    # and storage. Required for a READ_ONLY_SENSITIVE read; None = not minimized (a safe read, for now).
+    allowed_fields: frozenset[str] | None = None

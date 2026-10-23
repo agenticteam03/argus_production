@@ -17,7 +17,8 @@ A pull request that meets the **self-merge** conditions below may instead be mer
    - [ ] no secrets, IP addresses, personal names or local paths (Windows user-profile paths) in the diff;
    - [ ] the scope matches the task (no unrelated changes);
    - [ ] if the architecture changed: an ACR exists, `ARCHITECTURE.md` version and changelog are updated, and a
-         safety-principle change has a second approval;
+         safety-principle change has a second approval (any team member's approval, the author's
+         included),
    - [ ] if the VMs changed: the archived evidence shows `NO INTERFERENCE` and the deployed commit.
 4. **Report.** The agent writes a short review report: what passes, concerns, questions for A.
 5. **B decides:**
@@ -110,8 +111,10 @@ it cannot be self-merged). A teammate may object in any PR; an objection goes to
 3. the branch is up to date with `main` when it is merged ("Update branch", then wait for the checks again);
 4. it changes **none of the protected paths** below, under its new name or, for a renamed file, its old one. Those
    still need a teammate's approval on the last push:
-   - `brain/architecture/` (ARCHITECTURE.md and every ACR; a safety-principle change still needs its second approval);
+   - `brain/architecture/` (ARCHITECTURE.md and every ACR; a safety-principle change still needs its second approval,
+     AGENT_PROTOCOL §4);
    - `brain/policies/` and `brain/agents/` (the security, git and review rules; the agents' stop conditions and rails);
+   - `.claude/skills/` (agent procedures, executable helpers and templates);
    - the enforcement: `brain/tools/brain.py`, `.github/`, `.pre-commit-config.yaml`;
    - `ops/` (`deploy.sh`, `nonint-check.sh`, `write-gate-check.sh` run as root on the VMs; `local_ci.py`);
    - safety data: `config/policy.yaml` (write gate, scope), `config/inventory.yaml` (host isolation);
@@ -122,6 +125,10 @@ it cannot be self-merged). A teammate may object in any PR; an objection goes to
      `argus/infrastructure/gate_report.py`, `argus/tooling/isolation_check.py`) and their tests (`tests/brain/`,
      `tests/test_write_gate_standing.py`, `tests/test_write_gate_check.py`, `tests/test_tool_isolation.py`,
      `tests/test_op014_prompt_injection.py`): a weakened rail test would keep CI green;
+   - the action path, protected before it is built (phase 15, ACR-0019): `config/actions/` (action cards),
+     `config/risk.yaml` (risk colours), `config/ranking.yaml` (ACR-0024's weights),
+     `argus/capabilities/write_contract.py` (§14.8), and the reserved names of the dispatch module (`argus/actions/`)
+     and the action gateway (`services/action-gateway/`), which the first PR that builds them keeps;
 5. it is merged with a merge commit, and the branch is not deleted (`GIT_WORKFLOW.md`).
 
 The author's agent should still run the review checklist above and post its report as a PR comment before the merge:

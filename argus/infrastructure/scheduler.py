@@ -10,6 +10,10 @@ T-0022 (ACR-0003): in a pull transport profile it also runs `ReconcileFiringAler
 (`reconcile_firing_alerts` in the same file): the firing alerts of each host's Alertmanager become incidents.
 T-0035 (ACR-0009): `reconcile_firing_alerts.monitoring_heartbeat` turns on the heartbeat check per host (off until
 every host's Prometheus has the `ArgusMonitoringHeartbeat` rule: without it, no host would ever resolve an alert).
+T-0046 L3 (ACR-0025): `reconcile_firing_alerts.link_states` records the declared links' state changes on the same tick
+(`application/link_transitions.py`); off until deployed. Its failure never stops the alert reconciliation.
+ACR-0018 (`audit_chain` in the same file): at startup and every `every_s` seconds it verifies the audit hash chain and
+records the result as a `security` audit event (`security.audit_chain_verified` or `security.audit_chain_broken`).
 """
 from __future__ import annotations
 
@@ -27,9 +31,12 @@ from argus.domain.model import AuditRecord, Incident, RequestKind, TargetRef, Tr
 
 log = logging.getLogger("argus.scheduler")
 FIELDS = {"id", "cron", "target", "reason", "enabled"}
-RECONCILE_FIELDS = {"enabled", "every_s", "monitoring_heartbeat"}
+RECONCILE_FIELDS = {"enabled", "every_s", "monitoring_heartbeat", "link_states"}
 HEARTBEAT_FIELDS = {"enabled", "stale_after_s", "grace_s"}
+LINK_STATES_FIELDS = {"enabled"}
 RECONCILE_MIN_EVERY_S = 30
+AUDIT_CHAIN_FIELDS = {"enabled", "every_s"}
+AUDIT_CHAIN_MIN_EVERY_S = 3600          # the whole chain is read: at most hourly
 
 
 @dataclass(frozen=True)
@@ -39,6 +46,7 @@ class ReconcileConfig:
     heartbeat: bool = False          # ACR-0009: the monitoring heartbeat check (MonitoringWatch)
     stale_after_s: int = 180
     grace_s: int = 300
+    link_states: bool = False        # ACR-0025 (T-0046 L3): record link-state changes (LinkTransitions)
 
 
 def load_reconcile(text: str) -> ReconcileConfig:
@@ -59,8 +67,48 @@ def load_reconcile(text: str) -> ReconcileConfig:
     if stale < 2 * every or grace < stale:
         raise ValueError(f"reconcile_firing_alerts.monitoring_heartbeat: stale_after_s {stale} must be at least two "
                          f"ticks ({2 * every} s) and grace_s {grace} at least stale_after_s")
+    ls = item.get("link_states") or {}
+    if set(ls) - LINK_STATES_FIELDS:
+        raise ValueError(f"reconcile_firing_alerts.link_states: unknown field {sorted(set(ls) - LINK_STATES_FIELDS)}")
+    if ls.get("enabled") and not item.get("enabled", False):
+        raise ValueError("reconcile_firing_alerts.link_states runs on the reconcile tick: enable reconcile_firing_alerts")
     return ReconcileConfig(enabled=bool(item.get("enabled", False)), every_s=every,
-                           heartbeat=bool(hb.get("enabled", False)), stale_after_s=stale, grace_s=grace)
+                           heartbeat=bool(hb.get("enabled", False)), stale_after_s=stale, grace_s=grace,
+                           link_states=bool(ls.get("enabled", False)))
+
+
+def load_audit_chain(text: str) -> int | None:
+    """`audit_chain` (ACR-0018): the seconds between two verifications of the audit hash chain; None = off."""
+    item = (yaml.safe_load(text) or {}).get("audit_chain")
+    if not item:
+        return None
+    extra = set(item) - AUDIT_CHAIN_FIELDS
+    if extra:
+        raise ValueError(f"audit_chain: unknown field {sorted(extra)}")
+    every = int(item.get("every_s", 86400))
+    if every < AUDIT_CHAIN_MIN_EVERY_S:
+        raise ValueError(f"audit_chain: every_s {every} is below the minimum of {AUDIT_CHAIN_MIN_EVERY_S}")
+    return every if item.get("enabled", False) else None
+
+
+class AuditChainCheck:
+    """ACR-0018 §17.1 layer 13: verify the whole chain and record the result. A broken chain is logged as an error and
+    recorded as `security.audit_chain_broken` (the first problems, never a body); an alert on it follows when the
+    team's alert route exists (§18)."""
+
+    def __init__(self, store):
+        self.store = store
+
+    def run_once(self) -> str:
+        from argus.domain.audit_chain import verify
+        chained, before, problems = verify(self.store.audit_chain())
+        event = "security.audit_chain_broken" if problems else "security.audit_chain_verified"
+        detail = {"chained": chained, "before_chain": before, "problems": len(problems), "first": problems[:5]}
+        if problems:
+            log.error("AUDIT CHAIN BROKEN: %d problem(s), first: %s", len(problems), problems[0])
+        self.store.append(AuditRecord(audit_id=f"aud_{uuid.uuid4().hex[:16]}", incident_id=None, at=utcnow(),
+                                      category="security", event=event, actor="scheduler", detail=detail))
+        return f"{event}: {chained} chained, {before} before, {len(problems)} problem(s)"
 
 
 @dataclass(frozen=True)
@@ -104,10 +152,13 @@ def load_schedules(text: str, inventory, min_interval_s: int) -> list[Schedule]:
 
 
 class Scheduler:
-    def __init__(self, store, schedules: list[Schedule], reconcile=None, reconcile_every_s: int = 60):
+    def __init__(self, store, schedules: list[Schedule], reconcile=None, reconcile_every_s: int = 60,
+                 chain_check=None, chain_every_s: int = 86400, links=None):
         self.store = store
         self.schedules = schedules
         self.reconcile, self.reconcile_every_s = reconcile, reconcile_every_s   # ReconcileFiringAlerts or None
+        self.chain_check, self.chain_every_s = chain_check, chain_every_s       # AuditChainCheck or None (ACR-0018)
+        self.links = links                     # LinkTransitions or None (T-0046 L3): on the reconcile tick
         self._last: dict[str, datetime] = {}
 
     def tick(self, now: datetime) -> list[tuple[str, str]]:
@@ -142,8 +193,14 @@ class Scheduler:
         return "duplicate" if duplicate else "submitted"
 
     def run_forever(self, stop: threading.Event, every_s: float = 15.0) -> None:
-        next_reconcile = time.monotonic()
+        next_reconcile = next_chain = time.monotonic()
         while not stop.is_set():
+            if self.chain_check is not None and time.monotonic() >= next_chain:
+                next_chain = time.monotonic() + self.chain_every_s
+                try:
+                    log.info("audit chain: %s", self.chain_check.run_once())
+                except Exception:              # the next pass retries; a failure to verify is not a broken chain
+                    log.exception("audit chain check failed")
             try:
                 self.tick(utcnow())
             except Exception:                  # a database hiccup must not kill the scheduler; next tick retries
@@ -154,5 +211,10 @@ class Scheduler:
                     log.info("reconcile firing alerts: %s", self.reconcile.run_once())
                 except Exception:              # same rule: the next pass retries
                     log.exception("reconcile failed")
+                if self.links is not None:     # T-0046 L3: after the alerts, and never in their way
+                    try:
+                        log.info("link states: %s", self.links.run_once())
+                    except Exception:
+                        log.exception("link states failed")
             stop.wait(every_s)
 

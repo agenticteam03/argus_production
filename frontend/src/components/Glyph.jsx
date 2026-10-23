@@ -8,7 +8,7 @@ export const HEALTH_META = {
   degraded: { label: "Degraded", word: "degraded", tone: "text-amber-400", icon: "text-amber-300", text: "text-amber-300" },
   failed: { label: "Failed", word: "failing", tone: "text-red-400", icon: "text-red-300", text: "text-red-300" },
   unknown: { label: "Unknown", word: "unknown", tone: "text-slate-500", icon: "text-muted", text: "text-muted" },
-  idle: { label: "Idle", word: "idle", tone: "text-faint", icon: "text-faint", text: "text-faint" },
+  idle: { label: "Idle", word: "idle", tone: "text-faint", icon: "text-faint", text: "text-muted" },   // text in muted: AA contrast
 };
 const KIND_ICON = { box: Box, database: Database, server: Server };
 const HEX_POINTS = "20,1.5 38.2,12 38.2,32 20,42.5 1.8,32 1.8,12";

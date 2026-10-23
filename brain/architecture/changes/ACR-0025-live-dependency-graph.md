@@ -5,12 +5,12 @@ it as a separate track; this ACR is that track. **Reads and records only.**
 
 | Field | Value |
 |---|---|
-| Status | `proposed` |
+| Status | `accepted` (#214); **applied** to ARCHITECTURE 1.8.24 with T-0046 L1 (`task/T-0046-l1-link-rules`); built in steps L1–L6 |
 | Proposed by | juanbetancurm (+ agent) · 2026-10-20 |
-| Accepted by | pending |
+| Accepted by | a teammate approving `task/ACR-0025-accepted` (`conantkd` approved the proposal as recorded in #202, 2026-10-20) |
 | Second approval (safety principle only) | not required (no safety principle touched: see §4) |
-| Architecture version | the next free version when applied |
-| Task / PR | [T-0046](../../tasks/current/T-0046-live-dependency-graph.md) · PR (this one) |
+| Architecture version | 1.8.24 |
+| Task / PR | [T-0046](../../tasks/current/T-0046-live-dependency-graph.md) · #202 (proposed) · `task/ACR-0025-accepted` (accepted) |
 
 ## 1. Detect and explain
 
@@ -133,10 +133,20 @@ Undeclared connections seen on the hosts ("observed but not declared": needs per
 
 ## 5. Decision
 
-Pending.
+Proposed in #202, where `conantkd`'s review asked for eight changes (Level 2 with its own tag, host dependencies never
+probed, an unreadable Prometheus skipping that host's tick, the scheduler's new read named, the next free migration
+number, ARCHITECTURE applied with the first code, a class-registry change never self-merged) and approved the text as
+recorded. **Accepted as written** with the approval of `task/ACR-0025-accepted`. No safety principle is touched (§4),
+so no second approval is needed.
+
+Next: T-0046 L1 applies this ACR to `ARCHITECTURE.md` with its first code (§6).
 
 ## 6. Applied
 
-- [ ] `ARCHITECTURE.md` updated (§5.8, §7.1, §7.3, §12.2, §16.1), version bumped, changelog line added
-- [ ] journal entry
-- [ ] the ACR, the architecture change and the first code that needs it are in the same pull request
+- [x] `ARCHITECTURE.md` updated (§5.8, §7.1, §7.3, §12.2, §16.1), version 1.8.24, changelog line added
+- [x] journal entry (`2026-10-21-T-0046-L1-link-rules.md`)
+- [x] the architecture change and the first code that needs it (T-0046 L1) in the same pull request
+- Found while applying: the exporter's probe list (`ops/render_target_config.py`) also reads `depends_on`, so it
+  follows the mapping too (a declared port is the only one probed). §4 did not list it. And the map draws a host
+  dependency as `unknown` with the label "declared dependency", not `not_checked` as §3.1 says; the text in 1.8.24
+  says what the code does.

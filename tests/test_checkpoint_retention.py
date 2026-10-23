@@ -76,6 +76,11 @@ def test_dry_run_and_apply_only_prune_old_final_threads(database):
         assert audit["detail"]["threads_removed"] == 2
         assert c.execute("SELECT count(*) FROM audit").fetchone()[0] == 2
 
+    from argus.domain.audit_chain import verify
+    with psycopg.connect(database) as c:
+        rows = c.execute("SELECT audit_id, body, prev_hash, hash FROM audit ORDER BY seq").fetchall()
+    assert verify(rows) == (1, 1, [])       # the maintenance row is chained, so `argus audit verify` stays clean
+
     again = prune_checkpoints(database, days=30, now=NOW, dry_run=False)
     assert again["threads"] == again["checkpoints"] == again["blobs"] == again["writes"] == 0
 
@@ -121,8 +126,10 @@ def test_cli_and_timer_keep_preview_as_the_manual_default():
     from argus.__main__ import build_parser
 
     parser = build_parser()
+    from argus.__main__ import retention_days
+
     preview = parser.parse_args(["db", "prune-checkpoints"])
-    assert preview.days == 30 and preview.apply is False
+    assert retention_days(preview) == 30 and preview.apply is False
     apply = parser.parse_args(["db", "prune-checkpoints", "--days", "45", "--apply"])
     assert apply.days == 45 and apply.apply is True
 

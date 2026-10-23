@@ -79,6 +79,13 @@ class Settings:
     login_max_per_user: int = field(default_factory=lambda: int(os.getenv("ARGUS_LOGIN_MAX_PER_USER", "5")))
     login_max_per_address: int = field(default_factory=lambda: int(os.getenv("ARGUS_LOGIN_MAX_PER_ADDRESS", "20")))
     login_window_s: int = field(default_factory=lambda: int(os.getenv("ARGUS_LOGIN_WINDOW_S", "900")))
+    # ACR-0018 phase 16 step 3 (D2): WebAuthn's relying party id and the browser origin are the UI's DNS name (the
+    # VM's environment, never in Git; e.g. `name` and `https://name`). Unset: the second-factor routes answer 503.
+    webauthn_rp_id: str = field(default_factory=lambda: os.getenv("ARGUS_WEBAUTHN_RP_ID", "").strip())
+    webauthn_origin: str = field(default_factory=lambda: os.getenv("ARGUS_WEBAUTHN_ORIGIN", "").strip().rstrip("/"))
+    # D4: how long another administrator's enrolment ticket stays valid (or until used)
+    webauthn_enrol_ticket_hours: int = field(
+        default_factory=lambda: int(os.getenv("ARGUS_WEBAUTHN_ENROL_TICKET_HOURS", "24")))
     incidents_limit_cap: int = field(default_factory=lambda: int(os.getenv("ARGUS_INCIDENTS_LIMIT_CAP", "200")))
     # ACR-0017: the inventory host Argus runs on (the map marks it and draws its reads); unset = every host monitored
     home_host: str = field(default_factory=lambda: os.getenv("ARGUS_HOME_HOST", "").strip())
@@ -125,7 +132,24 @@ class App:
     incident_metrics: Any = None        # ACR-0017: the metric window around an incident (the UI's charts)
     topology: Any = None                # ACR-0017: the system map (inventory, signals, an incident's evidence)
     thresholds: Any = None              # ACR-0021: the UI's warning and critical lines (signals.yaml `thresholds:`)
+    jwt_signing: Any = None             # ACR-0018: an Ed25519 private key; tokens are EdDSA, HS256 refused. None: HS256
 
+
+
+def ed25519_signing_key(pem: str | None):
+    """ACR-0018 §17.2: the API's token signing key, an Ed25519 private key in PEM (secret `jwt_ed25519_key`). None when
+    the secret is absent (the lab's HS256 key is used). Any other key type refuses startup."""
+    if not pem:
+        return None
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+    from cryptography.hazmat.primitives.serialization import load_pem_private_key
+    try:
+        key = load_pem_private_key(pem.encode(), password=None)
+    except ValueError:
+        raise SystemExit("jwt_ed25519_key is not a PEM private key")
+    if not isinstance(key, Ed25519PrivateKey):
+        raise SystemExit("jwt_ed25519_key must be an Ed25519 private key")
+    return key
 
 def _credentials(s: Settings, inventory: YamlInventory, require: bool, errors: list[str],
                  load: bool = True) -> dict[tuple[str, str], str]:
@@ -202,11 +226,35 @@ def declared_paths(policy: dict | None, inventory: dict | None) -> list[str]:
     return sorted(out)
 
 
-def _target_executors(signals: dict) -> ExecutorRegistry:
+def anomaly_inputs(thresholds, ui_signals) -> tuple[dict, dict]:
+    """T-0047 H5: what `analysis.anomaly_summary` reads beside the templates: the warning line and direction per signal
+    and the (signal, scope) list per class. Empty when either file is missing or refused (the read then says so)."""
+    lines = {name: (t.warning, t.direction) for name in (thresholds.signals() if thresholds else [])
+             for t in [thresholds.get(name)]}
+    by_class = (ui_signals.by_class or {}) if ui_signals else {}
+    return lines, {name: [(s.signal, s.scope) for s in specs] for name, specs in by_class.items()}
+
+
+def load_anomaly_inputs(config_dir: Path, signals: set[str]) -> tuple[dict, dict]:
+    """`anomaly_inputs` for a process that does not validate the files itself (the tools process); a refused file
+    leaves its part empty (the worker's startup validation reports it)."""
+    try:
+        thresholds = load_thresholds(config_dir, signals)
+    except ValueError:
+        thresholds = None
+    try:
+        ui_signals = load_ui_signals(config_dir, signals)
+    except ValueError:
+        ui_signals = None
+    return anomaly_inputs(thresholds, ui_signals)
+
+
+def _target_executors(signals: dict, lines: dict | None = None, class_signals: dict | None = None) -> ExecutorRegistry:
     executors = ExecutorRegistry()
     for kind in ("docker_read", "host_probe", "network_probe", "db_probe"):
         executors.register(kind, lambda url, tok: TargetAgentClient(url, tok))
-    executors.register("prometheus", lambda url, tok: PrometheusClient(url, tok, signals))
+    executors.register("prometheus", lambda url, tok: PrometheusClient(url, tok, signals, lines=lines,
+                                                                       class_signals=class_signals))
     return executors
 
 
@@ -222,7 +270,8 @@ def tools_dispatcher(s: Settings):
     if errors:
         raise SystemExit("tools process: startup validation failed:\n  " + "\n  ".join(errors))
     redactor = Redactor(declared_paths(policy, yaml.safe_load(inv_text)))
-    return build_catalog(), Dispatcher(inventory, _target_executors(signals), creds, redactor,
+    lines, class_signals = load_anomaly_inputs(s.config_dir, set(signals))           # T-0047 H5
+    return build_catalog(), Dispatcher(inventory, _target_executors(signals, lines, class_signals), creds, redactor,
                                        reload=lambda host, ex: s.secret(f"{host}/{ex}_token")), inventory
 
 
@@ -266,6 +315,12 @@ def build(settings: Settings | None = None, llm=None, metrics=None, executors: E
         routing = load_routing(s.config_dir)
     except ValueError as e:
         errors.append(str(e))
+    ranking = None                                   # ACR-0024 §3.3 (T-0047 H2): the hypotheses' score weights
+    try:
+        from argus.application.ranking import load_ranking
+        ranking = load_ranking(s.config_dir)
+    except ValueError as e:
+        errors.append(str(e))
     ui_signals = None                                # ACR-0017: the incident charts' signal list, validated likewise
     try:
         ui_signals = load_ui_signals(s.config_dir, set(signals))
@@ -298,11 +353,12 @@ def build(settings: Settings | None = None, llm=None, metrics=None, executors: E
 
     redactor = Redactor(declared_paths(yaml.safe_load(pol_text), yaml.safe_load(inv_text)))   # #107 review
     if executors is None:
-        executors = _target_executors(signals)
+        executors = _target_executors(signals, *anomaly_inputs(thresholds, ui_signals))   # T-0047 H5
     knowledge = TfidfRunbooks(str(s.runbooks_dir), s.runbooks_commit and f"commit {s.runbooks_commit}")
     store = store or make_store(s)
     if "argus_internal" not in executors.names():              # in-worker capabilities (knowledge.*)
-        executors.register("argus_internal", lambda url, tok: KnowledgeClient(knowledge, store))   # T-0039: memory
+        executors.register("argus_internal", lambda url, tok: KnowledgeClient(knowledge, store,   # T-0039: memory
+                                                                              inventory, metrics))   # T-0046 L4
     if s.tool_catalogue == "mcp":       # target-side reads in the tools process, started on the first call
         from argus.tooling.mcp.client import child_client
         from argus.tooling.providers import McpCatalogue
@@ -347,15 +403,18 @@ def build(settings: Settings | None = None, llm=None, metrics=None, executors: E
                             strategies=strategies, offered_specs=[sp for sp in specs if policy.capability_known(sp.name)],
                             redactor=redactor, policy_version=policy.version,
                             max_tool_level=policy.max_tool_level, max_reads_per_step=s.max_reads_per_step,
-                            max_steps_cap=s.max_steps, routing=routing)
+                            max_steps_cap=s.max_steps, routing=routing, ranking=ranking)
     jwt_key = s.secret("jwt_signing_key") or os.getenv("ARGUS_JWT_KEY") or ""
     if len(jwt_key) < 32:
         raise SystemExit("jwt_signing_key missing or shorter than 32 characters")
+    jwt_signing = ed25519_signing_key(s.secret("jwt_ed25519_key"))
     from argus.application.incident_metrics import IncidentMetrics
     from argus.application.topology import Topology
     if s.home_host and inventory.host(s.home_host) is None:
         raise SystemExit(f"ARGUS_HOME_HOST {s.home_host!r} is not an inventory host")
     return App(settings=s, store=store, inventory=inventory, policy=policy, runner=runner, catalogue=catalogue,
                metrics=metrics, jwt_key=jwt_key, alertmanager_token=s.secret("alertmanager_token"), llm_configured=llm_configured,
-               incident_metrics=IncidentMetrics(metrics, ui_signals, store=store, thresholds=thresholds),
-               topology=Topology(inventory, metrics, store, s.home_host, thresholds=thresholds), thresholds=thresholds)
+               incident_metrics=IncidentMetrics(metrics, ui_signals, store=store, thresholds=thresholds,
+                                                inventory=inventory),
+               topology=Topology(inventory, metrics, store, s.home_host, thresholds=thresholds), thresholds=thresholds,
+               jwt_signing=jwt_signing)

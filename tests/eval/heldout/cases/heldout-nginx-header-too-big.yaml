@@ -1,0 +1,101 @@
+# OP-013 held-out: the upstream answers fast, but its response header exceeds the proxy's buffer: nginx 502
+id: heldout-nginx-header-too-big
+category: class
+target: vm-166/container:argus-lab-nginx
+request: report
+reason: users report 502 Bad Gateway on the site
+metrics:
+  vm-166/container:argus-lab-nginx:
+    http_gateway_error_ratio_5m: 0.9
+    dependency_probe_min: 1
+    restarts_10m: 0
+fixtures:
+  docker_read:
+    /containers/argus-lab-nginx/status:
+      id: c0ffee
+      state: running
+      health: none
+      restart_count: 0
+      oom_killed: false
+      exit_code: 0
+      memory_limit_bytes: 33554432
+      cpu_limit_cores: 0.2
+      networks:
+      - argus-lab-app
+    /containers/argus-lab-nginx/logs:
+      lines:
+      - 'upstream sent too big header while reading response header from upstream, upstream: "http://argus-lab-slow:8080/"'
+      - 'upstream sent too big header while reading response header from upstream, upstream: "http://argus-lab-slow:8080/"'
+    /containers/argus-lab-nginx/stats:
+      memory_usage_bytes: 6200000
+      memory_limit_bytes: 33554432
+      cpu_percent: 1.0
+      memory_percent: 18.5
+      pids: 3
+    /containers/argus-lab-nginx/health:
+      status: none
+      failing_streak: 0
+      log: []
+    /containers/argus-lab-nginx/events:
+      events: []
+    /containers/argus-lab-slow/status:
+      id: c0ffee
+      state: running
+      health: none
+      restart_count: 0
+      oom_killed: false
+      exit_code: 0
+      memory_limit_bytes: 33554432
+      cpu_limit_cores: 0.2
+      networks:
+      - argus-lab-app
+    /containers/argus-lab-slow/logs:
+      lines:
+      - 'slow: GET / answered after 0.1 s (Set-Cookie header 9 KiB)'
+    /containers/argus-lab-slow/stats:
+      memory_usage_bytes: 6000000
+      memory_limit_bytes: 33554432
+      cpu_percent: 0.6
+      memory_percent: 17.9
+      pids: 3
+    /containers/argus-lab-slow/health:
+      status: none
+      failing_streak: 0
+      log: []
+    /containers/argus-lab-slow/events:
+      events: []
+  network_probe:
+    '*':
+      ok: true
+      addresses: []
+      duration_ms: 40
+      status: 502
+  host_probe:
+    /service_config?target=vm-166/container:argus-lab-nginx:
+      target: vm-166/container:argus-lab-nginx
+      files:
+      - path: /opt/argus-v18/app/deploy/lab/nginx/default.conf
+        text: "server {\n    listen 8080;\n    location / {\n        proxy_pass http://argus-lab-slow:8080;\n        proxy_connect_timeout\
+          \ 2s;\n        proxy_read_timeout 2s;\n        proxy_buffer_size 4k;\n    }\n}\n"
+        truncated: false
+      collected_at: null
+    '*':
+      total_mib: 5800
+      available_mib: 3900
+      cpu_busy_percent: 14
+      load1: 0.3
+      cpus: 2
+label:
+  outcome: diagnosed
+  class: nginx_upstream_failure
+  root_cause: vm-166/container:argus-lab-nginx
+  diagnosis_any:
+  - header
+  - buffer
+  runbooks:
+  - RB-015
+  expected_hypotheses:
+    supported:
+    - vm-166/container:argus-lab-nginx
+    ruled_out:
+    - vm-166/container:argus-lab-slow

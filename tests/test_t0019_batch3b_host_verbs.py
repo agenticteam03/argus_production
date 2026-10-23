@@ -328,3 +328,19 @@ def test_the_probe_applies_the_same_floor_even_if_its_rendered_copy_leaves_it_ou
     probe.CONFIG["inspection"] = {"targets": {HOST: {"files": ["/"]}}, "deny": [], "limits": {}}   # a stale copy
     assert probe.inspection_allows(HOST, "files", "/home/ubuntu/.ssh/id_ed25519") is False
     assert probe.inspection_allows(HOST, "files", "/var/log/syslog") is True
+
+
+# --- the Argus side of read_file (the gateway tests above never ran it) -------------------------------------------------
+@pytest.mark.parametrize("more_before", [True, False])
+def test_the_read_file_capability_turns_the_answer_into_a_result(more_before):
+    from argus.capabilities.catalog import FileArgs, host_read_file
+
+    class Gateway:
+        def get(self, path, params):
+            return {"lines": ["a", "b"], "lines_returned": 2, "truncated": more_before,
+                    "collected_at": "2026-10-21T00:00:00+00:00"}
+
+    res = host_read_file(FileArgs(path="/var/log/myapp/app.log"), TargetRef.parse("vm-166/host:vm-166"), None,
+                         Gateway())
+    assert res.status == "ok" and res.partial is more_before and res.coverage == "last 2 line(s) of /var/log/myapp/app.log"
+    assert res.model_text.endswith("a" + chr(10) + "b") and ("(more before)" in res.model_text) is more_before

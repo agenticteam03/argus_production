@@ -133,7 +133,7 @@ export default function MetricChart({ series, metrics, variant = "compact", colo
           "No data" block (same tag, same place) or the other way round. */}
       {empty ? (
         <div key="empty" className={`mt-2 grid place-items-center rounded-lg border border-dashed border-line text-center ${hero ? "h-[260px]" : "h-[170px]"}`}>
-          <div><p className="text-sm text-muted">No data in this window</p><p className="mt-1 text-xs text-faint">A gap is a missing sample, never zero.</p></div>
+          <div><p className="text-sm text-muted">No data in this window</p><p className="mt-1 text-xs text-muted">A gap is a missing sample, never zero.</p></div>
         </div>
       ) : (
         <div key="chart" ref={el} role="img" aria-label={`${series.title}: ${fmtValue(last, series.unit)}, ${meta.label.toLowerCase()}. Chart with thresholds, normal range, incident window and events.`}

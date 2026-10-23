@@ -6,7 +6,7 @@ from typing import Any
 
 from pydantic import ValidationError
 
-from argus.domain.model import Conclude, Escalate, InvalidDecision, ReadCall, UseReadTools
+from argus.domain.model import Conclude, Escalate, Hypothesis, InvalidDecision, ReadCall, UseReadTools
 from argus.orchestration.view import InvestigationView
 from argus.ports.ports import LLMPort, ModelMessage, ModelReply, ModelToolDefinition
 
@@ -29,9 +29,24 @@ Rules:
 - A large file or directory shows where the space went, not who wrote it. Name a writer only when the evidence ties it
   to the data (its logs, its own file names, its write activity), not only because it can write there; a file that
   names no component is part of the symptom: escalate, with it as what a human should check.
+
+Hypotheses (with `conclude` and `escalate`; with read tools, one `state_hypotheses` call beside them):
+- List up to 5 candidate causes you considered, each with an id h1..h5 (keep the same id for the same cause), a
+  short statement, its cause class (or "other"), its target, its relation to the incident's target (self,
+  dependency, host, external) and its status: supported, ruled_out or untested.
+- Cite evidence IDs for it (`support`) and against it (`against`). A supported hypothesis needs evidence about its
+  own target; a ruled-out one needs evidence against it. Runbook passages are guidance, never evidence.
+- `chosen` is the id of the supported hypothesis your diagnosis is; its target is the root_cause_target.
+- A cause outside what Argus can observe (a provider outage, a network outside the inventory) is `external`, with
+  no target. It may be supported by what you saw here, but it is never chosen: escalate, with the hypotheses.
+- While you gather evidence, add one `state_hypotheses` call to your read calls with the list as it stands, so the
+  next step continues it. It is not a read and does not count toward the read limit.
 """
 
+MAX_HYPOTHESES = 5
+
 DECISION_TOOLS = {"conclude", "escalate"}
+STATE_TOOL = "state_hypotheses"          # ACR-0024 §3.1 (T-0047 H2): a read step's list, beside its read calls
 
 
 class ModelHarness:
@@ -68,6 +83,13 @@ class ModelHarness:
                 parameters_schema={"type": "object", "properties": props, "required": required,
                                    "additionalProperties": False}))
         ev_ids = sorted(view.evidence_ids)
+        hypotheses = self._hypotheses_schema(view, scope)
+        if tools:                                    # only beside read tools: a read step's list (T-0047 H2)
+            tools.append(ModelToolDefinition(
+                name=STATE_TOOL, description="State your hypotheses as they stand, beside your read calls. Not a "
+                                             "read: it gathers nothing and does not count toward the read limit.",
+                parameters_schema={"type": "object", "additionalProperties": False, "required": ["hypotheses"],
+                                   "properties": {"hypotheses": hypotheses}}))
         tools.append(ModelToolDefinition(
             name="conclude", description="Final diagnosis supported by stored evidence.",
             parameters_schema={"type": "object", "additionalProperties": False,
@@ -78,13 +100,36 @@ class ModelHarness:
                                    "evidence_ids": {"type": "array", "items": {"type": "string"},
                                                     "description": f"IDs from: {', '.join(ev_ids[-40:])}"},
                                    "confidence": {"type": "string", "enum": ["low", "medium", "high"]},
-                                   "root_cause_target": {"type": ["string", "null"], "enum": scope + [None]}}}))
+                                   "root_cause_target": {"type": ["string", "null"], "enum": scope + [None]},
+                                   "hypotheses": hypotheses,
+                                   "chosen": {"type": ["string", "null"],
+                                              "description": "the id of the supported hypothesis the diagnosis is"}}}))
         tools.append(ModelToolDefinition(
             name="escalate", description="Hand the incident to a human with the evidence gathered.",
             parameters_schema={"type": "object", "additionalProperties": False, "required": ["reason"],
                                "properties": {"reason": {"type": "string"},
-                                              "evidence_ids": {"type": "array", "items": {"type": "string"}}}}))
+                                              "evidence_ids": {"type": "array", "items": {"type": "string"}},
+                                              "hypotheses": hypotheses}}))
         return tools
+
+    @staticmethod
+    def _hypotheses_schema(view: InvestigationView, scope: list[str]) -> dict:
+        """ACR-0024 §3.1: the candidate causes considered, as a tool argument."""
+        classes = sorted({view.incident_class.name} if view.incident_class else set()) + ["other"]
+        return {"type": "array", "maxItems": MAX_HYPOTHESES,
+                "description": "the candidate causes you considered (see the system prompt)",
+                "items": {"type": "object", "additionalProperties": False,
+                          "required": ["id", "statement", "cause_class", "relation", "status"],
+                          "properties": {
+                              "id": {"type": "string", "enum": [f"h{i}" for i in range(1, MAX_HYPOTHESES + 1)]},
+                              "statement": {"type": "string", "maxLength": 200},
+                              "cause_class": {"type": "string",
+                                              "description": f"an incident class name (e.g. {', '.join(classes)})"},
+                              "target": {"type": ["string", "null"], "enum": scope + [None]},
+                              "relation": {"type": "string", "enum": ["self", "dependency", "host", "external"]},
+                              "status": {"type": "string", "enum": ["supported", "ruled_out", "untested"]},
+                              "support": {"type": "array", "items": {"type": "string"}},
+                              "against": {"type": "array", "items": {"type": "string"}}}}}
 
     # --- decision --------------------------------------------------------------------------------
     def decide(self, view: InvestigationView):
@@ -105,6 +150,16 @@ class ModelHarness:
         calls = reply.tool_calls
         if not calls:
             return self._from_text(reply.text, view)
+        stated = [c for c in calls if c.name == STATE_TOOL]
+        if stated:                                   # T-0047 H2: the list beside the reads; never a step of its own
+            calls = [c for c in calls if c.name != STATE_TOOL]
+            if len(stated) > 1:
+                return InvalidDecision(reason="multiple_calls", detail=f"{len(stated)} {STATE_TOOL} calls: at most one")
+            if any(c.name in DECISION_TOOLS for c in calls):
+                return InvalidDecision(reason="multiple_calls",
+                                       detail=f"{STATE_TOOL} goes with read calls; conclude and escalate carry their own")
+            if not calls:
+                return InvalidDecision(reason="malformed", detail=f"{STATE_TOOL} goes with at least one read call")
         names = [c.name for c in calls]
         if any(n in DECISION_TOOLS for n in names) and len(calls) > 1:
             return InvalidDecision(reason="multiple_calls", detail=f"a decision tool must be alone: {names}")
@@ -127,9 +182,11 @@ class ModelHarness:
         if name == "conclude":
             return self._conclude(args, view)
         if name == "escalate":
+            hyps, problems = check_hypotheses(args.get("hypotheses"), view)
             try:
                 return Escalate(reason=str(args.get("reason", ""))[:1000],
-                                evidence_ids=[i for i in args.get("evidence_ids", []) if i in view.evidence_ids])
+                                evidence_ids=[i for i in args.get("evidence_ids", []) if i in view.evidence_ids],
+                                hypotheses=hyps, hypothesis_problems=problems)
             except ValidationError as e:
                 return InvalidDecision(reason="malformed", detail=str(e)[:300])
         reads: list[ReadCall] = []
@@ -144,7 +201,16 @@ class ModelHarness:
             except ValidationError as e:
                 return InvalidDecision(reason="malformed", detail=f"{n}: {e.errors()[0]['msg']}")
             reads.append(ReadCall(name=spec.name, arguments=a))
-        return UseReadTools(calls=reads)
+        if not stated:
+            return UseReadTools(calls=reads)
+        try:
+            raw = json.loads(stated[0].arguments_json or "{}")
+        except ValueError:
+            raw = None
+        hyps, problems = check_hypotheses(raw.get("hypotheses") if isinstance(raw, dict) else None, view)
+        if not isinstance(raw, dict):
+            problems = [f"{STATE_TOOL}: arguments must be an object", *problems]
+        return UseReadTools(calls=reads, hypotheses=hyps, hypothesis_problems=problems)
 
     def _conclude(self, args: dict, view: InvestigationView):
         if len(str(args.get("diagnosis") or "").strip()) < 20:
@@ -156,9 +222,13 @@ class ModelHarness:
         rct = args.get("root_cause_target")
         if rct is not None and rct not in {str(t) for t in view.scope}:
             return InvalidDecision(reason="malformed", detail=f"root_cause_target {rct!r} not in scope")
+        hyps, problems = check_hypotheses(args.get("hypotheses"), view)
+        chosen = args.get("chosen")
+        problems += check_conclusion(hyps, chosen, rct, raw_count=len(args.get("hypotheses") or []))
         try:
             return Conclude(diagnosis=str(args.get("diagnosis", ""))[:3000], evidence_ids=ids,
-                            confidence=args.get("confidence", "low"), root_cause_target=rct)
+                            confidence=args.get("confidence", "low"), root_cause_target=rct, hypotheses=hyps,
+                            chosen=chosen if isinstance(chosen, str) else None, hypothesis_problems=problems)
         except ValidationError as e:
             return InvalidDecision(reason="malformed", detail=str(e)[:300])
 
@@ -174,3 +244,69 @@ class ModelHarness:
         if isinstance(obj, dict) and obj.get("kind") == "escalate":
             return Escalate(reason=str(obj.get("reason", ""))[:1000])
         return InvalidDecision(reason="no_decision", detail="text reply is not a decision")
+
+
+# --- ACR-0024 §3.2: the hypothesis checks (log-only in T-0047 H1: problems are returned, nothing is refused) ----------
+OBSERVED = ("observation", "metric_snapshot")       # what can show a target's state; alerts and reports cannot
+
+
+def check_hypotheses(raw: Any, view: InvestigationView) -> tuple[list[Hypothesis], list[str]]:
+    """The hypotheses that pass their schema, and every would-be refusal of §3.2 (as short sentences)."""
+    if not raw:
+        return [], []
+    if not isinstance(raw, list):
+        return [], ["hypotheses must be a list"]
+    problems: list[str] = []
+    if len(raw) > MAX_HYPOTHESES:
+        problems.append(f"{len(raw)} hypotheses: at most {MAX_HYPOTHESES}")
+    by_id = {e.evidence_id: e for e in view.evidence}
+    scope = {str(t) for t in view.scope}
+    out: list[Hypothesis] = []
+    for item in raw[:MAX_HYPOTHESES]:
+        try:
+            h = Hypothesis.model_validate(item)
+        except ValidationError as e:
+            problems.append(f"a hypothesis fails its schema: {e.errors()[0]['loc']} {e.errors()[0]['msg']}"[:200])
+            continue
+        if any(x.id == h.id for x in out):
+            problems.append(f"{h.id}: the same id twice")
+            continue
+        out.append(h)
+        unknown = [i for i in h.support + h.against if i not in by_id]
+        if unknown:
+            problems.append(f"{h.id}: cites evidence not stored for this incident: {unknown[:3]}")
+        if set(h.support) & set(h.against):
+            problems.append(f"{h.id}: the same evidence both for and against it")
+        if h.target is None and h.relation != "external":
+            problems.append(f"{h.id}: no target, but its relation is {h.relation}, not external")
+        if h.target is not None and h.target not in scope:
+            problems.append(f"{h.id}: target {h.target} is not in the incident's scope")
+        observed = {by_id[i].target for i in h.support if i in by_id and by_id[i].kind in OBSERVED}
+        if h.status == "supported":
+            if h.relation == "external" and not observed & scope:
+                problems.append(f"{h.id}: an external cause supported without an observation of a target in scope")
+            elif h.relation != "external" and h.target not in observed:
+                problems.append(f"{h.id}: supported without an observation or metric snapshot of its own target")
+        if h.status == "ruled_out" and not h.against:
+            problems.append(f"{h.id}: ruled out without evidence against it")
+    return out, problems
+
+
+def check_conclusion(hyps: list[Hypothesis], chosen: Any, root_cause_target: str | None, raw_count: int) -> list[str]:
+    """§3.2 for a model strategy's `conclude`: hypotheses are required, and `chosen` ties the diagnosis to one."""
+    if raw_count == 0:
+        return ["a conclusion without hypotheses"]
+    problems = []
+    if root_cause_target is not None and not chosen:
+        problems.append("a root_cause_target without a chosen hypothesis")
+    if chosen:
+        h = next((x for x in hyps if x.id == chosen), None)
+        if h is None:
+            problems.append(f"chosen {chosen!r} is not one of the hypotheses")
+        elif h.relation == "external":
+            problems.append(f"chosen {h.id} is external: an external cause is never chosen (escalate instead)")
+        elif h.status != "supported":
+            problems.append(f"chosen {h.id} is {h.status}, not supported")
+        elif h.target != root_cause_target:
+            problems.append(f"chosen {h.id} has target {h.target}, not the root_cause_target {root_cause_target}")
+    return problems

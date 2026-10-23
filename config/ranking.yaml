@@ -1,0 +1,13 @@
+# ACR-0024 §3.3 (T-0047 H2): the weights of the hypotheses' support score (argus/application/ranking.py).
+# Data, reviewed like the policy: this file is a protected path (SELF_MERGE_PROTECTED). The score is shown as
+# "supported by N, contradicted by M" and a rank, never as a percentage or a probability. Calibrating these weights
+# waits for confirmed outcomes (T-0048).
+weights:
+  own_observation: 3          # an observation of the hypothesis's own target (per record, up to max_target_records)
+  own_metric_snapshot: 2      # a metric snapshot of its own target (likewise)
+  other_observation: 1        # an observation or snapshot of another target in scope (once per side)
+  alert: 1                    # once per side, however many alerts are cited
+  peer_finding: 1             # no peer finding is cited by an evidence id yet (§23)
+  reported_symptom: 0.5       # once per side
+untested_penalty: 0.5         # a hypothesis nobody has tested ranks below an equal tested one
+max_target_records: 3

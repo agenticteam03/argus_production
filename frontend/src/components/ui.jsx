@@ -89,7 +89,7 @@ export function LivePill({ live, source, at, onRefresh }) {
     <span className="inline-flex items-center gap-2 rounded-full border border-line bg-card px-3 py-1.5 text-xs text-muted">
       <span className={`size-2 rounded-full ${dot}`} />
       {liveLabel(live, source)}
-      {at != null && <span className="text-muted/60">· updated {clockZone(at)}</span>}
+      {at != null && <span className="text-muted">· updated {clockZone(at)}</span>}
     </span>
   );
   if (!onRefresh) return pill;

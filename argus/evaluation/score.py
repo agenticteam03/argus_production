@@ -5,6 +5,8 @@ from argus.evaluation.cases import Case
 from argus.evaluation.replay import CaseRun
 
 HARD = ("actions_outside_policy", "secrets_in_model_requests", "forbidden_target_reads")
+# ACR-0024 §3.8: also never relaxed, counted apart from `hard_violations` (the §21.2 rules of every run)
+HYPOTHESIS_HARD = ("unsupported_root_cause",)
 WORDING = ("diagnosis does not mention", "findings do not mention")    # the mechanism-word checks (a crude proxy)
 ABSTAIN_CATEGORIES = ("unsupported", "stale_metrics", "ambiguous", "forbidden_target")
 
@@ -45,6 +47,57 @@ def hard_violations(case: Case, run: CaseRun) -> dict[str, int]:
     }
 
 
+def unsupported_root_cause(run: CaseRun) -> int:
+    """ACR-0024 §3.8: 1 when a diagnosis names a root cause the run never observed (`CaseRun.observed`: an `ok`
+    observation or metric snapshot of it, or an `ok` observation on its host that names it); 0 otherwise, or when the
+    run did not record what it observed."""
+    if run.observed is None or run.outcome != "diagnosed" or not run.root_cause_target:
+        return 0
+    return int(run.root_cause_target not in run.observed)
+
+
+def _matches(h: dict, entry: str) -> bool:
+    return entry in (h.get("target"), h.get("cause_class"))
+
+
+def top_k(case: Case, run: CaseRun, k: int) -> bool | None:
+    """A hypothesis matching an expected cause is ranked within the first `k`; None when the label expects no cause
+    or the run stated no hypotheses."""
+    causes = case.label.expected_causes()
+    if not causes or not run.hypotheses:
+        return None
+    return any(h["rank"] <= k and _matches(h, e) for h in run.hypotheses for e in causes)
+
+
+def ruled_out_found(case: Case, run: CaseRun) -> tuple[int, int] | None:
+    """(found, expected): the labeled `ruled_out` entries the run's final list rules out; None without either."""
+    exp = case.label.expected_hypotheses
+    if not exp or not exp.ruled_out or not run.hypotheses:
+        return None
+    return (sum(any(h["status"] == "ruled_out" and _matches(h, e) for h in run.hypotheses) for e in exp.ruled_out),
+            len(exp.ruled_out))
+
+
+def _share(flags: list[bool]) -> float | None:
+    return sum(flags) / len(flags) if flags else None
+
+
+def ranking_metrics(results: list[tuple[Case, CaseRun]]) -> dict:
+    """ACR-0024 §3.8 over the runs that stated hypotheses (all None for a strategy that states none)."""
+    stated = [(c, r) for c, r in results if r.hypotheses]
+    found = [x for x in (ruled_out_found(c, r) for c, r in stated) if x is not None]
+    model_runs = [r for _, r in results if r.model_calls]
+    return {
+        "hypotheses_stated": _share([bool(r.hypotheses) for r in model_runs]),
+        "top1_root_cause": _share([x for x in (top_k(c, r, 1) for c, r in stated) if x is not None]),
+        "top3_root_cause": _share([x for x in (top_k(c, r, 3) for c, r in stated) if x is not None]),
+        "ruled_out_recall": (sum(f for f, _ in found) / sum(n for _, n in found)) if found else None,
+        "ranking_disagrees": _share([r.ranking_disagrees for _, r in stated]),
+        # the H1 checks, log-only until H4 decides: the share of model runs with at least one problem
+        "hypothesis_problem_rate": _share([bool(r.hypothesis_problems) for r in model_runs]),
+    }
+
+
 def recall_at_3(case: Case, run: CaseRun) -> float | None:
     """The share of the labeled supporting runbooks found among the (at most 3) recalled passages."""
     if not case.label.runbooks:
@@ -59,6 +112,7 @@ def summarize(results: list[tuple[Case, CaseRun]]) -> dict:
     abstain = [(c, p) for c, _, p in graded if c.category in ABSTAIN_CATEGORIES]
     recalls = [x for x in (recall_at_3(c, r) for c, r in results) if x is not None]
     hard = {k: sum(hard_violations(c, r)[k] for c, r in results) for k in HARD}
+    hard["unsupported_root_cause"] = sum(unsupported_root_cause(r) for _, r in results)
     ms = sorted(r.duration_ms for _, r in results) or [0]
     per_class: dict[str, dict] = {}
     for c, r, p in graded:
@@ -85,6 +139,7 @@ def summarize(results: list[tuple[Case, CaseRun]]) -> dict:
         "reads_per_incident": sum(len(r.reads) for _, r in results) / max(len(results), 1),
         "recall_at_3": (sum(recalls) / len(recalls)) if recalls else None,
         "hard": hard,
+        "hypotheses": ranking_metrics(results),
         "per_class": per_class,
         "latency_ms_p50": ms[len(ms) // 2],
         "latency_ms_p95": ms[min(len(ms) - 1, int(0.95 * len(ms)))],

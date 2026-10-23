@@ -44,7 +44,7 @@ export default function IncidentChat({ incident, events, cited }) {
         <input value={input} onChange={(e) => setInput(e.target.value)} placeholder="Ask about this incident…" aria-label="Question about this incident"
           className="h-10 min-w-0 flex-1 rounded-[10px] border border-field-line bg-field px-3 text-sm outline-none transition placeholder:text-faint focus:border-accent focus:ring-[3px] focus:ring-accent/20" />
         <button type="submit" disabled={!input.trim()} aria-label="Send question"
-          className="inline-flex h-10 cursor-pointer items-center gap-2 rounded-[10px] bg-accent px-3.5 text-sm font-medium text-white transition enabled:hover:bg-accent-hover disabled:cursor-not-allowed disabled:bg-disabled disabled:text-faint">
+          className="inline-flex h-10 cursor-pointer items-center gap-2 rounded-[10px] bg-accent-solid px-3.5 text-sm font-medium text-white transition enabled:hover:bg-accent-solid-hover disabled:cursor-not-allowed disabled:bg-disabled disabled:text-faint">
           Send <Send width="15" height="15" />
         </button>
       </form>

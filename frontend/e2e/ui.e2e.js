@@ -238,7 +238,9 @@ test.describe("session", () => {
     await logIn(page);
     await expect(page.getByRole("heading", { name: "Dashboard" })).toBeVisible();
     await page.getByLabel("Account menu").click();
+    const loggedOut = page.waitForRequest((r) => r.method() === "POST" && r.url().endsWith("/api/v1/auth/logout"));
     await page.getByRole("button", { name: "Log out" }).click();
+    await loggedOut;                                   // ACR-0018: the session is ended on the server, not only forgotten
     await expect(page.getByRole("button", { name: "Log in" })).toBeVisible();
     await page.reload();
     await expect(page.getByRole("button", { name: "Log in" })).toBeVisible();

@@ -10,9 +10,16 @@ from pydantic import BaseModel
 
 from argus.capabilities.redaction import Redactor
 from argus.capabilities.spec import CapabilitySpec, ExecutorError
+from argus.domain.minimize import minimize
 from argus.domain.model import Observation, TargetRef, utcnow
 from argus.ports.ports import InventoryPort
 from argus.tooling.executors import ExecutorRegistry
+
+
+# The read gateway's envelope on every answer (services/target/service.py): the attribution guard reads `host` before
+# minimization. A minimized read drops both, but they are not data, so they are not named in `dropped_fields` (ACR-0028:
+# the audit must show a field the gateway grew, not the same two names on every read).
+GATEWAY_ENVELOPE = frozenset({"host", "role"})
 
 
 class Dispatcher:
@@ -62,7 +69,11 @@ class Dispatcher:
             return Observation(**base, status="error", error_category="upstream_error",
                                duration_ms=int((time.monotonic() - started) * 1000),
                                model_text=f"{spec.name} on {target}: ATTRIBUTION MISMATCH — answer came from {echoed!r}")
-        values, n1 = self.redactor.value(res.values)
+        values, dropped = res.values, []
+        if spec.allowed_fields is not None:     # ACR-0028: only the declared paths, before redaction and storage
+            values, dropped = minimize(values, spec.allowed_fields)
+            dropped = [d for d in dropped if d not in GATEWAY_ENVELOPE]
+        values, n1 = self.redactor.value(values)
         text, n2 = self.redactor.text(res.model_text)
         raw = json.dumps(values, default=str)
         truncated = False
@@ -73,7 +84,7 @@ class Dispatcher:
                            duration_ms=int((time.monotonic() - started) * 1000), values=values,
                            units=res.units, source_time=res.source_time, partial=res.partial,
                            coverage=res.coverage, identities=res.identities, truncated=truncated,
-                           redactions=n1 + n2, model_text=text)
+                           redactions=n1 + n2, dropped_fields=dropped, model_text=text)
 
 
 class DirectProvider:

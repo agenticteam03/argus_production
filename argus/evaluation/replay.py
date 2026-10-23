@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import dataclasses
+import json
 import os
 import re
 import time
@@ -13,7 +14,7 @@ from argus.adapters.outbound.sqlite_store import SqliteStore
 from argus.capabilities.spec import ExecutorError
 from argus.domain.model import Incident, MetricSnapshot, RequestKind, TargetRef, TriggerKind, utcnow
 from argus.evaluation.cases import Case
-from argus.infrastructure.wiring import Settings, build
+from argus.infrastructure.wiring import Settings, build, load_anomaly_inputs, read_signals
 from argus.ports.ports import StaleMetrics
 from argus.tooling.executors import ExecutorRegistry
 
@@ -49,6 +50,14 @@ class CaseRun:
     invalid_decisions: list[str] = field(default_factory=list)
     duration_ms: int = 0
     trial: int = 1
+    # ACR-0024 §3.8 (T-0047 H4): the final decision's hypotheses (`incident_hypothesis`), by rank, as
+    # {id, target, cause_class, status, rank, chosen}; whether the chosen one is not first; the H1 checks' problems
+    hypotheses: list[dict] = field(default_factory=list)
+    ranking_disagrees: bool = False
+    hypothesis_problems: list[str] = field(default_factory=list)
+    # targets with an `ok` observation or metric snapshot, or named in the values of an `ok` observation on their host
+    # (the database's sessions name the leaking client) (`unsupported_root_cause`); None = not recorded
+    observed: list[str] | None = None
 
 
 class FixtureExecutor:
@@ -56,8 +65,9 @@ class FixtureExecutor:
     `fixtures["*"]`; `{error: <category>}` fails the read, as the target service would. A container's long log,
     `/containers/<name>/log` {lines}, answers its `logs`, `logs_window` and `search` routes as the gateway does."""
 
-    def __init__(self, answers: dict[str, Any]):
+    def __init__(self, answers: dict[str, Any], lines: dict | None = None, class_signals: dict | None = None):
         self.answers = answers
+        self.lines, self.class_signals = lines or {}, class_signals or {}       # T-0047 H5, as PrometheusClient
 
     def get(self, path: str, params: dict | None = None) -> Any:
         keyed = path + "?" + "&".join(f"{k}={v}" for k, v in sorted((params or {}).items()))
@@ -123,13 +133,17 @@ class FixtureExecutor:
         """Metric history (the prometheus executor): `fixtures.prometheus.range.<signal>` as [seconds before now,
         value] pairs, cut to the window asked; none = no samples (the capability answers NO DATA, unknown). A window
         ending `end_offset_s` ago (T-0038) reads `range_earlier.<offset>.<signal>`, [seconds before that end, value];
-        never the current series (EVAL-offers: "now" and "earlier" were the same points)."""
+        never the current series (EVAL-offers: "now" and "earlier" were the same points). `range` is the case target's
+        series; `range_by_target.<target>.<signal>` gives another target (a dependency) its own, and a target named
+        there never falls back to `range` (T-0047 H5 step 2: the victim and its dependency were the same points)."""
         now = time.time()
         if end_offset_s:
             earlier = (self.answers.get("range_earlier") or {})
             series = earlier.get(int(end_offset_s)) or earlier.get(str(int(end_offset_s))) or {}
             points = series.get(signal) or []
             now -= int(end_offset_s)
+        elif str(target) in (self.answers.get("range_by_target") or {}):
+            points = self.answers["range_by_target"][str(target)].get(signal) or []
         else:
             points = (self.answers.get("range") or {}).get(signal) or []
         return [(now + float(dt), float(v)) for dt, v in points if -float(dt) <= minutes * 60]
@@ -181,8 +195,10 @@ def run_case(case: Case, workdir: Path, llm: Any | None = None, settings: Settin
     s = dataclasses.replace(base, secrets_dir=secrets, db_path=str(db), db_backend="sqlite",
                             tool_catalogue="direct")
     reg = ExecutorRegistry()
+    lines, class_signals = load_anomaly_inputs(base.config_dir, set(read_signals(base.config_dir)))   # T-0047 H5
     for kind in EXECUTORS:
-        reg.register(kind, lambda url, token, kind=kind: FixtureExecutor(case.fixtures.get(kind, {})))
+        reg.register(kind, lambda url, token, kind=kind: FixtureExecutor(case.fixtures.get(kind, {}),
+                                                                         lines, class_signals))
     rec = RecordingLLM(llm) if llm is not None else None
     hidden = os.environ.pop("OPENAI_API_KEY", None)
     try:
@@ -205,6 +221,10 @@ def run_case(case: Case, workdir: Path, llm: Any | None = None, settings: Settin
     ms = int((time.monotonic() - t0) * 1000)
     evidence = app.store.list_evidence(inc.id)
     audit = app.store.list_for(inc.id)
+    rows = app.store.hypotheses(inc.id)
+    final = [r for r in rows if r["step"] == max(x["step"] for x in rows)] if rows else []
+    hypotheses = [{"id": r["hypothesis_id"], "target": r["target"], "cause_class": r["cause_class"],
+                   "status": r["status"], "rank": r["rank"], "chosen": r["chosen"]} for r in final]
     passages: list[tuple[str, str]] = []
     for a in audit:
         if a.event == "recall.passages":
@@ -217,9 +237,31 @@ def run_case(case: Case, workdir: Path, llm: Any | None = None, settings: Settin
         passages=passages, audit_events=[a.event for a in audit],
         model_requests=rec.requests if rec else [], duration_ms=ms,
         invalid_decisions=[f"{(a.detail or {}).get('reason')}: {str((a.detail or {}).get('detail'))[:300]}"
-                           for a in audit if a.event == "decision.invalid"])
+                           for a in audit if a.event == "decision.invalid"],
+        hypotheses=hypotheses, ranking_disagrees=any(h["chosen"] and h["rank"] != 1 for h in hypotheses),
+        hypothesis_problems=[p for a in audit if a.event == "hypothesis.invalid"
+                             for p in (a.detail or {}).get("problems") or []],
+        observed=_observed(evidence, [t.ref for t in app.inventory.targets()]))
     _drop_store(app, db)
     return result
+
+
+# The capabilities whose values describe another target (the database's sessions name its clients). A listing such as
+# `container.list` names every container of its host without observing any: it must not make them all "observed".
+NAMING_CAPABILITIES = frozenset({"database.health"})
+
+
+def _observed(evidence: list, refs: list[TargetRef]) -> list[str]:
+    """The targets the run observed: those of its `ok` observations and metric snapshots, and the inventory targets an
+    `ok` observation of a NAMING_CAPABILITIES read on the same host names in its values."""
+    ok = [e for e in evidence if e.target and e.status == "ok" and e.kind in ("observation", "metric_snapshot")]
+    seen = {e.target for e in ok}
+    for e in ok:
+        if e.kind == "observation" and getattr(e, "capability", None) in NAMING_CAPABILITIES:
+            values = json.dumps(e.values, default=str)
+            seen |= {str(r) for r in refs if e.target.startswith(f"{r.host}/")
+                     and re.search(rf"(?<![\w-]){re.escape(r.name)}(?![\w-])", values)}
+    return sorted(seen)
 
 
 def _drop_store(app: Any, db: Path) -> None:

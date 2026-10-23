@@ -7,12 +7,12 @@ implemented before this one is applied and deployed.
 
 | Field | Value |
 |---|---|
-| Status | `proposed` |
+| Status | `accepted` (#209, approved by `juanbetancurm`, merged 2026-10-21) (§5). Not applied: that is phase 16 |
 | Proposed by | juanbetancurm (+ agent) · 2026-10-18 |
-| Accepted by | pending (team review of the NEXT-PHASE proposal PR) |
-| Second approval (safety principle only) | **required**: least privilege (privileged routes, new permissions), secrets (new signing keys), evidence integrity (the audit chain) |
-| Architecture version | the next free version when applied (1.8.17 if applied first) |
-| Task / PR | NEXT-PHASE · PR (this proposal) |
+| Accepted by | a teammate approving `task/ACR-0018-accepted` (proposed there by `conantkd` · 2026-10-20) |
+| Second approval (safety principle only) | **required**: least privilege (privileged routes, new permissions), secrets (new signing keys), evidence integrity (the audit chain). **Given:** `juanbetancurm`'s approval of #209 (AGENT_PROTOCOL §4: the developer accepts, a second team member approves; one teammate's approval) |
+| Architecture version | the next free version when applied (1.8.22 if applied next) |
+| Task / PR | NEXT-PHASE · #170 (proposed) · `task/ACR-0018-accepted` (accepted, open decisions 2, 3 and 7 answered) |
 
 ## 1. Detect and explain
 
@@ -109,13 +109,82 @@ over the private path with step-up (ACR-0018, ACR-0019)".
 
 ## 5. Decision
 
-Proposed. To be accepted or changed in the NEXT-PHASE proposal PR review; the open decisions (VPN vs mTLS, the
-off-host store, who holds which permission) are listed in the task file.
+Proposed in #170. **Accepted** in #209 by `juanbetancurm`'s approval, which is also the second approval the safety
+principles touched (least privilege, secrets, evidence integrity) ask for (AGENT_PROTOCOL §4). §3 is accepted as written. The
+answers below are to the NEXT-PHASE open decisions that belong to this ACR (2, 3 and 7); the others belong to
+ACR-0019 and ACR-0020.
+
+1. **Private path (decision 2): mTLS client certificates with an address allowlist**, on the existing public edge.
+   - The privileged routes are served by `argus-v18-ui` on the same `tcp/443`: no new port, no cloud rule, no
+     VPN client. nginx asks for a client certificate (`ssl_verify_client optional`) and answers **404** on a
+     privileged location unless the certificate verifies against the team's client CA **and** the source address is
+     in the allowlist. The read-only UI keeps working without a certificate.
+   - One certificate per person, short-lived (90 days), issued by a client CA whose private key never sits on
+     vm-095 (only its public certificate does). Revoking a person is a CRL entry plus their Argus session revoked.
+   - Not a VPN: `wg0` belongs to the protected deployment (`infrastructure/environment.md`) and is not reused, and a
+     second WireGuard interface would be one more thing on both VMs that `nonint-check.sh` has to tell apart.
+   - mTLS is defence in depth, not the identity: the human is still proven by WebAuthn and the step-up (§3).
+2. **Permissions (decision 3):** the three enabled operators of OP-016 (`conantkd`, `juanbetancurm`, `juanes6554`)
+   hold `view`, `investigate`, `feedback`, `propose_action`, `approve_action` and `place_hold`. **`admin`:**
+   `conantkd` and `juanbetancurm`, so that a WebAuthn recovery is always done by another administrator (§4, risk).
+   **`open_terminal:<host>`: nobody** until ACR-0020 is accepted; that ACR decides it. The disabled principals
+   (`conantkd-viewer`, `olav`) get nothing new. Every grant and revocation is an audited row.
+   **Separation of duties:** enforced on the production profile, as in §3. On the lab profile it is **allowed and
+   recorded**: with three operators, enforcing it would often leave nobody to approve; the audit row and the UI mark
+   a self-approval, and the scheduled evaluation counts them.
+3. **Off-host store (decision 7):** an object-storage bucket outside both VMs, with versioning and a write-once
+   retention lock, written through a **put-only** credential that cannot delete or overwrite (a new secret under
+   `secrets/agent/`, never printed). Not vm-166 and not a developer's laptop: every developer has sudo on both VMs,
+   and a laptop is one person's. **Retention:** audit digests 1 year; terminal recordings 90 days (ACR-0020 may
+   change the latter). The provider is chosen by whoever administers the cloud account when phase 16 is deployed,
+   and recorded in `policies/NETWORK.md` with the other egress (§6). Until the bucket exists, phase 16 cannot be
+   deployed: the digest job fails closed and raises the security alert of §18.
+
+Next: phase 16 applies this ACR, with its first code, in one pull request (§6).
 
 ## 6. Applied
 
-- [ ] `ARCHITECTURE.md` updated, version bumped, changelog line added (with this ACR's link)
-- [ ] `policies/SECURITY.md` (one account per person, new secrets, the principle text) and `policies/NETWORK.md`
-      (the private path, the off-host destination)
-- [ ] journal entry
-- [ ] the ACR, the architecture change and the first code that needs it are in the same pull request
+Applied in steps (phase 16). Each step writes into `ARCHITECTURE.md` only what it builds; the rest of §3 stays
+"designed".
+
+**Step 1** (`task/PHASE-16-step-1-sessions`, ARCHITECTURE 1.8.26):
+- [x] server-side sessions (`auth_session`, migration 010) checked on every request; `POST /api/v1/auth/logout`;
+      revocation by `argus user add|disable` and `argus session revoke` (audited)
+- [x] `POST /api/v1/auth/logout` also through the public edge (`deploy/ui/nginx/locations.conf`, `contracts/ui-api.json`);
+      the UI's sign-out calls it before forgetting the token (best effort: an older API's 404, an ended session or no
+      network still forget it)
+- [x] a correctly signed token without a live session of its own is audited (`security.session_refused`)
+- [x] the failed-login limiter persisted (`login_failure`)
+- [x] permissions per route, a role as a bundle, listed by `/me` (only the permissions of built routes)
+- [x] the audit hash chain (migration 011): one chain over all rows in write order (`seq`), each row's `hash` over the
+      previous hash, its id and its canonical body; an advisory lock per row so concurrent writers never fork it;
+      `argus audit verify`, and the scheduler's check at start and daily (`audit_chain` in `schedules.yaml`), recorded
+      as `security.audit_chain_verified` / `security.audit_chain_broken`. **As built, not per day:** one continuous chain is simpler to verify and stronger; the
+      daily digest of §3 becomes "the hash of each day's last row", signed and shipped once the off-host store exists
+- [x] tests: `tests/test_acr0018_sessions.py` (sessions, revocation, forged and foreign `jti`, the lockout across a
+      restart), `tests/test_acr0018_authz_matrix.py` (**the authorization matrix**: every route × role × token kind against
+      a declared table, 401 without a token, and every route of the API must be in the table; red seen by weakening the
+      evidence route), `tests/test_acr0018_audit_chain.py` (an edited,
+      removed or foreign row is named), `tests/test_postgres.py` (grants of 010; 40 concurrent writers, one chain; an
+      owner who disables the trigger and edits a row is caught)
+- [x] journal entry (`2026-10-21-PHASE-16-step-1.md`)
+
+- [x] EdDSA token signing: with the secret `jwt_ed25519_key` (an Ed25519 PEM) the API signs EdDSA and accepts only
+      EdDSA; without it, HS256 as before. `PyJWT[crypto]`. `policies/SECURITY.md` names the new secret. Switching the
+      lab on is a deploy step (generate the key on vm-095, never printed; every session logs in again)
+- [x] `auth_session` retention (#240): `argus db prune-sessions`, owner-only, preview unless `--apply`, sessions whose
+      token expired more than 90 days ago; audited `maintenance.sessions_pruned`. Maintenance audit rows are written
+      chained (`append_chained`), so a prune never breaks `argus audit verify`
+- [ ] step 2: the agent mounts `jwt_ed25519_key` (`deploy/vm-095/compose.core.yml`); the key generated on vm-095
+      before `up` (`execution/history/PHASE-16/step-02/code.bash`)
+
+- [x] step 3 (1.8.29): WebAuthn (`webauthn==3.0.1`, D1) and the step-up token: migration 013; the relying party
+      is the UI's DNS name (D2); two credentials per privileged person and a reset by the other administrator (D3);
+      the first credential by another administrator's ticket (D4); privileged permissions only after this login's
+      second factor; the routes through the public edge; `tests/test_acr0018_webauthn.py` (a software authenticator).
+      The step-up's binding to approvals comes with ACR-0019's routes (phase 17); the UI dialogs are step 3b
+
+**Not yet** (step 4 on): separation of duties; the signed daily digest off
+Host A; security alerts (§18), which wait for the team's alert route (no receiver exists: Argus only reads its
+Alertmanager), including the alert on `security.audit_chain_broken`; the private path (mTLS, `deploy/ui/nginx/`) and `policies/NETWORK.md`;
+`policies/SECURITY.md` (the new secrets).

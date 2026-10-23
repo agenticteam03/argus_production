@@ -4,6 +4,8 @@ Built from what Argus already holds, with no new read on the hosts:
 - the inventory: targets, declared dependencies with their ports, declared networks;
 - the latest named signals per container (restarts, health, memory, CPU quota) through the MetricsPort;
 - the exporter's probe of each declared dependency (`MetricsPort.dependency_probes`, ACR-0021): one state per link;
+- the recorded link transitions (`link_event`, T-0046 L4): a link's `since`; a broken `required` link is a critical
+  `dependency_broken` problem of its owner (an idle owner stays idle);
 - with an incident, its stored `container.status` evidence for its target and root cause (their real state, networks
   and memory limit at the time of the incident), the roles of the boxes and the path from the target to the cause.
 
@@ -19,6 +21,7 @@ from collections import deque
 from datetime import datetime, timezone
 from typing import Any, Callable
 
+from argus.application.links import LINK_WARNING_MS, link_state
 from argus.domain.model import EvidenceRecord, Incident, TargetRef
 from argus.ports.ports import MetricsUnavailable, StaleMetrics
 
@@ -28,9 +31,6 @@ HOST_SIGNALS = {"host_cpu_busy_ratio"}
 STATES = ("running", "restarting", "unhealthy", "stopped", "unknown")
 DOCKER_STATE = {"running": "running", "restarting": "restarting", "exited": "stopped", "dead": "stopped",
                 "created": "stopped", "paused": "stopped"}
-LINK_WARNING_MS = 100.0                    # a dependency answer slower than this is `slow` (inventory: link_warning_ms)
-# T-0045 B8: the exporter's failure kind of a broken link, in plain words ("other" and none stay "not reachable")
-LINK_REASONS = {"refused": "connection refused", "timeout": "timeout", "dns": "name not resolved"}
 MEMORY_WARNING, MEMORY_CRITICAL = 0.8, 0.9   # of the container's memory limit, known only from an incident's evidence
 
 
@@ -105,6 +105,7 @@ class Topology:
             except (StaleMetrics, ValueError):
                 values[str(t.ref)] = {}
         ports = {str(t.ref): list(t.tcp_ports) for t in self.inventory.targets()}
+        since = self._since()
         nodes, edges = [], []
         for t in sorted(self.inventory.targets(), key=lambda x: str(x.ref)):
             ref, vals = str(t.ref), values.get(str(t.ref), {})
@@ -123,9 +124,10 @@ class Topology:
             node = {"id": ref, "host": t.ref.host, "label": t.ref.name, "target": ref, "kind": t.ref.kind,
                     "sub": "host" if t.ref.kind == "host" else ("database container" if t.database else "container"),
                     "status": status, "info": info, "networks": list(t.networks), "role": None}
-            self._judge(node, t.profile, vals, memory_limit=None, running_seen=False)
+            links = self._links(t, vals, ports, down, since)
+            self._judge(node, t.profile, vals, memory_limit=None, running_seen=False, edges=links)
             nodes.append(node)
-            edges += self._links(t, vals, ports, down)
+            edges += links
         if self.home_host in hosts:
             for h in hosts:
                 if h != self.home_host:
@@ -140,7 +142,12 @@ class Topology:
         return answer, values
 
     # --- one link per declared dependency ---------------------------------------------------------------------------
-    def _links(self, t, vals: dict, ports: dict, down: set[str]) -> list[dict]:
+    def _since(self) -> dict:
+        """T-0046 L4: the last recorded transition of each link; {} when the store has none or cannot say."""
+        read = getattr(self.store, "latest_link_events", None)
+        return read() if read else {}
+
+    def _links(self, t, vals: dict, ports: dict, down: set[str], since: dict | None = None) -> list[dict]:
         if not t.depends_on:
             return []
         probes: dict = {}
@@ -155,29 +162,35 @@ class Topology:
         edges = []
         for dep in t.depends_on:
             d = str(dep)
-            port = ports.get(d, [None])[0] if ports.get(d) else None
+            port = t.link_port(dep, ports.get(d))
             sample = probes.get(dep.name) if dep.host == t.ref.host else None
-            state, checked, latency, why = "unknown", None, None, None
-            if sample is not None:
-                checked = _iso(sample.at)
-                latency = None if sample.duration_s is None else round(sample.duration_s * 1000, 3)
-                if sample.success is not None and port is not None:
-                    state = "broken" if sample.success < 1 else ("slow" if latency is not None and latency > warn else "ok")
-                    why = LINK_REASONS.get(sample.error_kind or "")
-            elif (len(t.depends_on) == 1 and t.ref.kind == "container" and dep.kind == "container" and port is not None
-                  and vals.get("dependency_probe_min") is not None):
+            state, latency, why = link_state(sample, port, warn)
+            checked = _iso(sample.at) if sample is not None else None
+            if (sample is None and len(t.depends_on) == 1 and t.ref.kind == "container" and dep.kind == "container"
+                    and port is not None and vals.get("dependency_probe_min") is not None):
                 state = "ok" if vals["dependency_probe_min"] >= 1 else "broken"   # no per-dependency sample: the minimum
             reason = (why or "not reachable") if state == "broken" else None
             label = (f"tcp {port}" if port else "declared dependency") + (f" · {reason}" if reason else "")
+            last = (since or {}).get((str(t.ref), d))       # T-0046 L4: since when, if the record agrees with now
             edges.append({"id": f"{t.ref}->{d}:{port if port is not None else ''}", "kind": "dependency", "from": str(t.ref), "to": d, "port": port,
-                          "state": state, "label": label, "checked_at": checked, "latency_ms": latency, "reason": reason})
+                          "state": state, "label": label, "checked_at": checked, "latency_ms": latency, "reason": reason,
+                          "required": t.link(dep).required,
+                          "since": _iso(last["at"]) if last and last["state"] == state else None})
         return edges
 
     # --- health and problems of one box -----------------------------------------------------------------------------
-    def _judge(self, node: dict, profile: str | None, vals: dict, memory_limit: float | None, running_seen: bool) -> None:
+    def _judge(self, node: dict, profile: str | None, vals: dict, memory_limit: float | None, running_seen: bool,
+               edges: list[dict] = ()) -> None:
         """`problems`, `health` and `idle` from the box's status and readings. `running_seen`: the incident's evidence
-        says the container runs (so an empty reading is a monitoring gap, not a stopped box)."""
+        says the container runs (so an empty reading is a monitoring gap, not a stopped box). `edges`: the box's own
+        dependency links (T-0046 L4: a broken required one is a critical problem, unless the box is idle)."""
         problems = []
+        idle = profile == "scenario" and node["status"] in ("unknown", "stopped")
+        for e in edges:
+            if e.get("kind") == "dependency" and e["state"] == "broken" and e.get("required", True) and not idle:
+                problems.append(_problem("dependency_broken", "critical",
+                                         f"Its link to {e['to'].split(':', 1)[-1]} is broken ({e['reason'] or 'not reachable'})",
+                                         "dependency_probe_success", 0, 1, ""))
         if node["kind"] == "container":
             r = _crossed(vals.get("restarts_10m"), self._line("restarts_10m"))
             if r:
@@ -281,7 +294,8 @@ class Topology:
             info = self.inventory.target(TargetRef.parse(node["target"]))
             self._judge(node, info.profile if info else None, values.get(node["target"], {}),
                         memory_limit=limit if isinstance(limit, (int, float)) and limit > 0 else None,
-                        running_seen=node["status"] in ("running", "unhealthy", "restarting"))
+                        running_seen=node["status"] in ("running", "unhealthy", "restarting"),
+                        edges=[e for e in body["edges"] if e["from"] == node["target"]])
         for edge in body["edges"]:
             a, b = nets.get(edge["from"]), nets.get(edge["to"])
             if a is not None and b is not None and not set(a) & set(b):

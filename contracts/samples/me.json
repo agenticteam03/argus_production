@@ -5,6 +5,12 @@
     "view_timeline",
     "view_evidence"
   ],
+  "permissions": [
+    "investigate",
+    "view",
+    "view_evidence"
+  ],
   "role": "operator",
+  "second_factor": null,
   "user": "alice"
 }

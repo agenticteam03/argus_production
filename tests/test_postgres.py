@@ -112,6 +112,177 @@ def test_deploy_events_migration_008(runtime_dsn, store):
                       "VALUES ('vm-095', 'not-hex', 'main', 'alice', now())")
 
 
+def test_link_events_migration_009(runtime_dsn, store):
+    """ACR-0025 (T-0046 L2): link-state transitions are kept by owner, dependency and time, and are insert-only for the
+    runtime role (no UPDATE or DELETE grant); a state outside the four is refused by the table itself."""
+    import psycopg
+    from argus.domain.model import utcnow
+    now = utcnow()
+    api, cache = "vm-166/container:pg-api", "vm-166/container:pg-cache"
+    store.add_link_event(api, cache, "broken", None, "timeout", now - timedelta(minutes=5))
+    store.add_link_event(api, cache, "ok", 3.5, None, now - timedelta(minutes=1))
+    got = store.link_events(cache, now - timedelta(hours=1), now)
+    assert [(e["owner"], e["state"], e["latency_ms"], e["reason"]) for e in got] == [
+        (api, "broken", None, "timeout"), (api, "ok", 3.5, None)]
+    assert got[0]["at"].tzinfo is not None
+    with psycopg.connect(runtime_dsn, autocommit=True) as c:
+        for sql in ("UPDATE link_event SET state = 'ok'", "DELETE FROM link_event"):
+            with pytest.raises(psycopg.Error, match="permission denied"):
+                c.execute(sql)
+        with pytest.raises(psycopg.Error, match="check constraint"):
+            c.execute("INSERT INTO link_event (owner, dependency, state, at) VALUES ('a', 'b', 'down', now())")
+
+
+def test_hypotheses_migration_012(runtime_dsn, store):
+    """ACR-0024 §3.5 (T-0047 H2): one row per hypothesis per decision step, read by step then rank; insert-only for
+    the runtime role; an id, relation or status outside the vocabulary is refused by the table itself."""
+    import psycopg
+    from argus.domain.model import utcnow
+    inc = _incident()
+    store.create_incident(inc, None)
+    now = utcnow()
+    row = {"hypothesis_id": "h2", "statement": "its database is down", "cause_class": "other", "target": None,
+           "relation": "external", "status": "untested", "support_ids": [], "against_ids": ["ev_a"], "score": -0.5,
+           "rank": 2, "chosen": False}
+    store.add_hypotheses(inc.id, 1, [row, {**row, "hypothesis_id": "h1", "target": str(inc.target),
+                                           "relation": "self", "support_ids": ["ev_b"], "rank": 1, "chosen": True}], now)
+    got = store.hypotheses(inc.id)
+    assert [(r["hypothesis_id"], r["rank"], r["chosen"], r["support_ids"], r["against_ids"]) for r in got] == [
+        ("h1", 1, True, ["ev_b"], ["ev_a"]), ("h2", 2, False, [], ["ev_a"])]
+    assert got[1]["target"] is None and got[0]["at"].tzinfo is not None
+    with psycopg.connect(runtime_dsn, autocommit=True) as c:
+        for sql in ("UPDATE incident_hypothesis SET status = 'supported'", "DELETE FROM incident_hypothesis"):
+            with pytest.raises(psycopg.Error, match="permission denied"):
+                c.execute(sql)
+        with pytest.raises(psycopg.Error, match="check constraint"):
+            c.execute("INSERT INTO incident_hypothesis (incident_id, step, hypothesis_id, statement, cause_class, "
+                      f"relation, status, score, rank, at) VALUES ('{inc.id}', 1, 'h9', 's', 'other', 'self', "
+                      "'untested', 0, 1, now())")
+
+
+def test_sessions_and_login_failures_migration_010(runtime_dsn, store):
+    """ACR-0018 (phase 16 step 1): a session is inserted, revoked once and never deleted; the runtime role may set only
+    its revocation columns. Failed logins are inserted, read in a window and cleared."""
+    import uuid
+
+    import psycopg
+    from argus.domain.model import utcnow
+    now = utcnow()
+    jti, other = uuid.uuid4().hex, uuid.uuid4().hex
+    store.add_session(jti, "pg-alice", "read", now, now + timedelta(minutes=30))
+    store.add_session(other, "pg-alice", "full", now, now + timedelta(minutes=30))
+    assert store.get_session(jti)["access"] == "read" and store.get_session(jti)["revoked_at"] is None
+    assert store.revoke_session(jti, "pg-alice", "logout", now) is True
+    assert store.revoke_session(jti, "pg-alice", "again", now) is False
+    assert store.revoke_principal_sessions("pg-alice", "admin", "test", now) == 1          # only the open one
+    assert store.get_session(other)["revoked_by"] == "admin"
+    with psycopg.connect(runtime_dsn, autocommit=True) as c:
+        for sql in (f"UPDATE auth_session SET principal = 'x' WHERE jti = '{jti}'", "DELETE FROM auth_session"):
+            with pytest.raises(psycopg.Error, match="permission denied"):
+                c.execute(sql)
+        with pytest.raises(psycopg.Error, match="check constraint"):
+            c.execute("INSERT INTO auth_session (jti, principal, access, created_at, expires_at) "
+                      "VALUES ('not-a-jti', 'x', 'read', now(), now())")
+    store.add_login_failure("u:pg-bob", now - timedelta(minutes=20))
+    store.add_login_failure("u:pg-bob", now - timedelta(minutes=1))
+    assert len(store.login_failures("u:pg-bob", now - timedelta(minutes=15))) == 1
+    store.prune_login_failures(now - timedelta(minutes=15))                # the old one goes
+    assert len(store.login_failures("u:pg-bob", now - timedelta(hours=1))) == 1
+    store.clear_login_failures("u:pg-bob")
+    assert store.login_failures("u:pg-bob", now - timedelta(hours=1)) == []
+
+
+def test_webauthn_and_step_up_migration_013(runtime_dsn, store):
+    """ACR-0018 (phase 16 step 3): a credential's key and owner are fixed and it is revoked, never deleted; a challenge,
+    a ticket and a step-up token are taken once (one UPDATE each) and only while unexpired; the database itself refuses
+    a step-up longer than 5 minutes and a self-issued ticket."""
+    import uuid
+
+    import psycopg
+    from argus.domain.model import utcnow
+    now = utcnow()
+    jti = uuid.uuid4().hex
+    store.add_session(jti, "pg-carol", "read", now, now + timedelta(minutes=30))
+    assert store.set_session_second_factor(jti, now) is True
+    assert store.get_session(jti)["second_factor_at"] is not None
+    store.add_webauthn_credential("pg-carol-credential-1", "pg-carol", b"\x01cose", 0, "laptop", now)
+    assert [c["label"] for c in store.webauthn_credentials("pg-carol")] == ["laptop"]
+    assert store.update_webauthn_sign_count("pg-carol-credential-1", 3, now) is True
+    assert store.webauthn_credentials("pg-carol")[0]["sign_count"] == 3
+    cid = f"wch_{uuid.uuid4().hex}"
+    store.add_webauthn_challenge(cid, "pg-carol", jti, "login", b"chal", None, None, now, now + timedelta(minutes=5))
+    assert store.take_webauthn_challenge(cid, "pg-carol", jti, "step_up", now) is None          # another ceremony
+    assert store.take_webauthn_challenge(cid, "pg-carol", jti, "login", now)["challenge"] == b"chal"
+    assert store.take_webauthn_challenge(cid, "pg-carol", jti, "login", now) is None            # once
+    store.add_enrol_ticket("a" * 64, "pg-carol", "pg-admin", now, now + timedelta(hours=24))
+    assert store.enrol_ticket_valid("a" * 64, "pg-carol", now) and not store.enrol_ticket_valid("a" * 64, "x", now)
+    assert store.use_enrol_ticket("a" * 64, "pg-carol", now) is True
+    assert store.use_enrol_ticket("a" * 64, "pg-carol", now) is False
+    store.add_step_up("b" * 64, "pg-carol", jti, "test:pg", now, now + timedelta(minutes=5))
+    assert store.take_step_up("b" * 64, now + timedelta(minutes=6)) is None                    # expired
+    assert store.take_step_up("b" * 64, now)["object"] == "test:pg"
+    assert store.take_step_up("b" * 64, now) is None                                           # once
+    assert store.revoke_webauthn_credentials("pg-carol", "pg-admin", now) == 1
+    assert store.webauthn_credentials("pg-carol") == []
+    with psycopg.connect(runtime_dsn, autocommit=True) as c:
+        for sql in ("UPDATE webauthn_credential SET public_key = '\\x02'", "UPDATE webauthn_credential SET principal = 'x'",
+                    "DELETE FROM webauthn_credential", "DELETE FROM step_up_token", "DELETE FROM webauthn_challenge",
+                    "UPDATE step_up_token SET object = 'x'"):
+            with pytest.raises(psycopg.Error, match="permission denied"):
+                c.execute(sql)
+        with pytest.raises(psycopg.Error, match="check constraint"):
+            c.execute("INSERT INTO step_up_token (id, principal, session, object, created_at, expires_at) "
+                      "VALUES (repeat('c', 64), 'x', 'x', 'test:x', now(), now() + interval '6 minutes')")
+        with pytest.raises(psycopg.Error, match="check constraint"):
+            c.execute("INSERT INTO webauthn_enrol_ticket (id, principal, issued_by, created_at, expires_at) "
+                      "VALUES (repeat('d', 64), 'x', 'x', now(), now())")
+
+
+def test_audit_chain_migration_011(store):
+    """ACR-0018 §17.1 layer 13: concurrent writers never fork the chain (an advisory lock per row), and an owner who
+    disables the insert-only trigger and edits a row is caught by the verifier."""
+    import uuid
+    from concurrent.futures import ThreadPoolExecutor
+
+    import psycopg
+    from argus.domain.audit_chain import verify
+    from argus.domain.model import AuditRecord, utcnow
+
+    def write(i):
+        store.append(AuditRecord(audit_id=f"aud_pg_{uuid.uuid4().hex[:12]}", incident_id=None, at=utcnow(),
+                                 category="access", event="access.chain_test", actor=f"writer{i}"))
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        list(pool.map(write, range(40)))
+    chained, before, problems = verify(store.audit_chain())
+    assert problems == [] and chained >= 40
+    victim = [r for r in store.audit_chain() if r[1].get("actor") == "writer7"][0][0]
+    with psycopg.connect(OWNER_DSN, autocommit=True) as c:
+        c.execute("ALTER TABLE audit DISABLE TRIGGER audit_insert_only")
+        try:
+            c.execute("UPDATE audit SET body = jsonb_set(body, '{actor}', '\"mallory\"') WHERE audit_id = %s", (victim,))
+        finally:
+            c.execute("ALTER TABLE audit ENABLE TRIGGER audit_insert_only")
+    assert verify(store.audit_chain())[2] == [f"{victim}: hash does not match its body (the row was edited)"]
+
+
+def test_latest_link_events(store):
+    """T-0046 L4: the map's `since` is the last recorded transition of each link (one row per link, the newest)."""
+    from argus.domain.model import utcnow
+    now = utcnow()
+    web, db, cache = "vm-166/container:pg-l4-web", "vm-166/container:pg-l4-db", "vm-166/container:pg-l4-cache"
+    store.add_link_event(web, db, "ok", 2.0, None, now - timedelta(minutes=9))
+    store.add_link_event(web, db, "broken", None, "timeout", now - timedelta(minutes=4))
+    store.add_link_event(web, cache, "slow", 220.0, None, now - timedelta(minutes=2))
+    latest = store.latest_link_events()
+    assert latest[(web, db)]["state"] == "broken" and latest[(web, cache)]["state"] == "slow"
+    assert abs((latest[(web, db)]["at"] - (now - timedelta(minutes=4))).total_seconds()) < 1
+    # a restart repeats a state: not a transition, for `since` nor for the history (#227 review)
+    store.add_link_event(web, db, "broken", None, "timeout", now - timedelta(minutes=1))
+    assert abs((store.latest_link_events()[(web, db)]["at"] - (now - timedelta(minutes=4))).total_seconds()) < 1
+    states = [r["state"] for r in store.link_events(web, now - timedelta(minutes=10), now) if r["dependency"] == db]
+    assert states == ["ok", "broken"]
+
+
 def test_worker_lease(store):
     """T-0014: a claim is a lease; only expired claims go back to the queue (tests/test_worker_lease.py, SQLite)."""
     from argus.domain.model import IncidentStatus, utcnow

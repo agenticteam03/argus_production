@@ -5,13 +5,16 @@ authorization, read configuration or write audit (v1.8 §12.3).
 """
 from __future__ import annotations
 
+import dataclasses
 import hashlib
+import math
 from datetime import datetime, timezone
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
 from argus.capabilities.spec import CapabilityResult, CapabilitySpec, ExecutorError
+from argus.domain.minimize import parse_paths
 from argus.domain.model import TargetInfo, TargetRef
 
 
@@ -73,6 +76,16 @@ class SearchLogsArgs(_Args):
     pattern: Literal["error", "timeout", "refused", "oom", "disk_full", "auth", "restart"] = Field(
         ..., description="a named pattern (never free text): error, timeout, refused, oom, disk_full, auth, restart")
     minutes: int = Field(30, ge=1, le=120, description="window in minutes")
+
+
+IncidentClassName = Literal["container_restart_loop", "dependency_unavailable", "health_check_failed",
+                            "postgresql_connection_exhaustion", "nginx_upstream_failure", "cpu_saturation",
+                            "disk_pressure", "monitoring_blind_spot"]          # = detectors/classes.py (a test pins it)
+
+
+class AnomalyArgs(_Args):
+    incident_class: IncidentClassName = Field(..., description="the incident's class: its signals are summarized")
+    minutes: int = Field(60, ge=15, le=240, description="window in minutes, ending now")
 
 
 class CompareArgs(_Args):
@@ -506,8 +519,9 @@ def host_read_file(args: FileArgs, target: TargetRef, info, client) -> Capabilit
     rows = d.get("lines") or []
     text = (f"file {args.path} on {target}: last {len(rows)} line(s){' (more before)' if d.get('truncated') else ''}\n"
             + "\n".join(rows))
+    # "more before" is partial coverage of the file, not a cut output (CapabilityResult has no `truncated`: it raised)
     return CapabilityResult(values=d, model_text=text, source_time=_ts(d.get("collected_at")),
-                            truncated=bool(d.get("truncated")))
+                            partial=bool(d.get("truncated")), coverage=f"last {len(rows)} line(s) of {args.path}")
 
 
 def host_service_config(args: ConfigArgs, target: TargetRef, info, client) -> CapabilityResult:
@@ -598,6 +612,52 @@ def knowledge_prior_incidents(args: PriorArgs, target: TargetRef, info, client) 
     return CapabilityResult(values={"incident_class": args.incident_class, "incidents": rows}, model_text=text)
 
 
+def link_states(args: "HistoryArgs", target: TargetRef, info, client) -> CapabilityResult:
+    """T-0046 L4 (ACR-0025 §3.5): the links of this container and of its declared dependencies (same host): each one's
+    state now (the recorder's rules on the latest probe sample; else the last recorded state), since when, and the
+    recorded transitions of the last `minutes`. A host whose Prometheus cannot be read gives a partial answer."""
+    from datetime import timedelta
+    deps = [d for d in (getattr(info, "depends_on", None) or []) if d.kind == "container" and d.host == target.host]
+    scope = [target, *deps]
+    end = datetime.now(timezone.utc)
+    start = end - timedelta(minutes=args.minutes)
+    now, skipped = client.current_links(scope)
+    latest = client.latest_links()
+    history: dict[tuple[str, str], list[dict]] = {}
+    seen = set()
+    for ref in scope:
+        for r in client.link_history(str(ref), start, end):
+            key = (r["owner"], r["dependency"], r["state"], r["at"])
+            if key not in seen:
+                seen.add(key)
+                history.setdefault((r["owner"], r["dependency"]), []).append(r)
+    current = {(o, d): (s, ms, why, "probe") for o, d, s, ms, why in now}
+    rows, lines = [], []
+    for link in sorted(set(current) | set(history)):
+        last = latest.get(link)
+        state, ms, why, source = current.get(link) or ((last["state"], None, None, "record") if last
+                                                       else ("unknown", None, None, "none"))
+        since = last["at"].isoformat() if last and last["state"] == state else None
+        moves = [{"at": r["at"].isoformat(), "state": r["state"], "latency_ms": r["latency_ms"], "reason": r["reason"]}
+                 for r in sorted(history.get(link, []), key=lambda r: r["at"])]
+        rows.append({"owner": link[0], "dependency": link[1], "state": state, "latency_ms": ms, "reason": why,
+                     "state_from": source, "since": since, "transitions": moves})
+        head = f"{link[0].split(':', 1)[-1]} -> {link[1].split(':', 1)[-1]}: {state}"
+        head += f" ({why})" if why else (f" ({ms:g} ms)" if ms is not None else "")
+        head += f" since {since[11:19]} UTC" if since else ""
+        head += "" if source == "probe" else " (last recorded state)" if source == "record" else ""
+        changes = ", ".join(f"{m['at'][11:19]} {m['state']}" for m in moves) or "none"
+        lines.append(f"- {head}; changes in the last {args.minutes} min: {changes}")
+    if not rows:
+        text = f"links of {target}: none declared on its host, and none recorded"
+    else:
+        text = f"links of {target} and its declared dependencies ({len(rows)}):\n" + "\n".join(lines)
+    if skipped:
+        text += f"\nmonitoring unreadable for {', '.join(sorted(skipped))}: the state now is not known there"
+    return CapabilityResult(values={"minutes": args.minutes, "links": rows, "unreadable_hosts": sorted(skipped)},
+                            model_text=text, partial=bool(skipped), units={"latency_ms": "ms"})
+
+
 # --- §12.7 combined (T-0034): sub-reads through InvokeCapability, never an executor ---------------------------------
 SNAPSHOT_READS = (("container.status", "self", {}), ("container.resources", "self", {}),
                   ("container.logs", "self", {"tail": 30}), ("host.memory", "host", {}), ("host.cpu", "host", {}))
@@ -618,11 +678,13 @@ def diagnostic_snapshot(args: NoArgs, target: TargetRef, info, invoker) -> Capab
                             partial=bool(failed))
 
 MAX_TRACED_DEPENDENCIES = 3
+TRACE_READS = ("container.status", "network.connectivity", "network.resolve_dns")
 
 
 def trace_request_path(args: NoArgs, target: TargetRef, info, invoker) -> CapabilityResult:
     """T-0040: for each declared dependency of this container on the same host (at most 3): is it running, do both
-    share a Docker network, does its name resolve. A dependency on another host, or a host, is listed, never read."""
+    share a Docker network, does its name resolve. A host dependency is listed, never read; so is one on another host,
+    which the inventory already refuses (ACR-0025), kept here as a guard."""
     deps = list(getattr(info, "depends_on", None) or [])
     if not deps:
         return CapabilityResult(values={"hops": []}, model_text=f"request path of {target}: no declared dependency "
@@ -632,8 +694,7 @@ def trace_request_path(args: NoArgs, target: TargetRef, info, invoker) -> Capabi
     extra = traced[MAX_TRACED_DEPENDENCIES:]
     hops, lines, failed = [], [], []
     for dep in traced[:MAX_TRACED_DEPENDENCIES]:
-        reads = (("container.status", dep, {}), ("network.connectivity", target, {"to": dep.name}),
-                 ("network.resolve_dns", dep, {}))
+        reads = tuple(zip(TRACE_READS, (dep, target, dep), ({}, {"to": dep.name}, {})))
         hop = {"dependency": str(dep), "reads": {}}
         lines.append(f"{target.name} -> {dep.name}:")
         for name, t, a in reads:
@@ -652,6 +713,11 @@ def trace_request_path(args: NoArgs, target: TargetRef, info, invoker) -> Capabi
     head += f"; not ok: {', '.join(failed)}" if failed else ""
     return CapabilityResult(values={"hops": hops, "not_traced": [str(d) for d in skipped + extra]},
                             model_text=head + "\n" + "\n".join(lines), partial=bool(failed))
+
+
+# ACR-0026: the sub-reads of each combined capability; it is as sensitive as its most sensitive sub-read
+SUBREADS = {"analysis.diagnostic_snapshot": tuple(name for name, _, _ in SNAPSHOT_READS),
+            "analysis.trace_request_path": TRACE_READS}
 
 
 # --- prometheus ----------------------------------------------------------------------------------
@@ -736,9 +802,200 @@ def compare_baseline(args: CompareArgs, target: TargetRef, info, client) -> Capa
                             coverage=f"{args.minutes} min now and {args.earlier} earlier")
 
 
+# --- T-0047 H5 (ACR-0024 §3.7): the facts of an anomaly, with numbers, never a conclusion ---------------------------
+# A 0/1 state signal has no warning line in signals.yaml; past it = its bad state.
+STATE_LINES = {"dependency_probe_min": (0.5, "below"), "db_up": (0.5, "below"), "health_unhealthy": (0.5, "above"),
+               "oom_killed": (0.5, "above"), "scrape_targets_down": (0.5, "above")}
+MOUNT_SIGNALS = {"host_disk_used_ratio_5m", "host_disk_hours_to_full", "host_disk_used_ratio_mounts"}
+ANOMALY_BASELINE_MINUTES = 1440            # B7's baseline: the 24 h ...
+ANOMALY_BASELINE_LEAD_S = 3600             # ... ending an hour before the window (its run-up excluded)
+ANOMALY_BASELINE_STEP_S = 300
+ANOMALY_MAX_DEPENDENCIES = 3
+
+
+def _iso_time(ts: float) -> str:
+    return datetime.fromtimestamp(ts, timezone.utc).isoformat().replace("+00:00", "Z")
+
+
+def _quantile(ordered: list[float], q: float) -> float:
+    pos = (len(ordered) - 1) * q
+    lo = math.floor(pos)
+    hi = min(lo + 1, len(ordered) - 1)
+    return ordered[lo] + (ordered[hi] - ordered[lo]) * (pos - lo)
+
+
+def _range(client, signal: str, target: TargetRef, minutes: int, step: int, end_offset_s: int = 0,
+           **params) -> list[tuple[float, float]] | None:
+    """The finite samples of one series; None when the read fails (unknown, never zero)."""
+    try:
+        return [(t, v) for t, v in client.range(signal, target, minutes, step, end_offset_s=end_offset_s, **params)
+                if math.isfinite(v)]
+    except ExecutorError:
+        return None
+
+
+def onset(series: list[tuple[float, float]], warning: float, direction: str) -> float | None:
+    """The time of the first of two consecutive samples past the warning line (at or beyond it)."""
+    past = [v >= warning if direction == "above" else v <= warning for _, v in series]
+    return next((series[i][0] for i in range(len(series) - 1) if past[i] and past[i + 1]), None)
+
+
+def _baseline(samples: list[tuple[float, float]] | None) -> dict | None:
+    """p5 / p50 / p95 of the baseline window; None under half of it sampled (unknown, never a made-up normal)."""
+    values = sorted(v for _, v in samples or [])
+    expected = ANOMALY_BASELINE_MINUTES * 60 // ANOMALY_BASELINE_STEP_S + 1
+    if not values or len(values) < 0.5 * expected:
+        return None
+    return {q: round(_quantile(values, p), 6) for q, p in (("p5", 0.05), ("p50", 0.5), ("p95", 0.95))}
+
+
+def _series_facts(signal: str, target: TargetRef, series, base, line) -> dict:
+    row: dict[str, Any] = {"target": str(target), "signal": signal}
+    if not series:
+        row["read"] = "no data" if series == [] else "failed"
+        return row
+    values = [v for _, v in series]
+    direction = line[1] if line else None
+    peak = min(values) if direction == "below" else max(values)
+    row.update({"samples": len(values), "last": round(values[-1], 6), "peak": round(peak, 6),
+                "warning": line[0] if line else None, "direction": direction,
+                "onset": None, "baseline": _baseline(base)})
+    if line:
+        at = onset(series, *line)
+        row["onset"] = None if at is None else _iso_time(at)
+    if row["baseline"]:
+        ref = row["baseline"]["p5"] if direction == "below" else row["baseline"]["p95"]
+        row["beyond_baseline"] = round(ref - peak if direction == "below" else peak - ref, 6)
+    return row
+
+
+def _row_text(row: dict) -> str:
+    name = row["target"].split(":", 1)[-1]
+    head = f"{row['signal']} on {name}"
+    if "read" in row:
+        return f"{head}: NO DATA (unknown, not zero)" if row["read"] == "no data" else f"{head}: read failed (unknown)"
+    text = f"{head}: last {row['last']:g}, {'lowest' if row['direction'] == 'below' else 'highest'} {row['peak']:g}"
+    if row["warning"] is None:
+        text += "; no warning line (onset not computed)"
+    elif row["onset"]:
+        text += f"; past the warning line ({row['warning']:g}, {row['direction']}) since {row['onset']}"
+    else:
+        text += f"; not past the warning line ({row['warning']:g}, {row['direction']})"
+    b = row["baseline"]
+    if b is None:
+        text += "; baseline unknown (under half of the 24 h sampled)"
+    else:
+        ref = "p5" if row["direction"] == "below" else "p95"
+        text += (f"; 24 h baseline p50 {b['p50']:g}, {ref} {b[ref]:g} "
+                 f"({row['beyond_baseline']:+g} beyond {ref})")
+    return text
+
+
+def anomaly_summary(args: AnomalyArgs, target: TargetRef, info, client) -> CapabilityResult:
+    """ACR-0024 §3.7 (T-0047 H5): the class's signals (`config/ui-incident-signals.yaml`) on the target and its
+    declared dependencies on the same host, and the host-scope ones on its host: onset (first two consecutive samples
+    past the warning line), the deviation from the 24 h baseline, and which onset came first. Facts with numbers; the
+    order of onsets is not a cause."""
+    specs = (getattr(client, "class_signals", None) or {}).get(args.incident_class)
+    if not specs:
+        return CapabilityResult(values={}, status="error", error_category="not_found",
+                                model_text=f"no signal list for {args.incident_class} (unknown, nothing summarized)")
+    lines = {**STATE_LINES, **(getattr(client, "lines", None) or {})}
+    host = TargetRef(host=target.host, kind="host", name=target.host)
+    deps = [d for d in (info.depends_on if info else []) if d.host == target.host][:ANOMALY_MAX_DEPENDENCIES]
+    mounts = "|".join(info.mounts) if info is not None and getattr(info, "mounts", None) else ""
+    step = max(30, args.minutes * 60 // 120)
+    rows, seen = [], set()
+    for signal, scope in specs:
+        for t in ([host] if scope == "host" else [target, *deps]):
+            if (str(t), signal) in seen:
+                continue
+            seen.add((str(t), signal))
+            params = {}
+            if signal in MOUNT_SIGNALS:
+                if t != target or not mounts:
+                    continue                                   # only the incident target's declared mounts
+                params["mounts"] = mounts
+            series = _range(client, signal, t, args.minutes, step, **params)
+            base = _range(client, signal, t, ANOMALY_BASELINE_MINUTES, ANOMALY_BASELINE_STEP_S,
+                          end_offset_s=args.minutes * 60 + ANOMALY_BASELINE_LEAD_S, **params)
+            rows.append(_series_facts(signal, t, series, base, lines.get(signal)))
+    order = sorted((r for r in rows if r.get("onset")), key=lambda r: r["onset"])
+    if order:
+        first = order[0]
+        tail = "; then " + ", ".join(f"{r['signal']} on {r['target'].split(':', 1)[-1]} at {r['onset']}"
+                                     for r in order[1:]) if len(order) > 1 else ""
+        lead = (f"First past its warning line: {first['signal']} on {first['target'].split(':', 1)[-1]} at "
+                f"{first['onset']}{tail}.")
+    else:
+        lead = f"No signal was past its warning line in the last {args.minutes} min."
+    read = [r for r in rows if "read" not in r]
+    text = (f"Anomaly facts for {args.incident_class} on {target} (last {args.minutes} min; facts, not a cause). "
+            + lead + "\n" + "\n".join(_row_text(r) for r in rows))
+    return CapabilityResult(values={"incident_class": args.incident_class, "minutes": args.minutes, "series": rows,
+                                    "onsets": [{"target": r["target"], "signal": r["signal"], "at": r["onset"]}
+                                               for r in order]},
+                            model_text=text, partial=len(read) < len(rows),
+                            status="ok" if read else "error", error_category="none" if read else "not_found",
+                            coverage=f"{len(read)} of {len(rows)} series read, {args.minutes} min")
+
+
+# --- ACR-0028 (G-006): the value paths each sensitive read keeps, from the gateways' answers ----------------------------
+_LINES = ("lines", "truncated", "collected_at")
+_TOP = ("by", "pids_read", "truncated", "cpus", "sample_s", "collected_at", "processes[].pid", "processes[].command",
+        "processes[].state", "processes[].rss_mib", "processes[].cpu_percent", "processes[].container_id",
+        "processes[].kernel_thread")
+ALLOWED_FIELDS: dict[str, tuple[str, ...]] = {
+    "container.logs": _LINES + ("earlier_matches.counts", "earlier_matches.lines"),
+    "container.detailed_logs": _LINES + ("minutes", "stream"),
+    "container.search_logs": _LINES + ("pattern", "matched", "minutes"),
+    "host.top_cpu": _TOP,
+    "host.top_memory": _TOP,
+    "host.kernel_oom_records": ("window_minutes", "oom_kill_since_boot", "source", "complete", "records_total",
+                                "by_container[].container_id", "by_container[].count", "records[].time",
+                                "records[].scope", "records[].container_id", "records[].command", "records[].pid",
+                                "records[].anon_rss_mib", "collected_at"),
+    "host.directory_sizes": ("path", "children[].name", "children[].bytes", "children[].entries",
+                             "children[].complete", "children[].symlink", "children_read", "entries_read", "complete",
+                             "other_filesystems", "limit_entries", "limit_seconds", "collected_at"),
+    "host.read_file": ("target", "path", "lines", "lines_returned", "truncated", "collected_at"),
+    "host.service_config": ("target", "files[].path", "files[].text", "files[].truncated", "collected_at"),
+    "host.journal": ("target", "unit", "program", "source", "lines", "window_complete", "collected_at"),
+    "host.process_details": ("target", "pid", "ppid", "name", "state", "rss_mib", "hwm_mib", "threads", "open_files",
+                             "limits.max_open_files", "limits.max_processes", "context_switches.voluntary",
+                             "context_switches.nonvoluntary", "container_id", "collected_at"),
+    "database.health": ("ok", "database", "max_connections", "reserved_connections", "usable_connections",
+                        "client_connections", "usage_percent", "monitor_slot_reserved", "by_state",
+                        "by_client[].application_name", "by_client[].role", "by_client[].connections",
+                        "longest_transactions[].pid", "longest_transactions[].application_name",
+                        "longest_transactions[].state", "longest_transactions[].wait_event_type",
+                        "longest_transactions[].wait_event", "longest_transactions[].age_s", "lock_waits",
+                        "blocked_sessions", "collected_at"),
+    # a combined read: its own values and the references to its sub-reads (each minimized by its own spec)
+    "analysis.diagnostic_snapshot": ("statuses", "subcalls", "subcall_refs"),
+}
+
+
+def _with_allowed_fields(specs: list[CapabilitySpec]) -> list[CapabilitySpec]:
+    """Attach each read's allowed paths; refuse a sensitive read without them (ACR-0028), or a list naming no read."""
+    names = {s.name for s in specs}
+    unknown = sorted(set(ALLOWED_FIELDS) - names)
+    if unknown:
+        raise ValueError(f"ALLOWED_FIELDS names no capability: {unknown}")
+    out = []
+    for s in specs:
+        if s.name in ALLOWED_FIELDS:
+            parse_paths(ALLOWED_FIELDS[s.name])          # a malformed path fails here, at startup
+            s = dataclasses.replace(s, allowed_fields=frozenset(ALLOWED_FIELDS[s.name]))
+        if s.safety_class == "READ_ONLY_SENSITIVE" and s.allowed_fields is None:
+            raise ValueError(f"{s.name} is READ_ONLY_SENSITIVE and declares no allowed_fields (ACR-0028)")
+        out.append(s)
+    return out
+
+
 def build_catalog() -> list[CapabilitySpec]:
     C, H, N, P = frozenset({"container"}), frozenset({"host"}), frozenset({"container"}), frozenset({"container"})
-    return [
+    specs = [
         CapabilitySpec("container.list", "get_container_list", "List in-scope containers on the target's host and their state.",
                        "discovering what runs on a host", NoArgs, C | H, 1, "READ_ONLY_SAFE",
                        frozenset({"container", "discovery"}), "docker_read", container_list),
@@ -772,12 +1029,12 @@ def build_catalog() -> list[CapabilitySpec]:
         CapabilitySpec("container.detailed_logs", "get_detailed_logs",
                        "A container's redacted log lines of a time window (1-120 min, up to 500), stdout, stderr or "
                        "both.", "the recent tail is not enough: what happened in a given window", WindowLogsArgs, C, 2,
-                       "READ_ONLY_SAFE", frozenset({"detailed_logs"}), "docker_read", container_detailed_logs),
+                       "READ_ONLY_SENSITIVE", frozenset({"detailed_logs"}), "docker_read", container_detailed_logs),
         CapabilitySpec("container.search_logs", "search_logs",
                        "How many of a container's log lines in a window match a named pattern (error, timeout, refused, "
                        "oom, disk_full, auth, restart), and up to 50 of them.",
                        "is a known kind of failure present in the logs, and how often", SearchLogsArgs, C, 2,
-                       "READ_ONLY_SAFE", frozenset({"search_logs"}), "docker_read", container_search_logs),
+                       "READ_ONLY_SENSITIVE", frozenset({"search_logs"}), "docker_read", container_search_logs),
         CapabilitySpec("container.events", "get_container_events", "Docker lifecycle events (start/die/oom/kill/restart) of a container.",
                        "what happened just before a failure", EventsArgs, C, 2, "READ_ONLY_SAFE",
                        frozenset({"container", "stability"}), "docker_read", container_events),
@@ -817,8 +1074,8 @@ def build_catalog() -> list[CapabilitySpec]:
                        "READ_ONLY_SAFE", frozenset({"disk"}), "host_probe", host_io),
         CapabilitySpec("host.directory_sizes", "get_directory_sizes",
                        "The largest entries directly under a declared mount (one filesystem, bounded walk).",
-                       "which directory fills a filesystem", MountArgs, H, 2, "READ_ONLY_SAFE",
-                       frozenset({"disk"}), "host_probe", host_directory_sizes),
+                       "which directory fills a filesystem", MountArgs, H, 2, "READ_ONLY_SENSITIVE",
+                       frozenset({"disk"}), "host_probe", host_directory_sizes),   # ACR-0026: names on the host
         CapabilitySpec("host.read_file", "inspect_approved_file",
                        "The last lines of a file the inspection policy allows for this target.",
                        "a specific log or diagnostics file is named by the evidence", FileArgs, C | H, 3,
@@ -882,10 +1139,17 @@ def build_catalog() -> list[CapabilitySpec]:
                        "the change. No stored baseline.", "is this level unusual for this target, or normal for it",
                        CompareArgs, C | H, 3, "READ_ONLY_SAFE", frozenset({"baseline"}), "prometheus",
                        compare_baseline),   # T-0038, offered to no class yet
+        CapabilitySpec("analysis.anomaly_summary", "summarize_anomalies",
+                       "Facts about the incident class's signals on the target, its declared dependencies on the same "
+                       "host and its host: when each first crossed its warning line, how far it is from its 24 h "
+                       "baseline, and which crossed first. Numbers, not a cause.",
+                       "which signal moved first, and is the level unusual for this target", AnomalyArgs, C | H, 3,
+                       "READ_ONLY_SAFE", frozenset({"anomaly"}), "prometheus",
+                       anomaly_summary),   # T-0047 H5 (ACR-0024 §3.7), offered to no class yet
         CapabilitySpec("analysis.diagnostic_snapshot", "capture_diagnostic_snapshot",
                        "A container's status, resources and recent logs, and its host's memory and CPU, in one call "
                        "(each part stored as its own evidence).", "a first broad look at a container and its host",
-                       NoArgs, C, 3, "READ_ONLY_SAFE", frozenset({"snapshot"}), "argus_internal", diagnostic_snapshot,
+                       NoArgs, C, 3, "READ_ONLY_SENSITIVE", frozenset({"snapshot"}), "argus_internal", diagnostic_snapshot,
                        runs_in="worker", max_output_bytes=16384, max_subcalls=6),
         CapabilitySpec("analysis.trace_request_path", "trace_request_path",
                        "Follows the container's declared dependencies (same host, at most 3): for each, is it running, "
@@ -903,6 +1167,13 @@ def build_catalog() -> list[CapabilitySpec]:
                        "short diagnosis, newest first.", "has this happened here before, and what was it then",
                        PriorArgs, C | H, 3, "READ_ONLY_SAFE", frozenset({"prior_incidents"}), "argus_internal",
                        knowledge_prior_incidents, runs_in="worker", max_output_bytes=16384),   # T-0039
+        CapabilitySpec("network.link_states", "read_link_states",
+                       "The declared links of the container and of its dependencies (same host): each one's state now "
+                       "(ok, slow, broken, unknown), since when, and its recorded changes over a time window, with "
+                       "latency and the failure kind.",
+                       "a dependency may have failed or slowed: when each link broke or recovered, before or after "
+                       "the errors", HistoryArgs, C, 2, "READ_ONLY_SAFE", frozenset({"link_states"}),
+                       "argus_internal", link_states, runs_in="worker"),   # T-0046 L4: offered to no class yet (L6)
         CapabilitySpec("database.health", "inspect_database_health",
                        "PostgreSQL health read on the target host with a monitoring role: connection slots used vs "
                        "usable, connections by state and by client (application/role), the longest open transactions "
@@ -910,3 +1181,4 @@ def build_catalog() -> list[CapabilitySpec]:
                        "a database may be out of connections, slow, or blocking its clients", NoArgs, C, 3,
                        "READ_ONLY_SENSITIVE", frozenset({"database"}), "db_probe", db_health),   # RB-004: client names
     ]
+    return _with_allowed_fields(specs)

@@ -1,4 +1,4 @@
-"""argus serve | api | worker | scheduler | user add|disable | db import-sqlite PATH|check | deploy record | diagnose TARGET [--raw] | incident ID [--raw]"""
+"""argus serve | api | worker | scheduler | user add|disable | session revoke | webauthn allow-enrol|reset | db import-sqlite PATH|check | deploy record | diagnose TARGET [--raw] | incident ID [--raw]"""
 from __future__ import annotations
 
 import argparse
@@ -12,6 +12,7 @@ import threading
 import time
 import uuid
 
+from argus.domain.model import AuditRecord, utcnow
 from argus.infrastructure.wiring import Settings, build, make_metrics, make_store
 from argus.infrastructure.worker import Worker
 
@@ -75,7 +76,7 @@ def scheduler() -> None:
     from argus.adapters.outbound.alerts_alertmanager import AlertmanagerSource
     from argus.adapters.outbound.config_adapters import YamlInventory
     from argus.application.alerts import HandleAlertNotification, ReconcileFiringAlerts
-    from argus.infrastructure.scheduler import Scheduler, load_reconcile, load_schedules
+    from argus.infrastructure.scheduler import AuditChainCheck, Scheduler, load_audit_chain, load_reconcile, load_schedules
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
     s = Settings()
     inventory = YamlInventory((s.config_dir / "inventory.yaml").read_text(encoding="utf-8"))
@@ -83,11 +84,12 @@ def scheduler() -> None:
     text = path.read_text(encoding="utf-8")
     schedules = load_schedules(text, inventory, min_interval_s=int(os.getenv("ARGUS_SCHEDULE_MIN_INTERVAL_S", "300")))
     cfg = load_reconcile(text)
+    chain_every = load_audit_chain(text)               # ACR-0018: the audit hash chain, verified on a schedule
     log = logging.getLogger("argus.scheduler")
     log.info("%d schedules, %d enabled; reconcile firing alerts: %s", len(schedules),
              sum(x.enabled for x in schedules), f"every {cfg.every_s} s" if cfg.enabled else "off")
     store = make_store(s)
-    reconcile = None
+    reconcile = links = None
     if cfg.enabled:                     # ACR-0003: the pull transport profile
         hosts = {h.name: h.alertmanager for h in inventory.hosts() if h.alertmanager}
         source = AlertmanagerSource(hosts)
@@ -101,13 +103,20 @@ def scheduler() -> None:
                                     prometheus_ready=_prometheus_ready(inventory),
                                     routing=load_routing(s.config_dir))       # #127 review: the `platform` route
             log.info("monitoring heartbeat: stale after %d s, grace %d s", cfg.stale_after_s, cfg.grace_s)
-        reconcile = ReconcileFiringAlerts(source,
-                                          HandleAlertNotification(store, inventory, make_metrics(s, inventory)),
+        metrics = make_metrics(s, inventory)
+        reconcile = ReconcileFiringAlerts(source, HandleAlertNotification(store, inventory, metrics),
                                           sorted(hosts), watch=watch)
+        if cfg.link_states:             # ACR-0025 / T-0046 L3: the declared links' state changes (link_event)
+            from argus.application.link_transitions import LinkTransitions
+            links = LinkTransitions(store, inventory, metrics)
+            log.info("link states: %d owner(s) recorded", len(links.owners()))
     stop = threading.Event()
     signal.signal(signal.SIGTERM, lambda *_: stop.set())
     signal.signal(signal.SIGINT, lambda *_: stop.set())
-    Scheduler(store, schedules, reconcile, cfg.every_s).run_forever(stop)
+    log.info("audit chain check: %s", f"every {chain_every} s" if chain_every else "off")
+    chain = AuditChainCheck(store) if chain_every else None
+    Scheduler(store, schedules, reconcile, cfg.every_s, chain_check=chain, chain_every_s=chain_every or 86400,
+              links=links).run_forever(stop)
 
 
 def _prometheus_ready(inventory):
@@ -196,13 +205,54 @@ def user(args) -> None:
     store = make_store(Settings())
     if args.action == "disable":
         store.set_disabled(args.name, True)
-        print(f"disabled {args.name}")
+        ended = store.revoke_principal_sessions(args.name, "argus user disable", "disabled", utcnow())
+        print(f"disabled {args.name}; {ended} open session(s) ended")
         return
     pw = getpass.getpass(f"password for {args.name}: ")
     if len(pw) < 10 or pw != getpass.getpass("repeat: "):
         raise SystemExit("passwords differ or shorter than 10 characters")
     store.upsert_principal(args.name, "human", args.role, args.scopes, PasswordHash.recommended().hash(pw))
-    print(f"user {args.name} saved with role {args.role}")
+    ended = store.revoke_principal_sessions(args.name, "argus user add", "password or role changed", utcnow())
+    print(f"user {args.name} saved with role {args.role}; {ended} open session(s) ended")
+
+
+def audit(args) -> None:
+    """ACR-0018: recompute the audit hash chain; exit 1 at the first row edited, removed or inserted outside the store."""
+    from argus.domain.audit_chain import verify
+    store = make_store(Settings())
+    chained, before, problems = verify(store.audit_chain())
+    for p in problems[:20]:
+        print(f"  BROKEN  {p}")
+    if problems:
+        raise SystemExit(f"AUDIT CHAIN BROKEN: {len(problems)} problem(s); {chained} rows chained, {before} before the chain")
+    print(f"AUDIT CHAIN OK: {chained} rows chained, {before} written before the chain (migration 011)")
+
+
+def session(args) -> None:
+    """ACR-0018: an administrator ends every open session of a principal at once (audited)."""
+    store = make_store(Settings())
+    ended = store.revoke_principal_sessions(args.name, args.who, args.reason, utcnow())
+    store.append(AuditRecord(audit_id=f"aud_{uuid.uuid4().hex[:16]}", incident_id=None, at=utcnow(), category="access",
+                             event="access.sessions_revoked", actor=args.who[:64],
+                             detail={"principal": args.name, "ended": ended, "reason": args.reason[:200]}))
+    print(f"{ended} open session(s) of {args.name} ended")
+
+
+def webauthn(args) -> None:
+    """ACR-0018 step 3 (D3, D4): another administrator lets a person enrol their first credential (a one-time code,
+    shown once: give it to them, never paste it into a record) or resets every credential and session of theirs."""
+    from argus.application.second_factor import SecondFactor, SecondFactorRefused
+    s = Settings()
+    second = SecondFactor(make_store(s), s.webauthn_rp_id, s.webauthn_origin, ticket_hours=s.webauthn_enrol_ticket_hours)
+    try:
+        if args.action == "allow-enrol":
+            code = second.allow_enrol(args.name, args.who)
+            print(f"enrolment code for {args.name} (single use, {s.webauthn_enrol_ticket_hours} h): {code}")
+        else:
+            creds, sessions = second.reset(args.name, args.who)
+            print(f"{creds} credential(s) of {args.name} revoked, {sessions} open session(s) ended")
+    except SecondFactorRefused as e:
+        raise SystemExit(str(e))
 
 
 def db(args) -> None:
@@ -227,10 +277,25 @@ def db(args) -> None:
     elif args.action == "prune-checkpoints":
         from argus.infrastructure.checkpoint_retention import prune_checkpoints
 
-        result = prune_checkpoints(s.pg_conninfo(), days=args.days, dry_run=not args.apply)
+        result = prune_checkpoints(s.pg_conninfo(), days=retention_days(args), dry_run=not args.apply)
         mode = "PRUNED" if args.apply else "DRY RUN"
         print(f"{mode}: threads={result['threads']} checkpoints={result['checkpoints']} "
               f"blobs={result['blobs']} writes={result['writes']}")
+    elif args.action == "prune-sessions":
+        from argus.infrastructure.session_retention import prune_sessions
+
+        result = prune_sessions(s.pg_conninfo(), days=retention_days(args), dry_run=not args.apply)
+        mode = "PRUNED" if args.apply else "DRY RUN"
+        print(f"{mode}: sessions={result['sessions']} revoked={result['revoked']}")
+
+
+def retention_days(args) -> int:
+    """`--days`, else the action's own default: checkpoints 30 (OP-004), sessions 90 (ACR-0018)."""
+    if args.days is not None:
+        return args.days
+    if args.action == "prune-sessions":
+        return int(os.getenv("ARGUS_SESSION_RETENTION_DAYS", "90"))
+    return int(os.getenv("ARGUS_CHECKPOINT_RETENTION_DAYS", "30"))
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -246,15 +311,26 @@ def build_parser() -> argparse.ArgumentParser:
     u.add_argument("--role", default="operator", choices=["viewer", "operator", "approver"])
     u.add_argument("--scopes", nargs="*", default=["lab"])
     d = sub.add_parser("db", help="Postgres system of record: import the lab SQLite history, prove the guarantees")
-    d.add_argument("action", choices=["import-sqlite", "check", "prune-checkpoints"])
+    d.add_argument("action", choices=["import-sqlite", "check", "prune-checkpoints", "prune-sessions"])
     d.add_argument("path", nargs="?", default="/data/argus.db")
-    d.add_argument("--days", type=int, default=int(os.getenv("ARGUS_CHECKPOINT_RETENTION_DAYS", "30")))
-    d.add_argument("--apply", action="store_true", help="delete eligible checkpoints; default is a read-only preview")
+    d.add_argument("--days", type=int, default=None, help="retention window (default: checkpoints 30, sessions 90)")
+    d.add_argument("--apply", action="store_true", help="delete eligible rows; default is a read-only preview")
     m = sub.add_parser("monitoring", help="ACR-0009: declare a planned stop of a host's monitoring")
     m.add_argument("action", choices=["maintenance"])
     m.add_argument("host")
     m.add_argument("--minutes", type=int, required=True, help="1..240")
     m.add_argument("--as", dest="who", required=True, help="who declares it (audited)")
+    au = sub.add_parser("audit", help="ACR-0018: verify the audit hash chain")
+    au.add_argument("action", choices=["verify"])
+    se = sub.add_parser("session", help="ACR-0018: end every open session of a principal now")
+    se.add_argument("action", choices=["revoke"])
+    se.add_argument("name")
+    se.add_argument("--as", dest="who", required=True, help="who revokes (audited)")
+    se.add_argument("--reason", default="revoked by an administrator")
+    wa = sub.add_parser("webauthn", help="ACR-0018: a first-credential ticket for a person, or a reset of their keys")
+    wa.add_argument("action", choices=["allow-enrol", "reset"])
+    wa.add_argument("name")
+    wa.add_argument("--as", dest="who", required=True, help="the other administrator (audited; never the person)")
     dp = sub.add_parser("deploy", help="ACR-0021: record a deploy (ops/deploy.sh calls it after DEPLOY OK)")
     dp.add_argument("action", choices=["record"])
     dp.add_argument("--host", default=None, help="an inventory host (default: ARGUS_HOME_HOST)")
@@ -285,6 +361,12 @@ def main() -> None:
         monitoring(a)
     elif a.cmd == "deploy":
         deploy(a)
+    elif a.cmd == "session":
+        session(a)
+    elif a.cmd == "webauthn":
+        webauthn(a)
+    elif a.cmd == "audit":
+        audit(a)
     else:
         from argus.adapters.inbound.cli.main import run
         raise SystemExit(run(a))

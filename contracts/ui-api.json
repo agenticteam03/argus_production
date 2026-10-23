@@ -60,6 +60,64 @@
         "title": "Body_token_api_v1_auth_token_post",
         "type": "object"
       },
+      "CeremonyIn": {
+        "additionalProperties": false,
+        "properties": {
+          "challenge_id": {
+            "pattern": "^wch_[0-9a-f]{32}$",
+            "title": "Challenge Id",
+            "type": "string"
+          },
+          "credential": {
+            "additionalProperties": true,
+            "title": "Credential",
+            "type": "object"
+          },
+          "label": {
+            "default": "",
+            "maxLength": 64,
+            "title": "Label",
+            "type": "string"
+          }
+        },
+        "required": [
+          "challenge_id",
+          "credential"
+        ],
+        "title": "CeremonyIn",
+        "type": "object"
+      },
+      "EnrolIn": {
+        "additionalProperties": false,
+        "properties": {
+          "step_up_token": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Step Up Token"
+          },
+          "ticket": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ticket"
+          }
+        },
+        "title": "EnrolIn",
+        "type": "object"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -125,6 +183,21 @@
         "title": "InvestigationIn",
         "type": "object"
       },
+      "StepUpIn": {
+        "additionalProperties": false,
+        "properties": {
+          "object": {
+            "maxLength": 224,
+            "title": "Object",
+            "type": "string"
+          }
+        },
+        "required": [
+          "object"
+        ],
+        "title": "StepUpIn",
+        "type": "object"
+      },
       "ValidationError": {
         "properties": {
           "ctx": {
@@ -184,6 +257,31 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/api/v1/auth/logout": {
+      "post": {
+        "description": "ACR-0018: end this token's session now; the next request with it is refused.",
+        "operationId": "logout_api_v1_auth_logout_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Logout",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
     "/api/v1/auth/token": {
       "post": {
         "operationId": "token_api_v1_auth_token_post",
@@ -218,6 +316,278 @@
           }
         },
         "summary": "Token",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/v1/auth/webauthn/credentials": {
+      "get": {
+        "description": "The caller's enrolled credentials: a short id, the label and dates (never the key).",
+        "operationId": "webauthn_credentials_api_v1_auth_webauthn_credentials_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Webauthn Credentials",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/v1/auth/webauthn/login/options": {
+      "post": {
+        "operationId": "webauthn_login_options_api_v1_auth_webauthn_login_options_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Webauthn Login Options",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/v1/auth/webauthn/login/verify": {
+      "post": {
+        "description": "Completes this session's login with a credential: its privileged permissions count from now on.",
+        "operationId": "webauthn_login_verify_api_v1_auth_webauthn_login_verify_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CeremonyIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Webauthn Login Verify",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/v1/auth/webauthn/register/options": {
+      "post": {
+        "description": "D4: the first credential with another administrator's ticket; a further one with a step-up\n(object `webauthn.register:<user>`).",
+        "operationId": "webauthn_register_options_api_v1_auth_webauthn_register_options_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EnrolIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Webauthn Register Options",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/v1/auth/webauthn/register/verify": {
+      "post": {
+        "operationId": "webauthn_register_verify_api_v1_auth_webauthn_register_verify_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CeremonyIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Webauthn Register Verify",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/v1/auth/webauthn/step-up/options": {
+      "post": {
+        "operationId": "webauthn_step_up_options_api_v1_auth_webauthn_step_up_options_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StepUpIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Webauthn Step Up Options",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/v1/auth/webauthn/step-up/verify": {
+      "post": {
+        "description": "A single-use token for the object named in its options, valid 5 minutes, in this session only; the route\nthat does the privileged thing consumes it (never shown in the audit).",
+        "operationId": "webauthn_step_up_verify_api_v1_auth_webauthn_step_up_verify_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CeremonyIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Webauthn Step Up Verify",
         "tags": [
           "auth"
         ]

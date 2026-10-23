@@ -49,10 +49,15 @@ _MOUNT = re.compile(r"/[A-Za-z0-9_/-]*")          # as the inventory checks a mo
 class PrometheusClient:
     """prometheus executor: only named signal templates (never free-form PromQL)."""
 
-    def __init__(self, base_url: str, token: str | None, signals: dict[str, str], timeout_s: float = 10.0):
+    def __init__(self, base_url: str, token: str | None, signals: dict[str, str], timeout_s: float = 10.0,
+                 lines: dict[str, tuple[float, str]] | None = None,
+                 class_signals: dict[str, list[tuple[str, str]]] | None = None):
+        """`lines` and `class_signals` (T-0047 H5, `analysis.anomaly_summary`): the warning line and direction per
+        signal (`signals.yaml` `thresholds:`) and the (signal, scope) list per class (`ui-incident-signals.yaml`)."""
         self.base_url = base_url.rstrip("/")
         self.signals = signals
         self.timeout_s = timeout_s
+        self.lines, self.class_signals = lines or {}, class_signals or {}
 
     def expr(self, signal: str, target: TargetRef, mounts: str = "") -> str:
         """`mounts` (T-0036): the target's declared mounts joined by `|` (a PromQL regex), plain paths only, as the
@@ -87,8 +92,29 @@ class KnowledgeClient:
 
     FALLBACK_QUERY = "diagnostic workflow decision tree evidence interpretation"
 
-    def __init__(self, knowledge, memory=None):
+    def __init__(self, knowledge, memory=None, inventory=None, metrics=None):
         self.knowledge, self.memory = knowledge, memory
+        self.inventory, self.metrics = inventory, metrics     # T-0046 L4: `network.link_states`
+
+    def link_history(self, ref: str, start, end) -> list[dict]:
+        """T-0046 L4: the recorded transitions of the links `ref` owns or is the dependency of (`link_event`)."""
+        if self.memory is None or not hasattr(self.memory, "link_events"):
+            raise ExecutorError("unreachable", "no link record in this process")
+        return self.memory.link_events(ref, start, end)
+
+    def latest_links(self) -> dict:
+        """T-0046 L4: the last recorded transition of every link, by (owner, dependency)."""
+        read = getattr(self.memory, "latest_link_events", None)
+        return read() if read else {}
+
+    def current_links(self, owners: list[TargetRef]) -> tuple[list[tuple], set[str]]:
+        """T-0046 L4: the links of `owners` as the recorder judges them now, from each owner's own host's probes
+        (`application/link_transitions.read_links`); ([], set()) when this process has no inventory or metrics."""
+        if self.inventory is None or self.metrics is None:
+            return [], set()
+        from argus.application.link_transitions import read_links
+        infos = [i for i in (self.inventory.target(o) for o in owners) if i is not None]
+        return read_links(self.inventory, self.metrics, infos)
 
     def prior_incidents(self, target: TargetRef, incident_class: str, k: int) -> list:
         """Closed incidents of this target and class, newest first (`similar_incidents`)."""

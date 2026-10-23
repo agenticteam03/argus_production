@@ -10,7 +10,7 @@ When a problem is fixed, set its status to `fixed` with the date, and add a jour
 | **D-003** | The class registry: keep the model or switch a class to the deterministic baseline (§21.2 rule) | **decided** 2026-10-13 (`juanbetancurm`): `dependency_unavailable` and `nginx_upstream_failure` to `baseline`, the other six keep their strategy; revisited in OP-013 | 2026-10-09 |
 | OP-001 | Runbook `detector` metadata uses old or empty class names | fixed 2026-10-09 (PR #44 merged) | 2026-09-30 |
 | OP-002 | P0 safety gaps of the runbook library not yet reconciled with architecture v1.8 | open | 2026-09-30 |
-| OP-003 | Runbook safety classes not mapped to `CapabilitySpec.risk` | open | 2026-09-30 |
+| OP-003 | Runbook safety classes not mapped to `CapabilitySpec.risk` | in progress (ACR-0026) | 2026-09-30 |
 | OP-004 | LangGraph checkpoints grow forever; checkpoints of failed runs are orphaned | in progress — offline tests pass; VM dry run and approved apply pending | 2026-10-05 |
 | **OP-005** | The `restarts_10m` signal undercounts restarts of a container younger than its window | **fixed** 2026-10-09 — verified on both VMs (PR #41) | 2026-10-05 |
 | OP-006 | LangGraph `recursion_limit` is fixed at 100 and can be too small for larger step budgets | fixed 2026-10-05 | 2026-10-05 |
@@ -20,10 +20,10 @@ When a problem is fixed, set its status to `fixed` with the date, and add a jour
 | OP-010 | The db-probe cannot connect when every usable slot is taken, so `postgresql_connection_exhaustion` cannot fire at 100 % | **fixed** 2026-10-09 — SC-04 at 100 % DIAGNOSED from the pulled alert | 2026-10-08 |
 | **OP-011** | Two alerts on one target open two incidents: §6.4 correlation is not implemented | **fixed** 2026-10-09 — SC-03 on vm-166 gives one incident (ACR-0004) | 2026-10-09 |
 | OP-013 | D-003 was decided on the same cases the baseline's rules were written from: its 1.00 is an upper bound | open | 2026-10-13 |
-| **OP-014** | The self-merge rule relies on the tests: gaps where a green CI does not yet mean "safe to merge" | open — first three gaps in `task/TEST-HARDEN-1` | 2026-10-17 |
+| **OP-014** | The self-merge rule relies on the tests: gaps where a green CI does not yet mean "safe to merge" | in progress — steps 1-7 and 10 done (TEST-HARDEN-1, the CI gates, Vitest coverage 2026-10-21); 8, 9, 11-13 left | 2026-10-17 |
 | **OP-015** | ARCHITECTURE §14 says the approval/action machinery "exists from the start"; the code has none of it | open — implemented by ACR-0019 (phase 18) if accepted; until then the text must say "designed, not built" | 2026-10-18 |
 | **OP-016** | `policies/SECURITY.md` lists "the team's shared Argus password"; §17.3 and ACR-0011 require one account per person | open — fixed in phase 15 | 2026-10-18 |
-| **OP-017** | The frontend's dependencies have known advisories: React Router (production, moderate), Vite, Vitest and esbuild (dev tooling, up to critical); every fix is a major upgrade | open — CI now fails on a high advisory in a production dependency (OP-014 step 6) | 2026-10-20 |
+| **OP-017** | The frontend's dependencies have known advisories: React Router (production, moderate), Vite, Vitest and esbuild (dev tooling, up to critical); every fix is a major upgrade | **fixed** 2026-10-21 — React Router 7, Vite 8, Vitest 5; CI runs `npm audit --audit-level=high` on every dependency | 2026-10-20 |
 
 ---
 
@@ -102,23 +102,32 @@ runbook without a class.
 
 ## OP-002 — P0 safety gaps not yet reconciled with architecture v1.8
 
-**Status:** open · **Opened:** 2026-09-30
+**Status:** open · **Opened:** 2026-09-30 · **Reviewed:** 2026-10-20 by `conantkd` (+ agent), every gap checked
+against ARCHITECTURE 1.8.20, the code on `main` and the NEXT-PHASE ACRs (`task/OP-002-gap-review`)
 
 **Problem.** The library's `ARGUS-CAPABILITY-GAPS.md` lists eight **P0** gaps written against an older code base.
-Each must be settled in the architecture (ACR) before the related implementation. First assessment — to be verified:
+Each must be settled in the architecture (ACR) before the related implementation.
 
-| Gap | Asks for | Against v1.8 | Likely change |
+**Review (2026-10-20).** Four kinds of answer: covered by the text; built but missing from the text (the code says
+"lab addition"); assigned to a proposed ACR; still open.
+
+| Gap | Asks for | Finding (evidence) | Resolution |
 |---|---|---|---|
-| G-001 Deployment profiles | named, versioned profiles (production / lab); missing profile fails closed | partial: per-(capability, target) write gate, no profile | `profile` in the policy file; write gate evaluated per profile |
-| G-002 Typed prerequisites | preconditions as typed predicates on fresh, identity-bound evidence | **missing**: §13.1 uses free-text `preconditions` | typed predicates evaluated at `propose_action` and `precheck_action` |
-| G-003 Observation provenance | source vs collection time, coverage, units, partial state, identities | partial | add the fields to `Observation` / `EvidenceRecord`; missing is never zero or healthy |
-| G-004 Approval binding | immutable proposal bound to what it acts on, previews | mostly covered | extend `identity()`; preview in the approval view |
-| G-005 Verification windows | stability windows, provisional vs final recovery | partial | `stability_window` per class; provisional/final states |
-| G-006 Data minimization | per-source field allowlists, literal redaction | partial | `allowed_fields` per `CapabilitySpec` |
-| G-007 Helper semantics | missing/partial data never becomes healthy or root cause | principle missing (implemented for metrics freshness) | state the rule in §12.3; contract fixtures |
-| G-008 Corpus/dispatcher separation | runbook IDs from metadata, bounded passages, tools never from runbook text | covered by §15.3 | verify that writes are offered only for registered classes |
+| G-001 Deployment profiles | named profiles; a missing profile fails closed | **built, not in the text:** `config/policy.yaml` declares `profile`, and `argus/policy/engine.py` refuses to start without `lab` or `production`; the profile selects `allowed_safety_classes`. §13.1 names neither. `config/policy.yaml` says `production` although the deployment is the lab, and ACR-0018 makes separation of duties depend on the profile | **closed** by ACR-0027 (#216): §13.1 states the profile; which profile the lab runs is decided in phase 16's ACR-0018 pull request |
+| G-002 Typed prerequisites | preconditions as typed predicates on fresh, identity-bound evidence | §13.1 still shows free text (`preconditions: ["restart_count >= 3"]`); ACR-0019 §3.4 replaces it: action-card `preconditions` over fresh observations, a minimal interpreter (comparisons, `in`, `and`, `or`, never `eval`), re-evaluated at precheck | **ACR-0019** (proposed), phase 17 |
+| G-003 Observation provenance | source vs collection time, coverage, units, partial state, identities | **built, not in the text:** `CapabilityResult` / `Observation` / `EvidenceRecord` carry `source_time`, `units`, `partial`, `coverage`, `identities` (`argus/domain/model.py`, stored by `invoke_capability.py`); per-series freshness in `config_adapters.py`. §5.4 and §12.3 list none of them | **closed** by ACR-0027 (#216): the fields in §5.4, §10 and §12.3 as built |
+| G-004 Approval binding | an immutable proposal bound to what it acts on, previews | §14 binds the proposal by digest; ACR-0019 §3.6 freezes it and adds the precheck preview (`dry_run`) to the digest and the approval view | **ACR-0019** (proposed), phase 18 |
+| G-005 Verification windows | stability windows, provisional vs final recovery | §15.1 calls one fresh healthy sample `recovered_verified`; nothing waits for stability. ACR-0019 gives each action card a `verify` with signals and a window, but not two states | **ACR-0019**, with one addition asked in its review: recovery is provisional until the card's window holds, then final; only final counts as `recovered_verified` |
+| G-006 Data minimization | per-source field allowlists, literal redaction | redaction is built and stated (§5.4, `capabilities/redaction.py`, `container.inspect` env/mounts); no field allowlist exists. ACR-0026 decides which reads need one (`READ_ONLY_SENSITIVE`) | **ACR-0028** accepted (#218) and applied in `task/ACR-0028-apply-field-allowlists` (1.8.25): `allowed_fields` per sensitive capability, enforced in the dispatcher before redaction; closed when it merges |
+| G-007 Helper semantics | missing or partial data never becomes healthy or the root cause | **built, partly in the text:** missing values are `None`, never 0 (`MetricSnapshot`); a blind host is a finding, not healthy (`detectors/classes.py`); stale metrics end `undiagnosable` (§1.3, §9); the topology says `unknown`, never ok (§7.1). Tests: `test_t0027_blind_spot`, `test_t0032_prometheus_down`, `test_sc04_pg_connections`, `test_e2e2_evidence_gaps`. The rule itself is not stated once | **closed** by ACR-0027 (#216): the rule in §12.3, `None` in §5.4's `MetricSnapshot` |
+| G-008 Corpus/dispatcher separation | runbook ids from metadata, bounded passages, tools never from runbook text | **covered:** §15.3; a `MISSING TOOL REQUIREMENT` name is never offered (§15.3); tools come only from the catalog by class tags (`runner.py`, `graph_runner.py`); no write is registered, and the standing write-gate test (`tests/test_write_gate_standing.py`) checks that a model-proposed restart is never executed | **closed** |
 
-**Done when.** Each gap is covered, changed through an ACR, or dropped with a reason.
+**Next.** ACR-0027 (#216, merged) wrote down G-001, G-003 and G-007; the G-005 addition in ACR-0019's review;
+G-006 applied by ACR-0028 (`task/ACR-0028-apply-field-allowlists`).
+
+**Done when.** Each gap is covered, changed through an ACR, or dropped with a reason. Today: G-008 closed; G-002 and
+G-004 wait for ACR-0019 to be applied; G-001, G-003 and G-007 closed by ACR-0027 (#216); G-005 open as above;
+G-006 applied by ACR-0028 (`task/ACR-0028-apply-field-allowlists`).
 
 ---
 
@@ -180,7 +189,10 @@ change (for example "within 0.10 of the baseline and hard 0").
 
 ## OP-014 — The self-merge rule relies on the tests
 
-**Status:** open · **Opened:** 2026-10-17 (the self-merge rule, `agents/REVIEW_PROTOCOL.md`) · **Owner:** the team
+**Status:** in progress: steps 1-3 done (`TEST-HARDEN-1`, 99badb3: the Docker tests run in CI, the prompt-injection
+cases in `tests/test_op014_prompt_injection.py`, the timing test checks mechanics only), steps 4-7 and 10 done
+(below); left: 8 (the scheduled model evaluation), 9, 11-13 · **Opened:** 2026-10-17 (the self-merge rule,
+`agents/REVIEW_PROTOCOL.md`) · **Owner:** the team
 
 **Problem.** Under the self-merge rule, a green `test` + `frontend` on the last push replaces a teammate's review for
 everything outside the protected paths. CI is already broad: Brain audit and lint, gitleaks over the full history,
@@ -201,7 +213,7 @@ the frontend's ESLint, Vitest, build and Playwright. But a green CI does not yet
 **Fix, in order.** (Online research, 2026-10-17: OpenSSF Scorecard checks, SLSA source-track discussion, mutation and
 diff-coverage gates, LLM injection regression testing, CI security scanners.)
 
-*Now — `task/TEST-HARDEN-1`:*
+*Done — `task/TEST-HARDEN-1` (99badb3):*
 1. Run the Docker tests in CI (`ARGUS_TEST_DOCKER=1` on the Linux runner, which has Docker) and make them required.
 2. Prompt-injection regression cases: instructions planted in container logs, a file read, an HTTP body and a peer
    finding; assert they are wrapped as data, never change the class or the root cause, never add a tool call outside
@@ -211,6 +223,17 @@ diff-coverage gates, LLM injection regression testing, CI security scanners.)
 *Next — one PR each, each new job added to `SELF_MERGE_CHECKS` in the same PR:*
 4. **Coverage on changed lines:** `pytest-cov` + `diff-cover` (or `pytest-nlcov`) failing under 80 % of the PR's
    changed lines; Vitest coverage thresholds for `frontend/`. A changed-lines gate never blocks on old, untested code.
+   *Done 2026-10-20 for Python (`task/OP-014-4-7-ci-gates`):* the `test` job runs the suite under `pytest-cov`
+   (`argus/`, `services/`) and `diff-cover` fails a PR whose changed lines there are under 80 % covered (against
+   `origin/main`). Run in CI only: the full suite under coverage ran out of memory on a laptop. *Done 2026-10-21
+   for `frontend/` (`task/OP-014-4-vitest-coverage`, after OP-017's Vitest 5):* `npm test` runs Vitest with
+   `@vitest/coverage-v8` over every source file and fails under floors set just below the current figures; raised
+   as tests are added, never lowered. First 33 / 33 / 28 / 26 % (lines, statements, functions, branches); then
+   43 / 43 / 39 / 40 % with tests for SafeMarkdown, the incident's answer, why-card, timeline, evidence, audit and
+   charts (`task/OP-014-frontend-tests`); then 45 / 44 / 41 / 44 % with the shared badges, live pill, tabs, runbook
+   card and incident row (`task/OP-014-frontend-tests-2`); then 48 / 47 / 45 / 48 % with the system map's rendering
+   (`task/OP-014-frontend-tests-3`). A floor, not a
+   changed-lines gate: the pages are mostly covered by Playwright, which it does not count.
 5. **Static analysis (SAST):** `ruff` for Python; `bandit` or `semgrep` (OWASP / Python rulesets) failing on high
    severity. CodeQL code scanning is not available for private repositories on the free plan, so these run as
    plain CI steps without SARIF upload. *Done 2026-10-20 (`task/OP-014-5-static-analysis`):* `ruff` (default rules, E731 ignored)
@@ -224,14 +247,44 @@ diff-coverage gates, LLM injection regression testing, CI security scanners.)
    `shellcheck` for `ops/*.sh`, Trivy config/filesystem scan. **Pin every action by commit SHA**: the Trivy action
    itself was compromised in March 2026, and pinned dependencies are an OpenSSF Scorecard check. *Pinning done 2026-10-20
    (`task/OP-014-7-pin-actions`):* the four actions by commit SHA, and the gitleaks download checked against its
-   published SHA-256. `zizmor`, `hadolint`, `shellcheck` and Trivy remain.
+   published SHA-256. *Linting done 2026-10-20 (`task/OP-014-4-7-ci-gates`):* `zizmor` on the workflows (3 medium
+   findings fixed: `actions/checkout` no longer persists the git token, `persist-credentials: false`), `hadolint` on
+   the four Dockerfiles (binary checked against its SHA-256; DL3008/DL3018, unpinned distro packages, ignored in
+   `.hadolint.yaml` with the reason), `shellcheck -S warning` on `ops/*.sh` (one real finding fixed in
+   `db-backup.sh`: `>&"$fd" 2>/dev/null` read as both streams, now `1>&"$fd"`; three `hosts.env` sources and
+   `ui-cert.sh`'s own `dirs` function annotated), and Trivy 0.75.0's configuration scan at high and critical (the
+   binary, checked against its SHA-256, never the action). Steps of the `test` job, so `SELF_MERGE_CHECKS` is
+   unchanged. **Left:** Trivy's one finding, DS-0002 (root in the container) on `services/target/Dockerfile` and
+   `deploy/vm-095/tunnel/Dockerfile`, is an exception for those two files only (`.trivyignore.yaml`): the target
+   services read the host's Docker socket and allowlisted host files, and the tunnel reads its key mounted from the
+   host, so a non-root user needs a VM change (the docker group, key ownership) and a deploy with its lease.
 8. **Model quality:** run the model evaluation (§21.2) on a schedule (weekly) and record the result; until then a
    change under `argus/orchestration/`, `config/signals.yaml`, the class registry or the runbooks asks for a
    teammate's review (REVIEW_PROTOCOL.md, "The tests this rule relies on").
 
 *Later:*
 9. **Mutation testing** (`mutmut`) on the safety-critical modules (`argus/policy/`, `application/invoke_capability.py`,
-   redaction), weekly, with a threshold that starts at today's score and only goes up.
+   redaction), weekly, with a threshold that starts at today's score and only goes up. *First run 2026-10-22, local
+   (`task/OP-014-9-mutation`):* `argus/policy/` and `invoke_capability.py`, mutmut 3.3.1 in a container; 889 mutants:
+   525 killed, 59 survived, 305 timed out (a loaded laptop: re-run them before counting). `argus/policy/` had one
+   survivor; the others were in the combined-capability path. `tests/test_op014_mutation_invoke.py` kills 51 of the
+   59; the 8 left are equivalent (a `getattr` default never used, `model_dump` mode on string-only fields, a context
+   used only when the target is missing). *Redaction 2026-10-22 (`task/OP-014-9-mutation-redaction`):* 204
+   mutants, 136 killed, 58 survived, 10 timed out; `tests/test_op014_mutation_redaction.py` kills 42 of the 58, the
+   16 left are equivalent (sort order of spans that are sorted again, `find` from `start + 2`, merging spans that
+   only touch). *Re-run with 3 workers (`task/OP-014-9-mutation-read-path`):* the policy and the read path, 889
+   mutants: 649 killed, 66 survived, 174 timed out. 58 survivors were new (hidden among the first timeouts): the audit
+   trail and the stored evidence of an ordinary read. `tests/test_op014_mutation_read_path.py` kills 56; the 2 left
+   and the 8 of the first run are equivalent. *The 174 timeouts re-run with 2 workers
+   (`task/OP-014-9-mutation-decisions`):* 93 killed, 45 survived, 36 still timed out;
+   `tests/test_op014_mutation_policy_decisions.py` kills 37, the 8 left are equivalent. *The last 36 timeouts, one
+   worker, then each left one without mutmut's time limit (`task/OP-014-9-mutation-timeouts`):* 15 detected, 21
+   survived (10 of them had only been slow, not hung); `tests/test_op014_mutation_timeouts.py` kills 13, the 8 left are
+   equivalent (a default replaced by `None` before an `or`, a `getattr` default on a field every spec has, the context
+   when the target is given) or one edge: `_normal` accepts `//` as a directory, the same as `/` (not a gap: `/` is
+   allowed as a directory and the deny floor applies; refusing it is a change under `argus/policy/`, a teammate's
+   review). In all: 199 survivors killed, 42 equivalents named, no timeout left. **Left:** the weekly CI job
+   (`.github/`, a teammate's review).
 10. **Property-based tests** (Hypothesis) for redaction, target parsing and the policy engine. *Redaction and target
     parsing done 2026-10-20 (`tests/test_op014_property_based.py`).* They found a real gap: a token glued to a
     non-ASCII letter (`é<token>`) escaped the high-entropy rule, because Unicode `\b` saw no word boundary; fixed with
@@ -241,7 +294,12 @@ diff-coverage gates, LLM injection regression testing, CI security scanners.)
     three injected bugs (no scope check, no deny list, no path normalization) were caught.
 11. **LLM red-team scan** on a schedule (promptfoo for the application, garak for the model) next to the fixed
     regression cases of step 2.
-12. **Accessibility checks** in Playwright (axe-core) on the main pages.
+12. **Accessibility checks** in Playwright (axe-core) on the main pages. *Done 2026-10-21 (`task/OP-014-12-a11y`):*
+    `frontend/e2e/a11y.e2e.js` runs axe-core (WCAG 2 A and AA) on login, dashboard, incidents, an incident and
+    runbooks; any violation fails the `frontend` job. *Contrast fixed 2026-10-22 (`task/OP-014-12-contrast`):* the
+    "updated" clock uses `text-muted` (6.3:1, was `text-muted/60` 2.93:1); solid buttons with white text use
+    `bg-accent-solid` `#2563eb` (5.2:1; hover `#1d4ed8` 6.7:1, was `bg-accent` 3.67:1); `color-contrast` is no
+    longer excluded. Step 12 is done.
 13. **OpenSSF Scorecard** run monthly as a health signal for the repository's practices.
 
 **Done when.** Steps 1-8 are merged and required; the self-merge rule's protected-path list is reviewed again with
@@ -251,7 +309,7 @@ them (gap 7). Steps 9-13 are tracked as tasks.
 
 ## OP-015 — §14's approval and action machinery is described as built, but is not
 
-**Status:** open · **Opened:** 2026-10-18 (the NEXT-PHASE proposal) · **Found by:** `juanbetancurm` (+ agent)
+**Status:** fixed 2026-10-20 (`task/PHASE-15-foundations`: the text no longer claims it; ARCHITECTURE 1.8.21) · **Opened:** 2026-10-18 (the NEXT-PHASE proposal) · **Found by:** `juanbetancurm` (+ agent)
 
 **Problem.** ARCHITECTURE §14 says: "In this release no write capability is released, but the machinery, its tables
 and its tests exist from the start so that the first release changes no core code." `IMPLEMENTATION_PLAN.md` phase 9
@@ -269,13 +327,14 @@ What exists is the closed write gate and its standing test (T-0031).
 ARCHITECTURE change touching §14 states "designed, not built", and phase 9's line in the plan drops the HITL item.
 
 **Done when.** The §14.4 failure-injection and §22.2 binding suites run in CI, or the text no longer claims they
-exist.
+exist. *Done 2026-10-20 the second way:* §14 says "designed, not built" (1.8.21), and the plan's phase 9 and its
+"Escalation / approval" exit line no longer list HITL against a fake endpoint (it is phase 18).
 
 ---
 
 ## OP-016 — `SECURITY.md` lists a shared team password
 
-**Status:** open · **Opened:** 2026-10-18 · **Found by:** `juanbetancurm` (+ agent)
+**Status:** fixed 2026-10-20 (`task/PHASE-15-foundations`: the row is replaced; no shared account on vm-095) · **Opened:** 2026-10-18 · **Found by:** `juanbetancurm` (+ agent)
 
 **Problem.** `policies/SECURITY.md`'s secrets table has a row "The team's shared Argus password | each developer's
 password manager". ARCHITECTURE §17.3 (ACR-0011) says "Every login reachable from the Internet is one account per
@@ -286,14 +345,19 @@ a terminal session impossible to attribute (ACR-0018, ACR-0019, ACR-0020).
 ids and kinds; `argus user` has only `add` and `disable`), disable any shared account (`argus user disable`), and replace the row with "Each developer's Argus password | their password manager; an Argon2 hash in
 Postgres".
 
-**Done when.** The row is replaced and no shared account exists.
+**Done when.** The row is replaced and no shared account exists. *Row replaced 2026-10-20* ("Each developer's Argus
+password (one account per person, no shared login)"); the read-only `principal` query on vm-095 (run by `conantkd`, ids, kinds, roles and
+`disabled` only) lists five principals, all `human` and each one person's: `conantkd`, `juanbetancurm`,
+`juanes6554` (operators, enabled), `conantkd-viewer` (the temporary viewer of the D.4 check) and `olav`, both
+disabled. No shared account, so nothing to disable.
 
 ---
 
 ## OP-017 — The frontend's dependencies have known advisories
 
-**Status:** open · **Opened:** 2026-10-20 (OP-014 step 6, `npm audit`) · **Found by:** `conantkd` (+ agent) ·
-**Owner:** the frontend lane (T-0016)
+**Status:** **fixed** 2026-10-21: `react-router-dom` 7.18.4, `vite` 8.3.5 and `vitest` 5.0.5 (#229, #242); CI's
+`frontend` job runs `npm audit --audit-level=high` on every dependency (#244) · **Opened:** 2026-10-20 (OP-014 step 6, `npm audit`) · **Found by:** `conantkd`
+(+ agent) · **Owner:** the frontend lane (T-0016)
 
 **Problem.** `npm audit` in `frontend/` on 2026-10-20 reports the following. Python: `pip-audit` found nothing.
 
@@ -312,6 +376,12 @@ laptop (`npm run dev`, the dev server) and in CI.
    `pip-audit`. A new high advisory in what ships fails the build.
 2. In the frontend lane: upgrade `react-router-dom` to 7, then `vite` and `vitest` together. Each is a major upgrade,
    with the Vitest and Playwright suites as the check.
+   - Done 2026-10-21: `react-router-dom` 7.18.4 (released 2026-09-15). No code change: the UI uses only the classic
+     API (`BrowserRouter`, `Routes`, `Link`, `NavLink`, the hooks), unchanged in 7. Lint, Vitest (131), the build and
+     Playwright (21, with the read-only guard) pass; `npm audit --omit=dev` finds nothing.
+   - Done 2026-10-21: `vite` 8.3.5 (Rolldown inside), `@vitejs/plugin-react` 6.1.2 and `vitest` 5.0.5 together. No
+     code or config change: `vite.config.js` uses only `defineConfig`, `searchForWorkspaceRoot` and the server and
+     preview hooks. Lint, Vitest (136), the build and Playwright (21) pass; `npm audit` finds nothing, dev included.
 3. Then raise the npm gate to every dependency (`npm audit --audit-level=high`, dev included).
 
 **Done when.** `npm audit --audit-level=high` passes on the whole tree and CI runs it.
@@ -320,7 +390,11 @@ laptop (`npm run dev`, the dev server) and in CI.
 
 ## OP-003 — Runbook safety classes not mapped to `CapabilitySpec.risk`
 
-**Status:** open · **Opened:** 2026-09-30
+**Status:** in progress 2026-10-20 ([ACR-0026](architecture/changes/ACR-0026-safety-classes.md),
+`task/ACR-0026-safety-classes`): §12.3 has one scheme of five classes, `risk` is gone, `FORBIDDEN` is never
+registered, and the four reads that were wrongly `READ_ONLY_SAFE` (two log reads, the snapshot, directory sizes) are sensitive. **Left:** the runbooks' "Safety class"
+column (54 rows in 19 runbooks differ from the catalog) is rewritten from it with a test, and G-006 gives the
+sensitive reads their field allowlists · **Opened:** 2026-09-30
 
 **Problem.** The library's conventions classify operations as `READ_ONLY_SAFE`, `READ_ONLY_SENSITIVE`,
 `MUTATING_LOW_RISK`, `MUTATING_HIGH_RISK`, `FORBIDDEN`; architecture §12.3 uses `risk: low | medium | high | very_high`
@@ -336,8 +410,11 @@ mandatory field allowlists (ties to G-006); `FORBIDDEN` operations are never reg
 
 ## OP-004 — Checkpoint retention (in progress)
 
-**Status:** in progress 2026-10-09 (`task/OP-004-checkpoint-cleanup`, offline tests passed; VM dry run and approved
-apply pending); proposal accepted 2026-10-05 (PR #7) · **Opened:** 2026-10-05 · **Found by:** `conantkd` (T-0013 review)
+**Status:** in progress: built (#42) and its first approved `--apply` ran on vm-095 on 2026-10-14 (nothing old
+enough); a dry run on 2026-10-21 (DEPLOY-NIGHT) still finds nothing past 30 days (`threads=0 checkpoints=0`). **Left:**
+the daily timer, a team decision (it runs without a lease; see the task). Was: in progress 2026-10-09
+(`task/OP-004-checkpoint-cleanup`, offline tests passed; VM dry run and approved apply pending); proposal accepted
+2026-10-05 (PR #7) · **Opened:** 2026-10-05 · **Found by:** `conantkd` (T-0013 review)
 
 **Problem.** Since T-0013 every investigation leaves rows in `checkpoints`, `checkpoint_blobs` and `checkpoint_writes`,
 and nothing ever removes them: the runtime role has no DELETE (on purpose, migration 002). A run that ends with an
@@ -504,7 +581,9 @@ redeployed on vm-166, and this item is set to `fixed`.
 
 ## OP-008 — Backup retention, and a consistency check that survives a busy database
 
-**Status:** in progress 2026-10-09 (`task/OP-008-backup-retention`; offline implementation verified, VM dry run and
+**Status:** in progress: built (#51) and its first approved `prune --apply` ran on vm-095; a preview on 2026-10-21
+(DEPLOY-NIGHT) would remove 13 backup sets (2026-10-13 and 14), nothing removed. **Left:** a scheduled prune, a team
+decision. Was: in progress 2026-10-09 (`task/OP-008-backup-retention`; offline implementation verified, VM dry run and
 approved apply pending); proposal accepted 2026-10-07 (PR #31, approved by `juanbetancurm`; snapshot approach,
 scheduling decided later) · **Opened:** 2026-10-07 · **Found by:** `juanbetancurm` (after-merge review
 of PR #25, T-0017) · **Proposal by:** `conantkd` (+ agent) · **Fix with:** its own task, with or after T-0014

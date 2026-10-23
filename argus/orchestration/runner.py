@@ -57,7 +57,7 @@ class SkeletonRunner:
                  metrics: MetricsPort, knowledge: KnowledgePort, notifier: NotificationPort,
                  invoke: InvokeCapability, strategies: dict[str, Any], offered_specs: list[Any],
                  redactor: Any, policy_version: str, max_tool_level: int, max_reads_per_step: int = 1,
-                 max_steps_cap: int = 10, events: Any = None, routing: Any = None):
+                 max_steps_cap: int = 10, events: Any = None, routing: Any = None, ranking: Any = None):
         self.memory, self.audit, self.inventory = memory, audit, inventory
         self.metrics, self.knowledge, self.notifier = metrics, knowledge, notifier
         self.invoke, self.strategies = invoke, strategies
@@ -67,6 +67,7 @@ class SkeletonRunner:
         self.max_reads_per_step, self.max_steps_cap = max_reads_per_step, max_steps_cap
         self.events = events                     # RunEventSink (telemetry); None = disabled
         self.routing = routing                   # T-0042 (§15.2): where an escalation goes; None = the default
+        self.ranking = ranking                   # ACR-0024 §3.3 (T-0047 H2): the score's weights; None = the defaults
         self._spec_names = {s.name: s.model_name for s in offered_specs}
 
     def _ev(self, inc: Incident, node: str, phase: str, **data) -> None:
@@ -92,7 +93,7 @@ class SkeletonRunner:
                              model_text=red_text, redactions=n1 + n2).with_hash()
         self.memory.append_evidence(rec)
         return EvidenceRef(evidence_id=rec.evidence_id, sha256=rec.sha256, capability=None, status="ok",
-                           model_text=rec.model_text)
+                           model_text=rec.model_text, target=rec.target, kind=rec.kind)
 
     def scope(self, target: TargetRef) -> set[TargetRef]:
         """Incident scope: the target, its inventory neighbours, and the hosts they run on."""
@@ -245,6 +246,10 @@ class SkeletonRunner:
                          decision=self._summary(d))
             self._audit(inc, "decision", "decision." + getattr(d, "kind", "unknown"),
                         actor=ctx.caller, detail=json.loads(d.model_dump_json()) if hasattr(d, "model_dump_json") else {})
+            if getattr(d, "hypothesis_problems", None):   # ACR-0024 §3.2, log-only until T-0047 H4: the decision stands
+                self._audit(inc, "decision", "hypothesis.invalid", actor=ctx.caller,
+                            detail={"step": step + 1, "decision": d.kind, "problems": d.hypothesis_problems[:10]})
+            self._hypotheses(inc, step + 1, d, view.evidence)
             if isinstance(d, InvalidDecision):
                 if d.reason == "fabricated_tool":
                     self._audit(inc, "security", "security.fabricated_tool", actor=ctx.caller, detail={"detail": d.detail})
@@ -291,6 +296,26 @@ class SkeletonRunner:
         self.memory.update_incident(inc)
         return self._loop(inc, ctx, EvidencePackStrategy(), None, [], evidence, [], 2)
 
+    def _hypotheses(self, inc: Incident, step: int, d, evidence: list) -> None:
+        """ACR-0024 §3.3/§3.5 (T-0047 H2): rank a decision's hypotheses and store them, one row each. Never in the way
+        of the run: a store without the table, or a step already stored (a run resumed after a crash), is skipped."""
+        hyps = getattr(d, "hypotheses", None)
+        add = getattr(self.memory, "add_hypotheses", None)
+        if not hyps or add is None:
+            return
+        from argus.application.ranking import rank
+        try:
+            if any(r["step"] == step for r in self.memory.hypotheses(inc.id)):
+                return
+            ranked = {r.id: r for r in rank(hyps, evidence, self.ranking)}
+            chosen = getattr(d, "chosen", None)
+            add(inc.id, step, [{"hypothesis_id": h.id, "statement": h.statement, "cause_class": h.cause_class,
+                                "target": h.target, "relation": h.relation, "status": h.status,
+                                "support_ids": h.support, "against_ids": h.against, "score": ranked[h.id].score,
+                                "rank": ranked[h.id].rank, "chosen": h.id == chosen} for h in hyps], utcnow())
+        except Exception:  # noqa: BLE001 — the hypotheses are a record of the reasoning, never a reason to fail it
+            log.exception("hypotheses of %s step %d not recorded", inc.id, step)
+
     # ---------------------------------------------------------------------------------------------
     def context(self, view: InvestigationView) -> str:
         inc = view.incident
@@ -323,6 +348,9 @@ class SkeletonRunner:
                          f'source="{rec.executor}@{rec.host}" collected_at="{rec.collected_at.isoformat()}" '
                          f'source_time="{rec.source_time.isoformat() if rec.source_time else "unknown"}" '
                          f'status="{rec.status}" partial="{rec.partial}">\n{as_data(rec.model_text)}\n{body}\n</evidence>')
+        slot = hypotheses_slot(view.decisions_so_far)
+        if slot:
+            parts.append(slot)
         for ex, cat in sorted(view.down_executors.items()):
             parts.append(f"UNAVAILABLE: executor {ex} is {cat} in this incident; its tools will fail again. "
                          "Do not call them; use other evidence or escalate.")
@@ -361,6 +389,23 @@ class SkeletonRunner:
         except (AttributeError, KeyError, TypeError):
             pass
         return routing.target(family, alertname)
+
+
+SLOT_CHARS = 1200                  # ACR-0024 §3.4: "Hypotheses under test" ≤ 300 tokens (about 4 characters a token)
+
+
+def hypotheses_slot(decisions: list) -> str:
+    """ACR-0024 §3.4 (T-0047 H2): the latest decision's hypotheses (statement, status, cited ids), so the next step
+    continues the list; bounded, and never dropped once present (it does not depend on the evidence window)."""
+    hyps = next((d.hypotheses for d in reversed(decisions or []) if getattr(d, "hypotheses", None)), None)
+    if not hyps:
+        return ""
+    lines = []
+    for h in hyps:
+        cited = ", ".join([*h.support[:3], *(f"against {i}" for i in h.against[:2])]) or "nothing cited"
+        lines.append(f"- {h.id} [{h.status}] {h.statement[:120]} (target {h.target or 'external'}; {cited})")
+    text = "HYPOTHESES UNDER TEST (your latest list; keep the ids, update the statuses):\n" + "\n".join(lines)
+    return text if len(text) <= SLOT_CHARS else text[:SLOT_CHARS - 1] + "…"
 
 
 def _decision_summary(d) -> dict:

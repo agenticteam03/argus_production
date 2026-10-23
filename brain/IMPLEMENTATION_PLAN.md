@@ -5,8 +5,8 @@
 **Live status:** [`CURRENT_STATE.md`](CURRENT_STATE.md) wins over the status column below.
 
 This plan runs **v1.8 itself on two genuinely separate hosts**: Postgres, separate api/worker/scheduler, the LangGraph
-skeleton with checkpointing, the stdio MCP tools child, exact-route gateways and probes, per-host Prometheus, and the
-closed-write-gate HITL machinery. The current code started as a simplified lab core (SQLite, one process, direct tool
+skeleton with checkpointing, the stdio MCP tools child, exact-route gateways and probes, per-host Prometheus, and a
+closed write gate (the HITL machinery of §14 is designed, not built: phase 18, OP-015). The current code started as a simplified lab core (SQLite, one process, direct tool
 calls); the phases below replace each simplification.
 
 ## 1. Phases at a glance (status 2026-10-13, roll-up after AFTER-MERGE #132)
@@ -28,8 +28,8 @@ calls); the phases below replace each simplification.
 | 12 | End-to-end tests | every scenario through the CLI | quality claims need repeated runs | ✅ 100 % | the scenario runner `ops/e2e/run.py` (T-0023): every scenario five runs on the VMs. SC-01 to SC-08 (E2E-1 to E2E-6); H-1/H-2, SC-09, SC-10, SC-11 and the identity proof 5/5, SC-12 4/5 with the miss read (E2E-8 step 2, 2026-10-13, #134 in review; SC-12's expectation follows the host probe, E2E-9, #135 in review). The model evaluation (55 cases × 5 trials) on `main` `d34f0cb`: 0.97 (267/275) after EVAL-6; the capabilities of T-0036 to T-0040 are offered to no class, so they do not change it yet |
 | 13 | Failure & recovery | behaviour under real faults | failures become escalations, never crashes | ✅ 95 % | all four faults done on the VMs: worker killed mid-run (T-0014), Postgres restart (T-0030), Prometheus down on one host (T-0032), token rotation without a restart (T-0033); a host's lost monitoring now alarms (T-0035 heartbeat). Open: the first real `db_probe` rotation on vm-166 (T-0041, script merged) |
 | 14 | Optional | swap-ability experiments | prove a new executor needs no core change | ⬜ 0 % | `ssh_verbs` executor, only if time allows |
-| 15 | Foundations (next phase) | documentation fixes (OP-015, OP-016), `SELF_MERGE_PROTECTED` extended, OP-014 steps 4–8 in CI | green tests must mean "safe" before anything acts | ⬜ planned | [NEXT-PHASE](tasks/current/NEXT-PHASE-supervised-remediation.md), after the proposal is approved |
-| 16 | Operator access and audit | per-person accounts, WebAuthn, step-up, revocable sessions, permissions, audit chain off-host, private path | an approval or a shell is only as trustworthy as the identity and the record behind it | ⬜ planned | ACR-0018 (`proposed`) |
+| 15 | Foundations (next phase) | documentation fixes (OP-015, OP-016), `SELF_MERGE_PROTECTED` extended, OP-014 steps 4–8 in CI | green tests must mean "safe" before anything acts | 🔄 in progress | [NEXT-PHASE](tasks/current/NEXT-PHASE-supervised-remediation.md) (#170 merged). Done: OP-015, OP-016, `SELF_MERGE_PROTECTED` extended, OP-014 steps 5, 6, 7 (actions pinned) and 10. Open: OP-014 steps 4, 7 (zizmor, hadolint), 8 |
+| 16 | Operator access and audit | per-person accounts, WebAuthn, step-up, revocable sessions, permissions, audit chain off-host, private path | an approval or a shell is only as trustworthy as the identity and the record behind it | 🔄 in progress: step 1 (sessions, revocation, persisted login limiter, permissions, the audit hash chain) in `task/PHASE-16-step-1-sessions`; WebAuthn, step-up, the off-host digest, private path next | ACR-0018 (`accepted`, #209) |
 | 17 | Cards, catalogue and suggestions | service cards, action cards (code-evaluated preconditions), risk colours, the runbook `actions` block, `suggest_action`, `next_actions`, scenario answer keys | who may touch what and why it should work is reviewed data, not model judgement | ⬜ planned | ACR-0019 (`proposed`) |
 | 18 | Supervised actions, offline | §14 tables and nodes, proposals with grounds / prediction / alternatives, basis downgrade, the judge, shadow-mode recording, failure-injection and binding suites against a fake gateway | the machinery exists and is tested before any route | ⬜ planned | ACR-0019 |
 | 19 | Approvals and gateway | approvals in the UI (private path, step-up, colours, judge), holds, emergency stop, the action gateway + socket proxy; the worker's dispatch reads only frozen rows (import-boundary and token-isolation tests) | the model never reaches the execution path | ⬜ planned | ACR-0019 |
@@ -37,6 +37,7 @@ calls); the phases below replace each simplification.
 | 21 | Operator terminal | broker, SSH CA, per-person accounts, recording off-host, incident linking, card-limited "Insert" | manual repair from the UI, recorded, humans only | ⬜ planned | ACR-0020 (`proposed`) |
 | 22 | More autonomous investigation | follow-up checks after any fix, new reads (recent changes, config files, vendor reference corpus), open investigations for unclassified incidents (lab) | investigate more without acting more | ⬜ planned | ACR-0022 (`proposed`) |
 | 23 | Isolated research | a research container behind a domain allowlist; a quarantined reader; suggestions for the operator only; disabled by default | outside knowledge without letting the web steer Argus | ⬜ planned | ACR-0022 |
+| 24 | Agent skills (developer track) | the team's repeated procedures (`code.bash` blocks, pull request review, ACR version lines, new capabilities, migrations) as reviewed skills in `.claude/skills/` with tested scripts; the runtime keeps its classes and runbooks | the same procedural mistakes recur (#245 merged behind main, PS 5.1 quoting, version-line conflicts) and policy prose alone does not catch them | ⬜ planned | [T-0049](tasks/current/T-0049-agent-skills.md); S0 (governance, protected) first |
 
 **Order of the remaining work (2026-10-13):** offer the new capabilities (T-0036 to T-0040) to their classes, each
 with evaluation cases → the evaluation again on `main` → the small open items (OP-004 and OP-008 first `--apply`, the
@@ -45,6 +46,8 @@ first `db_probe` rotation T-0041, T-0016's Playwright tests) → 14 only if time
 **Next phase (proposed 2026-10-18, not yet approved; juanbetancurm's and conantkd's proposals merged):** 15 → 16 →
 17 → 18 → 19 → 20 is the critical path; 21 and 22 run in parallel once 16 is deployed; 23 comes last. Nothing in
 16–23 starts before the NEXT-PHASE proposal and its ACRs are accepted.
+
+**Agent skills (proposed 2026-10-21):** 24 runs in parallel and changes no runtime code: S0 governance, then `code-bash-step` and `pr-review`, then the P1 skills. Its runtime steps (R1 evaluate the planned class offers, R2 per-class pre-checks only if they win, R3 runbook diffs from confirmed incidents) and the operator skill (O1, after 16) each wait for their own ACR.
 
 **Scenarios on the real VMs:** every scenario (H-1/H-2, SC-01 to SC-12, the identity proof) five runs through the
 runner, NO INTERFERENCE after every run (Phase 12). SC-12 4/5, its miss read (E2E-8 step 2).
@@ -60,7 +63,7 @@ Each phase ends with its tests green and `nonint-check.sh` clean on both VMs.
 | 6 | runbook-driven recall | knowledge adapter, class-to-runbook validation, recall audit | IDs from metadata; conventions pinned; no truncation; unknown runbook refuses startup | passages traceable to a library commit | re-point to a previous commit |
 | 7 | per-host detection and alerting | `deploy/monitoring/*`, `config/signals.yaml`, detectors (restart loop, health, dependency, blind spot) | every series has `argus_host`; stale ⇒ undiagnosable | detection reads the target host's own Prometheus | `compose down` monitoring |
 | 8 | policy data + engine | `config/policy.yaml`, `config/routing.yaml`, `policy/*` | scope, max-per-incident, level, empty write gate; standing write-gate test | out-of-scope and write attempts refused and audited | revert the data file |
-| 9 | the v1.8 skeleton end to end | `orchestration/*` (LangGraph + Postgres checkpointer, §10.1 nodes, strategies), api (JWT), worker loops, scheduler, HITL against a **fake** action endpoint | component + failure-injection suites (§21.1); crash and resume from checkpoint | healthy ⇒ no model; unsupported ⇒ evidence pack; class ⇒ model loop | redeploy the previous commit |
+| 9 | the v1.8 skeleton end to end | `orchestration/*` (LangGraph + Postgres checkpointer, §10.1 nodes, strategies), api (JWT), worker loops, scheduler (the HITL machinery moved to phase 18: §14 is designed, not built, OP-015) | component + failure-injection suites (§21.1); crash and resume from checkpoint | healthy ⇒ no model; unsupported ⇒ evidence pack; class ⇒ model loop | redeploy the previous commit |
 | 10 | formatted / raw output | `run_event` table, `adapters/inbound/cli/*` | renderer tests from recorded runs | formatted view = real node sequence | — |
 | 11 | synthetic incidents | `deploy/lab/*`, `ops/lab.sh` | each scenario starts, is observable, resets; `nonint-check` clean | reproducible on demand | `lab.sh … reset` |
 | 12 | end-to-end multi-host diagnosis | `tests/e2e_vms/*` driving the scenarios through the CLI | §4 expectations; SC-01/SC-02 concurrently | correct class, root cause and host in every scenario | — |
@@ -185,6 +188,6 @@ detect ─▶ record                           (no_incident)
 | Evidence & persistence | rows with host/executor/hash; insert-only enforced by roles |
 | Runbooks | recall audit with ID, version, section hash, library commit |
 | Reasoning | correct diagnoses in SC-01…SC-08 (≥ 5 trials each) |
-| Escalation / approval | write-gate standing test green; HITL tested against the fake endpoint |
+| Escalation / approval | write-gate standing test green (HITL against a fake gateway: phase 18, OP-015) |
 | Output modes | formatted and `--raw` show the same node sequence |
 | Recovery | SC-06 (vm-095 unaffected), SC-12, crash/resume |

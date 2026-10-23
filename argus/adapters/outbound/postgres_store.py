@@ -13,7 +13,29 @@ from typing import Any
 from psycopg.types.json import Jsonb
 from psycopg_pool import ConnectionPool
 
+from argus.domain.audit_chain import GENESIS, link_hash
 from argus.domain.model import AuditRecord, EvidenceRecord, Incident, TargetRef, utcnow
+
+
+AUDIT_CHAIN_LOCK = 0x41524755530A   # pg_advisory_xact_lock key of the audit chain (ACR-0018)
+
+# T-0046 L4: link_event rows with the state of the row before them on the same link (time, then id), so a row that
+# repeats it (the recorder's row at a restart) is not read as a transition. Same rule as the SQLite store.
+_LINK_ROWS = ("SELECT id, owner, dependency, state, latency_ms, reason, at, LAG(state) OVER (PARTITION BY owner, "
+              "dependency ORDER BY at, id) AS prev FROM link_event")
+
+
+def append_chained(conn, record: AuditRecord) -> None:
+    """ACR-0018 (migration 011): write one audit row chained to the last one, inside the caller's transaction. Every
+    writer goes through here (the store, the owner-run maintenance commands): a row inserted any other way has no hash
+    and `argus audit verify` reports it. The advisory lock is held until the caller commits."""
+    body = record.model_dump(mode="json")
+    conn.execute("SELECT pg_advisory_xact_lock(%s)", (AUDIT_CHAIN_LOCK,))
+    row = conn.execute("SELECT hash FROM audit WHERE hash IS NOT NULL ORDER BY seq DESC LIMIT 1").fetchone()
+    prev = row[0] if row else GENESIS
+    conn.execute("INSERT INTO audit (audit_id, incident_id, at, body, prev_hash, hash) VALUES (%s, %s, %s, %s, %s, %s)",
+                 (record.audit_id, record.incident_id, record.at, Jsonb(body), prev,
+                  link_hash(prev, record.audit_id, body)))
 
 
 class PostgresStore:
@@ -186,6 +208,150 @@ class PostgresStore:
                        "ORDER BY at, id", (host, start, end))
         return [{"commit": r[0], "ref": r[1], "actor": r[2], "at": r[3]} for r in rows]
 
+    def add_link_event(self, owner: str, dependency: str, state: str, latency_ms: float | None, reason: str | None,
+                       at: datetime) -> None:
+        """ACR-0025 (T-0046 L2): a change of one declared link's state; insert-only (migration 009)."""
+        self._q("INSERT INTO link_event (owner, dependency, state, latency_ms, reason, at) VALUES (%s, %s, %s, %s, %s, %s)",
+                (owner, dependency, state, latency_ms, reason, at))
+
+    # --- hypotheses (ACR-0024 §3.5, T-0047 H2; migration 012) --------------------------------------------------------
+    def add_hypotheses(self, incident_id: str, step: int, rows: list[dict[str, Any]], at: datetime) -> None:
+        """One decision step's hypotheses with their score and rank; insert-only, in one transaction."""
+        with self.pool.connection() as c, c.transaction():
+            for r in rows:
+                c.execute("INSERT INTO incident_hypothesis (incident_id, step, hypothesis_id, statement, cause_class, "
+                          "target, relation, status, support_ids, against_ids, score, rank, chosen, at) "
+                          "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
+                          (incident_id, step, r["hypothesis_id"], r["statement"], r["cause_class"], r["target"],
+                           r["relation"], r["status"], list(r["support_ids"]), list(r["against_ids"]), r["score"],
+                           r["rank"], bool(r["chosen"]), at))
+
+    def hypotheses(self, incident_id: str) -> list[dict[str, Any]]:
+        """Every stored hypothesis of an incident, by step, then rank."""
+        rows = self._q("SELECT step, hypothesis_id, statement, cause_class, target, relation, status, support_ids, "
+                       "against_ids, score, rank, chosen, at FROM incident_hypothesis WHERE incident_id = %s "
+                       "ORDER BY step, rank, id", (incident_id,))
+        return [{"step": r[0], "hypothesis_id": r[1], "statement": r[2], "cause_class": r[3], "target": r[4],
+                 "relation": r[5], "status": r[6], "support_ids": list(r[7]), "against_ids": list(r[8]),
+                 "score": r[9], "rank": r[10], "chosen": r[11], "at": r[12]} for r in rows]
+
+    # --- sessions and the login limiter (ACR-0018, phase 16 step 1; migration 010) ---------------------------------
+    def add_session(self, jti: str, principal: str, access: str, created_at: datetime, expires_at: datetime) -> None:
+        self._q("INSERT INTO auth_session (jti, principal, access, created_at, expires_at) VALUES (%s, %s, %s, %s, %s)",
+                (jti, principal, access, created_at, expires_at))
+
+    def get_session(self, jti: str) -> dict[str, Any] | None:
+        rows = self._q("SELECT jti, principal, access, created_at, expires_at, revoked_at, revoked_by, revoke_reason, "
+                       "second_factor_at FROM auth_session WHERE jti = %s", (jti,))
+        if not rows:
+            return None
+        r = rows[0]
+        return {"jti": r[0], "principal": r[1], "access": r[2], "created_at": r[3], "expires_at": r[4],
+                "revoked_at": r[5], "revoked_by": r[6], "revoke_reason": r[7], "second_factor_at": r[8]}
+
+    def revoke_session(self, jti: str, by: str, reason: str, at: datetime) -> bool:
+        return bool(self._q("UPDATE auth_session SET revoked_at = %s, revoked_by = %s, revoke_reason = %s "
+                            "WHERE jti = %s AND revoked_at IS NULL RETURNING jti", (at, by, reason, jti)))
+
+    def revoke_principal_sessions(self, principal: str, by: str, reason: str, at: datetime) -> int:
+        return len(self._q("UPDATE auth_session SET revoked_at = %s, revoked_by = %s, revoke_reason = %s "
+                           "WHERE principal = %s AND revoked_at IS NULL AND expires_at > %s RETURNING jti",
+                           (at, by, reason, principal, at)))
+
+    def set_session_second_factor(self, jti: str, at: datetime) -> bool:
+        return bool(self._q("UPDATE auth_session SET second_factor_at = %s WHERE jti = %s AND revoked_at IS NULL "
+                            "RETURNING jti", (at, jti)))
+
+    # --- WebAuthn and the step-up token (ACR-0018, phase 16 step 3; migration 013) -----------------------------------
+    def add_webauthn_credential(self, cred_id: str, principal: str, public_key: bytes, sign_count: int, label: str,
+                                at: datetime) -> None:
+        self._q("INSERT INTO webauthn_credential (id, principal, public_key, sign_count, label, created_at) "
+                "VALUES (%s, %s, %s, %s, %s, %s)", (cred_id, principal, public_key, sign_count, label, at))
+
+    def webauthn_credentials(self, principal: str) -> list[dict[str, Any]]:
+        """The principal's credentials that are not revoked, oldest first."""
+        rows = self._q("SELECT id, principal, public_key, sign_count, label, created_at, last_used_at "
+                       "FROM webauthn_credential WHERE principal = %s AND revoked_at IS NULL ORDER BY created_at, id",
+                       (principal,))
+        return [{"id": r[0], "principal": r[1], "public_key": bytes(r[2]), "sign_count": r[3], "label": r[4],
+                 "created_at": r[5], "last_used_at": r[6]} for r in rows]
+
+    def update_webauthn_sign_count(self, cred_id: str, sign_count: int, at: datetime) -> bool:
+        return bool(self._q("UPDATE webauthn_credential SET sign_count = %s, last_used_at = %s "
+                            "WHERE id = %s AND revoked_at IS NULL RETURNING id", (sign_count, at, cred_id)))
+
+    def revoke_webauthn_credentials(self, principal: str, by: str, at: datetime) -> int:
+        return len(self._q("UPDATE webauthn_credential SET revoked_at = %s, revoked_by = %s "
+                           "WHERE principal = %s AND revoked_at IS NULL RETURNING id", (at, by, principal)))
+
+    def add_webauthn_challenge(self, challenge_id: str, principal: str, session: str, kind: str, challenge: bytes,
+                               obj: str | None, ticket: str | None, at: datetime, expires_at: datetime) -> None:
+        self._q("INSERT INTO webauthn_challenge (id, principal, session, kind, challenge, object, ticket, created_at, "
+                "expires_at) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)",
+                (challenge_id, principal, session, kind, challenge, obj, ticket, at, expires_at))
+
+    def take_webauthn_challenge(self, challenge_id: str, principal: str, session: str, kind: str,
+                                at: datetime) -> dict[str, Any] | None:
+        """Marks the challenge used and returns it, once (one UPDATE: two concurrent takes cannot both get it), while
+        it is unexpired and this principal's, session's and ceremony's; else None."""
+        rows = self._q("UPDATE webauthn_challenge SET used_at = %s WHERE id = %s AND principal = %s AND session = %s "
+                       "AND kind = %s AND used_at IS NULL AND expires_at > %s RETURNING challenge, object, ticket",
+                       (at, challenge_id, principal, session, kind, at))
+        return {"challenge": bytes(rows[0][0]), "object": rows[0][1], "ticket": rows[0][2]} if rows else None
+
+    def add_enrol_ticket(self, ticket_id: str, principal: str, issued_by: str, at: datetime,
+                         expires_at: datetime) -> None:
+        self._q("INSERT INTO webauthn_enrol_ticket (id, principal, issued_by, created_at, expires_at) "
+                "VALUES (%s, %s, %s, %s, %s)", (ticket_id, principal, issued_by, at, expires_at))
+
+    def enrol_ticket_valid(self, ticket_id: str, principal: str, at: datetime) -> bool:
+        return bool(self._q("SELECT 1 FROM webauthn_enrol_ticket WHERE id = %s AND principal = %s AND used_at IS NULL "
+                            "AND expires_at > %s", (ticket_id, principal, at)))
+
+    def use_enrol_ticket(self, ticket_id: str, principal: str, at: datetime) -> bool:
+        return bool(self._q("UPDATE webauthn_enrol_ticket SET used_at = %s WHERE id = %s AND principal = %s "
+                            "AND used_at IS NULL AND expires_at > %s RETURNING id", (at, ticket_id, principal, at)))
+
+    def add_step_up(self, token_id: str, principal: str, session: str, obj: str, at: datetime,
+                    expires_at: datetime) -> None:
+        self._q("INSERT INTO step_up_token (id, principal, session, object, created_at, expires_at) "
+                "VALUES (%s, %s, %s, %s, %s, %s)", (token_id, principal, session, obj, at, expires_at))
+
+    def take_step_up(self, token_id: str, at: datetime) -> dict[str, Any] | None:
+        """Marks the token used and returns its binding, once (one UPDATE), while unexpired; else None."""
+        rows = self._q("UPDATE step_up_token SET used_at = %s WHERE id = %s AND used_at IS NULL AND expires_at > %s "
+                       "RETURNING principal, session, object", (at, token_id, at))
+        return {"principal": rows[0][0], "session": rows[0][1], "object": rows[0][2]} if rows else None
+
+    def add_login_failure(self, key: str, at: datetime) -> None:
+        self._q("INSERT INTO login_failure (key, at) VALUES (%s, %s)", (key, at))
+
+    def login_failures(self, key: str, since: datetime) -> list[datetime]:
+        return [r[0] for r in self._q("SELECT at FROM login_failure WHERE key = %s AND at > %s ORDER BY at", (key, since))]
+
+    def clear_login_failures(self, key: str) -> None:
+        self._q("DELETE FROM login_failure WHERE key = %s", (key,))
+
+    def prune_login_failures(self, before: datetime) -> None:
+        self._q("DELETE FROM login_failure WHERE at < %s", (before,))
+
+    def link_events(self, target: str, start: datetime, end: datetime) -> list[dict[str, Any]]:
+        """The transitions of the links `target` owns or is the dependency of, from `start` to `end`, oldest first.
+        A row that repeats its link's previous state (the recorder's row at a restart) is not a transition."""
+        rows = self._q("SELECT owner, dependency, state, latency_ms, reason, at FROM "
+                       f"({_LINK_ROWS} WHERE owner = %s OR dependency = %s) AS e "
+                       "WHERE (prev IS NULL OR prev <> state) AND at >= %s AND at <= %s ORDER BY at, id",
+                       (target, target, start, end))
+        return [{"owner": r[0], "dependency": r[1], "state": r[2], "latency_ms": r[3], "reason": r[4], "at": r[5]}
+                for r in rows]
+
+    def latest_link_events(self) -> dict[tuple[str, str], dict[str, Any]]:
+        """T-0046 L4: the last recorded transition of every link, by (owner, dependency) (the map's `since`)."""
+        rows = self._q("SELECT DISTINCT ON (owner, dependency) owner, dependency, state, at "
+                       f"FROM ({_LINK_ROWS}) AS e WHERE prev IS NULL OR prev <> state "
+                       "ORDER BY owner, dependency, at DESC, id DESC")
+        return {(r[0], r[1]): {"state": r[2], "at": r[3]} for r in rows}
+
     def close_queued_incident(self, incident_id: str, outcome: str, diagnosis: str, closed_at: datetime) -> bool:
         """Close an incident no worker has claimed (T-0026). False when it is no longer queued (claimed meanwhile)."""
         patch = {"status": "closed", "outcome": outcome, "diagnosis": diagnosis,
@@ -219,8 +385,14 @@ class PostgresStore:
 
     # --- audit -----------------------------------------------------------------------------------
     def append(self, record: AuditRecord) -> None:
-        self._q("INSERT INTO audit (audit_id, incident_id, at, body) VALUES (%s, %s, %s, %s)",
-                (record.audit_id, record.incident_id, record.at, Jsonb(record.model_dump(mode="json"))))
+        """ACR-0018 (migration 011): the row is chained to the previous one. A transaction-level advisory lock makes
+        the read of the last hash and the insert one step for every writer (api, worker, scheduler)."""
+        with self.pool.connection() as c, c.transaction():
+            append_chained(c, record)
+
+    def audit_chain(self) -> list[tuple[str, Any, str | None, str | None]]:
+        """ACR-0018: every audit row in write order, for `argus audit verify`."""
+        return [tuple(r) for r in self._q("SELECT audit_id, body, prev_hash, hash FROM audit ORDER BY seq")]
 
     def list_for(self, incident_id: str) -> list[AuditRecord]:
         rows = self._q("SELECT body FROM audit WHERE incident_id = %s ORDER BY at", (incident_id,))
@@ -352,6 +524,54 @@ CHECKS_SQL: list[tuple[str, str, bool]] = [
                                                       "VALUES ('vm-095', 'abcdef1', 'dbcheck', 'dbcheck', now())", True),
     ("deploy event is insert-only (UPDATE refused)", "UPDATE deploy_event SET ref = 'x' WHERE ref = 'dbcheck'", False),
     ("deploy event is insert-only (DELETE refused)", "DELETE FROM deploy_event WHERE ref = 'dbcheck'", False),
+    ("insert link event (ACR-0025, migration 009)", "INSERT INTO link_event (owner, dependency, state, at) "
+                                                    "VALUES ('dbcheck', 'dbcheck', 'ok', now())", True),
+    ("link event is insert-only (UPDATE refused)", "UPDATE link_event SET state = 'broken' WHERE owner = 'dbcheck'",
+     False),
+    ("link event is insert-only (DELETE refused)", "DELETE FROM link_event WHERE owner = 'dbcheck'", False),
+    ("insert session (ACR-0018, migration 010)", "INSERT INTO auth_session (jti, principal, access, created_at, "
+                                                "expires_at) VALUES (md5('dbcheck'), 'dbcheck', 'read', now(), now())", True),
+    ("a session may be revoked (its revocation columns)", "UPDATE auth_session SET revoked_at = now(), "
+                                                          "revoked_by = 'dbcheck' WHERE jti = md5('dbcheck')", True),
+    ("a session's identity is fixed (UPDATE principal refused)", "UPDATE auth_session SET principal = 'x' "
+                                                                 "WHERE jti = md5('dbcheck')", False),
+    ("a session is never deleted (DELETE refused)", "DELETE FROM auth_session WHERE jti = md5('dbcheck')", False),
+    ("insert login failure (migration 010)", "INSERT INTO login_failure (key, at) VALUES ('u:dbcheck', now())", True),
+    ("a login failure may be cleared (DELETE)", "DELETE FROM login_failure WHERE key = 'u:dbcheck'", True),
+    ("a session's second factor may be set (migration 013)", "UPDATE auth_session SET second_factor_at = now() "
+                                                              "WHERE jti = md5('dbcheck')", True),
+    ("insert WebAuthn credential (ACR-0018, migration 013)", "INSERT INTO webauthn_credential (id, principal, "
+                                                             "public_key, sign_count, created_at) VALUES "
+                                                             "('dbcheck-credential-id', 'dbcheck', '\\x00', 0, now())",
+     True),
+    ("a credential's counter may move (UPDATE sign_count)", "UPDATE webauthn_credential SET sign_count = 1, "
+                                                            "last_used_at = now() WHERE id = 'dbcheck-credential-id'", True),
+    ("a credential's key is fixed (UPDATE public_key refused)", "UPDATE webauthn_credential SET public_key = '\\x01' "
+                                                                "WHERE id = 'dbcheck-credential-id'", False),
+    ("a credential's owner is fixed (UPDATE principal refused)", "UPDATE webauthn_credential SET principal = 'x' "
+                                                                 "WHERE id = 'dbcheck-credential-id'", False),
+    ("a credential is never deleted (DELETE refused)", "DELETE FROM webauthn_credential WHERE id = 'dbcheck-credential-id'",
+     False),
+    ("insert step-up token (migration 013)", "INSERT INTO step_up_token (id, principal, session, object, created_at, "
+                                             "expires_at) VALUES (repeat('a', 64), 'dbcheck', 'dbcheck', 'test:dbcheck', "
+                                             "now(), now() + interval '5 minutes')", True),
+    ("a step-up token lives at most 5 minutes", "INSERT INTO step_up_token (id, principal, session, object, created_at, "
+                                                "expires_at) VALUES (repeat('b', 64), 'dbcheck', 'dbcheck', "
+                                                "'test:dbcheck', now(), now() + interval '6 minutes')", False),
+    ("a step-up token's object is fixed (UPDATE object refused)", "UPDATE step_up_token SET object = 'x' "
+                                                                  "WHERE id = repeat('a', 64)", False),
+    ("a step-up token is never deleted (DELETE refused)", "DELETE FROM step_up_token WHERE id = repeat('a', 64)", False),
+    ("nobody issues their own enrolment ticket", "INSERT INTO webauthn_enrol_ticket (id, principal, issued_by, "
+                                                 "created_at, expires_at) VALUES (repeat('c', 64), 'dbcheck', 'dbcheck', "
+                                                 "now(), now() + interval '1 day')", False),
+    ("insert hypothesis (ACR-0024, migration 012)", "INSERT INTO incident_hypothesis (incident_id, step, "
+                                                    "hypothesis_id, statement, cause_class, relation, status, score, "
+                                                    "rank, at) VALUES ('inc_dbcheck', 1, 'h1', 'dbcheck', 'other', "
+                                                    "'external', 'untested', 0, 1, now())", True),
+    ("hypotheses are insert-only (UPDATE refused)", "UPDATE incident_hypothesis SET status = 'supported' "
+                                                    "WHERE incident_id = 'inc_dbcheck'", False),
+    ("hypotheses are insert-only (DELETE refused)", "DELETE FROM incident_hypothesis WHERE incident_id = 'inc_dbcheck'",
+     False),
     ("runtime role is not superuser", "DO $$ BEGIN IF (SELECT rolsuper FROM pg_roles WHERE rolname = current_user) "
                                       "THEN RAISE EXCEPTION 'superuser'; END IF; END $$", True),
 ]

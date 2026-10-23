@@ -11,6 +11,7 @@ from typing import Any, Protocol
 
 from pydantic import ValidationError
 
+from argus.domain.minimize import minimize
 from argus.domain.model import (AuditRecord, EvidenceRecord, EvidenceRef, Incident, Observation,
                                 TargetRef, utcnow)
 from argus.policy.engine import PolicyEngine
@@ -61,7 +62,7 @@ class InvokeCapability:
                              redactions=obs.redactions).with_hash()
         self.memory.append_evidence(rec)
         return EvidenceRef(evidence_id=rec.evidence_id, sha256=rec.sha256, capability=rec.capability,
-                           status=rec.status, model_text=rec.model_text)
+                           status=rec.status, model_text=rec.model_text, target=rec.target, kind=rec.kind)
 
     def __call__(self, ctx: InvocationContext, name: str, arguments: dict[str, Any]) -> tuple[Observation, EvidenceRef | None]:
         arguments = dict(arguments or {})
@@ -120,18 +121,23 @@ class InvokeCapability:
             return Observation(**base, status="error", error_category="internal", values=sub._values(),
                                model_text=f"{spec.name} on {target}: error ({type(e).__name__})")
         text, n = self.redactor.text(res.model_text)
+        values, dropped = {**(res.values or {}), **sub._values()}, []
+        if getattr(spec, "allowed_fields", None) is not None:      # ACR-0028
+            values, dropped = minimize(values, spec.allowed_fields)
         return Observation(**base, status=res.status, error_category=res.error_category,
-                           values={**(res.values or {}), **sub._values()}, units=res.units,
+                           values=values, units=res.units,
                            source_time=res.source_time, partial=res.partial, coverage=res.coverage,
-                           model_text=text, redactions=n)
+                           model_text=text, redactions=n, dropped_fields=dropped)
 
     def _finish(self, ctx: InvocationContext, obs: Observation, completed: bool = False):
         # 8. evidence first, 9. then the audit record that references it
         ref = self._store(ctx, obs)
         event = "tool.completed" if obs.status == "ok" else ("tool.failed" if completed else "tool.refused_recorded")
         try:
-            self._audit(ctx, "tool", event, capability=obs.capability, evidence_id=ref.evidence_id,
-                        detail={"status": obs.status, "error_category": obs.error_category})
+            detail = {"status": obs.status, "error_category": obs.error_category}
+            if obs.dropped_fields:                 # ACR-0028: a gateway that grows a field is visible here
+                detail["dropped_fields"] = obs.dropped_fields
+            self._audit(ctx, "tool", event, capability=obs.capability, evidence_id=ref.evidence_id, detail=detail)
         except Exception:
             # Audit failure: the observation is discarded (never used without its audit record).
             return self._refused(ctx, obs.capability, obs.target, "internal", "audit unavailable"), None

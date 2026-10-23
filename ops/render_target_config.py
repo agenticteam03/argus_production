@@ -34,9 +34,11 @@ def render_host(inv: dict, host: str) -> dict:
     for t in mine:
         owner = t["ref"].split(":", 1)[1]
         for dep in t.get("depends_on", []):
-            dname = dep.split(":", 1)[1]
-            dinfo = next((x for x in targets if x["ref"] == dep), {})
-            for port in dinfo.get("tcp_ports", []):
+            ref = dep["ref"] if isinstance(dep, dict) else dep        # ACR-0025: a ref or {ref, port, required}
+            dname = ref.split(":", 1)[1]
+            dinfo = next((x for x in targets if x["ref"] == ref), {})
+            declared = dep.get("port") if isinstance(dep, dict) else None
+            for port in [declared] if declared is not None else dinfo.get("tcp_ports", []):
                 probes.append({"owner": owner, "dependency": dname, "host": dname, "port": port})
     # db-probe allowlist: a container target with a `database`, reached by its container name on the app network
     databases = [{"name": t["ref"].split(":", 1)[1], "host": t["ref"].split(":", 1)[1], "port": t["database"]["port"],

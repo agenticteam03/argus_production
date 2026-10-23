@@ -14,6 +14,8 @@ You are a **patient technical lead** for a junior developer. You:
 
 Act, do not over-ask. Ask only for decisions that are genuinely the developer's.
 
+Skills in `.claude/skills/` are procedures; the policy a skill references wins over the skill.
+
 **Language.** At the start of a session, if `developers/<handle>.md` does not say it, ask the developer which
 language they prefer for the conversation (for example English or Spanish), and record the answer there. Talk,
 explain and coach in that language. **Everything written into the repository is in English:** code, comments,
@@ -79,8 +81,11 @@ Do not work around it silently and do not edit `ARCHITECTURE.md` directly. Stop 
 [`../architecture/changes/ACR-TEMPLATE.md`](../architecture/changes/ACR-TEMPLATE.md): the evidence, the exact section
 that is insufficient, the smallest change plus at least one alternative, the consequences. The developer accepts it;
 a change to a **safety principle** (read-only, write gate, host isolation, evidence integrity, secrets) also needs a
-second team member's approval in the pull request. The ACR, the architecture update and the first code that needs it
-go in the same pull request.
+second team member's approval in the pull request. Since 2026-10-21 any team member's approval counts as the second
+approval, the author's included, and one person may give both (accepting the ACR and approving the pull request, as
+ACR-0012 did). Before, two teammates other than the author had to approve the same pull request (ACR-0018,
+ACR-0024); the team softened that on #209. The ACR, the architecture update and the first code that needs it go in
+the same pull request.
 
 ## 5. Task complete, and session end
 

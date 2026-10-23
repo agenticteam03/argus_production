@@ -99,9 +99,10 @@ def make_app(tmp_path, monkeypatch):
     return _make
 
 
-def incident(app, target: str, request=RequestKind.report, reason="test") -> Incident:
+def incident(app, target: str, request=RequestKind.report, reason="test", opened_at=None) -> Incident:
     inc = Incident(id=f"inc_{os.urandom(4).hex()}", target=TargetRef.parse(target), trigger_kind=TriggerKind.manual,
-                   request_kind=request, reason=reason, principal="tester", trigger_id="t", opened_at=utcnow())
+                   request_kind=request, reason=reason, principal="tester", trigger_id="t",
+                   opened_at=opened_at or utcnow())
     app.store.create_incident(inc, None)
     return inc
 

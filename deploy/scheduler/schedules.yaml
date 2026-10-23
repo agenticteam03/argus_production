@@ -28,3 +28,15 @@ reconcile_firing_alerts:
     enabled: true
     stale_after_s: 180
     grace_s: 300
+  # T-0046 L3 (ACR-0025): on each tick, read every owner's dependency probes on its own host's Prometheus and record a
+  # link_event row (migration 009) when a declared container link changes state, and once at startup. On since T-0046
+  # L5 (2026-10-21, vm-095); `enabled: false` turns it off again (the table stays).
+  link_states:
+    enabled: true
+
+# ACR-0018 (phase 16): the audit hash chain (migration 011) is verified at the scheduler's start and every every_s
+# seconds (minimum 3600); the result is a `security` audit event. A broken chain is logged as an error; its alert to
+# the team waits for the team's alert route (ARCHITECTURE §18).
+audit_chain:
+  enabled: true
+  every_s: 86400

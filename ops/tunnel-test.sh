@@ -6,6 +6,7 @@
 # Uses temporary loopback ports 28701 and 28022 on VM 0.95 only for the duration of the test.
 set -u
 HOSTS_ENV=${ARGUS_HOSTS_ENV:-/opt/argus-v18/hosts.env}   # VM-local, never committed (template: deploy/hosts.env.example)
+# shellcheck source=/dev/null   # hosts.env exists only on the VMs
 [ -r "$HOSTS_ENV" ] && . "$HOSTS_ENV"
 PEER="argus-v18-tunnel@${ARGUS_VM166_PRIVATE_IP:?missing: see $HOSTS_ENV}"
 K=/opt/argus-v18/secrets/tunnel

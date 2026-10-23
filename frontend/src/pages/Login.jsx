@@ -103,7 +103,7 @@ export default function LoginPage({ onLogin }) {
             <button
               type="submit"
               disabled={!canSubmit}
-              className={`mt-1 inline-flex h-11 cursor-pointer items-center justify-center gap-2.5 rounded-[10px] bg-accent text-sm font-medium text-white shadow-[inset_0_0_0_1px_rgba(255,255,255,0.12),0_10px_30px_-10px_rgba(59,130,246,0.6)] transition motion-reduce:transition-none enabled:hover:bg-accent-hover enabled:active:translate-y-px disabled:cursor-not-allowed disabled:bg-disabled disabled:text-faint disabled:shadow-[inset_0_0_0_1px_var(--color-line)] ${focusRing}`}
+              className={`mt-1 inline-flex h-11 cursor-pointer items-center justify-center gap-2.5 rounded-[10px] bg-accent-solid text-sm font-medium text-white shadow-[inset_0_0_0_1px_rgba(255,255,255,0.12),0_10px_30px_-10px_rgba(59,130,246,0.6)] transition motion-reduce:transition-none enabled:hover:bg-accent-solid-hover enabled:active:translate-y-px disabled:cursor-not-allowed disabled:bg-disabled disabled:text-faint disabled:shadow-[inset_0_0_0_1px_var(--color-line)] ${focusRing}`}
             >
               {loading && (
                 <span className="size-3.5 animate-spin rounded-full border-2 border-white/35 border-t-white motion-reduce:[animation-duration:1.6s]" aria-hidden="true" />

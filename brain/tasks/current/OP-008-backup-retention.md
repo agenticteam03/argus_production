@@ -1,7 +1,7 @@
 # OP-008 — Snapshot-consistent backup and retention
 
 **Owner:** `conantkd` · **Branch:** `task/OP-008-backup-retention` · **PR:** #51 (merged 2026-10-10) · **Status:** the approved first `prune --apply` ran on vm-095
-on 2026-10-14 (12 sets removed, 7 kept); one after-check (`sha256sum -c`) is still to run.
+on 2026-10-14 (12 sets removed, 7 kept); 2026-10-21 (step 04): the newest backup verified, the sha256 after-check done, a second `prune --apply` approved (#247); 2026-10-22 (step 05): it ran, 18 sets removed with `KEEP=7` ([evidence](../../execution/history/OP-008/step-05/evidence.md)); open: list the 7 kept and `sha256sum -c` the newest verified at the next vm-095 session.
 
 ## Goal
 

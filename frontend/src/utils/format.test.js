@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
-import { auditDetail, browserTimeZone, clock, clockHM, clockZone, dateTime, liveLabel, zoneLabel } from "./format.js";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { auditDetail, browserTimeZone, clock, clockHM, clockZone, dateTime, duration, isActive, liveLabel, shortHash, timeAgo, zoneLabel } from "./format.js";
 
 describe("liveLabel", () => {
   it("says Live only when the API answered and we are not in demo mode", () => {
@@ -77,5 +77,42 @@ describe("browser time zone, labelled", () => {
     expect(dateTime("2026-10-14T21:12:55Z", "America/Bogota")).toMatch(/(16|4):12:55/);
     expect(dateTime("2026-10-14T21:12:55Z", "Asia/Tokyo")).toMatch(/(06|6):12:55.* GMT\+9$/);
     expect(dateTime(null)).toBe("—");
+  });
+});
+
+describe("isActive", () => {
+  it("is true only for a queued or running investigation", () => {
+    expect(["queued", "running"].map(isActive)).toEqual([true, true]);
+    expect(["closed", "escalated", "failed", undefined].map(isActive)).toEqual([false, false, false, false]);
+  });
+});
+
+describe("timeAgo", () => {
+  afterEach(() => vi.useRealTimers());
+
+  it("rounds to minutes, hours or days, and never says a future time", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-10-21T12:00:00Z"));
+    expect(timeAgo("2026-10-21T11:59:40Z")).toBe("just now");
+    expect(timeAgo("2026-10-21T12:05:00Z")).toBe("just now");
+    expect(timeAgo("2026-10-21T11:15:00Z")).toBe("45m ago");
+    expect(timeAgo("2026-10-21T09:00:00Z")).toBe("3h ago");
+    expect(timeAgo("2026-10-18T12:00:00Z")).toBe("3d ago");
+  });
+});
+
+describe("duration", () => {
+  it("shows seconds, minutes and seconds, or hours and minutes", () => {
+    expect(duration("2026-10-21T12:00:00Z", "2026-10-21T12:00:42Z")).toBe("42s");
+    expect(duration("2026-10-21T12:00:00Z", "2026-10-21T12:03:05Z")).toBe("3m 5s");
+    expect(duration("2026-10-21T12:00:00Z", "2026-10-21T14:07:00Z")).toBe("2h 7m");
+    expect(duration("2026-10-21T12:00:10Z", "2026-10-21T12:00:00Z")).toBe("0s");
+  });
+});
+
+describe("shortHash", () => {
+  it("keeps the first 12 characters, or a dash when there is none", () => {
+    expect(shortHash("0123456789abcdef0123")).toBe("0123456789ab…");
+    expect(shortHash(null)).toBe("—");
   });
 });

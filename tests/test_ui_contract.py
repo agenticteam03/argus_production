@@ -23,13 +23,16 @@ SAMPLES = ROOT / "contracts" / "samples"
 UPDATE = os.getenv("ARGUS_UPDATE_UI_CONTRACT") == "1"
 
 # (method, path) a UI may call - docs/API-FOR-UI.md describes each one
-UI_ROUTES = [("post", "/api/v1/auth/token"), ("get", "/api/v1/me"), ("get", "/api/v1/incidents"),
+UI_ROUTES = [("post", "/api/v1/auth/token"), ("post", "/api/v1/auth/logout"), ("get", "/api/v1/me"), ("get", "/api/v1/incidents"),
              ("get", "/api/v1/incidents/{incident_id}"), ("get", "/api/v1/incidents/{incident_id}/events"),
              ("get", "/api/v1/evidence/{evidence_id}"), ("get", "/api/v1/escalations"),
              ("post", "/api/v1/investigations"), ("get", "/api/v1/targets"),
              ("get", "/api/v1/host-metrics"), ("get", "/api/v1/incidents/{incident_id}/metrics"),
              ("get", "/api/v1/topology"), ("get", "/api/v1/target-metrics"),
-             ("get", "/api/v1/overview")]
+             ("get", "/api/v1/overview"),
+             # ACR-0018 phase 16 step 3: the WebAuthn ceremonies and the caller's credentials
+             *[("post", f"/api/v1/auth/webauthn/{c}/{s}") for c in ("register", "login", "step-up")
+               for s in ("options", "verify")], ("get", "/api/v1/auth/webauthn/credentials")]
 PASSWORD = "a-long-password"
 SC03 = "vm-166/container:argus-lab-worker"          # OOM restart loop, diagnosed
 UNSUPPORTED = "vm-095/container:argus-lab-worker"   # healthy metrics + report -> unsupported, escalated
@@ -85,7 +88,13 @@ def scripted_run(make_app) -> dict[str, object]:
                               ("get_container_logs", {"target": SC03, "tail": 20})]}
         ids = [line.split('"')[1] for line in ctx.splitlines() if line.startswith("<evidence id=")]
         return {"calls": [("conclude", {"diagnosis": "OOM-killed by its 64 MiB memory limit", "evidence_ids": ids[-2:],
-                                        "confidence": "high", "root_cause_target": SC03})]}
+                                        "confidence": "high", "root_cause_target": SC03, "chosen": "h1",
+                                        "hypotheses": [    # ACR-0024 §3.6: the incident answer's ranked list
+                                            {"id": "h1", "statement": "OOM-killed by its memory limit",
+                                             "cause_class": "container_restart_loop", "target": SC03,
+                                             "relation": "self", "status": "supported", "support": ids[-2:]},
+                                            {"id": "h2", "statement": "its database is down", "cause_class": "other",
+                                             "target": None, "relation": "external", "status": "untested"}]})]}
     metrics = FakeMetrics({SC03: {"restarts_10m": 5, "oom_killed": 1, "last_exit_code": 137},
                            UNSUPPORTED: {"restarts_10m": 0},
                            "vm-095/host:vm-095": {"host_cpu_busy_ratio": 0.25,

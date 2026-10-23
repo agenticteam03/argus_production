@@ -9,7 +9,11 @@ const TOKENS = {
   border: "--color-field-line",
 };
 
+// Without a DOM (a server render, a test) there is nothing to read: neutral greys until the browser draws.
+const NO_DOM = Object.fromEntries(Object.keys(TOKENS).map((k) => [k, "#888888"]));
+
 function readColors() {
+  if (typeof document === "undefined") return NO_DOM;
   const root = document.documentElement;
   const style = getComputedStyle(root);
   const ctx = document.createElement("canvas").getContext("2d", { willReadFrequently: true });
