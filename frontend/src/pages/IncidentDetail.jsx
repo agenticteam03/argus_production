@@ -168,7 +168,7 @@ export default function IncidentDetail() {
       <TabList tabs={tabs} value={tab} onChange={setTab} label="Incident information" />
 
       <TabPanel id="overview" value={tab}>
-        <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)]">
+        <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-4 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)]">
           <WhyCard incident={inc} events={events} cited={cited} onJump={jumpToEvidence} />
           <div className="space-y-4">
             {showMini && <MiniMap topology={topology} incident={inc} onOpen={() => setTab("map")} />}

@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext.jsx";
 import { useTargetMetrics } from "../../hooks/useTargetMetrics.js";
 import { argus } from "../../services/index.js";
+import { investigationError } from "../../utils/investigationError.js";
 import { HEALTH_META, HexGlyph } from "../Glyph.jsx";
 import { Close, Hint, Pill, Server } from "../ui.jsx";
 import { fmtSignal, PROBLEM_LABELS, ROLES } from "./mapModel.js";
@@ -102,7 +103,7 @@ export default function NodeDrawer({ node, incidents = [], incident = null, onCl
       const { incident_id } = await argus.startInvestigation({ target: node.target, requestKind: "check", reason: "Opened from the system map" });
       navigate(`/incidents/${incident_id}`);
     } catch (err) {
-      setError(err?.message || "Couldn't start the investigation.");
+      setError(investigationError(err));
       setBusy(false);
     }
   };

@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext.jsx";
 import { argus } from "../services/index.js";
 import { Card, Segmented, Select, textareaClass } from "./ui.jsx";
+import { investigationError } from "../utils/investigationError.js";
 
 // ACR-0012: start an investigation from the UI. Shown only when /me lists `start_investigation` (an operator or
 // approver with an investigate token): the UI never decides who may act. The target comes from the inventory's list
@@ -10,15 +11,6 @@ import { Card, Segmented, Select, textareaClass } from "./ui.jsx";
 export const REASON_MAX = 500;
 
 const KINDS = [{ value: "report", label: "Report", hint: "Something's wrong" }, { value: "check", label: "Check", hint: "Is it healthy?" }];
-
-const errorText = (err) => {
-  if (err?.status === 429) {
-    const min = err.retryAfter ? Math.max(1, Math.ceil(err.retryAfter / 60)) : null;
-    return `Too many investigations right now${min ? `: try again in about ${min} min` : ""}.`;
-  }
-  if (err?.status === 403) return "Your account may not start investigations.";
-  return "Could not start the investigation. Please try again.";
-};
 
 export default function DiagnoseForm({ fixedTarget = null, compact = false }) {
   const { user } = useAuth();
@@ -50,7 +42,7 @@ export default function DiagnoseForm({ fixedTarget = null, compact = false }) {
       const { incident_id } = await argus.startInvestigation({ target, requestKind: kind, reason: reason.trim() });
       navigate(`/incidents/${incident_id}`);
     } catch (err) {
-      setError(errorText(err));
+      setError(investigationError(err));
     } finally {
       setBusy(false);
     }
