@@ -70,8 +70,69 @@ same steps every time, and a script catches the known traps before a developer r
 
 | Skill | Tasks with / without | Reviewer corrections | Traps caught | Kept? |
 |---|---|---|---|---|
-| `code-bash-step` | | | | |
-| `pr-review` | | | | |
-| `acr-and-version-line` | | | | |
-| `add-capability` | | | | |
-| `db-migration` | | | | |
+| `code-bash-step` | not measured yet / not measured yet | Several review-driven checker fixes; no task-level total | Checker caught the missing SESSION guard in EVS.1, `#${n}:` interpolation and lowercase labels; #275 also documents quoting and marker-boundary traps | Provisional keep; measure paired tasks |
+| `pr-review` | not measured yet / not measured yet | One paired wording correction; one self-review logic fix | Fixtures cover behind-main `CLEAN` (#245), hidden merge behavior and lost roll-up text; live preview refused missing teammate approval on #268; #277 caught the 100-file self-merge limit | Provisional keep; measure paired tasks |
+| `acr-and-version-line` | not measured yet / not measured yet | No correction recorded; paired pre-review was clear | Fixtures cover lost parallel versions, bad order, conflicts and missing rows/links; real ARCHITECTURE had 1.8.5/1.8.4 out of order and legacy rows (#281) | Provisional keep; measure paired tasks |
+| `add-capability` | not measured yet / not measured yet | One test correction after #274 (#285 test, fixed on #274) | The #274 class offer was refused without `--allow-offer`; fixtures also catch the engine's silent default limit of 10, missing sensitive fields, wiring, replay and tests (#285) | Provisional keep; measure paired tasks |
+| `db-migration` | not measured yet / not measured yet | One fixture correction and reapproval after #280 occupied migration 013 | Real #280 check flags missing positive `argus db check` inserts for both `013_webauthn.sql` tables; the same gap appeared in 006 (#286) | Provisional keep; measure paired tasks |
+
+The counts above are deliberately not inferred from implementation tests, fixture runs, PRs, or review rounds. Those
+records show concrete catches and the costs below, but no controlled task was run both with and without each skill.
+"Reviewer corrections" records observed fixes, not an efficacy score. "Provisional keep" means the skill has at least
+one useful observed catch; the paired runs below must still test whether it saves more rework than it adds.
+
+### Observed costs and limits
+
+- `code-bash-step` development recorded 12 false positives in a whole-file fixture and later guard/marker test
+  failures, including 9 failing cases before the SESSION correction and 3 false accepts plus 2 refused marker cases
+  before the final fix (#275 and its journal). These were checker-development failures, not developer-run block
+  failures. The board does not count EVS.1 or other user-run blocks rejected before correction.
+- `pr-review` needed the wording and self-merge corrections listed above. Its integrated-main full-suite run also
+  exposed an unrelated main red fixed separately by #278; this added validation time, not a skill-caused failure.
+- The `add-capability` checker test was pinned to main's state: it assumed `analysis.anomaly_summary` was unoffered.
+  After #274 offered it to `container_restart_loop`, #274 CI went red; S1 fixed the test line on #274 (FIX.274), and
+  the full suite passed 1727. The separate #285 CI cancellation was at Playwright installation and was rerun, not a
+  skill defect. The `db-migration` fixed-013 fixture was a checker-test failure caused by #280's new migration; the
+  checker correctly rejected the stale number and the fixture now chooses the next free number (#286).
+- RED/GREEN test totals in the skill journals show checker-development cost and coverage. They are not task-level
+  with/without observations; no task-level time or failed-block totals are recorded for these skills.
+
+### P2 observations from recorded use
+
+- `journal-and-task-status` (#283): its first review found 17 of 22 current task rows rejected by the original status
+  grammar; accepting the repository's `#NNN` references and status formats fixed those false positives. Review then
+  found `done` could bypass the PR-reference rule in trailing-word and markup-wrapped forms; the guard was tightened
+  until every `done` form required a PR. This shows both value and reviewer correction cost; paired counts are not
+  measured.
+- `vm-deploy` (#289): the real `6c83da3..afb72e8` comparison initially omitted the `jwt_ed25519_key` file creation
+  that DEPLOY-afb72e8 had needed by hand, and counted `deploy/target` and `deploy/monitoring` only for vm-166. Review
+  caught both; the corrected output lists the secret-file step before any `up` and both VM targets. The helper was
+  exercised on git diffs only; it did not connect to a VM.
+- `ui-contract-samples` (#290) found three same-shape stale samples that the shape-only contract test missed:
+  `events.json`, `incident.json`, and `incident-metrics.json`. Review also caught value-only changes being reverted
+  and incomplete restoration after a failed regeneration; `--keep-new` and rollback were added. In the real refresh
+  PR #291, Playwright then failed because regenerated IDs no longer matched IDs referenced by other samples. The
+  original IDs were restored in the refreshed files; the skill needs a follow-up for shared generated IDs. The
+  sample changes trace to detector PRs #38/#59/#60 (`events.json`), #44/#237 (`incident.json`), and #174/#188
+  (`incident-metrics.json`, 63 current-window points rather than 61). PR #290 merged on 2026-10-22; #291 is still
+  open. Paired counts are not measured.
+
+### Proposed paired runs
+
+For each P0/P1 skill, use the same three task inputs once with the skill and once without it, in fresh sessions with
+the same policy and repository snapshot. Randomize which condition runs first; have the reviewer assess outputs
+without seeing the condition. Record task success, reviewer corrections and severity, failed blocks, checker catches
+and false positives, and elapsed time to review-ready. Keep activation checks manual: record whether the right skill
+was selected when needed and avoided when irrelevant. RED/GREEN fixture counts are script validation, not paired
+tasks. CI remains limited to script tests; do not add model calls to CI.
+
+- `code-bash-step`: prepare a commit/push/PR block with exact staging; prepare a read-only or comment block with
+  matching labels and verdicts; prepare a VM block with a SESSION guard and mutation-order checks without running it.
+- `pr-review`: assess a current, green PR; refuse a branch behind main despite GitHub `CLEAN`; inspect a merge
+  resolution that hides behavior change and verify removed journal text survives roll-up.
+- `acr-and-version-line`: draft a valid ACR and version update; reconcile two parallel branches without dropping a
+  version; refuse a same-version collision or missing changelog row/link while preserving legacy rows.
+- `add-capability`: add a safe read with a positive call limit; add a sensitive read with its allowed fields and
+  replay executor; keep a new read unoffered, then check the separate class offer with and without `--allow-offer`.
+- `db-migration`: add the next numbered table with both stores and grants; put a succeeding db-check insert before
+  refusal cases; add an insert-only table and verify update/delete refusals and SQLite triggers.
