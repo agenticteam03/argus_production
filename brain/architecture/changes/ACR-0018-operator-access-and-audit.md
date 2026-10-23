@@ -190,7 +190,7 @@ Applied in steps (phase 16). Each step writes into `ARCHITECTURE.md` only what i
       allowlist (`ops/edge-allow.sh`, named entries with an expiry, a daily prune, addresses never in Git); off until
       `ARGUS_OPS_PATH=on`; `policies/NETWORK.md`; `tests/test_phase16_private_path.py` (the real Nginx with mTLS)
 
-- [x] step 5a (1.8.31): the signed daily digest. `domain/audit_digest.py` (the digest of a closed UTC day: the last
+- [x] step 5a (1.8.32): the signed daily digest. `domain/audit_digest.py` (the digest of a closed UTC day: the last
       chained row, its hash, the row count; Ed25519 signature over the canonical JSON; a check against the chain),
       `infrastructure/audit_digest.py` (`AuditDigestJob`: verify the chain, sign nothing if it is broken, put each
       closed day once, never overwrite a different object; every outcome a `security.audit_digest_*` event),

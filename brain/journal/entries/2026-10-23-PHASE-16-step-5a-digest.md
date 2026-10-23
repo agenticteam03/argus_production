@@ -26,7 +26,7 @@ Decision / result:
 - `audit_digest` in `deploy/scheduler/schedules.yaml`, **off**; enabled without the key or the sink it records
   `security.audit_digest_unconfigured` and ships nothing. The key is the secret `audit_digest_ed25519_key` (`wiring`'s
   Ed25519 loader now takes the secret's name).
-- ARCHITECTURE 1.8.31 (layer 13, §17.2), ACR-0018 §6, the PHASE-16 task, `policies/SECURITY.md` (the new secret).
+- ARCHITECTURE 1.8.32 (layer 13, §17.2), ACR-0018 §6, the PHASE-16 task, `policies/SECURITY.md` (the new secret).
 Consequences: nothing changes on the VMs. Next, 5b: the OCI sink (a new dependency and the credential's mount in a
 compose file, both reviewed); 5c: generate the key on vm-095, copy the create-only credential without printing it, turn
 the schedule on, and a command to check shipped digests against the chain. The alert on `security.audit_digest_failed`,

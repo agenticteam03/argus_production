@@ -98,7 +98,7 @@ step-up bound to a test object, with the binding to approvals added in phase 17.
 - **Decided (ACR-0018 §5, 2026-10-23):** the bucket is OCI Object Storage, administered by `conantkd`: a locked
   time-bound retention rule with versioning off (OCI cannot combine them) and a create-only credential. **Open:** the
   team's alert receiver (none exists: Argus only reads its Alertmanager).
-- **5a built (`task/PHASE-16-step-5a-digest`, ARCHITECTURE 1.8.31):** the digest, the signature, the job and a local
+- **5a built (`task/PHASE-16-step-5a-digest`, ARCHITECTURE 1.8.32):** the digest, the signature, the job and a local
   sink, all offline and tested. **5b:** the OCI sink (a new dependency and the credential's mount, a protected
   path). **5c:** the key generated on vm-095, the schedule on, `argus audit` to check shipped digests against the chain.
 - The daily digest: the hash of each day's last chained audit row, signed (the audit digest key, §17.2) and shipped;
