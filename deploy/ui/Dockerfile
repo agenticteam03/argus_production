@@ -24,8 +24,8 @@ COPY deploy/ui/nginx/ /etc/nginx/argus/
 COPY deploy/ui/05-argus-mode.envsh /docker-entrypoint.d/05-argus-mode.envsh
 USER root
 RUN rm -f /etc/nginx/conf.d/default.conf \
- && mkdir -p /etc/nginx/templates /var/www/acme \
- && chown -R 101:101 /etc/nginx/templates /etc/nginx/conf.d \
+ && mkdir -p /etc/nginx/templates /var/www/acme /etc/nginx/ops /etc/argus-ops \
+ && chown -R 101:101 /etc/nginx/templates /etc/nginx/conf.d /etc/nginx/ops \
  && chmod 0755 /docker-entrypoint.d/05-argus-mode.envsh
 USER 101
 EXPOSE 8080 8443

@@ -232,7 +232,7 @@ refused alone, twice or beside a decision. A peer finding has a weight in `confi
 an evidence id yet (§23), so it never counts today. `ranking_disagrees` is derived from the stored rows (the chosen
 row's rank), not stored on its own; H3 shows it.
 
-**As built (evidence support, ARCHITECTURE 1.8.30):** §3.2 does not say which step each row applies to. A read
+**As built (evidence support, ARCHITECTURE 1.8.33):** §3.2 does not say which step each row applies to. A read
 step's `state_hypotheses` list is checked before that step's reads run, so in #274's model batch a cause marked
 `supported` while its own read was requested in the same step was flagged, although its `conclude` was clean
 (`dep-cache-paused` trial 3, `dep-cache-restarting` trial 2). A read step's list now gets the structural rows only:

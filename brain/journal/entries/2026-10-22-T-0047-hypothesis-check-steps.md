@@ -26,7 +26,7 @@ Decision / result:
     it and names `step 2 conclude` in its problem.
 - `tests/test_t0047_h2_ranking_and_storage.py`: the read-step test now expects a structural problem (an unknown id)
   instead of `ruled_out` without `against`.
-- ARCHITECTURE 1.8.30 (§11.3) and ACR-0024's "as built" note record the rule (`conantkd` reviews).
+- ARCHITECTURE 1.8.33 (§11.3) and ACR-0024's "as built" note record the rule (`conantkd` reviews).
 Consequences: older result files keep problems without the step prefix, and a read step's evidence problems are no
 longer counted. So `problems` in a new batch is not comparable with #274's 0.45. The prompt change comes next, after
 this is reviewed.
