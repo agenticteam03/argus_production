@@ -84,6 +84,39 @@ A new section **§17.4 Operator terminal**:
 **Build or adopt (OD-17, new):** adopt a proven access proxy (Teleport Community Edition is the closest fit) or
 build a minimal broker (`xterm.js` + a WebSocket service + `asyncssh` + its own CA). Decided in review.
 
+### 3.1 Changes proposed in review (juanes6554 + agent, 2026-10-23; not accepted)
+
+The UI owner (T-0016) proposes these changes to the text above, for the team to accept, change or reject together
+with the ACR. None changes the broker, the CA, the hosts or the recording.
+
+1. **How the UI knows (replaces "who" for the UI).** `GET /api/v1/me` lists the action `open_terminal` and a field
+   `terminal_hosts` (the host names, e.g. `["vm-095", "vm-166"]`) only when the principal holds
+   `open_terminal:<host>` for at least one host **and** the second factor holds (two credentials, a login completed
+   with one; ACR-0018). The UI never checks a role: `operator` and `approver` carry the same bundle today (§17.3).
+   A person with the permission but not yet two keys gets `second_factor` details from `/me`, so the UI can say what
+   is missing (register a second key; ask an administrator for a first-key ticket).
+2. **Where it lives.** A panel inside the existing UI, not a separate page: it opens on the right, resizable, can be
+   minimized or shown full screen; one tab per session; the "+" offers only `terminal_hosts`. It is reached from
+   "Tools → Console" and from an incident's "Open a console on this host" (prefilling the reason with the incident
+   id). The SPA already has a strict CSP without inline or third-party scripts (`deploy/ui/nginx/locations.conf`);
+   `xterm.js` comes from npm and loads lazily; Trusted Types is added to that CSP when the panel ships. **Open
+   decision UI-1:** is the in-app panel acceptable, or must the terminal keep its own page?
+3. **The gate before opening (as ACR-0018 already requires).** Two registered keys, a login completed with a key, a
+   mandatory reason, and a step-up bound to the ticket. The panel has no "x": it has **Disconnect**, which closes the
+   session on the broker.
+4. **Session limits (changes "idle 15 min, absolute 4 h").** Proposed: an **absolute 30 min** per terminal session,
+   shown as a countdown in the panel, renewable only by a new step-up and ticket; no separate idle limit (30 min
+   absolute is already shorter than 15 min idle within 4 h). **Open decision UI-2:** keep the 15 min idle limit as
+   well? At most 2 concurrent sessions per user stays (one per host fits the two VMs).
+5. **A simulated shell before the broker exists.** While ACR-0020 is not applied, the UI may ship the panel behind a
+   build flag (`VITE_ARGUS_TERMINAL_DEMO`, off by default, mock mode only) with a simulated shell that answers a few
+   canned commands locally and sends nothing to any server; no route, no ticket, no permission is added. **Open
+   decision UI-3:** may this prototype merge before this ACR is accepted? (It changes no safety principle: it reaches
+   no host.)
+6. **Insert and paste.** "Insert" types the command without Enter (as above); a paste of more than one line asks
+   for confirmation; the ticket is never in a URL, a log, `localStorage` or `sessionStorage` (it lives in memory
+   until the WebSocket's first message).
+
 **Alternatives considered:**
 - A: **keep laptop SSH only.** Works, but unlinked to incidents, unrecorded, a shared account.
 - B: **a restricted console of allowlisted read verbs.** Safe, but it is not a full terminal and cannot fix arbitrary
