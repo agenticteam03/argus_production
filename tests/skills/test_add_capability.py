@@ -124,7 +124,9 @@ def test_every_committed_read_passes_the_structure_checks():
 
 
 def test_the_cli_names_one_committed_read_and_refuses_an_unknown_one():
-    assert run_cli("analysis.anomaly_summary").returncode == 0      # offered to no class on main
+    # analysis.anomaly_summary is offered to container_restart_loop since T-0047 H5 step 2 B (#274)
+    assert run_cli("analysis.anomaly_summary").returncode == 1
+    assert run_cli("analysis.anomaly_summary", "--allow-offer").returncode == 0
     assert run_cli("container.status").returncode == 1              # offered: only the offer change may do that
     assert run_cli("container.status", "--allow-offer").returncode == 0
     gone = run_cli("analysis.no_such_read")
