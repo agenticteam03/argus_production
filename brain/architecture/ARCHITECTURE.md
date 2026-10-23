@@ -1,7 +1,7 @@
 # Argus — Production Architecture Specification
 
 **Document type:** consolidated target architecture and implementation blueprint ·
-**Version:** 1.8.30 (2026-10-22, ACR-0018 phase 16 step 4: the private path; 1.8.29 2026-10-22, ACR-0018 phase 16 step 3: the WebAuthn second factor and the step-up token; 1.8.28 2026-10-21, ACR-0024 as built in T-0047 H2: `state_hypotheses`; 1.8.27 2026-10-21, ACR-0024 hypotheses and a cause ranking; 1.8.26 2026-10-21, ACR-0018 phase 16 step 1: sessions, revocation, persisted login limiter, permissions, the audit hash chain, EdDSA tokens; 1.8.25 2026-10-21, ACR-0028 field allowlists; 1.8.24 2026-10-21, ACR-0025 live dependency graph; 1.8.23 2026-10-20, ACR-0027 the built gaps G-001, G-003, G-007; 1.8.22 2026-10-20, ACR-0026 safety classes; 1.8.21 2026-10-20, §14 marked designed, not built (OP-015); 1.8.20 2026-10-19, ACR-0021 B7 baseline, long ranges, deploy events, and B8 link reasons; 1.8.19 2026-10-19, ACR-0021 B6: target metrics and the overview; 1.8.18 2026-10-19, ACR-0021 UI insights v2: B1 to B5; 1.8.17 2026-10-19, ACR-0023 log pattern matches; 1.8.16 2026-10-18, ACR-0013 and ACR-0016 Langfuse Cloud tracing; 1.8.15 2026-10-16, ACR-0017 topology; 1.8.14 2026-10-16, ACR-0017 incident metrics; 1.8.12 2026-10-14, ACR-0014; 1.8.11 2026-10-14, ACR-0012; 1.8.10 2026-10-14, ACR-0011; 1.8.8 2026-10-12, ACR-0009; 1.8.7 2026-10-12, ACR-0008; 1.8.6 2026-10-11, ACR-0007; 1.8.5 2026-10-09, ACR-0005; 1.8.4 2026-10-09, ACR-0004; 1.8.3 2026-10-08, ACR-0003; 1.8.2 2026-10-09, ACR-0002; 1.8.1 2026-10-06, ACR-0001; base 1.8.0 of 30 September 2026, sanitized for the shared repository 2026-10-02) · **Audience:** engineers and AI coding agents implementing
+**Version:** 1.8.31 (2026-10-23, ACR-0020 phase 21A: offline terminal broker contracts; 1.8.30 2026-10-22, ACR-0018 phase 16 step 4: the private path; 1.8.29 2026-10-22, ACR-0018 phase 16 step 3: the WebAuthn second factor and the step-up token; 1.8.28 2026-10-21, ACR-0024 as built in T-0047 H2: `state_hypotheses`; 1.8.27 2026-10-21, ACR-0024 hypotheses and a cause ranking; 1.8.26 2026-10-21, ACR-0018 phase 16 step 1: sessions, revocation, persisted login limiter, permissions, the audit hash chain, EdDSA tokens; 1.8.25 2026-10-21, ACR-0028 field allowlists; 1.8.24 2026-10-21, ACR-0025 live dependency graph; 1.8.23 2026-10-20, ACR-0027 the built gaps G-001, G-003, G-007; 1.8.22 2026-10-20, ACR-0026 safety classes; 1.8.21 2026-10-20, §14 marked designed, not built (OP-015); 1.8.20 2026-10-19, ACR-0021 B7 baseline, long ranges, deploy events, and B8 link reasons; 1.8.19 2026-10-19, ACR-0021 B6: target metrics and the overview; 1.8.18 2026-10-19, ACR-0021 UI insights v2: B1 to B5; 1.8.17 2026-10-19, ACR-0023 log pattern matches; 1.8.16 2026-10-18, ACR-0013 and ACR-0016 Langfuse Cloud tracing; 1.8.15 2026-10-16, ACR-0017 topology; 1.8.14 2026-10-16, ACR-0017 incident metrics; 1.8.12 2026-10-14, ACR-0014; 1.8.11 2026-10-14, ACR-0012; 1.8.10 2026-10-14, ACR-0011; 1.8.8 2026-10-12, ACR-0009; 1.8.7 2026-10-12, ACR-0008; 1.8.6 2026-10-11, ACR-0007; 1.8.5 2026-10-09, ACR-0005; 1.8.4 2026-10-09, ACR-0004; 1.8.3 2026-10-08, ACR-0003; 1.8.2 2026-10-09, ACR-0002; 1.8.1 2026-10-06, ACR-0001; base 1.8.0 of 30 September 2026, sanitized for the shared repository 2026-10-02) · **Audience:** engineers and AI coding agents implementing
 Argus from an empty repository.
 
 
@@ -2529,6 +2529,27 @@ stored as evidence or sent to the model.
 - *Future:* replacing local users with a single-sign-on provider (OIDC, RS256 + JWKS) changes only
   token verification in `adapters/inbound/http/auth.py`; the `Principal` contract stays.
 
+### 17.4 Operator terminal (ACR-0020, phase 21)
+
+The operator terminal is a recorded **human** SSH channel presented in the UI. It is outside Argus's capability
+catalogue: no model, agent, worker or tools child can open, read or type in it. The terminal is unrestricted for an
+authorized operator; its controls are personal identity, WebAuthn step-up, private access, a fixed host and personal
+Unix account, a VM lease, session limits, recording and audit.
+
+Argus builds a narrow broker that reuses §17.3 identity and authorization. A ticket is single use, valid for at most
+60 seconds and bound to the principal, session, fixed host/account, reason, incident and lease. The browser supplies
+no destination or account. The broker later signs a short-lived SSH certificate, bridges the bytes and records input,
+output and timing synchronously to the off-host store. A byte is accepted only after the recorder persists it; any
+append or final-manifest failure closes the session. There are at most two open sessions per principal.
+
+**Phase 21A as built:** `services/terminal_broker/core.py` contains only the ticket, fixed-account mapping, session
+state machine, recording frames and manifest contract. It has no listener, route, SSH dependency, credential,
+database, object-store adapter or runtime wiring, so it grants no access. Phase 21A may merge after the ACR's
+independent safety review. A required audit sink receives open, close, refusal and recording-failure events; an audit
+failure prevents a session from opening. The privileged API, WebSocket, SSH CA, deployed broker and
+`open_terminal:<host>` grant remain blocked until ACR-0018's phase-16 exit proof. The full controls and reversal procedure are normative in
+[ACR-0020](changes/ACR-0020-operator-terminal.md).
+
 ---
 
 ## 18. Observability, logging and audit
@@ -2924,6 +2945,7 @@ The goal of this architecture is that Argus's diagnostic reach grows **without c
 | OD-14 | Wire protocol of the peer-agent adapter | decided when the security agent's design exists; the verbs of §23.2 are fixed |
 | OD-15 | A diagnosis-only mode for unsupported reports from authenticated operators | off; reconsider once the evidence pack and unsupported backlog show a need |
 | OD-16 | TLS or a tunnel inside the private subnet | **decided by ACR-0003 (2026-10-08):** covered by the transport profiles (§3.2); a path that leaves the private network is encrypted (`wireguard-overlay`, `restricted-ssh`) |
+| OD-17 | Build or adopt the operator terminal broker | **decided by ACR-0020 (2026-10-23):** build a narrow Argus broker that reuses Argus identity and step-up and binds every session to an incident and lease; reconsider a dedicated access plane when host or operator count makes maintaining the broker less safe |
 
 ---
 
@@ -3109,3 +3131,4 @@ erDiagram
 | 1.8.28 | 2026-10-21 | ACR-0024 as built in T-0047 H2: a read step states its hypotheses in one `state_hypotheses` call beside its read calls (not a read; refused alone, twice or beside a decision); the runner ranks and stores each decision's hypotheses (`incident_hypothesis`, migration 012) and the context carries the latest list (§5.5, §10.6, §11.3, §16.1) | [ACR-0024](changes/ACR-0024-hypotheses-and-cause-ranking.md) |
 | 1.8.29 | 2026-10-22 | phase 16 step 3 of ACR-0018: the WebAuthn second factor (py_webauthn 3.0.1; migration 013: credentials, challenges, enrolment tickets, step-up tokens, `auth_session.second_factor_at`); the first credential by another administrator's ticket, a further one by step-up; privileged permissions only for a login completed with a credential and a person with two; the single-use, object-bound, ≤ 5 min step-up token; `argus webauthn allow-enrol|reset`; the routes in §7.1 and through the public edge (§17.3) | [ACR-0018](changes/ACR-0018-operator-access-and-audit.md) |
 | 1.8.30 | 2026-10-22 | phase 16 step 4 of ACR-0018: the private path. Privileged routes under `/api/v1/ops/`, passed by the edge only for a client certificate of the team's CA (CRL checked) from an allowlisted address, else 404; the CA on a laptop (`ops/edge-ca.sh`), the allowlist on vm-095 (`ops/edge-allow.sh`, named entries with an expiry, a daily prune); off by default (`ARGUS_OPS_PATH`) (§17.3) | [ACR-0018](changes/ACR-0018-operator-access-and-audit.md) |
+| 1.8.31 | 2026-10-23 | phase 21A of ACR-0020: accepted the narrow Argus terminal broker; offline contracts for single-use bound tickets, fixed principal/host/account mapping, two-session limit, lifecycle audit and synchronous fail-closed recording; no route, network, SSH, credential or deployment (§17.4, OD-17) | [ACR-0020](changes/ACR-0020-operator-terminal.md) |

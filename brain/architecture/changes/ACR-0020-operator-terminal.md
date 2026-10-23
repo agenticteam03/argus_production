@@ -7,12 +7,12 @@ the Argus-executed one.
 
 | Field | Value |
 |---|---|
-| Status | `proposed` |
+| Status | `accepted` (21A applied; privileged stages blocked by the phase-16 exit proof) |
 | Proposed by | juanbetancurm (+ agent) · 2026-10-18 |
-| Accepted by | pending (team review of the NEXT-PHASE proposal PR) |
+| Accepted by | conantkd · 2026-10-23 |
 | Second approval (safety principle only) | **required**: least privilege (a privileged route and a new container), secrets (an SSH certificate authority) |
-| Architecture version | the next free version when applied (after ACR-0018) |
-| Task / PR | NEXT-PHASE · PR (this proposal) |
+| Architecture version | 1.8.31 (21A contracts and broker core) |
+| Task / PR | [PHASE-21](../../tasks/current/PHASE-21-operator-terminal.md) · PR pending |
 
 ## 1. Detect and explain
 
@@ -81,8 +81,47 @@ A new section **§17.4 Operator terminal**:
 - **Break-glass:** the existing laptop SSH path (or the cloud console) remains the recovery path when the broker or
   the UI is down; its use is announced and recorded in the journal.
 
-**Build or adopt (OD-17, new):** adopt a proven access proxy (Teleport Community Edition is the closest fit) or
-build a minimal broker (`xterm.js` + a WebSocket service + `asyncssh` + its own CA). Decided in review.
+**Build or adopt (OD-17, decided):** build a narrow Argus terminal broker for the lab (`xterm.js` + a WebSocket
+service + `asyncssh` + its own CA), rather than adopt Teleport Community Edition.
+
+The broker reuses the identity, session revocation, WebAuthn step-up, per-host permission and private path of
+ACR-0018. It has no login page or role database of its own. The API creates a single-use launch ticket after policy
+checks; the broker consumes that ticket, maps the already-authenticated principal to one fixed `op-<handle>` account,
+opens SSH and records the byte stream. This keeps one source of identity and makes the incident id, reason and lease
+part of the session from its first event.
+
+Teleport already provides an SSH CA, [browser terminals](https://goteleport.com/docs/connect-your-client/teleport-clients/web-ui/),
+RBAC, audit events and [session recordings](https://goteleport.com/docs/reference/architecture/session-recording/).
+It is not the smallest fit here because it adds a second identity and authorization plane and a separate Web UI, while Argus still
+needs custom work to bind its step-up token, incident, reason and VM lease to the Teleport session. Its Community
+Edition distribution also has use restrictions from version 16 onward; compiling the source uses AGPLv3
+([upstream licensing notice](https://github.com/gravitational/teleport/discussions/39158)). The team
+would have to settle that licensing question before treating it as a project dependency. Revisit Teleport when the
+number of hosts or operators makes maintaining a small broker less safe than integrating a dedicated access plane.
+
+The custom broker is deliberately not a general access product:
+- one WebSocket protocol, one SSH session type and the two declared hosts; no arbitrary destination supplied by the
+  browser;
+- no password authentication, long-lived user key, shell command API, file transfer, port forwarding or agent
+  forwarding;
+- the CA key and recording credential exist only in the broker; the API and worker cannot read them;
+- synchronous recording: if the broker cannot persist the stream and final manifest, the session is closed;
+- every mutable boundary (hosts, principal-to-account mapping, limits and recording destination) is configuration
+  reviewed in Git or an ACR-0018 protected deployment object, never browser input.
+
+**Implementation order:** 21A may land offline after this decision. Steps 21B–21E wait for ACR-0018's phase-16 exit
+proof because they add privileged routes, credentials, connectivity or deployment.
+1. **21A — contracts and broker core, offline:** ticket claims, session state machine, fixed target/account mapping,
+   recording manifest and lifecycle audit events; fake SSH and object-store adapters; no route and no deployment.
+2. **21B — privileged API:** `open_terminal:<host>`, reason and incident validation, step-up bound to the terminal
+   ticket, single-use consumption, kill/list routes and authorization matrix under `/api/v1/ops/terminal/`.
+3. **21C — browser terminal:** `xterm.js`, same-origin WebSocket, permanent host/user/incident banner, paste
+   confirmation and the card-limited Insert control. The UI never decides authorization.
+4. **21D — isolated deployment:** broker container, SSH CA, one Unix account per operator, sshd restrictions,
+   `sudo` I/O logging, `auditd`, off-host recording storage and the network proof that Argus processes cannot reach
+   the broker.
+5. **21E — exit drill:** replay/refusal tests, idle and absolute expiry, revoke/kill, recording loss, public 404,
+   CA revocation and break-glass rehearsal. Only this step may grant `open_terminal:<host>`.
 
 **Alternatives considered:**
 - A: **keep laptop SSH only.** Works, but unlinked to incidents, unrecorded, a shared account.
@@ -115,13 +154,15 @@ build a minimal broker (`xterm.js` + a WebSocket service + `asyncssh` + its own 
 
 ## 5. Decision
 
-Proposed. To be accepted or changed in the NEXT-PHASE proposal PR review, together with OD-17 (build or adopt).
+Accepted by conantkd on 2026-10-23: build the narrow broker, start with the offline contracts and state machine, and
+keep every privileged or connected stage blocked until ACR-0018's phase-16 exit proof. The required independent
+safety approval remains a merge gate because the complete design changes least privilege and introduces an SSH CA.
 
 ## 6. Applied
 
-- [ ] `ARCHITECTURE.md` updated (§1.2 note, §3 the broker, §17.1 layer reference, new §17.4, §18, §25 OD-17,
-      changelog), version bumped
+- [x] `ARCHITECTURE.md` updated for 21A (new §17.4, §25 OD-17, changelog), version bumped to 1.8.31
+- [ ] Later stages update §1.2, §3, §17.1 and §18 when routes, the broker container and recording are built
 - [ ] `policies/SECURITY.md`, `NETWORK.md`, `AGENT_PROTOCOL.md`, `PARALLEL_LANES.md`,
       `infrastructure/environment.md`, `guides/TROUBLESHOOTING.md`
-- [ ] journal entry
-- [ ] the ACR, the architecture change and the first code that needs it are in the same pull request
+- [x] journal entry
+- [x] the ACR, the architecture change and the first code that needs it are in the same pull request
