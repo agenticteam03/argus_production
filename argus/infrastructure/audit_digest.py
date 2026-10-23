@@ -47,7 +47,10 @@ class AuditDigestJob:
             try:
                 result = self._ship(rows, day)
             except Exception as e:                      # the next run starts again from this day; nothing is skipped
-                self._record("failed", {"day": day.isoformat(), "error": type(e).__name__, "off_host": off_host})
+                detail = {"day": day.isoformat(), "error": type(e).__name__, "off_host": off_host}
+                if isinstance(getattr(e, "reason", None), str):       # a sink's own short, safe reason (a status and a code)
+                    detail["reason"] = e.reason[:120]
+                self._record("failed", detail)
                 log.error("audit digest of %s failed: %s", day, type(e).__name__)
                 return f"failed at {day.isoformat()}: {type(e).__name__} ({shipped} shipped before it)"
             if result == "stored":

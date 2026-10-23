@@ -196,8 +196,15 @@ Applied in steps (phase 16). Each step writes into `ARCHITECTURE.md` only what i
       closed day once, never overwrite a different object; every outcome a `security.audit_digest_*` event),
       `adapters/outbound/digest_sinks.py` (`LocalDirSink`, which says it is not off host), `audit_digest` in
       `deploy/scheduler/schedules.yaml` (off), `ARGUS_AUDIT_DIGEST_SINK`; `tests/test_phase16_step5_digest.py`.
-      Not built: the OCI sink (5b), the key on vm-095 and the schedule turned on (5c)
+      Not built in 5a: the OCI sink (5b), the key on vm-095 and the schedule turned on (5c)
 
-**Not yet** (step 5b on): separation of duties; the digest's OCI sink and the digest key on vm-095 (steps 5b and 5c); security alerts (§18), which wait for the team's alert route (no receiver exists: Argus only reads its
+- [x] step 5b (1.8.33): the OCI sink. `OciObjectSink` (`adapters/outbound/digest_sinks.py`): a digest is created once
+      with `If-None-Match: *`, its SHA-256 as object metadata, and, when the service refuses, a HEAD tells whether the
+      name holds the same bytes (the credential cannot read a body); `DigestSinkError` carries a status and a code, never
+      the service's message. `ARGUS_AUDIT_DIGEST_SINK=oci:<namespace>/<bucket>`, the credential in `oci_digest/config` and
+      `key.pem` under the secrets folder; `oci==2.189.0`; `tests/test_phase16_step5b_oci_sink.py`, with an opt-in test
+      against a real bucket. The bucket and its permissions were proved by hand on 2026-10-23 (§5)
+
+**Not yet** (step 5b on): separation of duties; the digest key and the OCI credential on vm-095, their compose mounts, the network note and the schedule turned on (step 5c); security alerts (§18), which wait for the team's alert route (no receiver exists: Argus only reads its
 Alertmanager), including the alert on `security.audit_chain_broken`;
 `policies/SECURITY.md` (the new secrets).
