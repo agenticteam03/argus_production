@@ -1,6 +1,29 @@
 # Next step
 
-**Now (2026-10-22, roll-up, `conantkd`; night work by the agent).**
+**Now (2026-10-23, roll-up, `conantkd`; night work by the agent).**
+- **On the VMs:** **vm-095 runs `main` `77c4524`** (DEPLOY-77c4524, #288): phase 16 step 3, WebAuthn second factor and
+  step-up (#280, #284), migration **013** (schema 001-013), the relying party set, the Bearer redaction fix (#278);
+  49/49 database checks, the audit chain verified, NO INTERFERENCE. **No security key is enrolled yet**, so no
+  privileged step-up operation has run. **vm-166 stays on `bdcd048`.**
+- **Merged since that deploy, not yet on vm-095:** #274 (T-0047 H5 step 2 B: `analysis.anomaly_summary` offered to
+  `container_restart_loop` only), #294 (T-0016: metric charts, the 2D system map, login,
+  theme and time-zone polish), #295 (`argus db check` proves 013's ticket and challenge tables: **56 checks**, so the
+  next deploy's D.5 expects 56/56). Records, skills and docs only: #285, #286, #289, #290, #291, #292, #293, #296.
+- **In review:** #298 phase 16 step 4, the private path (mTLS + allowlist for `/api/v1/ops/`; ARCHITECTURE 1.8.30),
+  waiting for `juanbetancurm`'s review; not to be merged without it.
+- **Paused locally:** phase 15 (OP-014) steps 8, 9 (the weekly mutation job) and 13, uncommitted in `conantkd`'s
+  worktree.
+
+Next, in order:
+1. The reciprocal enrolment tickets: each administrator issues the other's ticket on vm-095 (the one-time code never
+   passes through an agent's output), then each registers two keys at `/account/security`.
+2. `juanbetancurm` reviews #298; after it merges, its deploy (both leases; `nonint-check` before and after).
+3. The next vm-095 deploy carries #274, #294 and #295 (D.5: 56/56 database checks).
+4. OP-014: resume steps 8, 9 (the weekly job) and 13.
+
+Below: the 2026-10-22 roll-up.
+
+**Then (2026-10-22, roll-up, `conantkd`; night work by the agent).**
 - **On the VMs:** unchanged: **vm-095 runs `main` `6c83da3`**, **vm-166 `bdcd048`**. The agent took both leases at
   night to deploy, but its permission rules refuse remote writes; nothing was changed and the leases were released.
 - **Ready to deploy:** `execution/current/code.bash` (DEPLOY-afb72e8, #258): EdDSA (the Ed25519 key generated on
@@ -21,6 +44,76 @@ Next, in order:
    T-0046 before L6: whether a link row's `at` becomes the probe sample's time (ACR-0025's text; a teammate decides).
 5. OP-014: a weekly mutation job with today's score as its floor (`.github/`, reviewed) and the 174 timeouts re-run;
    step 8 (the scheduled model evaluation).
+
+Below: the rolled-up "next steps" of the entries folded today (some already done).
+
+The protected `.claude/skills/` path needs `conantkd`'s approval. Possible follow-up: also scan `frontend/e2e/`
+fixtures for shared IDs (none hold IDs today).
+
+After review, run the proposed three paired tasks per P0/P1 skill, record evidence without changing measured counts
+from the records in this draft, then decide whether any skill should be removed.
+
+S1 reviews this protected-path docs-only change and the prepared commit/PR block; conantkd owns ACR-0029 acceptance. Do
+not expose the route until the private-path and off-host audit gates are met on the deployed profile.
+
+Post READY with the reviewed commit block. The PR awaits conantkd's
+protected-path review and CI on the Linux runner.
+
+T-0047 H5 step 2 B: `conantkd` reviews #274 (the tag on `container_restart_loop` only). Then the support-evidence fix
+(the gap behind the hard), after which `dependency_unavailable` can be measured again.
+
+S3's pre-review and re-check are clear. Next: the commit block through S1's central run file, then
+`conantkd`'s review (protected `.claude/skills/`).
+
+S1 pre-reviews; conantkd reviews the PR (protected path). A small follow-up for 006's missing db-check insert.
+
+S3's pre-review and re-check are clear. Next: the commit block through S1's central run file, then
+`conantkd`'s review (protected `.claude/skills/`).
+
+S1 pre-reviews; conantkd reviews the PR (protected path). Then S3c `db-migration`.
+
+Redaction fix: conantkd reviews the PR (security-relevant); then the next deploy carries it.
+
+Conantkd's GitHub review of this protected skill PR. S1 updates the shared T-0049 status row after both parallel
+skill PRs merge.
+
+After this protected skill PR is reviewed and merged, continue T-0049 S3 with
+`add-capability` on a separate branch and PR. S1 coordinates the shared task
+status row after the parallel skill PRs merge.
+
+conantkd reviews the PR (protected paths). After it merges, the next main-guard run on main shows whether the
+minute is enough.
+
+OP-013: `conantkd` reviews the held-out labels (step 2), then one PR per class returning it to its model strategy (`classes.py` and `tests/test_d003_class_registry.py`).
+
+Complete integrated-main validation and clear the paired documentation follow-up, then release the prepared
+exact-file-list checkpoint through the central command workflow. Governance #268 is now merged; the skill
+PR still needs `conantkd`'s approval. No autonomous commit, push or PR.
+
+References:
+- [T-0049](tasks/current/T-0049-agent-skills.md)
+- [Review protocol](agents/REVIEW_PROTOCOL.md)
+
+Peer re-review and final document checks are complete. Publish the protected proposal PR through a developer-run
+block requesting `conantkd`. Resolve acceptance questions before implementation. Apply the architecture with the
+first code in a later reviewed PR; release no route or ranking prior from this proposal.
+
+The developer made initial commit `b997395` and corrective commit `8f40d31`; neither is amended.
+The final peer re-review is clear and the real OP-013 file passes the checker. Plans #255 and governance
+#268 are approved and merged, so `.claude/skills/` is protected before publication. After integrated-main
+validation, SK.3 commits the exact three-file publication record, pushes the skill task branch and opens
+the PR requesting `conantkd` through the central command workflow. Current execution files and raw output
+stay outside the commit. Wait for actual developer output before claiming publication; no self-merge,
+and preserve the source branch.
+
+OP-013: review the held-out labels, then the two model runs on vm-095 (5 trials each) and the re-decision per class.
+
+Peer pre-review is complete and its two small findings are fixed. The coordinating session released
+publication on 2026-10-22 after plan #255 was approved and merged. The checkpoint is ready for relay
+through the coordinating session's central run file. It commits/pushes the exact file list and opens
+the PR requesting `conantkd`. That review is
+required; no self-approval or self-merge. Used texts move to their archive. The `code-bash-step` skill PR
+waits for this governance PR to merge, so skill changes are protected before they land.
 
 Below: the 2026-10-21 roll-up.
 
