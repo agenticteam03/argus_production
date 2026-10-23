@@ -4382,3 +4382,903 @@ Consequences: OP-014 step 9 now has 26 equivalent mutants named and no unexplain
 path or the redactor. Left: 174 timeouts (most in `__call__` and `PolicyEngine.__init__`/`check`), and the weekly
 CI job (`.github/`, a teammate's review).
 References: [OP-014](../OPEN_PROBLEMS.md), #260, #261.
+
+## 2026-10-21 — T-0049 S0: require teammate review for agent skills
+
+Type: governance implementation
+Who: juanbetancurm (+ agent)
+Status: ready for the developer's checkpoint; peer review and current-main validation complete.
+Context: this governance slice follows T-0049 step S1's local `code-bash-step` commit `b997395`.
+Worktree `w-s0`, branch `task/T-0049-s0-governance`, created from `76bb1f0`.
+On 2026-10-22 it fast-forwarded to reviewed `origin/main` `9d65e1e` without conflicts;
+the five governance files and the private execution block were preserved.
+
+Decision / result:
+- Protect `.claude/skills/` through the existing `SELF_MERGE_PROTECTED` prefix tuple. A PR changing a
+  skill procedure, helper or template needs a teammate even when its required checks are green.
+- Add three skill paths to the existing behavioral self-merge test; its assertion requires the refusal
+  reason to name the path and the need for a teammate.
+- Add one AGENT_PROTOCOL sentence: skills are procedures and the referenced policy wins over the skill.
+- No runtime, architecture, VM or CI changes. This is development-tooling governance, not new permission
+  for an agent to execute a skill's commands.
+- Add the matching protected-path entry to REVIEW_PROTOCOL, as the coordinating session authorized, so the
+  written review rule and the enforcement tuple stay aligned. Five files including this entry.
+- Recheck the plan's source inventory at `9d65e1e`: eight incident classes, runbooks RB-001 through RB-021,
+  and migrations through `012_incident_hypothesis.sql`. The branch runbook and prior-incident references
+  remain in the catalog, classes, domain model, wiring and both orchestration runners.
+- `CLAUDE.md`, `AGENTS.md` and `GEMINI.md` all direct their hosts to the Brain protocol. Main has no tracked
+  `.claude/` skill directory yet; the new protocol sentence provides its shared discovery location.
+
+## 2026-10-21 — OP-013: a held-out set for the two classes under the baseline; the baseline scores 0.50 on it
+
+Type: work
+Who: juanbetancurm (+ agent)
+Context: D-003 put `dependency_unavailable` and `nginx_upstream_failure` on the baseline (1.00 vs the model's 0.90 and
+0.92), but the baseline's rules were written from those cases (OP-013).
+Decision / result:
+- 12 new cases in `tests/eval/heldout/cases/`, six per class (one ambiguous each), mechanisms the main set lacks
+  (OOM-killed cache, wrong listen port, database shutdown, overload, client limit; upstream crash, CPU-starved and
+  restarting upstream, and two causes in the proxy itself). Labels from RB-003/RB-015, written without reading the
+  baseline's rules.
+- A separate folder, so CI's evaluation and the D-003 test never load them; `tests/test_op013_heldout_cases.py`
+  checks the structure only (red seen: 0 cases).
+- Baseline, offline, 1 deterministic trial: 3/6 per class (0.50), hard 0. Labels unchanged after the run.
+Consequences: the model's runs (`model_loop`, `plan_then_reason`, 5 trials each) on vm-095 decide each class by §21.2;
+the labels are reviewed first. Plan: [OP-013 task](../tasks/current/OP-013-held-out-set.md).
+References: [OP-013](../OPEN_PROBLEMS.md), D-003.
+
+## 2026-10-21 — T-0049 S1: prepare and statically check code.bash steps
+
+Type: implementation
+Who: juanbetancurm (+ agent)
+Status: initial and corrective commits are local; governance merged; final publication record under validation.
+Context: T-0049 step S1, isolated in `w-s1` on
+`task/T-0049-s1-code-bash-step`, created from `origin/main` at `953331f`.
+On 2026-10-22, local merge `dbffd037` integrated reviewed main `9d65e1e` without conflicts;
+the five pending correction files and completed private SK.1 block were preserved exactly.
+The developer committed the correction as `8f40d31`. After governance #268 merged,
+local merge `86bd0d19` integrated main `e4b9869` without conflicts or skill-code changes, and
+local merge `808d46a` integrated main `096bf90` (#270, a journal entry only).
+
+Decision / result:
+- Add a short `.claude/skills/code-bash-step/SKILL.md` that reads the current Brain policies first,
+  selects one template, fills the current step, and checks it before developer execution.
+- Supply PowerShell templates for a comment, approval of another author's reviewed head, and a
+  guarded commit/push/PR sequence; supply a read-only Bash template inside the VM SESSION guard.
+- Add a stdlib-only CLI checker for headers, location/expected markers, laptop setup and verdict
+  counts, native argument quotes, interpolation, depth-aware console `else`/`elseif`, heredocs,
+  VM exit/reboot/session ordering, duplicate labels, addresses and secret assignments.
+- The lexer ignores strings/comments when counting braces. The coordinating review clarified that the original approval
+  block's newline branches are valid inside `foreach`; all three real blocks are preserved verbatim.
+- VM commands outside the successful SESSION branch require a guard when mutating or unrecognized;
+  redirections and command expansion are checked too. This static checker is not a shell sandbox.
+- Add 31 fixtures and 64 CLI tests. Negative data uses explicit synthetic values; the documentation
+  address is assembled only during tests. No real address or credential is stored in the fixtures.
+- Following review, detect headers only at rule lines and ignore the standard banner and status
+  comments as free text. Also accept CODE_BASH.md's inline rule/header form. A copy of the coordinator's whole real
+  file is a positive fixture; all three original isolated blocks remain unchanged.
+- Fix the peer-reported Bash single-quote bug: a backslash is literal inside single quotes, so it cannot
+  consume the closing quote and hide a later unguarded VM mutation. The regression fixture is parsed
+  without executing its commands.
+- Document the checker's deliberately stricter current template conventions: an `if` SESSION guard,
+  no VM `exit` (which closes the SSH session), and no IPv4 literal, including permitted lab ranges.
+  The older CODE_BASH example differs; policy still wins, and policy alignment is a separate change.
+- Fix the VM template and its fixture to match the actual two-field `holder=<who> session=<id>` marker.
+  The anchored holder boundary admits the right holder and refuses a different holder or a prefix collision.
+  Accept the established anchored quiet-grep guard form; inverted and files-without-match options do not
+  establish a positive SESSION guard.
+- As the coordinating session explicitly authorized, exempt exactly one literal SESSION marker pipeline
+  only when it is the first command of a VM block. A second/later write, another path, extra options,
+  expansion or another command on that line still requires the normal successful guard. Only one optional
+  stdout redirect to `/dev/null` is allowed on that first line, as the coordinating session confirmed.
+- Preserve the developer-completed SK.1 block and sanitized successful evidence under
+  `brain/execution/history/T-0049-S1/step-01/`, as authorized. Keep raw terminal output private.
+- Preserve completed SK.2 and its sanitized local-commit evidence under the approved `step-02/` archive.
+  The final publication record changes only that archive and this journal; the skill code stays as reviewed.
+
+## 2026-10-21 — T-0016: login without the picture, times in the browser's zone
+
+Type: frontend
+Who: juanes6554 (+ agent)
+Context: the login's hero photo looked out of place, above all in the light theme, and the UI hard-coded Colombia
+time (COT) for everyone.
+Decision / result: the login is the form alone, centred, in both themes; `public/images/argus-hero.jpg` and its CSS
+are removed (the real-mode build test checks that no photo is shipped). Times use the browser's time zone and always
+name it (`zoneLabel` in `utils/format.js`: COT for Colombia, the Intl abbreviation such as EST or UTC, else the GMT
+offset); `clockCot` became `clockZone`, and Playwright pins `America/Bogota` so the e2e label stays stable. The
+favicon now points at the existing `/images/argus-logo.svg`, now a white mark on a transparent background. The
+login card is compact (480 px) and centred. The header menu stays on one row from 640 px up. The theme toggle
+(`switchTheme` in `utils/theme.js`) pauses CSS transitions while `data-theme` changes and, where supported and
+motion is not reduced, cross-fades the page with a View Transition, so nothing recolours on its own first. The
+developer profile records Spanish and both agents.
+Consequences: none for the API or the VMs.
+References: [T-0016](../tasks/current/T-0016-frontend.md), `frontend/GUIDELINES.md`.
+
+## 2026-10-21 — T-0016: incident metric charts on ECharts (plan 08, F3) and a visible Refresh
+
+Type: frontend
+Who: juanes6554 (+ agent)
+Context: the hand-rolled SVG charts showed no thresholds, events or zoom; the ui-graphs prototype and
+`08-frontend-plan-new-ui.md` (F3) describe the target. The API already serves every field (ACR-0017, ACR-0021,
+T-0045 B7).
+Decision / result: `frontend/src/components/charts/` replaces `MetricChart.jsx`: `chartOptions.js` (pure, unit-tested)
+builds each ECharts option with the alert and warning lines (`direction` above or below), the baseline band, the
+incident band (at least 8 px), the fired signal in red from the incident start, and an event lane; `MetricChart.jsx`
+owns one SVG-rendered instance; `ChartGrid.jsx` links every chart of a page (drag, Ctrl + scroll, toolbar zoom, Focus
+incident, Reset zoom, ranges from `ranges_available`). ECharts (6.1 since the merge with `main`: 5.x had
+GHSA-fgmj-fm8m-jvvx) is bundled by Vite and lazy-loaded (initial chunk
+unchanged at 221 KB gzipped; charts 189 KB on demand). Each chart's badge explains itself on hover (`Hint` in
+`ui.jsx`). The Refresh button keeps spinning at least 600 ms and shows a toast with the result.
+Consequences: ECharts' inside zoom swallows every wheel event, so plain wheel events are kept from it to let the page
+scroll; the chart and "No data" blocks carry distinct React keys because ECharts empties its node on dispose.
+References: [T-0016](../tasks/current/T-0016-frontend.md), `frontend/GUIDELINES.md`.
+
+## 2026-10-22 - OP-014 step 9: the policy's decisions and the refusals' targets pinned (third mutation run)
+
+Type: tests
+Who: conantkd (+ agent)
+Context: the second run (#262) left 174 mutants timed out. Re-run alone with 2 workers on `main` `3db567a`.
+Decision / result:
+- Of the 174: 93 killed, 45 survived, 36 still timed out (most in `InvokeCapability.__call__` and `_finish`).
+- The 45 were the rule and reason of each `PolicyEngine.check` decision (`safety_class` naming the profile,
+  `max_per_incident` with its default of 10 and the count, `inspection` with the inspection policy's reason,
+  `allow:<capability>`), the security audit of an unknown capability (its name and arguments), the event and detail of
+  a recorded refusal, a refused read keeping its own target (inventory, arguments, a lost audit record) and its reason
+  (the parse error, the inventory kind), the capability in a validation refusal's audit, and the arguments the policy
+  sees (the inspection policy cannot allow a file read without its path).
+- `tests/test_op014_mutation_policy_decisions.py` (11 tests, no code changed): each of the 45 re-run with
+  `MUTANT_UNDER_TEST`: 37 now fail. The 8 left are equivalent: `getattr` of `permission` or `max_subcalls` with
+  another name or default, both always present on `CapabilitySpec` (5), and `_refused(None, ...)` where a target is
+  given, so the context is not read (3).
+- No defect found.
+Consequences: across the four runs, 186 survivors killed, 34 equivalents named, 36 timeouts left; the weekly CI job
+is the next step (`.github/`, a teammate's review).
+References: [OP-014](../OPEN_PROBLEMS.md), #260, #261, #262.
+
+## 2026-10-22 - Frontend tests for the system map's rendering; floors raised
+
+Type: tests
+Who: conantkd (+ agent)
+Context: `SystemMap.test.js` covers its pure helpers (layout, state, mini pair); the rendering (the map, the Map
+tab, the dashboard and incident cards) had no unit test.
+Decision / result:
+- `SystemMapRender.test.jsx` (8 tests, `renderToStaticMarkup`; no component changed): each box named with its state
+  for screen readers (root cause, affected, unknown, Argus); an unknown box dashed; edges drawn only between boxes on
+  the map; boxes are buttons only when selectable, one pressed; the mini map shows only the affected target and its
+  different root cause with their link, and hides otherwise; the Map tab opens on the root cause and links the
+  incident; the dashboard card hides with no components.
+- Red seen: boxes always interactive and an edge to a node not on the map each fail (6 tests). 193 to 201 tests.
+- Coverage: lines 45.4 to 48.5 %, branches 44.4 to 48.5 %; floors 48 / 47 / 45 / 48.
+Consequences: none for the UI.
+References: [OP-014](../OPEN_PROBLEMS.md), ACR-0017.
+
+## 2026-10-22 — T-0047 H5 step 2, part A: the replay gives a dependency its own metric series
+
+Type: work
+Who: juanbetancurm (+ agent)
+Context: `analysis.anomaly_summary` (H5 step 1, #252) reads the incident class's signals on the target and its declared
+dependencies and says which crossed its warning line first. The replay answered every target with the same series per
+signal, so in a dependency case the victim and its dependency had identical histories and the order meant nothing.
+Decision / result:
+- `FixtureExecutor.range` reads `range_by_target.<target>.<signal>` for a target named there (no fallback), else
+  `range.<signal>` as before; every other case is unchanged.
+- The six dependency cases got the victim's `dependency_probe_min` series and the dependency's own memory and restart
+  series (a stopped container's series end when it stops; a crash-looping cache's restart count climbs). Labels
+  unchanged.
+- The offline evaluation of `tests/eval/cases` is identical before and after: registered 32/61, `--strategy baseline`
+  57/61, hard 0 (only the latencies differ).
+Consequences: part B offers the read to `dependency_unavailable` and `container_restart_loop` (class registry,
+`conantkd` reviews) with a model batch. The six `restart-*` cases also got `restarts_10m` and `oom_killed` series
+(ending at their snapshot values), so the read has the signal their class fires on.
+References: [T-0047](../tasks/current/T-0047-hypotheses-cause-ranking.md), ACR-0024 §3.7, #252.
+
+## 2026-10-22 — ACR-0029 proposed: confirmed incident feedback
+
+Type: architecture proposal (documentation only)
+Who: `juanbetancurm` (+ agent); review: `conantkd`
+Context: T-0048 needs an ACR before a human feedback route or confirmed-case memory is implemented. The deferred
+NEXT-PHASE area G has no section in the merged plan; the proposal follows T-0048's explicit scope. Main/base is
+`9d65e1e`; ACR-0029 was free there and in the open PRs.
+Decision / result:
+- Proposed insert-only feedback and verification, a derived outcome view, the human-only feedback route with
+  ACR-0018 gates, confirmed memory, an interpretable bounded ranking prior and offline export to reviewed drafts.
+- Each feature names affected architecture sections, future implementation tests, alternatives and rollback.
+  Who may label, step-up coverage, retention and verification thresholds remain acceptance decisions; prior weight
+  defaults to zero and activation needs reviewed evaluation.
+- Peer findings clarified that an unobserved corrected cause stays unconfirmed, an exact authorized retry needs no
+  new step-up and writes nothing, and exported incidents never enter OP-013's independent held-out set. Corrected
+  an exact architecture quotation and used the established journal shape. Re-review clear (S3).
+Consequences: status remains `proposed`; no architecture application/version bump, code, contract, migration,
+export artifact or VM action. Only the ACR, T-0048 metadata and this journal entry change. Acceptance and the
+required ACR-0018 access/audit deployment gates precede implementation.
+References: [T-0048](../tasks/current/T-0048-incident-feedback.md),
+[ACR-0029](../architecture/changes/ACR-0029-incident-feedback.md).
+
+## 2026-10-22 - Review of #266-#269; the open points they leave, with the night's carry-over
+
+Type: review
+Who: conantkd (+ agent)
+Context: four teammate PRs reviewed, approved and merged: #268 (T-0049 S0, `.claude/skills/` protected), #267
+(T-0047 H5 step 2 A, per-target range fixtures), #266 (OP-013 held-out set), #269 (ACR-0029 proposed). Each leaves
+work that no PR tracks yet; this entry lists it so the next roll-up carries it into NEXT_STEP.
+Decision / result - open points from these PRs:
+- **OP-013 step 2 (owner: conantkd, review):** review the held-out labels against RB-003/RB-015 before the model runs
+  count, first the four the task flags (`heldout-nginx-wrong-upstream-port`, `heldout-nginx-header-too-big`,
+  `heldout-dep-backend-flap`, `heldout-nginx-errors-no-trace`). Approving #266 did not complete this step. Then
+  step 3: `model_loop` and `plan_then_reason`, 5 trials each, on vm-095 (lease), and each class re-decided by §21.2
+  in its own PR.
+- **T-0047 H5 step 2 B (reviewer: conantkd):** the `anomaly` tag on `dependency_unavailable` and
+  `container_restart_loop` (class registry) and its model batch (5 trials, accuracy not lower, hard 0;
+  `dependency_unavailable` through `--strategy model_loop`). Known limit from part A: `range_earlier` is one series
+  per signal, so a dependency's baseline window in the replay is the case target's.
+- **ACR-0029 acceptance:** the six decisions of its §5 (who may label, step-up scope, confirmation and stability
+  windows, retention, similarity weights and prior cap, application slices). It stays `proposed`; implementation
+  also waits for ACR-0018's deployment gates (WebAuthn, step-up, private path, off-host audit).
+- **T-0049:** the `code-bash-step` skill PR is now unblocked; under `.claude/skills/` it needs a teammate's review.
+Carried over from the night of 2026-10-21 (still open):
+- DEPLOY-afb72e8 (`brain/execution/current/code.bash`, #258): for the developer to run; EdDSA forces a new login.
+- OP-008 `prune --apply` (KEEP=7, approved in #247): preview again first; the developer runs it.
+- D2 (#243): the WebAuthn domain.
+- T-0046 L6: whether `link_event.at` keeps the probe's sample time (a meaning change; ACR-0025 text).
+- OP-014 step 9: 36 mutation timeouts not yet judged; the weekly mutation CI job (`.github/`, teammate review).
+Consequences: the next roll-up folds this entry and those of #264-#269.
+References: #266, #267, #268, #269, [OP-013](../OPEN_PROBLEMS.md), [OP-014](../OPEN_PROBLEMS.md), ACR-0029,
+T-0047, T-0049.
+
+## 2026-10-22 - DEPLOY-afb72e8 on vm-095 (EdDSA, Vite 8 UI, H5 registered) and OP-008's second prune
+
+Type: deploy
+Who: conantkd (+ agent)
+Context: the deploy prepared in #258 and OP-008's `prune --apply` approved in #247 (`KEEP=7`). Between afb72e8 and the
+main of the day only the offline replay and tests changed, so afb72e8 was deployed as prepared.
+Decision / result:
+- vm-095 runs `main` `afb72e8`: the Ed25519 key created on the VM (never printed; same owner and mode as the HS256
+  key) and mounted; `EdDSA on`; agent, worker and scheduler on one image, `restarts=0`; `health 200`; the UI healthy on
+  80/443 with the solid button colour; `analysis.anomaly_summary` registered; 38/38 database checks; the audit chain
+  verified (124 rows chained); the first `prune-sessions` dry run: 0 sessions; NO INTERFERENCE on both VMs. Every
+  session logged in again (D.6). vm-166 unchanged (`bdcd048`).
+- The scheduler's 8 "error lines" are its `INFO` queries of `argus_probe_error`, not errors (as in the H2 deploy); the
+  next deploy's check should exclude that metric name.
+- OP-008 step 05: the preview named 18 sets (the approved 16 plus two that aged out since), the apply removed 18;
+  NO INTERFERENCE.
+Consequences: OP-008 is fixed once the next vm-095 session lists the 7 kept sets and checks the newest verified dump's
+sha256. `execution/current/code.bash` is back to its header.
+References: [evidence](../execution/history/DEPLOY-afb72e8/step-01/evidence.md),
+[OP-008 step 05](../execution/history/OP-008/step-05/evidence.md), #258, #247.
+
+## 2026-10-22 - OP-014 step 9: the last 36 timeouts judged (13 survivors killed, 8 equivalent)
+
+Type: tests
+Who: conantkd (+ agent)
+Context: the fourth mutation run left 36 mutants timed out in `PolicyEngine` (`__init__`, `check`,
+`capability_known`), `InvokeCapability` (`__call__`, `_finish`) and `inspection._normal`. A timeout says nothing
+until the mutant is run without the time limit.
+Decision / result:
+- mutmut 3.3.1 with one worker on main `3cfc7d6`: 12 killed, 11 survived, 13 timed out again. Each of those 13 under
+  `MUTANT_UNDER_TEST` with a 600 s limit: 3 fail (detected), 10 pass in 30-60 s (survivors that had only been slow).
+- `tests/test_op014_mutation_timeouts.py` (6 tests; no code changed) kills 13 of the 21, each checked one by one
+  under `MUTANT_UNDER_TEST`: a policy without `max_tool_level` allows level 1 only (3 mutants of the default);
+  the two startup refusals say exactly why (2: a regex `match` let `XX...XX` through); a refusal is `False`, not
+  merely falsy, with its reason (3); a capability whose spec is not a read is refused before anything runs (1: the
+  check had no test, as every catalogue spec is a read); a bad target is audited with its capability (2); a policy
+  refusal keeps its target and its reason in the model's text (2).
+- Equivalent (8): `data.get(..., None) or {}` for `capabilities` and `write_gate.open` (4); `getattr(spec,
+  "permission", None)` or without a default (2), every `CapabilitySpec` has the field; `_refused(None, ...)` when the
+  target is given (1); `_normal` with `len(path) > 2` (1), which changes only `//`: accepted as a directory today
+  (the same as `/`), refused by the mutant. Not a gap (`/` is accepted and the deny floor applies); making `//`
+  refused is a change under `argus/policy/` and waits for a teammate.
+Consequences: across the five runs, 199 survivors killed, 42 equivalents named, no timeout left. The weekly CI job's
+gate allows 42 survivors.
+References: [OP-014](../OPEN_PROBLEMS.md) step 9.
+
+## 2026-10-22 — T-0049 S2: read-only pull-request review helpers
+
+Type: implementation
+Who: juanbetancurm (+ agent)
+Context: T-0049 step S2, worktree `w-s2`, branch `task/T-0049-s2-pr-review`,
+created from reviewed main `9d65e1e`. Scope confirmed before implementation.
+After governance PR #268 merged with approval, this worktree fast-forwarded to
+main `e4b9869`; all eight pending source files and the private checkpoint were preserved exactly.
+
+Decision / result:
+- Package the review procedure as a short skill and report reference, with three stdlib-only CLI helpers.
+- Inspect the first-parent history after an approved head and show every merge's remerge diff. Delegate
+  automatic-main-only approval retention to fetched main's Brain rather than trusting a commit title.
+- Measure ancestry against fetched main, require exact-head checks and current main-guard, read all paginated
+  discussion, and classify protected paths/rename sources through the existing Brain API.
+  Delegate self-merge eligibility to Brain too when a valid teammate approval is absent; unprotected
+  paths alone do not bypass the policy's large-PR restriction.
+- Bind the discussion acknowledgement to a digest of the head and every review/comment record. Require an
+  explicit findings-clear assessment and branch-retention commitment; a new record invalidates the receipt.
+- Keep failed checks not ready, with a code/infrastructure/unknown category and observed evidence. A retry
+  only helps after its completed exact-head result passes. Preserve source branches after a merge.
+- Check removed journal payloads with Brain's official section/link transformation, retaining each full
+  payload in its proper summary. Entry chronology remains Brain's roll-up command's responsibility.
+  Helpers never approve, merge, push, deploy or contact a VM.
+
+Consequences:
+Review judgements and authorization stay with the developer and existing policies. Recorded snapshots
+describe captured state; current decisions need refreshed live evidence. No runtime or enforcement changes.
+
+## 2026-10-22 — T-0048: proposed answers to ACR-0029's six acceptance decisions
+
+Type: proposal (documentation only)
+Who: juanbetancurm (+ agent); review: conantkd
+Context: ACR-0029 (#269) was merged as `proposed`; its §5 lists six decisions the team must take before acceptance,
+and #270 carries them as open points. A short memo makes that discussion faster.
+Decision / result:
+- T-0048 gains a section "Acceptance decisions (proposed answers)": for each decision the options, a recommendation
+  and the reason, citing the ACR.
+- Recommendations: keep ACR-0018's `feedback` grant with a second operator for contradicting production labels;
+  step-up on every write; reuse existing freshness bounds with a 30-min stability window and a 7-day recurrence rule
+  (OD-7 starting values); retention at least as long as episodic state, never pruning cited evidence; approve the
+  similarity weights with the prior at 0 until a reviewed comparison; six reversible application slices with the
+  route last, after ACR-0018's deployment gates.
+Consequences: no ACR status change, no architecture or code change. The team accepts or changes these answers in the
+acceptance PR.
+References: [T-0048](../tasks/current/T-0048-incident-feedback.md),
+[ACR-0029](../architecture/changes/ACR-0029-incident-feedback.md).
+
+## 2026-10-22 — OP-013: on the held-out set the model beats the baseline in both classes (0.77 and 0.87 vs 0.50)
+
+Type: work
+Who: juanbetancurm (+ agent)
+Context: D-003 put `dependency_unavailable` and `nginx_upstream_failure` on the baseline from the cases its rules were
+written from; OP-013's 12 held-out cases (#266) give the baseline 0.50 in each class.
+Decision / result:
+- On vm-095, 5 trials each, hard `0 0 0`: `dependency_unavailable` `model_loop` 0.77 (worst trial 0.67),
+  `plan_then_reason` 0.67; `nginx_upstream_failure` `plan_then_reason` 0.87 (worst 0.67), `model_loop` 0.80. Both
+  ambiguous cases escalated in every trial; the proxy-cause nginx cases passed in 9 of 10 `plan_then_reason` runs.
+- Measured on the deployed `6c83da3` (before T-0047 H4): `label.expected_hypotheses` was removed from the VM copy of the
+  cases only, after an offline proof that 6c83da3 loads them and grades its baseline exactly as main does. Nothing on
+  the model's path differs from main; there are no hypothesis metrics in this run.
+- Proposal: both classes back to their pre-D-003 model strategy (`model_loop`, `plan_then_reason`), one PR each,
+  `conantkd` reviewing; the baseline stays the fallback. The baseline's rules are not changed from these misses.
+Consequences: provisional until `conantkd` reviews the labels (step 2, #270): the runs came first, so a changed
+label is regraded before any class changes. Until the class PRs merge both classes keep running the baseline. The task file holds the table and the
+proposal; the run's evidence is under `brain/execution/history/OP-013/`.
+References: [OP-013 task](../tasks/current/OP-013-held-out-set.md),
+[step 02 evidence](../execution/history/OP-013/step-02/evidence.md), D-003.
+
+## 2026-10-22 - PHASE-16 step 3: D1-D4 decided; the UI served by a DNS name (WebAuthn's relying party id)
+
+Type: decision
+Who: conantkd (+ agent)
+Context: step 3 (WebAuthn and step-up) was blocked by D2: the public UI was served on an IPv4 address, which browsers
+refuse as a relying party id (#243).
+Decision / result:
+- D1: `webauthn==3.0.1`, as proposed. D3: two credentials per privileged person, recovery by the other administrator
+  (audited CLI, sessions revoked), as proposed.
+- D4 (new: the first credential): an enrolment ticket from the other administrator (`argus webauthn allow-enrol`,
+  single-use, 24 h by default, audited); the second credential with a step-up of the first. A password alone never
+  binds a key.
+- D2 (a): the team's subdomain, in `vm-095.env` only (never in Git), resolved straight to vm-095 without a CDN proxy
+  (a proxy ends TLS and sees passwords and tokens). The edge took its own Let's Encrypt certificate for the name (90
+  days); the address redirects to the name. The `localhost` interim (b) is not needed, so no re-enrolment later.
+Consequences: step 3's code reads the relying party id and the expected origin from the VM's environment. A login from the address now lands on the name.
+References: [PHASE-16](../tasks/current/PHASE-16-operator-access.md),
+[evidence](../execution/history/D2-ui-domain/step-01/evidence.md), #243, ACR-0018.
+
+## 2026-10-22 - MAIN-GUARD-flaky-pulls: verify-main waits out GitHub's own 5xx answers
+
+Type: implementation
+Who: juanbetancurm (+ agent)
+Context: main-guard on main has been red since #277 (runs on #277, #279, #273, #276, #275 and a re-run of #275).
+Each time verify-main stops with `gh api repos/{owner}/{repo}/commits/<sha>/pulls: unexpected end of JSON input`,
+on a different commit each run. Reproduced locally: that endpoint sometimes answers HTTP 500 with an empty body, and
+a later call answers 200. verify-main asks about every first-parent commit on main (about 273), and `gh_json` gave
+each call 3 tries, 2 s then 4 s apart, so one bad window of a few seconds turned main red. `brain.py start` hit the
+same error today (it printed the WARNING and still claimed the lease). Not a fault in the code under review.
+Decision / result:
+- `brain/tools/brain.py` `gh_json`: a GitHub server error (`HTTP 5xx`), gh's `unexpected end of JSON input`, an
+  empty error, or an answer that is not JSON is tried `GH_TRIES_5XX` = 6 times, 2, 4, 8, 16 and 30 s apart (about a
+  minute), then raised as before. Any other failure keeps 3 tries, 2 s then 4 s apart; a 404 is still raised at once.
+- Real failures still fail: a commit with no pull request, a missing approval and a 404 are unchanged; GitHub
+  answering 5xx for over a minute still raises, so main-guard goes red then. Worst case added per bad call: about
+  60 s, inside the job's 15 min (the run takes 3.5-4.5 min).
+- Not chosen: skipping commits an earlier green run already verified. It would need state between runs (a file or a
+  cache in CI) and makes a green run depend on an earlier one; the longer wait is enough for what was seen.
+- No change to `.github/`. `brain/tools/brain.py` and `tests/brain/` are protected: conantkd reviews.
+Consequences: main-guard should go green on the next push to main if GitHub's 500 window is shorter than a minute.
+If it stays red with the same error, the window is longer and the next step is the skip-verified design.
+References: #277, #279, #275, [GIT_WORKFLOW](../policies/GIT_WORKFLOW.md).
+
+## 2026-10-22 - PHASE-16 step 3a: the WebAuthn second factor and the step-up token (ARCHITECTURE 1.8.29)
+
+Type: work (security)
+Who: conantkd (+ agent)
+Context: ACR-0018 requires a WebAuthn second factor for any privileged permission and a single-use, object-bound
+step-up for a privileged write. D1-D4 were decided today (#276): `webauthn==3.0.1`, the UI's DNS name as the relying
+party, two credentials per privileged person with a reset by the other administrator, and the first credential only
+with another administrator's ticket.
+Decision / result:
+- Migration 013: `webauthn_credential`, `webauthn_challenge`, `webauthn_enrol_ticket` and `step_up_token`, plus
+  `auth_session.second_factor_at`. The runtime role inserts and updates only the counters, the use and the revocation
+  columns, and deletes nothing. A step-up token longer than 5 minutes and a self-issued ticket are refused by the
+  database too. SQLite has the same tables with no-delete triggers. `argus db check` gains 11 checks.
+- `argus/application/second_factor.py` (py_webauthn):
+  - enrolment: the first credential with a ticket (a one-time code kept as its SHA-256, 24 h or until used, for its
+    own person); a further one with a step-up for `webauthn.register:<user>`;
+  - login: completing it with a credential marks the session;
+  - step-up: issue and consume, single-use, at most 5 minutes, for that principal, session and object;
+  - reset by the other administrator: the keys revoked and the sessions ended.
+  - Every challenge is server-side, single-use and expires in 5 minutes; user verification is required; a counter
+    that does not grow is refused as a clone. Every refusal is audited, never with a code or token.
+- `http.py`: the six ceremony routes and `GET /api/v1/auth/webauthn/credentials`, allowed to every token (the UI's
+  are read or investigate ones). `PRIVILEGED_PERMISSIONS` count only for a login completed with a credential and a
+  person with two (none is granted yet). `/me` adds `second_factor` and the `manage_second_factor` action.
+- The public edge proxies the seven routes in the API rate zone; the UI contract is regenerated (only `me.json`'s
+  sample changed: `second_factor`). `argus webauthn allow-enrol|reset <user> --as <admin>` (never the user).
+- The relying party id and the origin come from `ARGUS_WEBAUTHN_RP_ID` and `ARGUS_WEBAUTHN_ORIGIN` (hosts.env on
+  vm-095); unset, the routes answer 503. ARCHITECTURE 1.8.29 (§1 layer 1, §7.1, §17.3, the changelog), ACR-0018 §6.
+Consequences: no privileged permission exists yet, so nobody's access changes; the binding of a step-up to an
+approval comes with ACR-0019's routes (phase 17). Next: 3b (the UI dialogs), then the deploy (migration 013 before the
+image, the two variables, a ticket for each administrator from the other).
+References: [PHASE-16](../tasks/current/PHASE-16-operator-access.md),
+[ACR-0018](../architecture/changes/ACR-0018-operator-access-and-audit.md), #276.
+
+## 2026-10-22 - PHASE-16 step 3b: the UI's security keys page (enrol, confirm the login, step-up)
+
+Type: work (frontend)
+Who: conantkd (+ agent)
+Context: step 3a (#280) built the WebAuthn ceremonies in the API. A person needs a screen to register their keys and
+complete a login with one; phase 17's approvals will need the step-up from the browser.
+Decision / result:
+- `src/services/webauthn.js`: the JSON-to-bytes conversion of the API's options for `navigator.credentials.create` /
+  `.get`, and the credential back to JSON. Nothing is decided in the browser.
+- `src/services/secondFactorAdapter.js`: `status()` (from `/me`), `credentials()`, `enrol({ticket | stepUpToken,
+  label})`, `confirmLogin()`, `stepUp(object)`. The authenticator is a parameter, so tests pass a fake one. The demo
+  (mock) adapter says the second factor is not configured. `apiFetch` keeps the API's short refusal reason
+  (`err.detail`), so a refused ceremony says why.
+- `/account/security` (`src/pages/Security.jsx`), linked from the account menu only when `/me` lists
+  `manage_second_factor`:
+  - the first key with another administrator's code (D4);
+  - confirming this login with a key;
+  - a further key after a step-up of an enrolled one (D3's two keys);
+  - errors and results announced (`role="alert"`, `role="status"`); a browser without WebAuthn is told so.
+- The contract test now runs the five second-factor calls against `contracts/ui-api.json`.
+Consequences: the step-up's other uses (an approval, a hold) come with phase 17's screens. This branch sits on step
+3a's; it is retargeted to main once #280 merges.
+References: [PHASE-16](../tasks/current/PHASE-16-operator-access.md), #280, ACR-0018.
+
+## 2026-10-22 — T-0049 S3: ACR and architecture version-line skill
+
+Type: implementation
+Who: juanbetancurm (+ agent)
+Context: T-0049 S3, first P1 skill, branch `task/T-0049-s3-acr-version-line`
+from main `9d8963b`, then fast-forwarded to main `6a72339` after #275 merged.
+The shared T-0049 task row is owned by S1 after the parallel skill PRs merge.
+
+Decision / result:
+- The skill reads the live ACR template and Brain protocol. A proposal stays
+  proposed; only the recorded human decision permits the agreed architecture
+  change in the implementation PR.
+- `version_line.py` reads two architecture snapshots and prints reviewable
+  version-header and changelog replacements. It retains both branches'
+  versions, sorts numerically, and rejects conflicting reuse or lost rows.
+  It never edits the architecture, changes ACR status, or merges prose.
+- Existing ARCHITECTURE rows include an embedded pipe in a change cell and
+  one legacy row whose ACR link is in the change cell. The parser preserves
+  those rows instead of rewriting their descriptions.
+
+Consequences:
+Parallel ACR changes can be reconciled without silently dropping a version.
+The developer and reviewer still judge the architecture text and accept the
+ACR under the Brain rules. No runtime or VM behavior changes.
+
+References:
+- [T-0049](../tasks/current/T-0049-agent-skills.md)
+- [ACR template](../architecture/changes/ACR-TEMPLATE.md)
+
+## 2026-10-22 — T-0049 S4: journal and task status skill
+
+Type: implementation (development tooling only)
+Who: juanbetancurm (+ agent); review: conantkd
+Context: T-0049 S4 calls for a repeatable journal entry and task status procedure. The Brain roll-up moves
+`### Test state` and `### Next step` into shared summaries, while task branches keep those summaries untouched.
+The branch was fast-forwarded to current main `6a72339` (#275) before final validation.
+
+Decision / result:
+- Add a short skill that reads the current Brain policies, uses the journal roll-up format, and keeps a task status
+  linked to evidence. A `done` state requires a merged, linked PR; local test success alone cannot establish it.
+- Add a read-only validator for the journal headings, nonempty roll-up sections, status row, evidence link, and
+  linked PR when the status is `done`. It does not verify the truth of a PR's state; that remains a review check.
+- Keep this PR to the skill, its validator and tests, and this entry. The shared T-0049 task row is owned by S1
+  until S2's parallel T-0049 S3 PR and this PR have merged.
+
+Consequences: the skill packages an existing documentation workflow. It changes no Argus runtime, Brain policy,
+VM state or review permission.
+
+References: [T-0049](../tasks/current/T-0049-agent-skills.md),
+[parallel lanes](../policies/PARALLEL_LANES.md), [agent protocol](../agents/AGENT_PROTOCOL.md).
+
+## 2026-10-22 — The Bearer rule no longer leaves a named secret's value in clear
+
+Type: fix (security)
+Who: juanbetancurm (+ agent)
+Context: the full suite on main `096bf90` failed the OP-014 property test
+`test_a_named_secret_is_masked_whatever_its_value`: `Redactor().text("Bearer\npassword=hunter2xyz\n")` returned
+`Bearer [REDACTED]hunter2xyz`. The Bearer rule's `\s+` crossed the newline, its token class (no `=`) took `password` as
+the token, and the named-secret rule never saw the key: the value reached the output (model context, storage, views).
+Decision / result:
+- `argus/capabilities/redaction.py`: the Bearer rule skips a named secret assignment (`password=...`, `api_key: ...`)
+  after `Bearer`, on the same line or the next, and the named-secret rule then masks its value. Both rules share one key
+  pattern (`_SECRET_NAME`). A real Bearer token is masked as before.
+- Review (conantkd, #278): the first version also took the token from the same line only (`[ \t]+`). That left a short
+  token alone on the next line (`Authorization: Bearer\nabc123def456ghi`) in clear, since the high-entropy rule needs
+  40+ characters. `\s+` is restored: over-masking a log line after the word "Bearer" is better than a short token in
+  clear.
+- `tests/test_redact_bearer_named_secret.py` (new): the reported input, `BEARER\npassword=0`, the same line, a tab, a
+  quoted value; real tokens (JWT, base64 with padding, a token containing "token"); a short token on the next line is
+  masked. Red seen: 5 failed. A 20 000-example fuzz of "... Bearer" + whitespace + a named secret found no leak, before
+  and after the review change.
+Consequences: the line after a bare `Bearer` is masked as its token, even an ordinary log line. No rule order
+change (masking the named secret first would leave `token: Bearer <jwt>`'s token in
+clear). The property test that found it is green again.
+References: [OP-014](../OPEN_PROBLEMS.md) step 10 (property tests), ARCHITECTURE §10.8.
+
+## 2026-10-22 - DEPLOY-77c4524 prepared: PHASE-16 step 3 (WebAuthn) and the Bearer fix on vm-095
+
+Type: deploy preparation
+Who: conantkd (+ agent)
+Context: #280 (migration 013, the second factor and the step-up), #284 (the security keys page) and #278 (the Bearer
+redaction fix) are merged; vm-095 runs afb72e8.
+Decision / result:
+- `brain/execution/current/code.bash` for conantkd, with both leases:
+  - a backup and its verify (OP-008 step 04's proposal) and the checkout;
+  - migration 013 before the image;
+  - in `hosts.env`, `ARGUS_WEBAUTHN_RP_ID` and `ARGUS_WEBAUTHN_ORIGIN`, read from the UI's own `ARGUS_UI_DOMAIN`, so
+    the name never enters Git (a backup of `hosts.env` first);
+  - the agent, worker and scheduler, then the UI.
+- Checks (read-only): the relying party set, the edge proxying a ceremony (401, not 404), 49/49 database checks, the
+  audit chain, the Bearer fix live, error lines without the scheduler's `argus_probe_error` queries (the false
+  positive of the last two deploys).
+- D.6: conantkd issues Juan's enrolment ticket (D4); the one-time code is given privately, never pasted into
+  output.bash. Juan issues conantkd's the same way. `deploy/hosts.env.example` names the two variables.
+Consequences: nobody's access changes (no privileged permission exists yet); each administrator can then register two
+keys at `/account/security`.
+References: #280, #284, #278, [PHASE-16](../tasks/current/PHASE-16-operator-access.md).
+
+## 2026-10-22 - T-0049 S3b: the add-capability skill
+
+Type: implementation
+Who: juanbetancurm (+ agent)
+Context: T-0049 step S3, the second P1 skill (`add-capability`), taken over from S2's plan when its session ran out
+of quota. Worktree `w-s3b`, branch `task/T-0049-s3b-add-capability` from main `6a72339`. The pattern comes from
+T-0036 to T-0040 and T-0047 H5 (`analysis.anomaly_summary`).
+Decision / result:
+- `.claude/skills/add-capability/SKILL.md`: the lifecycle of a new read. Test first; then the `CapabilitySpec` in
+  `build_catalog()` (read safety class, level, a tag of its own, `ALLOWED_FIELDS` for a sensitive read);
+  `max_per_incident` in `config/policy.yaml`; the executor and its inputs in wiring and replay's `FixtureExecutor`.
+  The read starts **offered to no class**. The offer is a separate change with its own model batch (ACR-0024 §3.8,
+  as #274). A read that changes the design needs an accepted ACR first.
+- `scripts/check_capability.py <name>` (read-only) lists every missing piece. The pieces: in the catalog; snake_case
+  unique `model_name`; non-empty `description` and `use_when`; level 1-3; a read safety class; `allowed_fields` when
+  sensitive; a tag; target kinds; a positive integer `max_per_incident`; a known executor consistent with `runs_in`;
+  replay can answer it; no class offer; a test names it. `--all` checks the structure of every committed read.
+  `--allow-offer` is for the offer change only.
+- Found on the way: `argus/policy/engine.py` reads a missing `max_per_incident` as 10, so a forgotten limit does not
+  fail at startup. The checker requires it. Every committed read has one today (`--all` passes).
+- Not checked by the script: that the result is correct, minimal or free of a cause; the read's own tests and the
+  reviewer judge that. Two older reads (`container.events`, `metrics.restart_history`) are named by no test;
+  `--all` does not require that, single-name mode does.
+Consequences: `.claude/skills/` is protected: conantkd reviews. No runtime change.
+References: [T-0049](../tasks/current/T-0049-agent-skills.md), ACR-0024, ACR-0028, #274.
+
+## 2026-10-22 — T-0049 S4b: vm-deploy checklist skill (manual only)
+
+Type: implementation
+Who: juanbetancurm (+ agent, S1)
+Context: T-0049 plan row S4 (`vm-deploy`), in `w-vmdeploy` on `task/T-0049-s4b-vm-deploy` from `origin/main`
+`95e67a7`. S4 ran out of quota after `journal-and-task-status` (#283); S1 took this skill.
+
+Decision / result:
+- Add `.claude/skills/vm-deploy/` with `disable-model-invocation: true`: the skill is used only when a person calls
+  it. It points to `PARALLEL_LANES.md`, `CODE_BASH.md` and the last `DEPLOY-*` record, and says deploys are the
+  integration owner's lane.
+- Add `scripts/deploy_checklist.py`. It reads only `git diff` between the deployed commit and the one to deploy
+  and prints the ordered steps the changed paths need:
+  - the leases: both for an agent change on vm-095;
+  - the SESSION marker first, `deploy.sh status`, `nonint-check.sh before`;
+  - the backup, then `deploy.sh <sha>`;
+  - every secret file a compose file newly mounts, created on that VM before any `up`;
+  - every new `${ARGUS_*}` the compose file reads, in `hosts.env` before any `up`;
+  - `db-migrate.sh` before the new image;
+  - the rebuild of what changed, with `deploy/target` and `deploy/monitoring` on both VMs with that host's overlay;
+  - `argus deploy record`, `argus db check`, `nonint-check.sh after`;
+  - the release, the record PR and the rollback;
+  - last, any `deploy/` path it maps to no step, as "not covered".
+  It never connects to a VM or runs docker; a test pins that its only subprocess is `git`.
+- On #280's head it prints the real needs of that deploy: `ARGUS_WEBAUTHN_ORIGIN` and `ARGUS_WEBAUTHN_RP_ID` in
+  `hosts.env`, and `013_webauthn.sql` before the image.
+- S3's paired review ran it on the real DEPLOY-afb72e8 range (`--from 6c83da3 --to afb72e8`). It missed the new
+  `jwt_ed25519_key` mount, and it counted `deploy/target` and `deploy/monitoring` only for vm-166. Both are fixed: that
+  range now prints the "create the file before any up" step, and unmapped paths such as `deploy/langfuse/` are listed.
+
+Consequences: development tooling only. No runtime, VM, policy or permission change.
+
+References: [T-0049](../tasks/current/T-0049-agent-skills.md),
+[parallel lanes](../policies/PARALLEL_LANES.md), [code.bash policy](../policies/CODE_BASH.md).
+
+## 2026-10-22 - T-0049 S3c: the db-migration skill
+
+Type: implementation
+Who: juanbetancurm (+ agent)
+Context: T-0049 step S3, the third P1 skill (`db-migration`), taken over from S2's plan. Worktree `w-s3c`, branch
+`task/T-0049-s3c-db-migration` from main `6a72339`. The pattern comes from migrations 007 to 012.
+Decision / result:
+- `.claude/skills/db-migration/SKILL.md`: a table or column change. Test first (SQLite store test and
+  `tests/test_postgres.py` on a throwaway Postgres). The next-numbered SQL file with least-privilege grants (and the
+  sequence grant for a `bigserial`); never edit an applied one. The SQLite mirror (SCHEMA, insert-only triggers, the
+  column added to an older file at start). Both stores and `import_sqlite`. `argus db check` with **the insert first**,
+  then the refusals (the #181 lesson). The deploy order: backup, `ops/db-migrate.sh`, then the new image, then
+  `argus db check`.
+- `scripts/check_migration.py NNN_name.sql` (read-only, static: files read as text, `SCHEMA` and `CHECKS_SQL` read with
+  `ast`, no database). Every run fails when a table or column the SQLite store creates comes from no migration. For the
+  named migration, it fails on:
+  - the name or the next number;
+  - a new table without a grant to `argus_runtime`, or a `bigserial` column without its sequence grant;
+  - the SQLite store not creating the table, or either store never inserting into it;
+  - `argus db check` without a succeeding insert, or with a refusal before it;
+  - an insert-only table without its UPDATE and DELETE refusals and SQLite triggers;
+  - a new column not handled by both stores.
+- Migrations 003, 004, 005 and 007 to 012 pass. **Found on the way:** 006 (`monitoring_state`) has no insert in
+  `argus db check`, so its grants are not proven on the live database. Recorded here, not fixed: it is runtime
+  code, outside this skill's PR.
+Consequences: `.claude/skills/` is protected: conantkd reviews. No runtime change.
+References: [T-0049](../tasks/current/T-0049-agent-skills.md), #181.
+
+## 2026-10-22 — T-0049 S4c: ui-contract-samples skill
+
+Type: implementation
+Who: juanbetancurm (+ agent, S1)
+Context: T-0049 plan row S4 (`ui-contract-samples`: "regenerate only the samples whose shape changed"), in
+`w-uisamples` on `task/T-0049-s4c-ui-contract-samples` from `origin/main` `95e67a7`. S1 took it after S4's quota ran
+out.
+
+Decision / result:
+- Add `.claude/skills/ui-contract-samples/SKILL.md`. It covers:
+  - when to regenerate (a reviewed API change only);
+  - a new UI route goes in `UI_ROUTES` and `docs/API-FOR-UI.md` first;
+  - the review of `git diff contracts/`;
+  - the tests after.
+- Add `scripts/keep_unchanged_samples.py`. It runs the contract test with `ARGUS_UPDATE_UI_CONTRACT=1`, then writes
+  back the old bytes of every sample whose shape did not change. It uses the same `shape` as
+  `tests/test_ui_contract.py`, and a test pins that. It reports changed, new and vanished samples. It writes only
+  inside `contracts/samples/`, and puts every sample back if the regeneration fails.
+- After S3's review it also:
+  - reports a sample whose shape is the same but whose values differ beyond times, generated ids and hashes. Its old
+    bytes are kept, and `--keep-new NAME` keeps the regenerated bytes for an intended change;
+  - puts `ui-api.json` back on a failed run, and removes any sample the run created.
+- On main it keeps all 15 samples and reports 3 or 4 whose values lag the code: `events.json` lacks the three newer
+  detector classes, and `incident.json` still names library 1.0.0. With a dependency missing, the regeneration failed,
+  and every sample was put back.
+
+Consequences: development tooling only. Pull requests that change the UI contract show only the samples that really
+changed, not every sample's new ids and times.
+
+References: [T-0049](../tasks/current/T-0049-agent-skills.md), `tests/test_ui_contract.py`, `docs/API-FOR-UI.md`.
+
+## 2026-10-22 — T-0047 H5 step 2 B: `analysis.anomaly_summary` offered to the restart class
+
+Type: work
+Who: juanbetancurm (+ agent)
+Context: H5 step 1 built the read offered to no class (#252); part A gave the replay per-target series (#267), so a
+dependency case can show which onset came first.
+Decision / result:
+- `argus/detectors/classes.py`: the `anomaly` tag on `dependency_unavailable` and `container_restart_loop`; the read
+  stays at most once per incident (`config/policy.yaml`).
+- `tests/test_t0047_h5_anomaly_summary.py`: the offer test now names exactly these two classes (red seen: offered to
+  none).
+- Offline evaluation unchanged (registered 32/61, baseline 57/61, hard 0).
+- The model batch (vm-095, run stamp `20261022T174900`; before = main `95e67a7`, after = `b3cc16c`; the 12 cases,
+  `--strategy model_loop`, 5 trials, 60 runs per arm). `container_restart_loop` 0.97 → 1.00, hard 0 → 0.
+  `dependency_unavailable` 0.52 → 0.84, hard 0 → 1. All 60 runs: 0.76 → 0.93 (top-1 0.86 → 0.96).
+  - The read was called in 3 of the 60 after-runs.
+  - The hard is `dep-backend-stopped` trial 1: the right root cause and class, but no observation of the backend
+    cited. It is the evidence gap `problems 0.45` shows in both arms. A lost first batch had the same hard on main's
+    code (trial 2).
+  - Restart meets the rule. Dependency is not lower but has hard 1.
+- The tag decision (the rule, as `conantkd`'s review asked): `anomaly` stays on `container_restart_loop` and is removed
+  from `dependency_unavailable`. That class can be measured again after the support-evidence fix (the gap behind the
+  hard). The restart arm's numbers stand: its offer is the same with or without the other class's tag.
+  `tests/test_t0047_h5_anomaly_summary.py` names only the restart class (red seen: it named both).
+- A first batch was lost (a block pasted twice deleted its result files). The re-run refused to start while the
+  batch containers existed, and wrote stamped files with no `rm`.
+Consequences: the offer stays only if the model batch (12 cases of the two classes, `--strategy model_loop`, 5 trials,
+before/after) keeps accuracy and hard 0, and it runs before the merge (ACR-0024 §3.8; `conantkd`'s review of #274).
+No image is built: vm-095 runs afb72e8 with H5 registered, and each run binds a `git archive` of `argus/` (main's,
+then this branch's) read-only over `/app/argus` in the deployed image; a deviation from `ops/eval-run.sh`, which takes
+no extra mount. A class-registry change: `conantkd` reviews.
+References: [T-0047](../tasks/current/T-0047-hypotheses-cause-ranking.md), ACR-0024 §3.7,
+[evidence](../execution/history/T-0047-H5B/step-01/evidence.md).
+
+## 2026-10-22 - DEPLOY-77c4524 on vm-095: WebAuthn (migration 013), the security keys page, the Bearer fix
+
+Type: deploy
+Who: conantkd (+ agent)
+Context: the deploy prepared in #287; run by conantkd's agent over ssh with conantkd's permission, both leases.
+Decision / result:
+- vm-095 runs `main` `77c4524`:
+  - a backup verified (18 tables, 32976 rows) before migration 013, applied (schema 001-013);
+  - the relying party in `hosts.env`, read from the UI's own env file;
+  - agent, worker, scheduler and UI rebuilt, `restarts=0`, no error lines;
+  - checks: `WebAuthn relying party set`, the edge proxying the ceremonies (401 without a token, also through the
+    public name), 49/49 database checks, the audit chain verified, the Bearer fix live;
+  - NO INTERFERENCE on both VMs.
+- `deploy.sh` first refused an untracked backup file in the checkout, written there by the agent's D2-ui-domain
+  commands. It was moved outside the checkout and the deploy re-run. A backup of a VM-local file goes outside
+  `/opt/argus-v18/app`.
+- Juan's enrolment ticket was not issued by the agent (its one-time code must not pass through the agent's output).
+Consequences: each administrator issues the other's ticket on vm-095 and registers two keys at `/account/security`.
+The D.4 bundle check of the prepared code.bash looked for a path string the adapter builds in two parts; fixed in the
+evidence note.
+References: [evidence](../execution/history/DEPLOY-77c4524/step-01/evidence.md), #280, #284, #278, #287.
+
+## 2026-10-22 — UI contract sample refresh
+
+Type: fixture refresh (no runtime change)
+Who: juanbetancurm (+ Codex); review: conantkd
+Context: The frontend uses `contracts/samples/` as its fake API. Those
+responses retained the correct shape but stale values compared with current
+API output on `main`.
+
+Decision / result:
+- Regenerate only `events.json`, `incident.json` and
+  `incident-metrics.json` with the current scripted contract run and
+  `--keep-new`; unchanged sample bytes and `ui-api.json` were preserved.
+- `events.json` now includes `postgresql_connection_exhaustion`,
+  `nginx_upstream_failure` and `cpu_saturation`, registered by PRs #38,
+  #60 and #59.
+- `incident.json` now reflects PR #44's runbook library 1.1.1 / RB-001
+  1.0.1 metadata and current passage scores, plus the ranked hypothesis
+  response added by PR #237.
+- `incident-metrics.json` now contains 63 points per series (61 in the
+  stale sample); this is the current scripted 30-minute response from the
+  metrics route introduced by PR #174 and extended by PR #188.
+
+The shape-only contract test missed these updates because list shape uses
+only each list's first item; `incident.json`'s new `hypotheses`,
+`hypothesis_problems` and `chosen` fields sit in later list items, while
+the other changes keep the same shape. The samples were regenerated with
+S1's `keep_unchanged_samples.py --keep-new` helper from PR #290, not merged
+yet.
+
+Consequences: UI tests now consume current values through their fake API.
+The contract remains shape-only and unchanged. No frontend source, API
+contract, runtime code, VM, or other sample changed. Since `contracts/`
+is protected, the PR requests conantkd's review.
+
+Follow-up (S1, after CI): the Playwright test "the list opens an incident" failed on the PR. The regeneration gave
+the incident and its evidence new ids, but `incidents.json` and `evidence.json` kept the old ones, and the frontend's
+tests name `inc_7e49840f50fa` and `ev_f5de798421654c48`. The three refreshed samples now carry the original ids again
+(the incident, two evidence and two observation ids, paired by kind and capability), so every generated id in them
+exists on main. Only the ids changed; the values stay refreshed.
+
+References: [T-0049](../tasks/current/T-0049-agent-skills.md),
+[API for UI](../../docs/API-FOR-UI.md),
+[ACR-0001](../architecture/changes/ACR-0001-ui-read-access.md).
+
+## 2026-10-22 — T-0048: ACR-0018 gate snapshot
+
+Type: documentation update
+Who: juanbetancurm (+ agent); review: conantkd
+Context: T-0048 is gated on ACR-0018 access and audit protections. The task branch started at main `863dbf0` and
+fast-forwarded to `f480152` after PR #285 added unrelated skill tests during final validation. PR #288 is open, so its
+deployment record was read from `origin/pr/288` without merging it.
+Decision / result:
+- WebAuthn and step-up are marked met as merged/deployed implementations. The vm-095 record confirms migration 013 and
+  the relying party; it states reciprocal credential enrollment remains pending and does not record a live privileged
+  step-up operation.
+- The private mTLS path and signed off-host audit digest are marked not met from phase 16 steps 4 and 5. The deployment
+  record verifies the on-host audit chain only.
+- T-0048 records the four gates for main and vm-095. The first implementation slice after ACR acceptance is insert-only
+  storage, the outcome projection/use cases, minimum grants and SQLite/Postgres tests, with no route. Deployment and
+  route exposure remain gated.
+- ACR-0029 remains `proposed`; no architecture acceptance, feature code, route or VM action is included.
+References: [T-0048](../tasks/current/T-0048-incident-feedback.md),
+[ACR-0029](../architecture/changes/ACR-0029-incident-feedback.md), [phase
+16](../tasks/current/PHASE-16-operator-access.md), PR #288 deployment evidence.
+
+## 2026-10-22 — T-0049 S5: first evidence for the skills
+
+Type: evaluation draft (documentation only)
+Who: juanbetancurm (+ agent)
+Context: T-0049 S5, branch `task/T-0049-s5-evaluation`, with evidence drafted from main `aa6d75a` after fast-forwarding
+from `f480152`; after review, the worktree fast-forwarded to `7a634c7` (#290 and #274 merged). S1 owns the T-0049
+Status row; it is unchanged.
+
+Decision / result:
+- Fill the P0/P1 evaluation table from recorded PRs, board messages and journals only. All with/without task counts
+  remain "not measured yet": implementation tests and reviewer rounds are not controlled task comparisons.
+- Record observed corrections and traps for `code-bash-step` (#275), `pr-review` (#277), `acr-and-version-line`
+  (#281), `add-capability` (#285) and `db-migration` (#286). The records show useful checker catches, and also
+  rework: code-bash template/checker corrections, a paired-review wording fix and self-review logic fix for
+  `pr-review`, a checker-test correction after #274 offered `analysis.anomaly_summary` to
+  `container_restart_loop` (FIX.274; 1727 tests passed), and a migration-number fixture correction after #280 added
+  migration 013.
+- Add P2 observations for `journal-and-task-status` (#283), `vm-deploy` (#289), and `ui-contract-samples` (#290)
+  with the real sample refresh PR #291. The latter caught stale same-shape samples but still had to restore IDs shared
+  with other samples after Playwright failed.
+- Propose three matched tasks per P0/P1 skill, with fresh sessions, randomized order, blinded review, manual
+  activation checks, and records of corrections, failed blocks, checker false positives, and time to review-ready.
+- Record costs separately from task counts: the code-bash journal includes checker false positives and guard/marker
+  fixture failures; #277 needed wording and self-merge fixes; the add-capability checker test was pinned to main's
+  unoffered state and #274 CI went red until S1 fixed its test line (FIX.274); #283 needed status-format and `done`-guard
+  corrections; #286 needed a fixture-number update after #280. No record counts developer-run blocks failed by these
+  skills.
+
+Consequences:
+The evidence supports keeping these skills provisionally, not claiming measured net benefit. S5 should update the
+counts after paired runs and remove any skill whose observed rework exceeds its value. PR #290 merged on 2026-10-22;
+#291 is still open. No skill-selection or effectiveness counts were inferred from them.
+
+References: T-0049; PRs #275, #277, #281, #283, #285, #286, #289, #290, #291; `SESSIONS.md` and
+`SESSIONS-archive-2026-10-22.md` board records.
+
+## 2026-10-22 - Migration 013: argus db check proves the ticket and challenge tables, not only their refusals
+
+Type: fix (tests of the database guarantees)
+Who: conantkd (+ agent)
+Context: running the `db-migration` skill's checker (#286) on `013_webauthn.sql` (#293's evidence) found two tables
+without an insert that must succeed in `argus db check`: `webauthn_challenge` had no check at all, and
+`webauthn_enrol_ticket` only a refusal (a self-issued ticket). A refusal checked without a row that the runtime role
+can insert passes whatever the grants are (the #181 lesson), so it proved nothing about them.
+Decision / result:
+- `CHECKS_SQL` gains seven checks, the positive ones first:
+  - a ticket issued by another administrator is inserted, then used once; its person cannot change;
+  - a challenge is inserted and used; its bytes cannot change and it is never deleted.
+- The existing self-issued-ticket refusal now follows a real insert. `argus db check` goes from 49 to 56 checks; the
+  checker says `PASS: 013_webauthn.sql has the pieces this checker knows`.
+Consequences: the next deploy's D.5 expects 56/56. No schema or grant changed: the checks prove what 013 already
+grants.
+References: #280, #286, #293.
+
+## 2026-10-22 — T-0016: 2D system map on ELK (plan 08, F4) and a honeycomb that follows incidents
+
+Type: frontend
+Who: juanes6554 (+ agent)
+Context: the dashboard hexagons stayed green for a component whose incident was escalated, and the hand-drawn SVG
+map showed neither health, problems nor link states. The ui-graphs prototype and `08-frontend-plan-new-ui.md` (F4)
+describe the target; the API already serves `health`, `idle`, `problems`, `role`, `cause_path` and link states
+(ACR-0021) and `GET /api/v1/target-metrics`.
+Decision / result: `utils/fleetStatus.js` `nodeHealth` starts from the API's `health` and only gets worse with
+problems, broken links and an incident that still needs attention (`incidentLevels`: open, or escalated in 24 h);
+idle containers have their own glyph (`components/Glyph.jsx`). `frontend/src/components/map/` replaces
+`SystemMap.jsx`: `mapModel.js` (box health and role, link style), `layout.js` (elkjs 0.9, lazy-loaded, one section
+per host, idle group), `router.js` (orthogonal routes and labels around the boxes), `SystemMap.jsx` (Dashboard and
+Map tab; toggles for idle, Argus reads and the cause path; no zoom, as asked), `NodeDrawer.jsx` (facts, problems
+against thresholds, 15 min sparklines from `getTargetMetrics`, "Investigate this" when `/me` allows it) and
+`MiniMap.jsx` ("Where it broke"). An idle container whose incident needs a look leaves the hidden idle group. Box
+health ignores link health (a healthy box can have a broken dependency). The `Hint` tooltip is now `hidden` until
+shown, so it can no longer widen the page.
+Consequences: elkjs is ~439 KB gzipped and loads on the first page with a map (the Dashboard); the initial chunk grows
+8 KB. `router.js` was ported together with its tests, so its "red" was not seen separately.
+References: [T-0016](../tasks/current/T-0016-frontend.md), `frontend/GUIDELINES.md`.
+
+## 2026-10-22 — T-0049 S4c: preserve shared UI sample IDs
+
+Type: skill fix (offline tooling; no runtime or sample change)
+Who: juanbetancurm (+ agent)
+Context: T-0049 S4 `ui-contract-samples` follow-up to PR #291's Playwright failure, on branch
+`task/T-0049-s4c-shared-ids` from `origin/main` `7a634c7`.
+
+Decision / result:
+- Before regeneration, record IDs in the old samples and frontend tests. For each `--keep-new` sample, compare IDs
+  at matching JSON positions and restore an old ID only when another old sample or a frontend test references it.
+- Report each restored or already-shared ID, each regenerated ID retained because its old value is unshared, and any
+  shared ID that cannot be matched. If a shared old ID has no regenerated ID at the same position, restore all samples
+  and `ui-api.json` and stop with an error.
+- The regression fixture uses all five old/new ID pairs from S1's #291 fix: one incident ID, two evidence IDs and two
+  observation IDs. It also puts the same regenerated observation ID at two paths whose old shared IDs differ, proving
+  the rewrite is position-specific. The shared IDs return to their old values; the unshared second evidence ID stays
+  regenerated.
+- Update the ui-contract-samples skill and T-0049 S4 description. No contract sample, frontend source or runtime code
+  changed.
+
+Consequences: `--keep-new` can preserve intended value updates while keeping IDs aligned with unchanged samples and
+frontend tests. An ID that cannot be matched at its old shared position causes rollback rather than a partially
+consistent sample set.
+
+References: T-0049; PR #291 and S1's `UI samples: keep the original incident and evidence ids` fix; the
+`ui-contract-samples` skill and `tests/skills/test_ui_contract_samples.py`.
