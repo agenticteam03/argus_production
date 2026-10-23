@@ -184,7 +184,13 @@ Applied in steps (phase 16). Each step writes into `ARCHITECTURE.md` only what i
       second factor; the routes through the public edge; `tests/test_acr0018_webauthn.py` (a software authenticator).
       The step-up's binding to approvals comes with ACR-0019's routes (phase 17); the UI dialogs are step 3b
 
-**Not yet** (step 4 on): separation of duties; the signed daily digest off
+- [x] step 4 (1.8.30): the private path. Privileged routes under `/api/v1/ops/` (a test keeps them there); the
+      edge passes the prefix only for a client certificate of the team's CA, not revoked, from an allowlisted address,
+      else 404; the CA (`ops/edge-ca.sh`, its key encrypted on a laptop, a copy with the other administrator), the
+      allowlist (`ops/edge-allow.sh`, named entries with an expiry, a daily prune, addresses never in Git); off until
+      `ARGUS_OPS_PATH=on`; `policies/NETWORK.md`; `tests/test_phase16_private_path.py` (the real Nginx with mTLS)
+
+**Not yet** (step 5 on): separation of duties; the signed daily digest off
 Host A; security alerts (§18), which wait for the team's alert route (no receiver exists: Argus only reads its
-Alertmanager), including the alert on `security.audit_chain_broken`; the private path (mTLS, `deploy/ui/nginx/`) and `policies/NETWORK.md`;
+Alertmanager), including the alert on `security.audit_chain_broken`;
 `policies/SECURITY.md` (the new secrets).

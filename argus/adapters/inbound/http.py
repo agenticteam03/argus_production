@@ -40,6 +40,9 @@ SECOND_FACTOR_WRITES = {("POST", f"/api/v1/auth/webauthn/{c}/{s}") for c in ("re
 # ACR-0018: a privileged permission counts only for a session completed with a WebAuthn credential, held by a person
 # with two (D3). None is granted yet: they come with their routes (phase 17 on).
 PRIVILEGED_PERMISSIONS = frozenset({"propose_action", "approve_action", "place_hold", "open_terminal", "admin"})
+# ACR-0018 step 4: every route that needs a privileged permission lives under this prefix, the only one the public
+# edge passes on the private path (a client certificate of the team's CA and an allowlisted address; else 404).
+OPS_PREFIX = "/api/v1/ops/"
 ROLE_PERMISSIONS: dict[str, frozenset[str]] = {
     "viewer": frozenset({"view"}),
     "operator": frozenset({"view", "view_evidence", "investigate"}),
