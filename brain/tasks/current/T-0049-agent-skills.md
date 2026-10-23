@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | `proposed` — plan only; S0 (governance) is the first pull request and needs `conantkd`'s review |
+| Status | `in progress` — S0 (#268), S1 (#275), S2 (#277), S3 (#281, #285, #286), S4 (#283, #289, #290, #296) and S5's first evidence (#293) merged; R1: `container.detailed_logs` measured for `health_check_failed` and **not offered** ([evidence](../../execution/history/T-0049-R1/step-01/evidence.md)); the paired skill runs of S5 not measured yet |
 | Phase | 24 (developer track, parallel to 15–23; the Argus runtime does not change) |
 | Architecture | none for S0–S5 (development tooling only); the runtime steps R1–R3 and O1 each go through their own ACR |
 | Branch | one branch per step: `task/T-0049-s<n>-<slug>` |

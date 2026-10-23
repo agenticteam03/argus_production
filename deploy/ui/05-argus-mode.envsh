@@ -13,5 +13,16 @@ if [ "$ARGUS_UI_MODE" = public ]; then
   [ -s /etc/argus-tls/fullchain.pem ] && [ -s /etc/argus-tls/privkey.pem ] \
     || { echo "argus-v18-ui: public mode needs /etc/argus-tls/fullchain.pem and privkey.pem" >&2; exit 1; }
 fi
+# ACR-0018 phase 16 step 4: the private path. off (the default): /api/v1/ops/ is 404 for everyone. on: the client
+# certificate is asked for, so the team's CA certificate and its CRL must be there before the edge starts.
+rm -f /etc/nginx/ops/*.conf
+case "${ARGUS_OPS_PATH:-off}" in
+  off) ;;
+  on)
+    [ "$ARGUS_UI_MODE" = public ] || { echo "argus-v18-ui: ARGUS_OPS_PATH=on needs ARGUS_UI_MODE=public" >&2; exit 1; }
+    [ -s /etc/argus-ops/ca.crt ] && [ -s /etc/argus-ops/crl.pem ]       || { echo "argus-v18-ui: ARGUS_OPS_PATH=on needs /etc/argus-ops/ca.crt and crl.pem" >&2; exit 1; }
+    cp /etc/nginx/argus/ops-tls.conf /etc/nginx/ops/tls.conf ;;
+  *) echo "argus-v18-ui: ARGUS_OPS_PATH must be on or off" >&2; exit 1 ;;
+esac
 cp "/etc/nginx/argus/$ARGUS_UI_MODE.conf.template" /etc/nginx/templates/default.conf.template
 export NGINX_ENVSUBST_FILTER='^ARGUS_UI_DOMAIN$'

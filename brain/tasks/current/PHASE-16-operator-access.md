@@ -84,6 +84,8 @@ single-use, ≤ 5 min; the sign counter refuses a clone (a counter that goes bac
 step-up bound to a test object, with the binding to approvals added in phase 17.
 
 ### Step 4 — the private path (mTLS) and separation of duties
+**Built (`task/PHASE-16-step-4-private-path`, ARCHITECTURE 1.8.30):** decided with conantkd on 2026-10-22: one prefix for every privileged route (`/api/v1/ops/`), the edge passing it only for a client certificate of the team's CA from an allowlisted address (else 404); the CA key encrypted on conantkd's laptop, a copy with juanbetancurm; per-person keys and CSRs; 90-day certificates and a CRL; the allowlist on vm-095 with named, expiring entries and a daily prune; off by default. **Next:** the deploy (create `/opt/argus-v18/edge-ops/` and an empty `allow.conf` before the edge's `up`; the private path stays off), then the CA, each person's certificate, the allowlist and `ARGUS_OPS_PATH=on`. Separation of duties waits for ACR-0019's routes.
+
 - The team's client CA, its private key off vm-095; one 90-day certificate per person; a CRL.
 - `deploy/ui/nginx/`: `ssl_verify_client optional`; privileged locations answer 404 unless the certificate verifies
   **and** the source address is in the allowlist. The allowlist is a file under `/opt/argus-v18/` on vm-095 with a
