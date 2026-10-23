@@ -6,7 +6,7 @@ const RISK = {
   "read-only": ["Read-only", "border-emerald-400/20 bg-emerald-400/10 text-emerald-300"],
 };
 const badge = "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium";
-const meta = "rounded-md border border-line bg-white/[0.03] px-2 py-0.5 text-xs text-muted";
+const meta = "rounded-md border border-line bg-ink/[0.03] px-2 py-0.5 text-xs text-muted";
 const chip = "rounded-md border px-2 py-0.5 font-mono text-[11px]";
 const MAX_TOOLS = 3;
 
@@ -34,7 +34,7 @@ export default function RunbookCard({ runbook: rb, onOpen }) {
           </div>
         </header>
 
-        <p className="line-clamp-3 text-[13px] leading-relaxed text-[#a3abba]">{rb.summary || "No summary available."}</p>
+        <p className="line-clamp-3 text-[13px] leading-relaxed text-soft">{rb.summary || "No summary available."}</p>
 
         <div className="flex flex-wrap items-center gap-2">
           <span className={`${badge} ${riskTone}`}><span className="size-1.5 rounded-full bg-current" />{riskLabel}</span>
@@ -47,9 +47,9 @@ export default function RunbookCard({ runbook: rb, onOpen }) {
 
         <dl className="mt-auto grid grid-cols-[4.5rem_1fr] gap-x-3 gap-y-2.5 rounded-xl border border-line bg-field/60 p-3.5 text-xs">
           <dt className="pt-0.5 text-muted">Detector</dt>
-          <dd><code className="font-mono text-[#d6dbe6]">{rb.detector ?? "—"}</code></dd>
+          <dd><code className="font-mono text-body">{rb.detector ?? "—"}</code></dd>
           <dt className="pt-0.5 text-muted">Scope</dt>
-          <dd className="leading-relaxed text-[#d6dbe6]">{rb.scope || "—"}</dd>
+          <dd className="leading-relaxed text-body">{rb.scope || "—"}</dd>
           {tools.length > 0 && (
             <>
               <dt className="pt-1 text-muted">Key tools</dt>
@@ -66,7 +66,7 @@ export default function RunbookCard({ runbook: rb, onOpen }) {
 
       <button
         onClick={() => onOpen(rb.id)}
-        className="flex w-full cursor-pointer items-center justify-between border-t border-line px-5 py-3.5 text-[13px] font-medium text-accent-hover transition hover:bg-white/[0.03] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent-hover motion-reduce:transition-none"
+        className="flex w-full cursor-pointer items-center justify-between border-t border-line px-5 py-3.5 text-[13px] font-medium text-accent-hover transition hover:bg-ink/[0.03] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent-hover motion-reduce:transition-none"
       >
         Read full runbook
         <Arrow width="15" height="15" className="transition group-hover:translate-x-0.5 motion-reduce:transition-none" />

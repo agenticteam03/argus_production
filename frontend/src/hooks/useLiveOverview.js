@@ -17,9 +17,11 @@ export function useLiveOverview(intervalMs = POLL_MS.overview) {
       setData(await argus.getOverview());
       setLive(true);
       setUpdatedAt(Date.now());
+      return true;
     } catch (err) {
-      if (err.status === 401) return logout(); // token expired: drop the session instead of just "Reconnecting…"
+      if (err.status === 401) { logout(); return false; } // token expired: drop the session, not just "Reconnecting…"
       setLive(false);
+      return false; // the Refresh button says so (utils/refresh.js)
     }
   }, [logout]);
 

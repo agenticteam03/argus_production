@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import AgentChat from "../components/AgentChat.jsx";
 import DiagnoseForm from "../components/DiagnoseForm.jsx";
 import IncidentRow from "../components/IncidentRow.jsx";
-import { SystemMapCard } from "../components/SystemMap.jsx";
+import StatusBanner from "../components/StatusBanner.jsx";
+import SystemMap from "../components/map/SystemMap.jsx";
 import { Arrow, Bell, Card, Empty, Inbox, LivePill, OutcomeBadge, Pill, Shield } from "../components/ui.jsx";
 import { useAuth } from "../context/AuthContext.jsx";
 import { useLiveOverview } from "../hooks/useLiveOverview.js";
@@ -61,7 +61,7 @@ function HostMetricsCard({ rows, live, updatedAt }) {
                 const pct = Math.min(100, Math.max(0, value * 100));
                 return <li key={key} className="grid grid-cols-[4.5rem_minmax(0,1fr)_3.75rem] items-center gap-3 text-sm">
                   <span className="text-muted">{label}</span>
-                  <span aria-hidden="true" className="h-1.5 overflow-hidden rounded-full bg-white/5">
+                  <span aria-hidden="true" className="h-1.5 overflow-hidden rounded-full bg-ink/5">
                     {level && <span className={`block h-full rounded-full ${LEVEL[level][2]}`} style={{ width: `${pct}%` }} />}
                   </span>
                   <span className="text-right">
@@ -93,8 +93,8 @@ function ApprovalItem({ approval, canDecide, onDecide }) {
       <p className="mt-0.5 text-xs text-muted">{approval.target} · {expired ? "Expired" : `Expires in ${clock}`}</p>
       {canDecide ? (
         <div className="mt-3 flex gap-2">
-          <button disabled={expired} onClick={() => onDecide(approval.id, "approve")} className="h-9 flex-1 cursor-pointer rounded-lg bg-accent-solid text-sm font-medium text-white transition enabled:hover:bg-accent-solid-hover disabled:cursor-not-allowed disabled:bg-[#10141b] disabled:text-[#4b5363]">Approve</button>
-          <button disabled={expired} onClick={() => onDecide(approval.id, "deny")} className="h-9 flex-1 cursor-pointer rounded-lg border border-line text-sm transition enabled:hover:bg-white/5 disabled:cursor-not-allowed disabled:text-[#4b5363]">Reject</button>
+          <button disabled={expired} onClick={() => onDecide(approval.id, "approve")} className="h-9 flex-1 cursor-pointer rounded-lg bg-accent-solid text-sm font-medium text-white transition enabled:hover:bg-accent-solid-hover disabled:cursor-not-allowed disabled:bg-disabled disabled:text-faint">Approve</button>
+          <button disabled={expired} onClick={() => onDecide(approval.id, "deny")} className="h-9 flex-1 cursor-pointer rounded-lg border border-line text-sm transition enabled:hover:bg-ink/5 disabled:cursor-not-allowed disabled:text-faint">Reject</button>
         </div>
       ) : (
         <p className="mt-2 text-xs text-muted">Only a token with the approve action can decide.</p>
@@ -147,16 +147,15 @@ export default function Dashboard() {
           <h1 className="text-[28px] font-semibold tracking-[-0.03em]">Dashboard</h1>
           <p className="text-sm text-muted">Live overview of your infrastructure and the Argus agent.</p>
         </div>
-        <LivePill live={live} source={dataSource} at={updatedAt} />
+        <LivePill live={live} source={dataSource} at={updatedAt} onRefresh={refresh} />
       </div>
 
-      <AgentChat />
-
-      <DiagnoseForm />
+      <StatusBanner incidents={incidents} hostMetrics={hostMetrics} topology={topology} hosts={HOST_LABELS} loaded={updatedAt != null} />
 
       {/* items-start: each column is as tall as its own content, so Recent incidents ends at its last row. */}
       <div className="grid items-start gap-4 lg:grid-cols-3">
         <div className="space-y-4 lg:col-span-2">
+          <DiagnoseForm />
           <IncidentsCard incidents={incidents} />
           <Card title="Pending approvals" count={approvals.length}>
             {approvals.length === 0 ? (
@@ -174,7 +173,7 @@ export default function Dashboard() {
         </div>
       </div>
 
-      <SystemMapCard topology={topology} />
+      {topology?.nodes?.length > 0 && <SystemMap topology={topology} incidents={incidents} />}
     </div>
   );
 }

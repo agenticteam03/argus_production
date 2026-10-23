@@ -15,10 +15,12 @@ export function useIncidentList() {
       // (`utils/paging.js`). `truncated` warns when we hit the cap and there may be more rows we cannot reach.
       const rows = await argus.listIncidents({ limit: INCIDENTS_CAP });
       setState({ rows, error: null, live: true, updatedAt: Date.now(), truncated: rows.length >= INCIDENTS_CAP });
+      return true;
     } catch (err) {
-      if (err.status === 401) return logout();
+      if (err.status === 401) { logout(); return false; }
       // First load failed -> error state. A later poll failed -> keep the rows and show "Reconnecting…".
       setState((s) => (s.rows ? { ...s, live: false } : { rows: null, error: err, live: true }));
+      return false; // the Refresh button says so (utils/refresh.js)
     }
   }, [logout]);
 

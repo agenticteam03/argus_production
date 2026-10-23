@@ -143,6 +143,23 @@ export const demoTopology = () => ({
   ],
 });
 
+// One target's recent signals for the map drawer, shaped like GET /api/v1/target-metrics (ACR-0021): a container
+// gets CPU quota used (ratio) and memory (bytes). A gentle wave, demo only.
+export function demoTargetMetrics(target, range = "15m") {
+  const span = range === "1h" ? 60 * 60000 : 15 * 60000, step = span / 30, to = Date.now(), from = to - span;
+  const at = (i) => new Date(from + i * step).toISOString().replace(/\.\d+Z$/, "Z");
+  const wave = (base, amp, i) => base + amp * Math.sin(i / 4);
+  return {
+    target, range, from: at(0), to: at(30), step_s: step / 1000,
+    series: [
+      { key: "container_cpu_quota_used_ratio_5m", kind: "cpu", title: "CPU quota used", unit: "ratio", max: 1, thresholds: { warning: 0.7, critical: 0.8, direction: "above" },
+        points: Array.from({ length: 31 }, (_, i) => [at(i), wave(0.12, 0.05, i)]) },
+      { key: "container_memory_bytes", kind: "memory", title: "Memory", unit: "bytes", max: null, thresholds: null,
+        points: Array.from({ length: 31 }, (_, i) => [at(i), wave(48e6, 6e6, i)]) },
+    ],
+  };
+}
+
 const RANGE_MS = { "15m": 15 * 60000, "30m": 30 * 60000, "1h": 60 * 60000 };
 export function demoMetrics(id, range = "30m") {
   const inc = demoIncident(id);

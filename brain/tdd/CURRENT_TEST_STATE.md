@@ -2,6 +2,259 @@
 
 **Last updated:** 2026-10-12 (roll-up) · **Commit:** `main` after #96 (`817d88f`)
 
+- RED: both new focused tests failed before implementation. The ID regression kept `inc_77b419ffd2c4` instead of the
+  shared `inc_7e49840f50fa`; the missing-position test showed the script returned success without restoring files.
+- GREEN: all 15 tests in `tests/skills/test_ui_contract_samples.py` passed. Ruff and `git diff --check` passed.
+- Full offline suite (Git Bash first on `PATH`, on `7a634c7` plus this change): 1815 passed, 34 skipped, 1
+  deselected. Brain lint and audit: clean. Rebased on `a4ee19b` (#288, #291-#293 merged): `tests/skills` and
+  `tests/test_ui_contract.py` passed again (250).
+  S1 pre-reviewed the change (S3 was on another task).
+
+Frontend: Vitest 205 passed (fleetStatus, mapModel, layout and the contract test seen red first), Playwright 25 passed
+(the map test now tabs to a box, opens its drawer, closes it with Esc), ESLint 0 errors.
+
+`check_migration.py 013_webauthn.sql`: FAIL (two tables) before, PASS after. `tests/test_postgres.py` and
+`tests/skills/test_db_migration.py` on a throwaway Postgres 16: 42 passed (a first run caught a `\x00` escape typo).
+
+- Documentation-only draft; no runtime or skill code changed. Brain lint and audit are clean; `git diff --check` is
+  clean. The isolated S5.1 block passes `check_block.py` and parses with zero PowerShell errors without execution.
+- No full offline suite was run, as requested for documentation-only changes.
+
+Documentation-only; no runtime RED/GREEN claim. Brain lint and audit are clean. `check_block.py
+brain/execution/current/code.bash` and the PowerShell parser both pass. The final-tree offline suite on main `f480152`:
+`1727 passed, 63 skipped, 1 deselected`, exit 0 (1131.55 s). The only deselection is
+`tests/brain/test_brain.py::test_lint_reads_the_pr_branch_from_ci_when_head_is_detached`. An earlier passing run on
+`863dbf0` was superseded after main advanced with PR #285 during validation.
+
+- `npm test` from `frontend/`: 219 passed across 37 files;
+  juanes6554's frontend tests were run against the refreshed samples.
+- `python -m pytest -o addopts= -q tests/test_ui_contract.py` without the update switch: 3 passed.
+- `python brain/tools/brain.py lint`, Ruff and `git diff --check`: clean.
+- The one full offline suite on final tree `f480152`: 1717 passed, 63
+  skipped, 1 deselected and 10 failed. All failures attempted the Windows
+  WSL `bash.exe`, which could not find `/bin/bash`. The exact 10 failed
+  cases passed with Git Bash first on `PATH` (10 passed); the full suite
+  was not rerun.
+
+- After the id fix: `npm test` 219 passed; the contract test 3 passed. Playwright's browser is not installed on the
+  laptop, so CI runs the acceptance tests.
+
+T-0047 H5 step 2 B: `tests/test_t0047_h5_anomaly_summary.py` 23 passed (red seen twice: offered to none, then to
+both classes); offline evaluation 32/61 registered, 57/61 baseline, hard 0.
+
+Model batch on vm-095 (run stamp `20261022T174900`): restart 0.97 → 1.00, dependency 0.52 → 0.84, hard after 1
+(above). Full offline suite on the final tree (the tag on the restart class only, main `863dbf0` merged): **1701
+passed, 63 skipped, 1 deselected**, exit 0.
+
+- RED: the 9 focused tests in `tests/skills/test_ui_contract_samples.py` failed with the helper absent (the
+  pure-function tests failed on import; the restore and SKILL tests failed on the missing files).
+- GREEN: 13 passed. They cover:
+  - the same shape keeps the bytes;
+  - a new key or a type change is a change;
+  - a list by its first item;
+  - a value-only change is reported, times, ids and hashes alone are not, and `--keep-new` keeps the new bytes;
+  - added and vanished samples;
+  - the shape is the same as the contract test's;
+  - restore writes only the kept files and refuses a path outside the folder;
+  - a failed run puts back the samples and `ui-api.json` and removes new samples;
+  - the SKILL names the switch.
+  Ruff is clean.
+- Full offline suite on main `77c4524`: 1714 passed, 63 skipped, 1 deselected (the known detached-CI Brain test),
+  exit 0.
+
+- **RED seen:** against a naive checker that only looked for the file, **16 failed, 8 passed**: a store table with no
+  migration, a store column with no migration, a missing table and sequence grant, a missing SQLite table, either store
+  never inserting, no db-check insert, a refusal before the insert, missing UPDATE/DELETE refusals and triggers, a wrong
+  number or name, a new column the SQLite store ignores, and the CLI.
+- GREEN: `tests/skills/test_db_migration.py` **24 passed**: committed migrations 007 to 012 pass; a complete new
+  `widget` table passes; the CLI gives the same answer twice and leaves the fixture tree byte-identical. Ruff clean.
+- Full offline suite on `6a72339` plus this change: 1656 passed, 62 skipped, 1 deselected, exit 0. After the
+  fast-forward to main `95e67a7` (#282): **1662 passed, 62 skipped, 1 deselected in 973 s**, exit 0 (the known
+  detached-CI Brain test). Brain lint clean.
+
+- RED: 14 focused tests in `tests/skills/test_vm_deploy.py` failed with the helper absent.
+- GREEN: 20 passed. These cover the order, the migration between the backup and the image, the UI-only and docs-only
+  cases, vm-166's own lease, new compose variables, a new secret mount (and the real Ed25519 one), target and
+  monitoring on both VMs, unmapped paths, a sha-only commit, git-only subprocesses, manual invocation and the CLI.
+  Ruff is clean.
+- Full offline suite on main `77c4524`: 1721 passed, 63 skipped, 1 deselected (the known detached-CI Brain test),
+  exit 0.
+
+- **RED seen:** against a naive checker that only looked the name up in the catalog, **23 failed, 3 passed**: a
+  missing or bad `max_per_incident` (six forms), an initial class offer, a sensitive read without allowed fields,
+  twelve wrong spec fields, an executor replay cannot answer, a read no test names, and the CLI.
+- GREEN: `tests/skills/test_add_capability.py` **26 passed**. Running `--all` twice on the committed repository gives
+  the same PASS (read-only, idempotent). `analysis.anomaly_summary` passes, and `container.status` fails as offered
+  unless `--allow-offer`. Ruff clean.
+- Full offline suite on `6a72339` plus this change: **1658 passed, 62 skipped, 1 deselected in 964 s**, exit 0 (the
+  known detached-CI Brain test). Brain lint clean.
+
+Redaction: `tests/test_redact_bearer_named_secret.py` 11 passed (red seen: 5 failed); the four redaction test files 68 passed; full offline suite 1503 passed, 62 skipped, 1 deselected.
+
+Review change: `test_a_short_token_on_the_next_line_is_still_masked` (two inputs) replaces the same-line test. Red seen
+on the PR head `8c1a79a`: 2 failed. After `\s+` is restored: the file 12 passed, the redaction-related tests 229 passed;
+full offline suite **1510 passed, 62 skipped, 1 deselected**, exit 0.
+
+- RED seen before implementation: the five focused tests failed because the validator was absent.
+- GREEN after S3's paired review fixes: seventeen focused tests passed (missing/empty sections, unlinked status,
+  missing row, linked versus unlinked completion in table, plain and marked-up forms, and three real task shapes).
+  Brain lint/audit, Ruff and diff whitespace checks clean.
+- Full offline suite on integrated main `6a72339`, after the final `done` guard: 1649 passed, 62 skipped,
+  1 deselected (the known detached-CI Brain test), exit 0. S1 re-ran the 17 focused tests, Ruff and Brain lint
+  on the final tree: clean. S1 reviewed the final `done` guard (S4 hit its quota before S3's clearance).
+
+- **RED seen:** five behavior cases failed against the naive helper: parallel
+  versions lost one branch, changelog rows stayed shuffled, conflicts were
+  accepted, a missing row was accepted, and a missing ACR link was accepted.
+- **RED seen:** the current architecture's embedded-pipe and legacy
+  three-column changelog rows were rejected; Windows CLI output failed on
+  a Unicode `≤` character.
+- Focused GREEN: **11 passed**. The helper also read both inputs from the
+  current real `ARCHITECTURE.md` successfully. The first full run was stopped
+  when main advanced. The fresh integrated-main full suite on `6a72339` passed:
+  **1643 passed, 62 skipped, 1 deselected in 1250.45s**, exit 0. The sole
+  deselection is the known detached-CI Brain test. Ruff, Brain lint/audit,
+  skill validation and whitespace checks passed.
+- S3 pre-reviewed the real current document (27 rows, version value identical),
+  simulated two parallel branches and a same-version collision, and cleared
+  the documentation follow-ups. References now sit outside the roll-up sections;
+  the skill explains the one-time sorting of the old `1.8.5`/`1.8.4` rows.
+
+PHASE-16 step 3b: Vitest 219 passed (18 new: `webauthn.test.js` 5, `secondFactorAdapter.test.js` 8,
+`Security.test.jsx` 5; the contract test covers the new calls); coverage floors hold; ESLint 0 errors (the 23 known
+react-refresh warnings); `npm run build` passes.
+
+PHASE-16 step 3a: `tests/test_acr0018_webauthn.py` 16 passed (a software authenticator: ECDSA P-256, "none"
+attestation, real ceremonies). The tests cover the ticket (single-use, own person, expiry), a further key by step-up,
+a login marking its own session only, privileged permissions only with two keys and this login, and the step-up token
+(replay, another object, session or person, expiry). They also cover the challenges (replay, another ceremony,
+expiry), another origin or relying party, a counter going back, another person's key, the reset, read and investigate
+tokens, and no-delete tables. `tests/test_postgres.py::test_webauthn_and_step_up_migration_013` passes on a
+throwaway Postgres 16, as does `argus db check`'s list (11 new checks). The authorization matrix declares the seven routes.
+The read-token sweep exempts the ceremonies like logout. The full offline suite was run; its four failures, a Postgres
+regex limit and three tests to update, are fixed. Ruff is clean.
+
+- **RED seen:** with only the `GH_TRIES_5XX` name added, the new tests failed on behaviour: the 5xx, empty and
+  `unexpected end of JSON input` cases raised after 3 tries, and the "keeps answering 5xx" and "never JSON" cases
+  made 3 calls instead of 6 (**6 failed**).
+- GREEN: `-k "gh_json or verify_main or check_main"`, **15 passed**. The old "gives up" test now uses an HTTP 403
+  (not a server error) and checks it keeps 3 tries and the 2 s, 4 s waits.
+- Full offline suite on `6a72339` plus this change: **1638 passed, 62 skipped, 1 deselected**, exit 0 (the known
+  detached-CI Brain test). Brain lint clean, `git diff --check` clean.
+
+OP-013 model runs on the held-out set (vm-095, `6c83da3`, 5 trials): dep `model_loop` 0.77, nginx `plan_then_reason` 0.87, baseline 0.50 each, hard 0.
+
+Documentation only; no runtime change. Full offline suite on main `096bf90` plus this memo: passed, 0 failed
+(1554 collected, only the known detached-CI Brain test deselected). Brain lint and audit clean. Peer pre-review
+(S3): four findings, all applied.
+
+- **RED seen:** the no-op CLI returned success for a head behind main despite CLEAN, a hidden behavior change
+  in a conflict resolution, and a missing roll-up evidence line: **3 failed, 1 passed, 21 deselected in 8.13s**.
+- First focused GREEN: **25 passed in 54.23s**. Tests use local synthetic Git histories and recorded API data.
+- Added edge RED records: malformed nested file evidence leaked a traceback (**1 failed, 5 passed,
+  25 deselected in 6.66s**); a malformed removed journal entry leaked Brain's parser exception
+  (**1 failed, 31 deselected in 3.38s**). Both now return a sanitized, non-ready evidence diagnostic.
+- Intermediate expanded GREEN: **31 passed in 58.80s**. GET-only pagination tests cover 205 comments
+  and refuse incomplete file/check pages. A live read-only preview of PR #268 correctly identified its
+  four protected source paths and refused the missing teammate approval, without posting or acting.
+- Focused GREEN before the self-review correction: **32 passed in 90.16s**.
+- Self-review RED: a 100-file unprotected PR was wrongly reported ready without a teammate
+  (**1 failed, 1 passed, 32 deselected in 4.95s**). Full self-merge eligibility now delegates to
+  Brain rather than considering protected paths alone. The earlier full run was intentionally
+  interrupted for this source fix.
+- Final focused GREEN after full policy delegation: **34 passed in 64.44s**.
+- Complete offline suite on `9d65e1e`: **1505 passed, 62 skipped, 1 deselected in 823.67s**, exit 0.
+  All eight source hashes matched the run snapshot. Process-local Git Bash selection and fixture Git
+  isolation only; the sole deselection is the known detached-CI Brain case.
+- Paired pre-review ran the same **34 tests successfully**. Its ordering wording finding is fixed:
+  the helper checks each whole payload, while inter-entry chronology follows Brain's roll-up command.
+  Added the requested disclosure that helpers run reviewed main's Brain module in-process.
+- Paired re-review after the clarifications: clear (S3). Current-main validation: full offline suite on integrated main `096bf90` (run by S1 after S2's session ended): 1588 collected,
+  1 failed, the rest passed or skipped. The failure is not in this PR: the property test
+  `test_a_named_secret_is_masked_whatever_its_value` found that on main the Bearer rule of
+  `argus/capabilities/redaction.py` swallows the next line's secret name (`Bearer
+password=x` leaks `x`);
+  it reproduces on main without this PR, and a separate fix PR handles it. Fast-forwarded to main `1105b6f`
+  (#271 records, #272 a test file): `tests/skills`, `tests/brain` and the new test file pass.
+
+`tests/test_op014_mutation_timeouts.py` 6 passed on the original code (with `test_op014_mutation_policy_decisions.py`
+and `test_combined_capabilities.py`: 24 passed); each of the 13 mutants makes it fail.
+
+Documentation only: no new runtime behavior and no runtime RED/GREEN claim. Implementation tests are a plan in
+ACR-0029 §4.1. Full offline regression on main `9d65e1e` plus this proposal: **1471 passed, 62 skipped, 1 deselected**,
+exit 0 (886.92 s); only the known detached-CI Brain test was deselected. The process used Git for Windows' Bash and
+a fixture Git-discovery ceiling; no global configuration or additional exclusion changed. Peer fixes are wording
+only; final Brain/link/whitespace checks after them are clean. Ruff (`argus services ops`) and Brain lint/audit are
+clean; 11 relative links resolve, all 22 cited architecture subsections exist and the documentation uses LF.
+
+T-0047 H5 step 2 A: `tests/test_t0047_h5_anomaly_summary.py` 17 passed (8 new, red seen: the replay answered the
+dependency with the victim's series); offline evaluation identical before/after.
+
+Frontend: Vitest 191 passed (chartOptions, refresh and format tests seen red first), Playwright 25 passed, ESLint 0
+errors.
+
+Frontend: Vitest 168 passed (format, build and switchTheme tests seen red first), Playwright 25 passed, ESLint 0
+errors.
+
+- **Red seen:** `test_rejects_known_traps[native-quotes]` asserted status 1 and observed status 0 with
+  the no-op entry point. This was a behavior assertion, not a missing import or syntax failure.
+- **Red seen:** six `test_rejects_unguarded_vm_mutation_in_read_looking_commands` cases likewise
+  observed status 0 before checks for write-capable tools, expansion and redirection were tightened.
+- **Red seen:** the whole-file fixture reproduced 12 false positives before header discovery was fixed.
+- **Red seen after peer review:** `test_rejects_known_traps[vm-single-quote-backslash]` expected refusal
+  (status 1) but observed status 0: **1 failed, 63 deselected in 1.66s**.
+- **Green:** shared-venv `python -m pytest tests/skills -q -o addopts=`: **64 passed in 14.86s**.
+- **Red seen for the current SESSION correction:** **9 failed, 16 passed, 64 deselected in 4.36s**.
+  Two anchored guards and three allowed first-marker cases were refused; three inverted guards were
+  wrongly accepted; the real two-field marker failed the local read-only template simulation.
+- **Green for the current correction:** **89 passed in 11.81s**, including wrong-holder/prefix-collision
+  simulation cases and 14 rejected variants of the marker exception. The simulation replaces both VM
+  paths with local temporary files and intercepts `sudo`; no VM command or connection runs.
+- **Red seen after the second peer review:** bare holder guards were wrongly accepted (**3 failed,
+  2 passed, 89 deselected in 1.17s**); the real marker's `/dev/null` stdout redirect was wrongly refused
+  (**2 failed, 98 deselected in 0.74s**). Require a holder boundary or a full-line two-field match,
+  and admit only the authorized optional stdout redirect. Final focused result: **100 passed in 14.22s**.
+- The whole-file and three original isolated fixtures still pass without executing their commands.
+- `ruff check .claude tests/skills`: clean. Skill frontmatter validation: valid.
+- All three PowerShell templates parse without execution; the Bash template passes `bash -n`.
+- Brain lint, secret/address audit and whitespace checks are clean for the correction and approved archive.
+- Full offline suite on unchanged `b997395`: **7 failed, 1474 passed, 62 skipped, 1 deselected in 1167.34s**.
+  All seven failures selected the Windows WSL launcher, whose `/bin/bash` is unavailable, in
+  `tests/test_t0033_rotate_token_script.py`. Selecting installed Git Bash only in the test process makes
+  those seven tests pass (**7 passed in 8.18s**, verified in the governance worktree).
+- The first peer correction passed its original-base full suite: **1482 passed, 62 skipped, 1 deselected
+  in 965.03s**, exit 0.
+- The first current-main run was intentionally interrupted for the second peer review's source fixes;
+  it is not a full pass. The final-source run replaces it.
+- Full offline regression of the final correction on integrated main `9d65e1e`: **1571 passed,
+  62 skipped, 1 deselected in 742.16s**, exit 0. It uses process-local Git Bash selection and a Git
+  discovery ceiling for temporary repositories. Only the known detached-CI lint case is deselected.
+- Integrated-main validation on `808d46a` (main `096bf90`) with the final three-file record: full offline
+  suite passed, 0 failed (1654 collected, only the known detached-CI lint case deselected); run by S1
+  after S2's session ended.
+- No runtime, database, CI or shared Brain summary changes; no VM command or external action executed.
+
+OP-013: `tests/test_op013_heldout_cases.py` 4 passed; full offline suite 1475 passed, 62 skipped (main `9d65e1e`); baseline on the held-out set 6/12 (dep 3/6, nginx 3/6), hard 0.
+
+- **Red seen:** all three new `.claude/skills/` cases in
+  `test_a_self_merge_never_covers_a_protected_path` failed because `self_merge_problem` returned `None`.
+- **Green:** the same cases: **3 passed, 100 deselected in 0.32s**.
+- Brain suite before main integration: **102 passed, 1 deselected in 118.78s**. The excluded case is
+  `test_lint_reads_the_pr_branch_from_ci_when_head_is_detached`, as the session board directs.
+- Ruff over `argus services ops brain/tools/brain.py tests/brain/test_brain.py`: clean.
+- Brain lint/audit and whitespace check: clean.
+- First complete offline run: **7 failed, 1415 passed, 62 skipped, 1 deselected in 1164.35s**. All failures
+  are the token-rotation script tests selecting the unavailable WSL Bash instead of installed Git Bash.
+  The seven cases pass with process-local Git Bash selection (**7 passed in 8.18s**).
+- Completed offline rerun on the original base: **1422 passed, 62 skipped, 1 deselected in 955.90s**.
+  Process-local Git Bash selection and a Git discovery ceiling for temporary repositories resolved
+  the environment issues without changing tests or global configuration.
+- After integration with `9d65e1e`, the three skill-path cases passed again:
+  **3 passed, 100 deselected in 0.59s**. Ruff is clean.
+- Full offline validation on integrated main `9d65e1e`: **1474 passed, 62 skipped, 1 deselected in
+  843.27s**, exit 0. This includes **102 passing Brain cases**. Only the known CI-specific case above
+  is deselected, with the same process-local Git Bash selection and temporary-repository Git ceiling.
+
 No code change. The workflow parses; this PR's own CI runs on the pinned actions.
 
 `ruff check argus services ops`: all checks passed. `bandit -lll`: no issue. Full suite green.

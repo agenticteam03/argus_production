@@ -2,10 +2,10 @@ import { describe, expect, it } from "vitest";
 import { loadLevel, worstLevel } from "./load.js";
 
 describe("loadLevel", () => {
-  it("is normal below 70 %, high from 70 %, critical from 90 %", () => {
+  it("is normal below 75 %, high from 75 %, critical from 90 %", () => {
     expect(loadLevel(0.034)).toBe("ok");
-    expect(loadLevel(0.6999)).toBe("ok");
-    expect(loadLevel(0.7)).toBe("high");
+    expect(loadLevel(0.7499)).toBe("ok");
+    expect(loadLevel(0.75)).toBe("high");
     expect(loadLevel(0.8999)).toBe("high");
     expect(loadLevel(0.9)).toBe("critical");
     expect(loadLevel(1.2)).toBe("critical");

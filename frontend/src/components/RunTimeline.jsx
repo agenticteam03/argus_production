@@ -48,7 +48,7 @@ export default function RunTimeline({ incident, events, active, reconnecting, ev
                 <span className={`absolute -left-[5px] top-3.5 size-2.5 rounded-full border border-card ${running ? "animate-pulse bg-accent motion-reduce:animate-none" : end ? "bg-emerald-400" : "bg-sky-400"}`} />
                 <span className="font-medium" title={dateTime(s.at)}>{LABELS[s.name] ?? s.name}</span>
                 <span className="font-mono text-xs leading-5 text-muted"><time dateTime={s.at} title={clock(s.at)}>{running ? "running" : s.done ? formatMs(s.durationMs) : "—"}</time></span>
-                <span className="min-w-0 text-[#d6dbe6]">
+                <span className="min-w-0 text-body">
                   {s.summary}
                   <Reads reads={s.reads} evidenceIds={evidenceIds} onJump={onJump} />
                 </span>

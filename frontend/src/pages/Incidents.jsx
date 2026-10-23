@@ -4,6 +4,7 @@ import IncidentRow from "../components/IncidentRow.jsx";
 import { Card, Empty, ErrorCard, fieldClass, Inbox, LivePill, OUTCOME_META, Search, Select, Skeleton, STATUS_META } from "../components/ui.jsx";
 import { useIncidentList } from "../hooks/useIncidentList.js";
 import { dataSource } from "../services/index.js";
+import { hostsOf, matchesHost, targetsOfHost, withoutHost } from "../utils/incidentFilter.js";
 import { incidentsSummary, PAGE_SIZE } from "../utils/paging.js";
 
 // The list (filters, "Show more" count, scroll) is remembered while an incident is open, so coming back lands on the
@@ -21,6 +22,7 @@ export default function Incidents() {
   const [query, setQuery] = useState(restore?.query ?? "");
   const [status, setStatus] = useState(restore?.status ?? "");
   const [outcome, setOutcome] = useState(restore?.outcome ?? "");
+  const [host, setHost] = useState(restore?.host ?? "");
   const [target, setTarget] = useState(restore?.target ?? "");
   const [visible, setVisible] = useState(restore?.visible ?? PAGE_SIZE);
   const headingRef = useRef(null);
@@ -28,32 +30,34 @@ export default function Incidents() {
   useEffect(() => { headingRef.current?.focus({ preventScroll: Boolean(restore) }); }, [restore]);
   // A new filter is a new result set: go back to the first page so "Show more" always starts from the top.
   // (Compared with the previous key, so restoring the filters on arrival does not count as a change.)
-  const filterKey = [query, status, outcome, target].join("\u0000");
+  const filterKey = [query, status, outcome, host, target].join("\u0000");
   const lastKey = useRef(filterKey);
   useEffect(() => {
     if (lastKey.current !== filterKey) { lastKey.current = filterKey; setVisible(PAGE_SIZE); }
   }, [filterKey]);
-  useEffect(() => { remembered = { query, status, outcome, target, visible, scrollY: scrollY.current }; }, [query, status, outcome, target, visible]);
+  useEffect(() => { remembered = { query, status, outcome, host, target, visible, scrollY: scrollY.current }; }, [query, status, outcome, host, target, visible]);
   // Once the rows (and the restored "Show more" count) are on screen, go back to where the person was.
   useLayoutEffect(() => {
     if (rows && pendingScroll.current != null) { window.scrollTo(0, pendingScroll.current); pendingScroll.current = null; }
   }, [rows]);
   const rememberScroll = () => { scrollY.current = window.scrollY; if (remembered) remembered.scrollY = window.scrollY; };
 
-  const targets = useMemo(() => [...new Set((rows ?? []).map((r) => r.target))].sort(), [rows]);
+  // Host first, then a target inside that host: both lists come from the incidents already loaded.
+  const hosts = useMemo(() => hostsOf(rows), [rows]);
+  const targets = useMemo(() => targetsOfHost(rows, host), [rows, host]);
   const filtered = useMemo(() => {
     const t = query.trim().toLowerCase();
     return (rows ?? []).filter(
       (r) =>
         (!status || r.status === status) &&
         (!outcome || (outcome === "none" ? r.outcome == null : r.outcome === outcome)) &&
-        (!target || r.target === target) &&
+        matchesHost(r, host, target) &&
         (!t || [r.id, r.target, r.class, r.strategy, r.root_cause_target].filter(Boolean).join(" ").toLowerCase().includes(t))
     );
-  }, [rows, query, status, outcome, target]);
+  }, [rows, query, status, outcome, host, target]);
 
-  const filtersActive = query || status || outcome || target;
-  const clear = () => { setQuery(""); setStatus(""); setOutcome(""); setTarget(""); };
+  const filtersActive = query || status || outcome || host || target;
+  const clear = () => { setQuery(""); setStatus(""); setOutcome(""); setHost(""); setTarget(""); };
 
   const shown = filtered.slice(0, visible);
   const remaining = filtered.length - shown.length;
@@ -65,7 +69,7 @@ export default function Incidents() {
           <h1 ref={headingRef} tabIndex={-1} className="text-[28px] font-semibold tracking-[-0.03em] outline-none">Incidents</h1>
           <p className="text-sm text-muted">What Argus investigated, and how each run ended.</p>
         </div>
-        <LivePill live={live} source={dataSource} at={updatedAt} />
+        <LivePill live={live} source={dataSource} at={updatedAt} onRefresh={retry} />
       </div>
 
       {error && !rows ? (
@@ -93,11 +97,15 @@ export default function Incidents() {
               {Object.entries(OUTCOME_META).map(([k, [label]]) => <option key={k} value={k}>{label}</option>)}
               <option value="none">No outcome yet</option>
             </Select>
-            <Select value={target} onChange={(e) => setTarget(e.target.value)} aria-label="Filter by target">
-              <option value="">All targets</option>
-              {targets.map((t) => <option key={t} value={t}>{t}</option>)}
+            <Select value={host} onChange={(e) => { setHost(e.target.value); setTarget(""); }} aria-label="Filter by host">
+              <option value="">All hosts</option>
+              {hosts.map((h) => <option key={h} value={h}>{h}</option>)}
             </Select>
-            {filtersActive && <button onClick={clear} className="h-11 cursor-pointer rounded-[10px] border border-field-line px-3.5 text-sm text-muted transition hover:text-white">Clear</button>}
+            <Select value={target} onChange={(e) => setTarget(e.target.value)} aria-label="Filter by target" disabled={!host} title={host ? undefined : "Choose a host first"}>
+              <option value="">{host ? "All targets in this host" : "Choose a host first"}</option>
+              {targets.map((t) => <option key={t} value={t}>{withoutHost(t, host)}</option>)}
+            </Select>
+            {filtersActive && <button onClick={clear} className="h-11 cursor-pointer rounded-[10px] border border-field-line px-3.5 text-sm text-muted transition hover:text-ink">Clear</button>}
           </div>
 
           {filtered.length === 0 ? (
@@ -116,7 +124,7 @@ export default function Incidents() {
                   <div className="mt-4 flex justify-center">
                     <button
                       onClick={() => setVisible((v) => v + PAGE_SIZE)}
-                      className="cursor-pointer rounded-lg border border-line px-4 py-2 text-sm transition hover:bg-white/5"
+                      className="cursor-pointer rounded-lg border border-line px-4 py-2 text-sm transition hover:bg-ink/5"
                     >
                       Show {Math.min(PAGE_SIZE, remaining)} more
                     </button>

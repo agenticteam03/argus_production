@@ -283,8 +283,13 @@ diff-coverage gates, LLM injection regression testing, CI security scanners.)
    equivalent (a default replaced by `None` before an `or`, a `getattr` default on a field every spec has, the context
    when the target is given) or one edge: `_normal` accepts `//` as a directory, the same as `/` (not a gap: `/` is
    allowed as a directory and the deny floor applies; refusing it is a change under `argus/policy/`, a teammate's
-   review). In all: 199 survivors killed, 42 equivalents named, no timeout left. **Left:** the weekly CI job
-   (`.github/`, a teammate's review).
+   review). In all: 199 survivors killed, 42 equivalents named, no timeout left. *The phase 16 security code
+   2026-10-23 (`task/OP-014-night-tests`):* `application/second_factor.py` (WebAuthn, step-up) and
+   `domain/audit_chain.py`, 664 mutants: 461 killed, 89 survived, 114 timed out; the timeouts re-run alone: 27
+   detected, 87 survived. `tests/test_op014_mutation_second_factor.py` and `test_op014_mutation_audit_chain.py` kill
+   171 of the 176 (user verification refused at registration and login, the browser options, each refusal's
+   reason and audit, the canonical form and link hash pinned to fixed values); 5 equivalent. No defect found.
+   **Left:** the weekly CI job (`.github/`, a teammate's review).
 10. **Property-based tests** (Hypothesis) for redaction, target parsing and the policy engine. *Redaction and target
     parsing done 2026-10-20 (`tests/test_op014_property_based.py`).* They found a real gap: a token glued to a
     non-ASCII letter (`é<token>`) escaped the high-entropy rule, because Unicode `\b` saw no word boundary; fixed with

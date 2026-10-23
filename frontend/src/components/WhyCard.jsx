@@ -12,7 +12,7 @@ function CitedRow({ id, evidence, onJump }) {
   return (
     <InsetRow className="grid grid-cols-[4.5rem_minmax(0,1fr)_auto] items-baseline gap-3 text-[13px]">
       <span className="truncate text-xs text-muted">{e?.capability ?? e?.kind ?? "evidence"}</span>
-      <span className="truncate text-[#d6dbe6]" title={e ? firstLine(e.model_text) : undefined}>{e ? `${shortName(e.target)} · ${firstLine(e.model_text) || "—"}` : id}</span>
+      <span className="truncate text-body" title={e ? firstLine(e.model_text) : undefined}>{e ? `${shortName(e.target)} · ${firstLine(e.model_text) || "—"}` : id}</span>
       {e ? (
         <Link to={{ search: "?tab=evidence", hash: `#evidence-${id}` }} onClick={(ev) => { ev.preventDefault(); onJump(id); }} className="font-mono text-xs text-accent-hover hover:underline">{short}</Link>
       ) : (
@@ -34,7 +34,7 @@ export default function WhyCard({ incident: inc, events, cited, onJump }) {
     <Card title="Why Argus concluded this">
       {c.to && (
         <p className="mb-4 flex flex-wrap items-center gap-2 text-sm">
-          <code className="font-mono text-white">{shortName(c.from)}</code>
+          <code className="font-mono text-ink">{shortName(c.from)}</code>
           {c.sameTarget ? (
             <span className="text-muted">is the root cause</span>
           ) : (
@@ -62,7 +62,7 @@ export default function WhyCard({ incident: inc, events, cited, onJump }) {
       <div className="mt-4 border-t border-line pt-4">
         <h3 className="text-sm font-medium">Findings</h3>
         {inc.findings?.length ? (
-          <ul className="mt-2 list-disc space-y-1.5 pl-5 text-sm leading-relaxed text-[#d6dbe6]">{inc.findings.map((f, i) => <li key={i}>{f}</li>)}</ul>
+          <ul className="mt-2 list-disc space-y-1.5 pl-5 text-sm leading-relaxed text-body">{inc.findings.map((f, i) => <li key={i}>{f}</li>)}</ul>
         ) : (
           <p className="mt-2 text-sm text-muted">No findings recorded.</p>
         )}
@@ -85,7 +85,7 @@ export default function WhyCard({ incident: inc, events, cited, onJump }) {
       {ruledOut.length > 0 && (
         <div className="mt-4 border-t border-line pt-4">
           <Disclosure summary={`${ruledOut.length} other ${ruledOut.length === 1 ? "cause" : "causes"} ruled out`}>
-            <ul className="list-disc space-y-1 pl-5 text-sm text-[#d6dbe6]">{ruledOut.map((r, i) => <li key={i}>{r}</li>)}</ul>
+            <ul className="list-disc space-y-1 pl-5 text-sm text-body">{ruledOut.map((r, i) => <li key={i}>{r}</li>)}</ul>
           </Disclosure>
         </div>
       )}

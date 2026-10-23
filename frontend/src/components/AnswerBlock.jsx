@@ -10,7 +10,7 @@ export default function AnswerBlock({ incident: inc, active }) {
     <div className={`grid gap-x-6 gap-y-4 ${inc.recommendation ? "md:grid-cols-[minmax(0,1fr)_minmax(0,0.75fr)]" : ""}`}>
       <div className="min-w-0">
         <p className="text-xs text-muted">Root cause</p>
-        {inc.root_cause_target && <p className="mt-0.5 break-all font-mono text-sm font-medium text-white">{inc.root_cause_target}</p>}
+        {inc.root_cause_target && <p className="mt-0.5 break-all font-mono text-sm font-medium text-ink">{inc.root_cause_target}</p>}
         {inc.diagnosis && <div className="markdown-body mt-1 !text-sm"><SafeMarkdown>{firstSentence(inc.diagnosis).replace(/^\**root cause\**\s*[:\-–]\s*/i, "")}</SafeMarkdown></div>}
       </div>
       {inc.recommendation && (

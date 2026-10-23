@@ -27,8 +27,10 @@ export default function Agent() {
         ? current : rows.find((row) => row.status === "running")?.id ?? rows[0]?.id ?? null);
       setUpdated(Date.now());
       setError(false);
+      return true;
     } catch {
       setError(true);
+      return false; // the Refresh button says so (utils/refresh.js)
     } finally {
       setLoading(false);
     }
@@ -71,7 +73,7 @@ export default function Agent() {
           <h1 className="text-[28px] font-semibold tracking-[-0.03em]">Investigation activity</h1>
           <p className="max-w-2xl text-sm text-muted">Follow Argus runs and correlate them with private Langfuse traces. This view reads Argus events; it does not expose Langfuse credentials.</p>
         </div>
-        <LivePill live={!error} source={dataSource} at={updated} />
+        <LivePill live={!error} source={dataSource} at={updated} onRefresh={refresh} />
       </header>
 
       <div className="grid gap-3 sm:grid-cols-3">
@@ -110,7 +112,7 @@ export default function Agent() {
                   <SmallMetric label="Decisions" value={run.decisions} />
                 </div>
                 <div className="mt-4 rounded-xl border border-line bg-field p-3">
-                  <p className="text-xs font-medium text-white">Langfuse correlation</p>
+                  <p className="text-xs font-medium text-ink">Langfuse correlation</p>
                   {run.traceId ? <><p className="mt-1 break-all font-mono text-xs text-accent-hover">{run.traceId}</p><p className="mt-1 text-xs text-muted">Trace ID emitted by the worker. Ingestion status is checked in the private Langfuse service.</p></> : <p className="mt-1 text-xs text-muted">No trace ID in this run. Langfuse may be disabled, or this run predates instrumentation.</p>}
                 </div>
               </>
