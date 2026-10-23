@@ -1,0 +1,21 @@
+# Action card: container.start (ACR-0019 §3.4, Phase 17)
+name: container.start
+model_name: start_container
+executor: action-gateway
+route: /containers/{name}/start
+parameters:
+  timeout: int
+preconditions:
+  - 'status == "exited" or status == "stopped"'
+useful_when:
+  - "Container is stopped or crashed"
+  - "Dependency service is offline (e.g. SC-03 cache)"
+not_useful_when:
+  - "Container is already running"
+verify:
+  signal: up
+  expected: 1
+  window_sec: 30
+rollback: container.stop
+sources:
+  - RB-003

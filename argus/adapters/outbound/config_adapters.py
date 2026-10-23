@@ -50,7 +50,8 @@ class YamlInventory:
                                             networks=t.get("networks", []),
                                             database=(t.get("database") or {}).get("dbname"),
                                             profile=t.get("profile"),
-                                            link_warning_ms=None if warn is None else float(warn))
+                                            link_warning_ms=None if warn is None else float(warn),
+                                            service=t.get("service"))
         for info in self._targets.values():
             for d in info.depends_on:
                 if d not in self._targets:
