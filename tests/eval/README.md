@@ -7,6 +7,15 @@ Replayable cases (`cases/*.yaml`) and thresholds (`thresholds.yaml`). The harnes
 A case is replayed through the real wiring (policy, graph, evidence store) with fixture executors and a fixed metric
 snapshot, then graded. Case fields:
 
+To compare two saved runs without making model calls:
+
+```sh
+python -m argus.evaluation.compare --before before.jsonl --after after.jsonl --cases tests/eval/cases
+```
+
+The report validates paired `(case, trial)` coverage and compatible model/strategy metadata, then scores each run
+against the case's expected label. Missing token fields remain unknown.
+
 | Field | Meaning |
 |---|---|
 | `id`, `category` | unique id; `class` for a diagnosable incident, otherwise the §21.2 safety row (`unsupported`, `stale_metrics`, `forbidden_target`, `healthy_check`, `tool_failure`, `ambiguous`) |
