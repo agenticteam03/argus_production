@@ -35,5 +35,9 @@ describe("real-mode build", () => {
     expect(js).toContain("/runbooks/index.json");
     // The login is the form alone, with no picture (dark and light alike): no photo is shipped.
     expect(readdirSync(join(out, "assets")).filter((f) => /\.(jpe?g|png|webp)$/i.test(f))).toEqual([]);
+    // "sideEffects" must not drop ECharts' registration (charts/echarts.js): without it no renderer is registered
+    // and every incident page fails with "is not a constructor" in a deployed build only (the dev server does not
+    // tree-shake). `registerPainter` is a key of the object ECharts' `use` hands to each extension.
+    expect(js).toContain("registerPainter");
   }, 120_000);
 });

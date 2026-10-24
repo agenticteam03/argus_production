@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | `in progress` — #123 merged; on both VMs since the AFTER-MERGE to `main` `ad72617` (#132, 2026-10-13); next: offer to a class, with evaluation cases |
+| Status | `in progress` — #123 merged; on both VMs since the AFTER-MERGE to `main` `ad72617` (#132, 2026-10-13); next: offer to a class, with evaluation cases (closed precedents in three cases, one misleading: T-0049 R1, in review) |
 | Phase | 4 / 9 — Level 3 capabilities ([`../../IMPLEMENTATION_PLAN.md`](../../IMPLEMENTATION_PLAN.md)) |
 | Architecture | no change (no ACR): §10.5 ("a strategy may request more through … `knowledge.prior_incidents`") and the §12 Level 3 row, as written |
 | Branch | `task/T-0039-prior-incidents` (from `main`) |
