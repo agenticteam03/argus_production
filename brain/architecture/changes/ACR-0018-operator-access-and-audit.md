@@ -2,8 +2,8 @@
 
 Part of the next-phase proposal ([task](../../tasks/current/NEXT-PHASE-supervised-remediation.md)) with
 [ACR-0019](ACR-0019-human-approved-remediation.md) (human-approved remediation) and
-[ACR-0020](ACR-0020-operator-terminal.md) (operator terminal). This ACR is their precondition: neither may be
-implemented before this one is applied and deployed.
+[ACR-0020](ACR-0020-operator-terminal.md) (operator terminal). This ACR is their precondition: phases 17 and 18 may
+start earlier under ACR-0019 §5, but phase 19 and any write-gate release wait until this ACR is applied and deployed.
 
 | Field | Value |
 |---|---|
@@ -132,8 +132,8 @@ ACR-0019 and ACR-0020.
    **Separation of duties:** enforced on the production profile, as in §3. On the lab profile it is **allowed and
    recorded**: with three operators, enforcing it would often leave nobody to approve; the audit row and the UI mark
    a self-approval, and the scheduled evaluation counts them.
-3. **Off-host store (decision 7):** an object-storage bucket outside both VMs, with versioning and a write-once
-   retention lock, written through a **put-only** credential that cannot delete or overwrite (a new secret under
+3. **Off-host store (decision 7):** an object-storage bucket outside both VMs, with a locked time-bound retention
+   rule and no versioning, written through a **put-only** credential that cannot delete or overwrite (a new secret under
    `secrets/agent/`, never printed). Not vm-166 and not a developer's laptop: every developer has sudo on both VMs,
    and a laptop is one person's. **Retention:** audit digests 1 year; terminal recordings 90 days (ACR-0020 may
    change the latter). The provider is chosen by whoever administers the cloud account when phase 16 is deployed,
@@ -199,5 +199,4 @@ Applied in steps (phase 16). Each step writes into `ARCHITECTURE.md` only what i
       Not built: the OCI sink (5b), the key on vm-095 and the schedule turned on (5c)
 
 **Not yet** (step 5b on): separation of duties; the digest's OCI sink and the digest key on vm-095 (steps 5b and 5c); security alerts (§18), which wait for the team's alert route (no receiver exists: Argus only reads its
-Alertmanager), including the alert on `security.audit_chain_broken`;
-`policies/SECURITY.md` (the new secrets).
+Alertmanager), including the alert on `security.audit_chain_broken`.

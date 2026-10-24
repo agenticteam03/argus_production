@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | `in progress` — step 1 merged (#223) and deployed on vm-095 (DEPLOY-A4479DF, 2026-10-21); steps 2–6 planned below |
+| Status | `in review` — step 5a is updated from main in [PR #303](https://github.com/agenticteam03/argus_production/pull/303); architecture conflict resolved; 136 post-merge tests passed; awaiting fresh review and CI. |
 | Phase | 16 of [NEXT-PHASE](NEXT-PHASE-supervised-remediation.md) ([`../../IMPLEMENTATION_PLAN.md`](../../IMPLEMENTATION_PLAN.md)) |
 | Architecture | [ACR-0018](../../architecture/changes/ACR-0018-operator-access-and-audit.md) (`accepted`, #209); each step applies only what it builds (its §6) |
 | Branch | one per step: `task/PHASE-16-step-<n>-<slug>` |
