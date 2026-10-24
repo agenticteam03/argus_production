@@ -99,4 +99,7 @@ def check_digest_files(paths, rows, public_pem: bytes) -> list[str]:
             problems.append(f"{f.name}: not a signed digest")
             continue
         items.append(item)
-    return problems + check_series(items, rows, key)
+    rows = list(rows)
+    _, _, chain_problems = verify(rows)
+    return (problems + check_series(items, rows, key)
+            + [f"audit chain: {problem}" for problem in chain_problems])

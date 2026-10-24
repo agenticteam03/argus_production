@@ -17,6 +17,7 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 from argus.adapters.outbound.digest_sinks import LocalDirSink
 from argus.adapters.outbound.sqlite_store import SqliteStore
+from argus.domain.audit_chain import verify
 from argus.domain.model import AuditRecord
 
 UTC = timezone.utc
@@ -87,6 +88,19 @@ def test_a_rewritten_chain_is_caught_by_the_digest_that_survived_off_host(shippe
     problems = check_digest_files([out], rewritten, pem)
     assert problems and all("different hash for aud_0001" in p for p in problems[:2])
     assert problems[0].startswith("2026-10-20:")
+
+
+def test_a_body_tamper_with_the_stored_hash_is_rejected_even_when_the_digest_still_matches(shipped):
+    from argus.infrastructure.audit_digest import check_digest_files
+    store, out, key, pem = shipped
+    rows = store.audit_chain()
+    tampered = [(audit_id, dict(body), prev_hash, hash_)
+                for audit_id, body, prev_hash, hash_ in rows]
+    tampered[0][1]["event"] = "access.logout"
+
+    assert verify(tampered)[2] == ["aud_0000: hash does not match its body (the row was edited)"]
+    assert check_digest_files([out], tampered, pem) == [
+        "audit chain: aud_0000: hash does not match its body (the row was edited)"]
 
 
 def test_a_file_that_is_not_a_digest_is_reported_not_skipped(shipped):
