@@ -21,6 +21,13 @@ fixtures:
       memory_limit_bytes: 67108864
       networks:
       - argus-lab-app
+    /containers/argus-lab-worker/top:
+      processes:
+      - pid: 4242
+        ppid: 1
+        command: python
+      count: 1
+      collected_at: '2026-10-12T06:00:00+00:00'
     /containers/argus-lab-worker/logs:
       lines:
       - 'FATAL: config file not found: /etc/worker/config.yml'
