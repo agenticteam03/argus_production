@@ -1,38 +1,30 @@
-# T-0049 R1b: container process replay fixtures
+## 2026-10-22 — T-0049 R1b: container process replay fixtures
 
-### Change
-
-Prepared S2's second R1 candidate, `container.processes` (`processes`) for `container_restart_loop`. The six labelled
-restart cases now have `/containers/<name>/top` fixtures in the T-0037 gateway shape: PID, PPID, command name only,
-count, and collection time. Each `/top` PID and command matches the live worker row in that case's host `/processes`
-fixture. In the OOM cases, PID 4242 is the current worker, while the host OOM records name the killed earlier PIDs;
-the exit-0 job shows the relaunched Python process while its existing log still records `done`. The branch was
-fast-forwarded to current main b22c669 (#296/#297); the task note retains both the shared-ID skill update and the R1b
-candidate preparation. No detector or class offer changed; the offer remains a separate measured R1 step.
-
-### Finding
-
-The real `container.processes` read returns a process count and command names. It shows the same result, one `python`
-process, in all six restart cases, so it cannot distinguish an OOM kill, an exit-0 job, or a crash. The existing logs,
-exit code, and memory history distinguish those causes. The expected gain from offering this read to
-`container_restart_loop` is low; the fixtures still make the replays complete instead of failing with a missing-read
-error.
+Type: code (offline; no class offer)
+Who: S4, with S1 pre-review
+Context: S2's second R1 candidate is `container.processes` (`processes`) for `container_restart_loop`. The six labelled
+restart cases lacked `/containers/<name>/top` fixtures, so replay failed before the candidate read could be measured.
+Decision / result:
+- Added `/top` fixtures to all six restart cases in the T-0037 gateway shape: PID, PPID, command name, count and
+  collection time. Each PID and command match the live worker row in that case's host `/processes` fixture. OOM cases
+  retain the killed earlier PIDs; the exit-0 job shows a relaunched Python process while its logs say `done`. The class
+  offer remains a separate measured step.
+Consequences: Replays are complete, but `container.processes` reports only count and command names. All six cases show
+one Python process, so the read cannot distinguish an OOM kill, an exit-0 job or a crash. Logs, exit code and memory
+history do distinguish them. Expected gain from offering this read to `container_restart_loop` is low; no class offer
+was made.
 
 ### Test state
 
-- Red first: the six new replay assertions failed because `/containers/argus-lab-worker/top` was missing and the
-  fixture executor raised `ExecutorError: not_found`.
-- Green: the focused six-case replay test passes, including the check that `/top` matches the current host process
-  row; the combined T-0037, EVAL-3, and R1b tests pass. After the b22c669 refresh, the R1b test, `test_evaluation.py`,
-  T-0037, and EVAL-3 replay regressions passed again (pytest reached 100%, exit 0). Ruff and Brain lint/audit are clean;
-  `git diff --check` is clean.
-- Full offline suite: one run with Git Bash first on `PATH`, after S1's clear rule-7 pre-review; pytest reached 100%
-  and exited 0. The progress output included skipped tests and no failures.
+- Red first: the six replay assertions failed because `/containers/argus-lab-worker/top` was missing and the fixture
+  executor raised `ExecutorError: not_found`.
+- On the branch before the latest main update, the R1b, T-0037 and evaluation tests passed; Ruff and Brain lint/audit
+  were clean. The full offline suite passed once after S1's rule-7 pre-review.
+- Brain's `split_entry` accepted the corrected heading and extracted the Test state and Next step sections.
+- R1BF.1 reruns the focused R1b, T-0037 and evaluation tests, Ruff, Brain lint/audit, `split_entry` and diff-check after
+  merging current main. The full suite is not repeated for this journal-only correction.
 
 ### Next step
 
-Main moved to b22c669 (#296/#297); the branch was fast-forwarded and the task note retains both main's shared-ID
-update and this candidate-preparation section. S4R1B.1 pins b22c669 and requires it to remain an ancestor of
-`origin/main`. The focused replay regressions, Ruff, Brain lint/audit, whitespace, `check_block.py`, and PowerShell
-parser pass on this refreshed tree. Post READY with the finding above. The developer-run block stages only the six
-case fixtures, this test, the T-0049 task note, and this journal entry; S4 does not run it.
+R1BF.1 commits this correction and merges current `origin/main` into the existing branch with a merge commit. After the
+focused checks pass, the developer-run block pushes the branch and comments on #300 for conantkd's re-review.
