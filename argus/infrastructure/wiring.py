@@ -133,6 +133,7 @@ class App:
     topology: Any = None                # ACR-0017: the system map (inventory, signals, an incident's evidence)
     thresholds: Any = None              # ACR-0021: the UI's warning and critical lines (signals.yaml `thresholds:`)
     jwt_signing: Any = None             # ACR-0018: an Ed25519 private key; tokens are EdDSA, HS256 refused. None: HS256
+    action_policy: Any = None           # Phase 17: read-only, reviewed action candidates
 
 
 
@@ -412,9 +413,11 @@ def build(settings: Settings | None = None, llm=None, metrics=None, executors: E
     from argus.application.topology import Topology
     if s.home_host and inventory.host(s.home_host) is None:
         raise SystemExit(f"ARGUS_HOME_HOST {s.home_host!r} is not an inventory host")
+    from argus.actions.incident import ActionPolicy
+    action_policy = ActionPolicy.from_paths(s.config_dir, s.runbooks_dir)
     return App(settings=s, store=store, inventory=inventory, policy=policy, runner=runner, catalogue=catalogue,
                metrics=metrics, jwt_key=jwt_key, alertmanager_token=s.secret("alertmanager_token"), llm_configured=llm_configured,
                incident_metrics=IncidentMetrics(metrics, ui_signals, store=store, thresholds=thresholds,
                                                 inventory=inventory),
                topology=Topology(inventory, metrics, store, s.home_host, thresholds=thresholds), thresholds=thresholds,
-               jwt_signing=jwt_signing)
+               jwt_signing=jwt_signing, action_policy=action_policy)
