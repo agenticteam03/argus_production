@@ -23,10 +23,10 @@ def _policy():
     return policy, inventory
 
 
-def _status(at, *, state="exited", target=CACHE):
+def _status(at, *, state="exited", target=CACHE, host="vm-166"):
     return EvidenceRecord(
         evidence_id="ev_cache_status", incident_id="inc_sc03", kind="observation",
-        capability="container.status", target=target, host="vm-166", executor="docker_read",
+        capability="container.status", target=target, host=host, executor="docker_read",
         caller="strategy:baseline", source_time=at, collected_at=at, status="ok",
         values={"values": {"state": state}}, model_text=f"state={state}").with_hash()
 
@@ -99,6 +99,29 @@ def test_lab_scope_does_not_override_a_non_lab_target_name():
                                root_cause_target=target)
     assert policy.next_actions(incident, [_status(at, target=target)], {"RB-003"}, fake_inventory,
                                now=at) == []
+
+
+def test_vm095_actions_are_denied_even_for_fully_valid_lab_candidate():
+    policy, inventory = _policy()
+    at = utcnow()
+    protected = "vm-095/container:argus-lab-cache"
+    cache = inventory.target(TargetRef.parse(CACHE))
+    protected_info = TargetInfo(ref=TargetRef.parse(protected), scope="lab", service=cache.service)
+    protected_inventory = SimpleNamespace(target=lambda _: protected_info)
+    protected_incident = SimpleNamespace(outcome=IncidentOutcome.diagnosed, target=TargetRef.parse(protected),
+                                          root_cause_target=protected)
+
+    # All normal candidate requirements are met: lab scope/name, safe action, RB-003, and fresh exited evidence.
+    assert policy.next_actions(protected_incident,
+                               [_status(at, target=protected, host="vm-095")], {"RB-003"},
+                               protected_inventory, now=at) == []
+
+    # The same valid cache-start candidate remains available on the permitted lab host.
+    lab_incident = SimpleNamespace(outcome=IncidentOutcome.diagnosed, target=TargetRef.parse(API),
+                                   root_cause_target=CACHE)
+    candidates = policy.next_actions(lab_incident, [_status(at)], {"RB-003"}, inventory, now=at)
+    assert [(candidate["action"], candidate["target"]) for candidate in candidates] == [
+        ("container.start", CACHE)]
 
 
 def test_sc03_incident_route_offers_only_grounded_cache_start(make_app):  # noqa: F811
