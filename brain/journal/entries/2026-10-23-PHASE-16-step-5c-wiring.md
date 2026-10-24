@@ -20,6 +20,11 @@ Decision / result:
   a digest is named; finding nothing to check is a problem, not a pass.
 - **`policies/NETWORK.md`** names the scheduler's one outbound destination, OCI Object Storage; **`policies/SECURITY.md`** now
   says where the two secrets live. `audit_digest` stays **`enabled: false`**.
+- **Review correction (2026-10-24):** verify the supplied audit chain as well as the signed digests, using the same
+  implementation proposed in #317 (`deb42c5`). An edited row body with its stored hash unchanged now produces a generic
+  audit-chain problem; the command exits unsuccessfully and never prints `DIGESTS OK`. Added function and CLI regressions.
+- Integrated `main` at `ada9fec9`; preserved its published architecture versions and assigned step 5c the free version
+  **1.8.35**. This resolves the parallel branches' version collision without changing their accepted architecture content.
 - The first attempt to generate the key from the agent's session was refused by the permission classifier (a remote write), so
   conantkd ran the blocks; two bugs of the prepared blocks showed up and were fixed (the VM's `install -o` and, earlier,
   `brain.py start` hanging on the GitHub verification of `main`: `BRAIN_NO_GH=1` skips it).
@@ -38,7 +43,20 @@ another key, a missing day, a rewritten chain, a file that is not a digest, noth
 scheduler mounts the digest folder, read-only, never `secrets/agent/`, the sink variable, the memory limit) and the updated
 `tests/test_compose_split.py`.
 
+Review-fix RED observed on the original #314 head `5f7ed1c`: both added regressions failed. The function returned `[]`
+for the edited body, and the CLI printed `DIGESTS OK` without raising `SystemExit`. GREEN after the fix: 65 passed,
+2 skipped across the digest, OCI sink, audit-chain and compose modules. Brain lint/audit, Ruff and the architecture
+version-line helper passed. Full offline suite: 1906 passed, 73 skipped, 16 failed. The failed shell simulations selected
+the Windows WSL launcher, whose `/bin/bash` is missing (the allowlist prune then also lacked its expected output file).
+All 16 failed cases passed when repeated with Git Bash first on PATH (24.67 seconds). No repository change was needed
+for those environment failures; no clean single full-suite run is claimed. Docker Desktop is unavailable locally;
+the relevant opt-in tests were skipped. Fresh exact-head CI remains required after publication.
+
 ### Next step
 
-A teammate reviews, after #302, #303 and #311 are merged (this branch contains them). Then the deploy of step 5c, with both
-leases.
+Dependencies #302, #303 and #311 are merged. Publish the validated correction with the prepared
+command block and retarget #314 to main. Obtain a fresh teammate review of the integrity fix and conflict resolution,
+with exact-head CI and current main-guard green before merging; retain the source branch. Main-guard on `ada9fec9`
+failed in run `40115433517`: #303 lacks a valid teammate approval of its last push. The team must resolve that review-policy
+failure before merging #314. #317 proposes the same integrity
+fix separately: reconcile that PR after this correction is published. A later deploy needs both leases and its own block.

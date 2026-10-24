@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | `in progress` — step 1 merged (#223) and deployed on vm-095 (DEPLOY-A4479DF, 2026-10-21); steps 2–6 planned below |
+| Status | `in review` - step 5c in [PR #314](https://github.com/agenticteam03/argus_production/pull/314); digest-chain fix and main integration validated locally (journal); publication, exact-head CI and teammate re-review pending; not deployed |
 | Phase | 16 of [NEXT-PHASE](NEXT-PHASE-supervised-remediation.md) ([`../../IMPLEMENTATION_PLAN.md`](../../IMPLEMENTATION_PLAN.md)) |
 | Architecture | [ACR-0018](../../architecture/changes/ACR-0018-operator-access-and-audit.md) (`accepted`, #209); each step applies only what it builds (its §6) |
 | Branch | one per step: `task/PHASE-16-step-<n>-<slug>` |
@@ -99,8 +99,8 @@ step-up bound to a test object, with the binding to approvals added in phase 17.
   time-bound retention rule with versioning off (OCI cannot combine them) and a create-only credential. **Open:** the
   team's alert receiver (none exists: Argus only reads its Alertmanager).
 - **5a built (`task/PHASE-16-step-5a-digest`, ARCHITECTURE 1.8.32):** the digest, the signature, the job and a local
-  sink, all offline and tested. **5b built (`task/PHASE-16-step-5b-oci-sink`, ARCHITECTURE 1.8.33):** the OCI sink
-  (`oci==2.189.0`) and an opt-in test against the real bucket. **5c built, not deployed (`task/PHASE-16-step-5c-wiring`, ARCHITECTURE 1.8.34):** the
+  sink, all offline and tested. **5b built (`task/PHASE-16-step-5b-oci-sink`, ARCHITECTURE 1.8.34):** the OCI sink
+  (`oci==2.189.0`) and an opt-in test against the real bucket. **5c built, not deployed (`task/PHASE-16-step-5c-wiring`, ARCHITECTURE 1.8.35):** the
   key and the credential are on vm-095 in `secrets/digest/`, the scheduler's mounts, the egress line in
   `policies/NETWORK.md` and `argus audit check-digests`. **Left:** the deploy (both leases), a first checked run and the
   schedule turned on.
