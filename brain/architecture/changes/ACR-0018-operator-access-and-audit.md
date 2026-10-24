@@ -2,8 +2,8 @@
 
 Part of the next-phase proposal ([task](../../tasks/current/NEXT-PHASE-supervised-remediation.md)) with
 [ACR-0019](ACR-0019-human-approved-remediation.md) (human-approved remediation) and
-[ACR-0020](ACR-0020-operator-terminal.md) (operator terminal). This ACR is their precondition: neither may be
-implemented before this one is applied and deployed.
+[ACR-0020](ACR-0020-operator-terminal.md) (operator terminal). This ACR is their precondition: phases 17 and 18 may
+start earlier under ACR-0019 §5, but phase 19 and any write-gate release wait until this ACR is applied and deployed.
 
 | Field | Value |
 |---|---|
