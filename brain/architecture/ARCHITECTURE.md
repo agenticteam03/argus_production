@@ -1,7 +1,7 @@
 # Argus — Production Architecture Specification
 
 **Document type:** consolidated target architecture and implementation blueprint ·
-**Version:** 1.8.30 (2026-10-22, ACR-0018 phase 16 step 4: the private path; 1.8.29 2026-10-22, ACR-0018 phase 16 step 3: the WebAuthn second factor and the step-up token; 1.8.28 2026-10-21, ACR-0024 as built in T-0047 H2: `state_hypotheses`; 1.8.27 2026-10-21, ACR-0024 hypotheses and a cause ranking; 1.8.26 2026-10-21, ACR-0018 phase 16 step 1: sessions, revocation, persisted login limiter, permissions, the audit hash chain, EdDSA tokens; 1.8.25 2026-10-21, ACR-0028 field allowlists; 1.8.24 2026-10-21, ACR-0025 live dependency graph; 1.8.23 2026-10-20, ACR-0027 the built gaps G-001, G-003, G-007; 1.8.22 2026-10-20, ACR-0026 safety classes; 1.8.21 2026-10-20, §14 marked designed, not built (OP-015); 1.8.20 2026-10-19, ACR-0021 B7 baseline, long ranges, deploy events, and B8 link reasons; 1.8.19 2026-10-19, ACR-0021 B6: target metrics and the overview; 1.8.18 2026-10-19, ACR-0021 UI insights v2: B1 to B5; 1.8.17 2026-10-19, ACR-0023 log pattern matches; 1.8.16 2026-10-18, ACR-0013 and ACR-0016 Langfuse Cloud tracing; 1.8.15 2026-10-16, ACR-0017 topology; 1.8.14 2026-10-16, ACR-0017 incident metrics; 1.8.12 2026-10-14, ACR-0014; 1.8.11 2026-10-14, ACR-0012; 1.8.10 2026-10-14, ACR-0011; 1.8.8 2026-10-12, ACR-0009; 1.8.7 2026-10-12, ACR-0008; 1.8.6 2026-10-11, ACR-0007; 1.8.5 2026-10-09, ACR-0005; 1.8.4 2026-10-09, ACR-0004; 1.8.3 2026-10-08, ACR-0003; 1.8.2 2026-10-09, ACR-0002; 1.8.1 2026-10-06, ACR-0001; base 1.8.0 of 30 September 2026, sanitized for the shared repository 2026-10-02) · **Audience:** engineers and AI coding agents implementing
+**Version:** 1.8.34 (2026-10-23, ACR-0018 phase 16 step 5b: the OCI Object Storage sink of the audit digests; 1.8.33 2026-10-23, ACR-0024 as built: a read step's hypotheses get the structural checks only; 1.8.32 2026-10-23, ACR-0018 phase 16 step 5a: the signed daily audit digest job; 1.8.31 2026-10-23, ACR-0020 phase 21A: offline terminal broker contracts; 1.8.30 2026-10-22, ACR-0018 phase 16 step 4: the private path; 1.8.29 2026-10-22, ACR-0018 phase 16 step 3: the WebAuthn second factor and the step-up token; 1.8.28 2026-10-21, ACR-0024 as built in T-0047 H2: `state_hypotheses`; 1.8.27 2026-10-21, ACR-0024 hypotheses and a cause ranking; 1.8.26 2026-10-21, ACR-0018 phase 16 step 1: sessions, revocation, persisted login limiter, permissions, the audit hash chain, EdDSA tokens; 1.8.25 2026-10-21, ACR-0028 field allowlists; 1.8.24 2026-10-21, ACR-0025 live dependency graph; 1.8.23 2026-10-20, ACR-0027 the built gaps G-001, G-003, G-007; 1.8.22 2026-10-20, ACR-0026 safety classes; 1.8.21 2026-10-20, §14 marked designed, not built (OP-015); 1.8.20 2026-10-19, ACR-0021 B7 baseline, long ranges, deploy events, and B8 link reasons; 1.8.19 2026-10-19, ACR-0021 B6: target metrics and the overview; 1.8.18 2026-10-19, ACR-0021 UI insights v2: B1 to B5; 1.8.17 2026-10-19, ACR-0023 log pattern matches; 1.8.16 2026-10-18, ACR-0013 and ACR-0016 Langfuse Cloud tracing; 1.8.15 2026-10-16, ACR-0017 topology; 1.8.14 2026-10-16, ACR-0017 incident metrics; 1.8.12 2026-10-14, ACR-0014; 1.8.11 2026-10-14, ACR-0012; 1.8.10 2026-10-14, ACR-0011; 1.8.8 2026-10-12, ACR-0009; 1.8.7 2026-10-12, ACR-0008; 1.8.6 2026-10-11, ACR-0007; 1.8.5 2026-10-09, ACR-0005; 1.8.4 2026-10-09, ACR-0004; 1.8.3 2026-10-08, ACR-0003; 1.8.2 2026-10-09, ACR-0002; 1.8.1 2026-10-06, ACR-0001; base 1.8.0 of 30 September 2026, sanitized for the shared repository 2026-10-02) · **Audience:** engineers and AI coding agents implementing
 Argus from an empty repository.
 
 
@@ -1743,8 +1743,10 @@ refusals to it (`hypothesis_problems`) and the runner audits them as `hypothesis
 enforced only when an evaluation batch shows they do not lower accuracy. The retry bound applies unchanged.
 The decision tools' schemas carry `hypotheses` (and `chosen` on `conclude`). A read step carries its list in one
 `state_hypotheses` call beside its read calls (T-0047 H2): offered only with read tools, it is not a read, does not
-count toward `max_reads_per_step`, and is checked like the others; alone, twice, or beside `conclude` / `escalate`
-it is `InvalidDecision` (`malformed`, `multiple_calls`). After each decision with hypotheses the runner ranks them
+count toward `max_reads_per_step`, and gets the structural checks only (evidence ids, targets, ids, at most five):
+it is checked before that step's reads run, so the evidence rows (a `supported` hypothesis's own-target observation,
+a `ruled_out` one's `against`, an `external` one's in-scope observation) apply on `conclude` / `escalate` only.
+Alone, twice, or beside `conclude` / `escalate` it is `InvalidDecision` (`malformed`, `multiple_calls`). After each decision with hypotheses the runner ranks them
 (§3.3 of ACR-0024, `application/ranking.py`, weights in `config/ranking.yaml`) and stores them (§16.1); a step
 already stored (a run resumed after a crash) is not stored again, and a failure to store never stops the run.
 
@@ -2455,7 +2457,7 @@ client secrets.
 | 10 | Action ledger | `indeterminate` ⇒ escalate, never an automatic retry |
 | 11 | Write gate | per `(capability, target)` release in policy **and** in the action-gateway configuration |
 | 12 | Peer boundary | peers authenticate as agent principals; no write authority; scoped reads; quotas; loop protection (§23) |
-| 13 | Audit integrity | DB permissions enforce append-only; **every row carries `prev_hash` and `hash`** (a hash chain, migration 011, written under an advisory lock so concurrent writers never fork it) and `argus audit verify` names the first row edited, removed or inserted outside the store; the scheduler verifies it at start and daily (`audit_chain` in `schedules.yaml`) and records `security.audit_chain_verified` or `security.audit_chain_broken` (ACR-0018). The signed daily digest shipped off Host A, and the alert on a broken chain: designed (phase 16, after the off-host store and the team's alert route exist) |
+| 13 | Audit integrity | DB permissions enforce append-only; **every row carries `prev_hash` and `hash`** (a hash chain, migration 011, written under an advisory lock so concurrent writers never fork it) and `argus audit verify` names the first row edited, removed or inserted outside the store; the scheduler verifies it at start and daily (`audit_chain` in `schedules.yaml`) and records `security.audit_chain_verified` or `security.audit_chain_broken` (ACR-0018). The signed daily digest (`AuditDigestJob`, `audit_digest` in `schedules.yaml`, off until its key and store exist): for each closed UTC day the last chained row, its hash and the row count, signed with the audit digest key (Ed25519) and put once, under a name of its own, in a store outside the VMs; a broken chain is never signed. Built in step 5a with a local sink; step 5b adds the OCI Object Storage sink (a create-and-inspect credential that cannot overwrite or delete); the key, the credential and the schedule reach vm-095 in step 5c. The alert on a broken chain: designed (phase 16, after the team's alert route exists) |
 | 14 | Public edge (ACR-0011) | `argus-v18-ui` only: TLS (Let's Encrypt, renewed daily); the UI contract's routes and methods only; edge logins read-only or investigate (ACR-0012: one POST, rate-limited); request and connection limits per address; security headers (CSP, HSTS, no framing); runbooks only after login; no Argus secret in the edge |
 
 ### 17.2 Identities and credentials
@@ -2466,6 +2468,8 @@ client secrets.
 | Human principals (`viewer`, `operator`, `approver`) | HTTP/CLI | username + Argon2 password hash in Postgres |
 | Peer-agent principals (`peer_agent`) | peer adapter | client ID + hashed client secret in Postgres (mTLS optional later) |
 | JWT signing key | api | signs access tokens: **EdDSA** with an Ed25519 private key (secret `jwt_ed25519_key`, ACR-0018), verified with its public key; HS256 with the shared key only where no Ed25519 key is installed (the lab before its switch, tests); rotated by deployment |
+| Audit digest key | scheduler (digest job) | signs the daily audit digest: an Ed25519 private key (secret `audit_digest_ed25519_key`, ACR-0018), checked with its public key; read by the scheduler only |
+| Audit digest store credential | scheduler (digest job) | an OCI API key of a service user that can only create and inspect objects in one bucket (`oci_digest/config` and `key.pem`, ACR-0018 §5); the bucket also carries a retention rule, locked once the job is proven |
 | Approval link signing key *(when Slack is added)* | api | signs single-use approval links |
 | Scheduler service identity | scheduler → api | internal credential |
 | `argus-tools` UID | MCP tools server | executor credentials per `(host, executor)` |
@@ -2528,6 +2532,32 @@ stored as evidence or sent to the model.
 - **The private path (ACR-0018, phase 16 step 4).** Every route that needs a privileged permission lives under `/api/v1/ops/` (`OPS_PREFIX`; a test fails a privileged route outside it or an ordinary one inside). The public edge passes that prefix only when the client's certificate verifies against the team's CA, is not in its CRL, and the client's address is in vm-095's allowlist; anything else is **404**, as if the route did not exist (a bad or revoked certificate too: nginx's 495 becomes 404). A browser without a certificate still gets the public UI (`ssl_verify_client optional`). The CA's private key is encrypted on an administrator's laptop with a copy kept by the other (`ops/edge-ca.sh`), never on vm-095, which holds only the CA certificate and its CRL; a person makes their own key and sends a CSR (90-day certificates). The allowlist is one named entry per person with an expiry (`ops/edge-allow.sh`, with the lease; a daily timer drops the expired; addresses never in Git or a record). Off by default (`ARGUS_OPS_PATH=off`: the prefix is 404 for everyone); on needs the CA certificate and the CRL. mTLS is defence in depth, not the identity: the human is still proven by the login, the second factor and the step-up.
 - *Future:* replacing local users with a single-sign-on provider (OIDC, RS256 + JWKS) changes only
   token verification in `adapters/inbound/http/auth.py`; the `Principal` contract stays.
+
+### 17.4 Operator terminal (ACR-0020, phase 21)
+
+The operator terminal is a recorded **human** SSH channel presented in the UI. It is outside Argus's capability
+catalogue: no model, agent, worker or tools child can open, read or type in it. The terminal is unrestricted for an
+authorized operator; its controls are personal identity, WebAuthn step-up, private access, a fixed host and personal
+Unix account, a VM lease, session limits, recording and audit.
+
+Argus builds a narrow broker that reuses §17.3 identity and authorization. A ticket is single use, valid for at most
+60 seconds and bound to the principal, session, fixed host/account, reason, incident and lease. The browser supplies
+no destination or account. The broker later signs a short-lived SSH certificate, bridges the bytes and records input,
+output and timing synchronously to the off-host store. A byte is accepted only after the recorder persists it; any
+append or final-manifest failure closes the session. There are at most two open sessions per principal.
+
+Each terminal session has a 30-minute absolute limit and can continue only through a new step-up and ticket. `/me`
+lists the hosts for which `open_terminal:<host>` is effective; the UI never infers access from roles. A right-side
+panel may host the console, but its terminal document and byte channel run on a dedicated origin in a sandboxed
+frame. The parent SPA receives lifecycle state only, never the launch ticket, keystrokes or output.
+
+**Phase 21A as built:** `services/terminal_broker/core.py` contains only the ticket, fixed-account mapping, session
+state machine, recording frames and manifest contract. It has no listener, route, SSH dependency, credential,
+database, object-store adapter or runtime wiring, so it grants no access. Phase 21A may merge after the ACR's
+independent safety review. A required audit sink receives open, close, refusal and recording-failure events; an audit
+failure prevents a session from opening. The privileged API, WebSocket, SSH CA, deployed broker and
+`open_terminal:<host>` grant remain blocked until ACR-0018's phase-16 exit proof. The full controls and reversal procedure are normative in
+[ACR-0020](changes/ACR-0020-operator-terminal.md).
 
 ---
 
@@ -2924,6 +2954,7 @@ The goal of this architecture is that Argus's diagnostic reach grows **without c
 | OD-14 | Wire protocol of the peer-agent adapter | decided when the security agent's design exists; the verbs of §23.2 are fixed |
 | OD-15 | A diagnosis-only mode for unsupported reports from authenticated operators | off; reconsider once the evidence pack and unsupported backlog show a need |
 | OD-16 | TLS or a tunnel inside the private subnet | **decided by ACR-0003 (2026-10-08):** covered by the transport profiles (§3.2); a path that leaves the private network is encrypted (`wireguard-overlay`, `restricted-ssh`) |
+| OD-17 | Build or adopt the operator terminal broker | **decided by ACR-0020 (2026-10-23):** build a narrow Argus broker that reuses Argus identity and step-up and binds every session to an incident and lease; reconsider a dedicated access plane when host or operator count makes maintaining the broker less safe |
 
 ---
 
@@ -3078,14 +3109,12 @@ erDiagram
 
 ## Changelog
 
-| Version | Date | Change | ACR |
-|---|---|---|---|
 | 1.8.0 | 2026-10-02 | v1.8 (30 Sep 2026) imported into the shared repository; addresses replaced by placeholders, nothing else changed | — |
 | 1.8.1 | 2026-10-06 | user interfaces as read-only-capable clients of the HTTP API (§25 OD-10, §17.3); `GET /api/v1/me`; the existing read routes `/incidents/{id}/events`, `/evidence/{id}`, `/escalations` documented (§7.1); `frontend/` (§2.4) | [ACR-0001](changes/ACR-0001-ui-read-access.md) |
 | 1.8.2 | 2026-10-09 | the tools server's UID switch is a fixed sudo launcher (`cd /`, `python -I`) (§12.6); OD-3 decided: keep MCP (§12.5, §25) | [ACR-0002](changes/ACR-0002-tools-uid-sudo-launcher.md) |
 | 1.8.3 | 2026-10-08 | transport profiles (`direct-private`, `wireguard-overlay`, `restricted-ssh`) for the cross-host path (§3.2, §3.3, §3.6, §17.1, OD-16); alert delivery by profile: push webhook or pull reconciliation from the Argus-owned Alertmanager (§4.2, §7.3, `AlertSourcePort` §8.1); Argus-owned node-exporter and cAdvisor (§3.5, §4.3) | [ACR-0003](changes/ACR-0003-transport-profiles.md) |
-| 1.8.5 | 2026-10-09 | alert resolution: in a pull profile an occurrence resolves when its alert is absent from a successful read of the host's active alerts; when all resolve, a queued incident closes `resolved_externally`, a running one finishes, a concluded one is unchanged (§6.4, §7.3, §8.1) | [ACR-0005](changes/ACR-0005-pull-alert-resolution.md) |
 | 1.8.4 | 2026-10-09 | correlation: an alert that started before the latest concluded incident of its target and class closed is attached to it (same episode), without a new run (§6.4) | [ACR-0004](changes/ACR-0004-correlation-same-episode.md) |
+| 1.8.5 | 2026-10-09 | alert resolution: in a pull profile an occurrence resolves when its alert is absent from a successful read of the host's active alerts; when all resolve, a queued incident closes `resolved_externally`, a running one finishes, a concluded one is unchanged (§6.4, §7.3, §8.1) | [ACR-0005](changes/ACR-0005-pull-alert-resolution.md) |
 | 1.8.6 | 2026-10-11 | `confirm_then_reason`: a rule-planned confirmation round (a suspect's logs and resources) before the model concludes; `disk_pressure` uses it (§3, §10.3) | [ACR-0007](changes/ACR-0007-confirm-then-reason.md) |
 | 1.8.7 | 2026-10-12 | `confirm_then_reason`: an exited writer of the full filesystem is a suspect too (its logs are read; its data stays on the mount) (§10.3) | [ACR-0008](changes/ACR-0008-stopped-writer-suspect.md) |
 | 1.8.8 | 2026-10-12 | a monitoring heartbeat per host: a lost heartbeat opens one escalated "Host monitoring unavailable" incident per episode (no run, no model), and a host without a fresh heartbeat resolves nothing; explicit maintenance (§6.4, §7.3, `alerts.yml`) | [ACR-0009](changes/ACR-0009-monitoring-heartbeat.md) |
@@ -3109,3 +3138,7 @@ erDiagram
 | 1.8.28 | 2026-10-21 | ACR-0024 as built in T-0047 H2: a read step states its hypotheses in one `state_hypotheses` call beside its read calls (not a read; refused alone, twice or beside a decision); the runner ranks and stores each decision's hypotheses (`incident_hypothesis`, migration 012) and the context carries the latest list (§5.5, §10.6, §11.3, §16.1) | [ACR-0024](changes/ACR-0024-hypotheses-and-cause-ranking.md) |
 | 1.8.29 | 2026-10-22 | phase 16 step 3 of ACR-0018: the WebAuthn second factor (py_webauthn 3.0.1; migration 013: credentials, challenges, enrolment tickets, step-up tokens, `auth_session.second_factor_at`); the first credential by another administrator's ticket, a further one by step-up; privileged permissions only for a login completed with a credential and a person with two; the single-use, object-bound, ≤ 5 min step-up token; `argus webauthn allow-enrol|reset`; the routes in §7.1 and through the public edge (§17.3) | [ACR-0018](changes/ACR-0018-operator-access-and-audit.md) |
 | 1.8.30 | 2026-10-22 | phase 16 step 4 of ACR-0018: the private path. Privileged routes under `/api/v1/ops/`, passed by the edge only for a client certificate of the team's CA (CRL checked) from an allowlisted address, else 404; the CA on a laptop (`ops/edge-ca.sh`), the allowlist on vm-095 (`ops/edge-allow.sh`, named entries with an expiry, a daily prune); off by default (`ARGUS_OPS_PATH`) (§17.3) | [ACR-0018](changes/ACR-0018-operator-access-and-audit.md) |
+| 1.8.31 | 2026-10-23 | phase 21A of ACR-0020: accepted the narrow Argus terminal broker; offline contracts for single-use bound tickets, fixed principal/host/account mapping, two-session limit, lifecycle audit and synchronous fail-closed recording; no route, network, SSH, credential or deployment (§17.4, OD-17) | [ACR-0020](changes/ACR-0020-operator-terminal.md) |
+| 1.8.32 | 2026-10-23 | phase 16 step 5a of ACR-0018: the signed daily digest of the audit chain. `AuditDigestJob` (`audit_digest` in `schedules.yaml`, off by default) verifies the chain, then for each closed UTC day builds the digest of its last chained row (id, hash, row count), signs it with the audit digest key (Ed25519, secret `audit_digest_ed25519_key`) and puts it once, under a name of its own, in the digest sink (`ARGUS_AUDIT_DIGEST_SINK`; a local directory in this step, which says it is not off host). A broken chain is never signed; a conflicting object is never overwritten (§17.1 layer 13, §17.2) | [ACR-0018](changes/ACR-0018-operator-access-and-audit.md) |
+| 1.8.33 | 2026-10-23 | ACR-0024 as built (T-0047): a read step's `state_hypotheses` list gets the structural checks only; the evidence rows of §11.3 apply on `conclude` / `escalate`, because a read step's list is checked before its reads run (#274's batch: a cause marked supported while its own read was requested looked unsupported) (§11.3) | [ACR-0024](changes/ACR-0024-hypotheses-and-cause-ranking.md) |
+| 1.8.34 | 2026-10-23 | phase 16 step 5b of ACR-0018: the OCI Object Storage sink of the audit digests (`ARGUS_AUDIT_DIGEST_SINK=oci:<namespace>/<bucket>`). A digest is created once (`If-None-Match: *`) with its SHA-256 as object metadata; when the name is taken the sink looks at it with a HEAD and says whether it holds the same bytes, because the credential can create and inspect objects but not read, overwrite or delete them. The failed-digest event carries the sink's short reason (an HTTP status and the service's error code). The credential is read from `<secrets>/oci_digest/config` and `key.pem`; dependency `oci==2.189.0` (§17.1 layer 13, §17.2) | [ACR-0018](changes/ACR-0018-operator-access-and-audit.md) |

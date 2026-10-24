@@ -387,6 +387,20 @@ fixtures:
       status: 200
 secrets:
 - hunter2
+# T-0049 R1: helpful precedents (the same cause before): the worker was OOM-killed at its limit twice
+prior_incidents:
+- class: container_restart_loop
+  target: vm-166/container:argus-lab-worker
+  diagnosis: The worker was OOM-killed at its 64 MiB memory limit (exit code 137) and Docker restarted it; its memory
+    rose steadily before each kill. Human action - raise the limit or find the growth.
+  root_cause: vm-166/container:argus-lab-worker
+  closed_at: '2026-10-08T09:12:00Z'
+- class: container_restart_loop
+  target: vm-166/container:argus-lab-worker
+  diagnosis: Again OOM-killed at the 64 MiB memory limit (exit code 137) during a large batch; restarts stopped when
+    the batch ended. Human action - raise the limit.
+  root_cause: vm-166/container:argus-lab-worker
+  closed_at: '2026-10-15T14:40:00Z'
 label:
   outcome: diagnosed
   class: container_restart_loop
