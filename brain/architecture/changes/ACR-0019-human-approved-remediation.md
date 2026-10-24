@@ -2,17 +2,18 @@
 
 Part of the next-phase proposal ([task](../../tasks/current/NEXT-PHASE-supervised-remediation.md)). Depends on
 [ACR-0018](ACR-0018-operator-access-and-audit.md) (operator access and audit), which must be applied and deployed
-first. Revised 2026-10-18 to merge `conantkd`'s proposal "Argus actúa" (the catalogue, service and action cards, risk
+before phase 19 and any write-gate release; phases 17 and 18 may start earlier under this ACR's §5. Revised 2026-10-18
+to merge `conantkd`'s proposal "Argus actúa" (the catalogue, service and action cards, risk
 colours, prediction, memory, judge, scenarios with answer keys) with this one.
 
 | Field | Value |
 |---|---|
-| Status | `proposed` |
+| Status | `accepted` with the approvals of `task/ACR-0019-accepted` (§5); it merges only with them. Not applied: that is phases 17 to 20 |
 | Proposed by | juanbetancurm and conantkd (+ agents) · 2026-10-18 |
-| Accepted by | pending (team review of the NEXT-PHASE proposal PR) |
-| Second approval (safety principle only) | **required**: read-only and the write gate (the first released write capability), least privilege (a new gateway), secrets (action-gateway tokens) |
+| Accepted by | a teammate approving `task/ACR-0019-accepted` (proposed there by `conantkd` · 2026-10-23) |
+| Second approval (safety principle only) | **required**: read-only and the write gate (the first released write capability), least privilege (a new gateway), secrets (action-gateway tokens). Given by the approvals required to merge `task/ACR-0019-accepted` (AGENT_PROTOCOL §4: any team member's approval counts, the author's included, and one person may give both) |
 | Architecture version | the next free version when applied (after ACR-0018) |
-| Task / PR | NEXT-PHASE · PR #170 |
+| Task / PR | NEXT-PHASE · PR #170 (proposed) · `task/ACR-0019-accepted` (accepted; open decisions 4, 6, 8 and 9 answered, 5 and 10 set per phase) |
 
 ## 1. Detect and explain
 
@@ -287,8 +288,37 @@ The worker that runs the investigation also dispatches the approved action (as �
 
 ## 5. Decision
 
-Proposed by juanbetancurm and conantkd, merging both proposals. Implementation starts only after ACR-0018 is applied
-and deployed; the first release of a pair is its own reviewed PR.
+Proposed in #170 by juanbetancurm and conantkd, merging both proposals. **Accepted** with the approvals of
+`task/ACR-0019-accepted`: one teammate's, plus the second one for the safety principles touched (read-only and the
+write gate, least privilege, secrets). §3 is accepted as written. Acceptance changes no code and no `ARCHITECTURE.md`
+text: this ACR is applied phase by phase, each with its first code (§6). The first release of a pair is its own
+reviewed PR with two reviewers (§3.13).
+
+The answers below are to the NEXT-PHASE open decisions that belong to this ACR (4, 5, 6, 8, 9 and 10); decision 1
+belongs to ACR-0020.
+
+1. **First released pair (decision 4):** `container.start` on `vm-166/container:argus-lab-cache`, scope `lab`. The
+   cache is stopped in SC-03, so `start` is the narrower action; `container.restart` is not released in the first
+   release.
+2. **The judge's model (decision 5): not decided here.** It is chosen when phase 18 starts, from a small measured
+   comparison on good, bad and trap proposals, and recorded in that phase's journal. The constraint of §3.8 stands
+   (a model other than the deciding one; its cost recorded). The starting proposal is a smaller model of the provider
+   already in use; a second provider is a later change with its own evaluation.
+3. **Approval expiry and rate (decision 6):** 30 minutes in the lab; one action per target at a time and none on the
+   same target within 10 minutes (§3.9); the daily cap per host is set in the release PR.
+4. **Actions on vm-095 (decision 8):** none. It is Argus's own host; no pair is released there.
+5. **Drills as memory (decision 9):** the memory of verified actions is counted per origin (lab, drill, production);
+   lab and drill counts never apply to production.
+6. **Evaluation budget (decision 10): not fixed here.** Each of phases 17, 18 and 20 states its budget in its plan
+   before running a batch. A reference measured on #301: one 60-run arm of a model batch used about 1.1 million
+   input tokens and 90 thousand output tokens.
+
+**Sequencing.** Implementation follows ACR-0018. This acceptance proposes one clarification to that precondition:
+phases 17 and 18 release no write capability and add no approval route (cards, suggestions, the §14 machinery against
+a fake gateway, with `write_gate.open` empty and the standing write-gate test unchanged), so they may start once this
+ACR is accepted. Phase 19 (approvals in the UI, the gateway) and any `write_gate.open` entry need ACR-0018 applied and
+deployed in full: the off-host audit digest (phase 16 step 5) and the phase 16 exit proof (step 6). No approval is
+accepted on an audit trail that someone with `sudo` on the VMs could rewrite.
 
 ## 6. Applied
 
