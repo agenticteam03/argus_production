@@ -28,6 +28,7 @@ The architecture above is unchanged until these are accepted and applied with th
 | [ACR-0019](changes/ACR-0019-human-approved-remediation.md) | human-approved remediation: a closed catalogue; service and action cards; cited grounds (a model-only basis becomes a suggestion); risk colours; a prediction; a judge that can only make it stricter; a human approves the frozen proposal; the worker executes through an exact-route gateway; verification and a memory of verified actions; lab targets only |
 | [ACR-0020](changes/ACR-0020-operator-terminal.md) | an operator terminal: a recorded, human-only shell from the UI through a broker with an SSH CA; "Insert" offers only what the cards allow; Argus never uses it |
 | [ACR-0022](changes/ACR-0022-autonomous-investigation.md) | more autonomous investigation, reads and suggestions only: open investigations for unclassified incidents, follow-up checks after any fix, new reads, a curated vendor corpus, isolated internet research for the operator |
+| [ACR-0030](changes/ACR-0030-idle-session-timeout.md) | human sessions end after 30 min without user activity (an absolute limit of 8 h), instead of 30 min after login; agents keep 30 min |
 
 ## Deployment shape (as built)
 
