@@ -6,7 +6,7 @@
   "base_commit": "c8d859465f8d5272885b4d0cecaf4d60df14155e",
   "started_at": "2026-10-24T04:11:29+00:00",
   "expires_at": "2026-10-24T05:11:29+00:00",
-  "released": false,
+  "released": true,
   "handoff": null,
   "took_over_from": {
     "holder": "juanbetancurm",
@@ -23,7 +23,7 @@
       "base_commit": "c8d859465f8d5272885b4d0cecaf4d60df14155e",
       "started_at": "2026-10-24T04:11:29+00:00",
       "expires_at": "2026-10-24T05:11:29+00:00",
-      "released": false,
+      "released": true,
       "handoff": null,
       "took_over_from": {
         "holder": "juanbetancurm",
