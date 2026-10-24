@@ -18,6 +18,7 @@ from argus.domain.model import EvidenceRecord, Incident, IncidentOutcome, Target
 _METADATA = re.compile(r"```yaml\s*\n(.*?)\n```", re.S)
 _MAX_OBSERVATION_AGE = timedelta(seconds=90)
 _FUTURE_TOLERANCE = timedelta(seconds=5)
+_ACTION_DENIED_HOSTS = frozenset({"vm-095"})
 
 
 def _protected_target(name: str) -> bool:
@@ -100,7 +101,7 @@ class ActionPolicy:
             target = TargetRef.parse(inc.root_cause_target)
         except ValueError:
             return []
-        if _protected_target(target.name):
+        if target.host in _ACTION_DENIED_HOSTS or _protected_target(target.name):
             return []
         info = inventory.target(target)
         if info is None or info.scope != "lab" or not target.name.startswith("argus-lab-"):
