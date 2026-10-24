@@ -26,6 +26,8 @@ Decision / result:
 - **Left for 5c, on purpose:** the compose mounts of the digest key and the credential (a protected path; a bind mount of
   a file that does not exist yet would break the scheduler's start on the next deploy), the key and the credential on
   vm-095, the egress line in `policies/NETWORK.md`, the schedule turned on, and a command to check shipped digests.
+PR #311 was synchronized with the current #303 head `b8533b8` by a merge commit. The protected-path conflicts in `ARCHITECTURE.md` and ACR-0018 were resolved manually. The current architecture version is 1.8.34 for step 5b; version 1.8.32 (step 5a) and 1.8.33 (ACR-0024) are preserved. The prior approval was on `fa96e38`; a fresh review is required after this conflict resolution. The updated head is awaiting GitHub CI.
+
 Consequences: the digest can reach the bucket as soon as 5c puts the key and the credential on vm-095. The lock of the
 retention rule waits until the job has run for a while; it is irreversible after its 14-day delay.
 References: [ACR-0018](../../architecture/changes/ACR-0018-operator-access-and-audit.md) §5, §6;
@@ -41,6 +43,8 @@ nothing behind it, a failing HEAD, a transport error; the job's event; the setti
 the same name were recognised (`exists_different`), through the create-and-inspect credential. It left one object under
 `selftest/`, kept by the retention rule until the rule is removed.
 
+- After merging the current #303 head, the updated #311 head is pending GitHub `test` and `frontend` checks; no local tests were rerun after the conflict resolution.
+
 ### Next step
 
-A teammate reviews (it touches `brain/architecture/` and `brain/policies/`). Then 5c.
+A teammate reviews the updated #311 head (it touches protected architecture and policy paths). After #303 merges, retarget #311 to `main` and confirm the checks and approval remain valid; then proceed to 5c.

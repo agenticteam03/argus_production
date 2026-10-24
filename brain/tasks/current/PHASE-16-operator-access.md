@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | `in progress` — step 1 merged (#223) and deployed on vm-095 (DEPLOY-A4479DF, 2026-10-21); steps 2–6 planned below |
+| Status | `in review` - step 5a is in [PR #303](https://github.com/agenticteam03/argus_production/pull/303); step 5b is in stacked [PR #311](https://github.com/agenticteam03/argus_production/pull/311), updated from the latest #303 head with architecture conflicts resolved; fresh review and CI pending. |
 | Phase | 16 of [NEXT-PHASE](NEXT-PHASE-supervised-remediation.md) ([`../../IMPLEMENTATION_PLAN.md`](../../IMPLEMENTATION_PLAN.md)) |
 | Architecture | [ACR-0018](../../architecture/changes/ACR-0018-operator-access-and-audit.md) (`accepted`, #209); each step applies only what it builds (its §6) |
 | Branch | one per step: `task/PHASE-16-step-<n>-<slug>` |
@@ -99,7 +99,7 @@ step-up bound to a test object, with the binding to approvals added in phase 17.
   time-bound retention rule with versioning off (OCI cannot combine them) and a create-only credential. **Open:** the
   team's alert receiver (none exists: Argus only reads its Alertmanager).
 - **5a built (`task/PHASE-16-step-5a-digest`, ARCHITECTURE 1.8.32):** the digest, the signature, the job and a local
-  sink, all offline and tested. **5b built (`task/PHASE-16-step-5b-oci-sink`, ARCHITECTURE 1.8.33):** the OCI sink
+  sink, all offline and tested. **5b built (`task/PHASE-16-step-5b-oci-sink`, ARCHITECTURE 1.8.34):** the OCI sink
   (`oci==2.189.0`) and an opt-in test against the real bucket. **5c:** the key and the credential on vm-095, their compose
   mounts (a protected path) and the egress line in `policies/NETWORK.md`, the schedule on, `argus audit` to check shipped
   digests against the chain.

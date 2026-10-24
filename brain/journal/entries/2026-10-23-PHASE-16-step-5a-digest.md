@@ -26,7 +26,7 @@ Decision / result:
 - `audit_digest` in `deploy/scheduler/schedules.yaml`, **off**; enabled without the key or the sink it records
   `security.audit_digest_unconfigured` and ships nothing. The key is the secret `audit_digest_ed25519_key` (`wiring`'s
   Ed25519 loader now takes the secret's name).
-- ARCHITECTURE 1.8.32 (layer 13, §17.2), ACR-0018 §6, the PHASE-16 task, `policies/SECURITY.md` (the new secret).
+- ARCHITECTURE keeps the digest at 1.8.32 and current main at 1.8.33; ACR-0018 §6 and `policies/SECURITY.md` record the built step.
 Consequences: nothing changes on the VMs. Next, 5b: the OCI sink (a new dependency and the credential's mount in a
 compose file, both reviewed); 5c: generate the key on vm-095, copy the create-only credential without printing it, turn
 the schedule on, and a command to check shipped digests against the chain. The alert on `security.audit_digest_failed`,
@@ -42,6 +42,10 @@ check against a rewritten chain, the job: once per day, catch-up, a broken chain
 no key or no sink, the local sink and its path rules, the schedule section, the scheduler loop, the key loader, the
 sink setting).
 
+- Main alignment on 2026-10-24: merged `origin/main` at `c8d8594`. The manual `ARCHITECTURE.md` resolution uses the version-line reconciler: it keeps the digest row at 1.8.32, ACR-0024 at 1.8.33, and preserves the complete version history. The only header normalization was the parenthesis formatting on the shared 1.8.31 entry. ACR-0018 now states that OCI uses a locked retention rule without versioning, and its `Not yet` list no longer names `policies/SECURITY.md`, which this step updates.
+- Post-merge focused tests: **136 passed** (`test_phase16_step5_digest`, evaluation, T-0049 prior incidents, T-0047 hypothesis checks). Ruff, `git diff --check`, Brain lint/audit, and the version-line helper passed.
+- GitHub CI for the updated head is pending after push; the previous head's test and frontend checks were green.
+
 ### Next step
 
-A teammate reviews (it touches `brain/architecture/` and `brain/policies/`). Then 5b, the OCI sink.
+Request a fresh teammate review of the updated, protected architecture paths and wait for CI to pass. After review and merge, retain the task branch and continue with step 5b, the OCI sink.
