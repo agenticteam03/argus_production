@@ -2,7 +2,8 @@
 
 Part of the next-phase proposal ([task](../../tasks/current/NEXT-PHASE-supervised-remediation.md)). Depends on
 [ACR-0018](ACR-0018-operator-access-and-audit.md) (operator access and audit), which must be applied and deployed
-first. Revised 2026-10-18 to merge `conantkd`'s proposal "Argus actúa" (the catalogue, service and action cards, risk
+before phase 19 and any write-gate release; phases 17 and 18 may start earlier under this ACR's §5. Revised 2026-10-18
+to merge `conantkd`'s proposal "Argus actúa" (the catalogue, service and action cards, risk
 colours, prediction, memory, judge, scenarios with answer keys) with this one.
 
 | Field | Value |

@@ -2,8 +2,8 @@
 
 Part of the next-phase proposal ([task](../../tasks/current/NEXT-PHASE-supervised-remediation.md)) with
 [ACR-0019](ACR-0019-human-approved-remediation.md) (human-approved remediation) and
-[ACR-0020](ACR-0020-operator-terminal.md) (operator terminal). This ACR is their precondition: neither may be
-implemented before this one is applied and deployed.
+[ACR-0020](ACR-0020-operator-terminal.md) (operator terminal). This ACR is their precondition: phases 17 and 18 may
+start earlier under ACR-0019 §5, but phase 19 and any write-gate release wait until this ACR is applied and deployed.
 
 | Field | Value |
 |---|---|
@@ -132,8 +132,8 @@ ACR-0019 and ACR-0020.
    **Separation of duties:** enforced on the production profile, as in §3. On the lab profile it is **allowed and
    recorded**: with three operators, enforcing it would often leave nobody to approve; the audit row and the UI mark
    a self-approval, and the scheduled evaluation counts them.
-3. **Off-host store (decision 7):** an object-storage bucket outside both VMs, with versioning and a write-once
-   retention lock, written through a **put-only** credential that cannot delete or overwrite (a new secret under
+3. **Off-host store (decision 7):** an object-storage bucket outside both VMs, with a locked time-bound retention
+   rule and no versioning, written through a **put-only** credential that cannot delete or overwrite (a new secret under
    `secrets/agent/`, never printed). Not vm-166 and not a developer's laptop: every developer has sudo on both VMs,
    and a laptop is one person's. **Retention:** audit digests 1 year; terminal recordings 90 days (ACR-0020 may
    change the latter). The provider is **OCI Object Storage**, administered by `conantkd` (chosen 2026-10-23), and is
@@ -200,7 +200,20 @@ Applied in steps (phase 16). Each step writes into `ARCHITECTURE.md` only what i
       allowlist (`ops/edge-allow.sh`, named entries with an expiry, a daily prune, addresses never in Git); off until
       `ARGUS_OPS_PATH=on`; `policies/NETWORK.md`; `tests/test_phase16_private_path.py` (the real Nginx with mTLS)
 
-**Not yet** (step 5 on): separation of duties; the signed daily digest off
-Host A; security alerts (§18), which wait for the team's alert route (no receiver exists: Argus only reads its
-Alertmanager), including the alert on `security.audit_chain_broken`;
-`policies/SECURITY.md` (the new secrets).
+- [x] step 5a (1.8.32): the signed daily digest. `domain/audit_digest.py` (the digest of a closed UTC day: the last
+      chained row, its hash, the row count; Ed25519 signature over the canonical JSON; a check against the chain),
+      `infrastructure/audit_digest.py` (`AuditDigestJob`: verify the chain, sign nothing if it is broken, put each
+      closed day once, never overwrite a different object; every outcome a `security.audit_digest_*` event),
+      `adapters/outbound/digest_sinks.py` (`LocalDirSink`, which says it is not off host), `audit_digest` in
+      `deploy/scheduler/schedules.yaml` (off), `ARGUS_AUDIT_DIGEST_SINK`; `tests/test_phase16_step5_digest.py`.
+      Not built in 5a: the OCI sink (5b), the key on vm-095 and the schedule turned on (5c)
+
+- [x] step 5b (1.8.34): the OCI sink. `OciObjectSink` (`adapters/outbound/digest_sinks.py`): a digest is created once
+      with `If-None-Match: *`, its SHA-256 as object metadata, and, when the service refuses, a HEAD tells whether the
+      name holds the same bytes (the credential cannot read a body); `DigestSinkError` carries a status and a code, never
+      the service's message. `ARGUS_AUDIT_DIGEST_SINK=oci:<namespace>/<bucket>`, the credential in `oci_digest/config` and
+      `key.pem` under the secrets folder; `oci==2.189.0`; `tests/test_phase16_step5b_oci_sink.py`, with an opt-in test
+      against a real bucket. The bucket and its permissions were proved by hand on 2026-10-23 (§5)
+
+**Not yet** (step 5c on): separation of duties; the digest key and the OCI credential on vm-095, their compose mounts, the network note and the schedule turned on (step 5c); security alerts (§18), which wait for the team's alert route (no receiver exists: Argus only reads its
+Alertmanager), including the alert on `security.audit_chain_broken`.
