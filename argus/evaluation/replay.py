@@ -51,7 +51,8 @@ class CaseRun:
     duration_ms: int = 0
     trial: int = 1
     # ACR-0024 §3.8 (T-0047 H4): the final decision's hypotheses (`incident_hypothesis`), by rank, as
-    # {id, target, cause_class, status, rank, chosen}; whether the chosen one is not first; the H1 checks' problems
+    # {id, target, cause_class, status, rank, chosen}; whether the chosen one is not first; the H1 checks' problems,
+    # each as 'step <n> <decision>: <problem>'
     hypotheses: list[dict] = field(default_factory=list)
     ranking_disagrees: bool = False
     hypothesis_problems: list[str] = field(default_factory=list)
@@ -247,8 +248,8 @@ def run_case(case: Case, workdir: Path, llm: Any | None = None, settings: Settin
         invalid_decisions=[f"{(a.detail or {}).get('reason')}: {str((a.detail or {}).get('detail'))[:300]}"
                            for a in audit if a.event == "decision.invalid"],
         hypotheses=hypotheses, ranking_disagrees=any(h["chosen"] and h["rank"] != 1 for h in hypotheses),
-        hypothesis_problems=[p for a in audit if a.event == "hypothesis.invalid"
-                             for p in (a.detail or {}).get("problems") or []],
+        hypothesis_problems=[f"step {(a.detail or {}).get('step')} {(a.detail or {}).get('decision')}: {p}"
+                             for a in audit if a.event == "hypothesis.invalid" for p in (a.detail or {}).get("problems") or []],
         observed=_observed(evidence, [t.ref for t in app.inventory.targets()]))
     _drop_store(app, db)
     return result
