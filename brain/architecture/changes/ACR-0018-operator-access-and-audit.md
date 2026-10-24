@@ -2,8 +2,8 @@
 
 Part of the next-phase proposal ([task](../../tasks/current/NEXT-PHASE-supervised-remediation.md)) with
 [ACR-0019](ACR-0019-human-approved-remediation.md) (human-approved remediation) and
-[ACR-0020](ACR-0020-operator-terminal.md) (operator terminal). This ACR is their precondition: neither may be
-implemented before this one is applied and deployed.
+[ACR-0020](ACR-0020-operator-terminal.md) (operator terminal). This ACR is their precondition: phases 17 and 18 may
+start earlier under ACR-0019 §5, but phase 19 and any write-gate release wait until this ACR is applied and deployed.
 
 | Field | Value |
 |---|---|
@@ -136,8 +136,18 @@ ACR-0019 and ACR-0020.
    retention lock, written through a **put-only** credential that cannot delete or overwrite (a new secret under
    `secrets/agent/`, never printed). Not vm-166 and not a developer's laptop: every developer has sudo on both VMs,
    and a laptop is one person's. **Retention:** audit digests 1 year; terminal recordings 90 days (ACR-0020 may
-   change the latter). The provider is chosen by whoever administers the cloud account when phase 16 is deployed,
-   and recorded in `policies/NETWORK.md` with the other egress (§6). Until the bucket exists, phase 16 cannot be
+   change the latter). The provider is **OCI Object Storage**, administered by `conantkd` (chosen 2026-10-23), and is
+   recorded in `policies/NETWORK.md` with the other egress (§6) when phase 16 is deployed. **OCI does not allow
+   versioning and a retention rule on the same bucket** (Oracle's "Object Storage Data Retention Rules" and "Object
+   Storage Versioning" pages): there the write-once property comes from a **locked time-bound retention rule**
+   (digests 1 year) with versioning left off, each digest written once under a unique name. The rule is measured per
+   object from its last modification, and a lock takes effect only after a mandatory 14-day delay and cannot be undone
+   (it can only grow); the rule is created unlocked and tested first; enabling the lock then starts the 14-day delay, during which it can still be cancelled.
+   Put-only on OCI means a policy that grants `OBJECT_INSPECT` and `OBJECT_CREATE` and neither `OBJECT_OVERWRITE` nor
+   `OBJECT_DELETE` (`PutObject` needs `OBJECT_CREATE` for a new name and `OBJECT_OVERWRITE` for an existing one; no
+   verb alone grants create-only, so it is written with a `request.permission` condition scoped to the bucket with
+   `target.bucket.name`, as in Oracle's own policy for writing objects). The step that creates the bucket proves it: the credential must be refused an
+   overwrite and a delete. Until the bucket exists, phase 16 cannot be
    deployed: the digest job fails closed and raises the security alert of §18.
 
 Next: phase 16 applies this ACR, with its first code, in one pull request (§6).
