@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | `in review` - step 5c in [PR #314](https://github.com/agenticteam03/argus_production/pull/314); digest-chain fix and main integration validated locally (journal); publication, exact-head CI and teammate re-review pending; not deployed |
+| Status | `in review` - step 5c in [PR #314](https://github.com/agenticteam03/argus_production/pull/314); digest-chain fix published and based on main; full offline suite 1922 passed, 73 skipped ([journal](../../journal/entries/2026-10-23-PHASE-16-step-5c-wiring.md)); exact-head CI and teammate re-review pending; not deployed |
 | Phase | 16 of [NEXT-PHASE](NEXT-PHASE-supervised-remediation.md) ([`../../IMPLEMENTATION_PLAN.md`](../../IMPLEMENTATION_PLAN.md)) |
 | Architecture | [ACR-0018](../../architecture/changes/ACR-0018-operator-access-and-audit.md) (`accepted`, #209); each step applies only what it builds (its §6) |
 | Branch | one per step: `task/PHASE-16-step-<n>-<slug>` |

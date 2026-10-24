@@ -52,10 +52,17 @@ All 16 failed cases passed when repeated with Git Bash first on PATH (24.67 seco
 for those environment failures; no clean single full-suite run is claimed. Docker Desktop is unavailable locally;
 the relevant opt-in tests were skipped. Fresh exact-head CI remains required after publication.
 
+Independent full-suite recheck on 2026-10-24: **1922 passed, 73 skipped**, exit 0 (1219.36 seconds), with Git Bash
+first on PATH, temporary repositories outside the worktree and execution outside the Windows sandbox. OCI 2.189.0
+was installed as declared by this branch; the dependency check passed. One pytest cache-write warning did not affect
+the result. The tested runtime, tests, architecture, policies and compose files are byte-identical to published head
+`737707e`; only task/journal prose differed between the isolated worktrees. This supersedes the earlier environment
+failures and the lack of a single successful full-suite run. No runtime change is made by this evidence update.
+
 ### Next step
 
-Dependencies #302, #303 and #311 are merged. Publish the validated correction with the prepared
-command block and retarget #314 to main. Obtain a fresh teammate review of the integrity fix and conflict resolution,
+Dependencies #302, #303 and #311 are merged. The correction is published and #314 targets main.
+Obtain a fresh teammate review of the integrity fix and conflict resolution,
 with exact-head CI and current main-guard green before merging; retain the source branch. Main-guard on `ada9fec9`
 failed in run `40115433517`: #303 lacks a valid teammate approval of its last push. The team must resolve that review-policy
 failure before merging #314. #317 proposes the same integrity
