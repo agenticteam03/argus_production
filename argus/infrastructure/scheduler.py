@@ -14,6 +14,8 @@ T-0046 L3 (ACR-0025): `reconcile_firing_alerts.link_states` records the declared
 (`application/link_transitions.py`); off until deployed. Its failure never stops the alert reconciliation.
 ACR-0018 (`audit_chain` in the same file): at startup and every `every_s` seconds it verifies the audit hash chain and
 records the result as a `security` audit event (`security.audit_chain_verified` or `security.audit_chain_broken`).
+ACR-0018 step 5 (`audit_digest` in the same file, off until the audit digest key and the store exist): every `every_s`
+seconds `AuditDigestJob` (`infrastructure/audit_digest.py`) signs and ships the digest of each closed day.
 """
 from __future__ import annotations
 
@@ -37,6 +39,8 @@ LINK_STATES_FIELDS = {"enabled"}
 RECONCILE_MIN_EVERY_S = 30
 AUDIT_CHAIN_FIELDS = {"enabled", "every_s"}
 AUDIT_CHAIN_MIN_EVERY_S = 3600          # the whole chain is read: at most hourly
+AUDIT_DIGEST_FIELDS = {"enabled", "every_s"}
+AUDIT_DIGEST_MIN_EVERY_S = 3600         # it reads the whole chain too
 
 
 @dataclass(frozen=True)
@@ -88,6 +92,20 @@ def load_audit_chain(text: str) -> int | None:
     every = int(item.get("every_s", 86400))
     if every < AUDIT_CHAIN_MIN_EVERY_S:
         raise ValueError(f"audit_chain: every_s {every} is below the minimum of {AUDIT_CHAIN_MIN_EVERY_S}")
+    return every if item.get("enabled", False) else None
+
+
+def load_audit_digest(text: str) -> int | None:
+    """`audit_digest` (ACR-0018 step 5): the seconds between two runs of the signed daily digest job; None = off."""
+    item = (yaml.safe_load(text) or {}).get("audit_digest")
+    if not item:
+        return None
+    extra = set(item) - AUDIT_DIGEST_FIELDS
+    if extra:
+        raise ValueError(f"audit_digest: unknown field {sorted(extra)}")
+    every = int(item.get("every_s", 86400))
+    if every < AUDIT_DIGEST_MIN_EVERY_S:
+        raise ValueError(f"audit_digest: every_s {every} is below the minimum of {AUDIT_DIGEST_MIN_EVERY_S}")
     return every if item.get("enabled", False) else None
 
 
@@ -153,12 +171,14 @@ def load_schedules(text: str, inventory, min_interval_s: int) -> list[Schedule]:
 
 class Scheduler:
     def __init__(self, store, schedules: list[Schedule], reconcile=None, reconcile_every_s: int = 60,
-                 chain_check=None, chain_every_s: int = 86400, links=None):
+                 chain_check=None, chain_every_s: int = 86400, links=None, digest_job=None,
+                 digest_every_s: int = 86400):
         self.store = store
         self.schedules = schedules
         self.reconcile, self.reconcile_every_s = reconcile, reconcile_every_s   # ReconcileFiringAlerts or None
         self.chain_check, self.chain_every_s = chain_check, chain_every_s       # AuditChainCheck or None (ACR-0018)
         self.links = links                     # LinkTransitions or None (T-0046 L3): on the reconcile tick
+        self.digest_job, self.digest_every_s = digest_job, digest_every_s       # AuditDigestJob or None (ACR-0018)
         self._last: dict[str, datetime] = {}
 
     def tick(self, now: datetime) -> list[tuple[str, str]]:
@@ -193,7 +213,7 @@ class Scheduler:
         return "duplicate" if duplicate else "submitted"
 
     def run_forever(self, stop: threading.Event, every_s: float = 15.0) -> None:
-        next_reconcile = next_chain = time.monotonic()
+        next_reconcile = next_chain = next_digest = time.monotonic()
         while not stop.is_set():
             if self.chain_check is not None and time.monotonic() >= next_chain:
                 next_chain = time.monotonic() + self.chain_every_s
@@ -201,6 +221,12 @@ class Scheduler:
                     log.info("audit chain: %s", self.chain_check.run_once())
                 except Exception:              # the next pass retries; a failure to verify is not a broken chain
                     log.exception("audit chain check failed")
+            if self.digest_job is not None and time.monotonic() >= next_digest:
+                next_digest = time.monotonic() + self.digest_every_s
+                try:
+                    log.info("audit digest: %s", self.digest_job.run_once())
+                except Exception:              # the next run starts from the first day not shipped
+                    log.exception("audit digest failed")
             try:
                 self.tick(utcnow())
             except Exception:                  # a database hiccup must not kill the scheduler; next tick retries
