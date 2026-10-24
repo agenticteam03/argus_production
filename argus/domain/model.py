@@ -306,7 +306,7 @@ class TargetInfo(BaseModel):
     def service_card(self):
         if not self.service:
             return None
-        from argus.actions.cards import ServiceCard
+        from argus.domain.service_card import ServiceCard
         return ServiceCard.from_dict(self.service)
 
     def link(self, dep: TargetRef) -> DependencyLink:

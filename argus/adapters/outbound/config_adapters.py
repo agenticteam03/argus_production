@@ -37,6 +37,15 @@ class YamlInventory:
             warn = t.get("link_warning_ms")
             if warn is not None and (isinstance(warn, bool) or not isinstance(warn, (int, float)) or warn <= 0):
                 raise ValueError(f"inventory target {ref}: link_warning_ms must be a positive number")
+            service = t.get("service")
+            if service is not None:
+                from argus.actions.catalog import ACTION_CATALOGUE, NEVER_OFFERED_ACTIONS
+                from argus.domain.service_card import ServiceCard
+                card = ServiceCard.from_dict(service)
+                declared = set(card.safe_actions) | set(card.never)
+                unknown = declared - set(ACTION_CATALOGUE)
+                if unknown or set(card.safe_actions) & NEVER_OFFERED_ACTIONS:
+                    raise ValueError(f"inventory target {ref}: service card has unsupported actions")
             links = [_dependency_link(ref, d) for d in t.get("depends_on", [])]
             refs = [str(x.ref) for x in links]
             if len(refs) != len(set(refs)):         # one link per dependency: link() would keep the first silently
@@ -51,7 +60,7 @@ class YamlInventory:
                                             database=(t.get("database") or {}).get("dbname"),
                                             profile=t.get("profile"),
                                             link_warning_ms=None if warn is None else float(warn),
-                                            service=t.get("service"))
+                                            service=service)
         for info in self._targets.values():
             for d in info.depends_on:
                 if d not in self._targets:

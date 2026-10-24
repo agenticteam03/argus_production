@@ -18,6 +18,12 @@ class ExpectedHypotheses(BaseModel):
     ruled_out: list[str] = []                     # what a careful run considers and rules out
 
 
+class ExpectedAction(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    action: str
+    target: str
+
+
 class Label(BaseModel):
     model_config = ConfigDict(extra="forbid", populate_by_name=True)
     outcome: str | list[str]
@@ -29,6 +35,8 @@ class Label(BaseModel):
     findings_any: list[str] = []
     runbooks: list[str] = []                      # supporting runbooks, for recall@3
     expected_hypotheses: ExpectedHypotheses | None = None    # ACR-0024 §3.8 (T-0047 H4)
+    expected_actions: list[ExpectedAction] = []              # Phase 17: offered action answer key
+    forbidden_actions: list[ExpectedAction] = []             # traps that must never be offered
 
     def expected_causes(self) -> list[str]:
         """The entries a top-ranked hypothesis should match: `expected_hypotheses.supported`, else `root_cause`."""

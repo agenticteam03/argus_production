@@ -4,9 +4,10 @@ model_name: start_container
 executor: action-gateway
 route: /containers/{name}/start
 parameters:
-  timeout: int
+  timeout: {type: int, min: 1, max: 30}
+identity_fields: [container_id]
 preconditions:
-  - 'status == "exited" or status == "stopped"'
+  - 'state == "exited" or state == "created"'
 useful_when:
   - "Container is stopped or crashed"
   - "Dependency service is offline (e.g. SC-03 cache)"

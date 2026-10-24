@@ -11,35 +11,13 @@ from typing import Any
 import yaml
 
 from argus.actions.preconditions import evaluate_precondition
+from argus.actions.catalog import ACTION_ROUTES, get_action_spec
+from argus.domain.service_card import ServiceCard as ServiceCard
 
-
-@dataclass(frozen=True)
-class ServiceCard:
-    role: str
-    kind: str  # stateless | stateful | proxy | database
-    owner: str
-    criticality: str  # low | medium | high
-    data: str  # ephemeral | persistent
-    safe_actions: list[str]
-    never: list[str]
-    allowed_networks: list[str] = field(default_factory=list)
-    verify: dict[str, Any] = field(default_factory=dict)
-    quirks: list[str] = field(default_factory=list)
-
-    @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> ServiceCard:
-        return cls(
-            role=str(data.get("role", "")),
-            kind=str(data.get("kind", "stateless")),
-            owner=str(data.get("owner", "")),
-            criticality=str(data.get("criticality", "low")),
-            data=str(data.get("data", "ephemeral")),
-            safe_actions=list(data.get("safe_actions", [])),
-            never=list(data.get("never", [])),
-            allowed_networks=list(data.get("allowed_networks", [])),
-            verify=dict(data.get("verify", {})),
-            quirks=list(data.get("quirks", [])),
-        )
+_ACTION_CARD_FIELDS = frozenset({
+    "name", "model_name", "executor", "route", "parameters", "identity_fields", "preconditions",
+    "useful_when", "not_useful_when", "verify", "rollback", "sources",
+})
 
 
 @dataclass(frozen=True)
@@ -55,6 +33,7 @@ class ActionCard:
     verify: dict[str, Any]
     rollback: str
     sources: list[str]
+    identity_fields: list[str] = field(default_factory=list)
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> ActionCard:
@@ -70,6 +49,7 @@ class ActionCard:
             verify=dict(data.get("verify", {})),
             rollback=str(data.get("rollback", "")),
             sources=list(data.get("sources", [])),
+            identity_fields=list(data.get("identity_fields", [])),
         )
 
     def check_preconditions(self, context: dict[str, Any]) -> bool:
@@ -90,8 +70,48 @@ def load_action_cards(directory: Path | str) -> dict[str, ActionCard]:
     for yaml_path in sorted(dir_path.glob("*.yaml")):
         content = yaml_path.read_text(encoding="utf-8")
         raw = yaml.safe_load(content)
-        if isinstance(raw, dict) and "name" in raw and "model_name" in raw:
-            card = ActionCard.from_dict(raw)
-            cards[card.name] = card
+        if not isinstance(raw, dict):
+            raise ValueError(f"{yaml_path.name}: action card must be a mapping")
+        missing = _ACTION_CARD_FIELDS - raw.keys()
+        extra = raw.keys() - _ACTION_CARD_FIELDS
+        if missing or extra:
+            detail = []
+            if missing:
+                detail.append(f"missing {', '.join(sorted(missing))}")
+            if extra:
+                detail.append(f"unexpected {', '.join(sorted(extra))}")
+            raise ValueError(f"{yaml_path.name}: action card fields are invalid: {'; '.join(detail)}")
+        for field_name in ("name", "model_name", "executor", "route", "rollback"):
+            if not isinstance(raw[field_name], str) or not raw[field_name]:
+                raise ValueError(f"{yaml_path.name}: {field_name} must be a non-empty string")
+        for field_name in ("identity_fields", "preconditions", "useful_when", "not_useful_when", "sources"):
+            if not isinstance(raw[field_name], list) or not all(isinstance(value, str) and value for value in raw[field_name]):
+                raise ValueError(f"{yaml_path.name}: {field_name} must be a list of non-empty strings")
+        if not raw["identity_fields"] or not raw["preconditions"] or not raw["sources"]:
+            raise ValueError(f"{yaml_path.name}: identity_fields, preconditions and sources must not be empty")
+        if not isinstance(raw["parameters"], dict):
+            raise ValueError(f"{yaml_path.name}: parameters must be a mapping")
+        verify = raw["verify"]
+        if (not isinstance(verify, dict) or not isinstance(verify.get("signal"), str) or not verify["signal"]
+                or "expected" not in verify or not isinstance(verify.get("window_sec"), int)
+                or isinstance(verify.get("window_sec"), bool) or verify["window_sec"] <= 0):
+            raise ValueError(f"{yaml_path.name}: verify needs a signal, expected value and positive window_sec")
+        card = ActionCard.from_dict(raw)
+        spec = get_action_spec(card.name)
+        if card.model_name != spec.model_name or card.route != ACTION_ROUTES.get(card.name):
+            raise ValueError(f"{yaml_path.name}: action name, model name or route is not reviewed")
+        if card.executor != "action-gateway":
+            raise ValueError(f"{yaml_path.name}: action card is incomplete")
+        for expr in card.preconditions:
+            evaluate_precondition(expr, {})  # parse every reviewed guard before the app starts
+        for parameter, bounds in card.parameters.items():
+            if (not isinstance(bounds, dict) or bounds.get("type") != "int"
+                    or not isinstance(bounds.get("min"), int) or isinstance(bounds.get("min"), bool)
+                    or not isinstance(bounds.get("max"), int) or isinstance(bounds.get("max"), bool)
+                    or bounds["min"] < 0 or bounds["min"] > bounds["max"]):
+                raise ValueError(f"{yaml_path.name}: {parameter} needs integer bounds")
+        if card.name in cards:
+            raise ValueError(f"{yaml_path.name}: duplicate action {card.name}")
+        cards[card.name] = card
 
     return cards

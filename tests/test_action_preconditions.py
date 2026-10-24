@@ -80,6 +80,15 @@ def test_observation_paths_do_not_invoke_object_properties():
         evaluate_precondition('container.status == "running"', {"container": HostileObservation()})
 
 
+def test_custom_comparison_methods_in_observations_are_rejected():
+    class HostileValue:
+        def __eq__(self, other):
+            raise AssertionError("comparison method executed")
+
+    with pytest.raises(PreconditionSyntaxError, match="built-in JSON types"):
+        evaluate_precondition("status == 1", {"status": HostileValue()})
+
+
 @pytest.mark.parametrize(
     "malicious_expr",
     [

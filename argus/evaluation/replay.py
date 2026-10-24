@@ -60,6 +60,7 @@ class CaseRun:
     observed: list[str] | None = None
     input_tokens: int = 0
     output_tokens: int = 0
+    next_actions: list[dict] = field(default_factory=list)
 
 
 class FixtureExecutor:
@@ -249,7 +250,8 @@ def run_case(case: Case, workdir: Path, llm: Any | None = None, settings: Settin
         hypotheses=hypotheses, ranking_disagrees=any(h["chosen"] and h["rank"] != 1 for h in hypotheses),
         hypothesis_problems=[p for a in audit if a.event == "hypothesis.invalid"
                              for p in (a.detail or {}).get("problems") or []],
-        observed=_observed(evidence, [t.ref for t in app.inventory.targets()]))
+        observed=_observed(evidence, [t.ref for t in app.inventory.targets()]),
+        next_actions=app.action_policy.next_actions(done, evidence, {rid for rid, _ in passages}, app.inventory))
     _drop_store(app, db)
     return result
 

@@ -95,10 +95,11 @@ def action_cards() -> dict[str, ActionCard]:
 
 
 def test_basis_computed_strictly_by_code():
-    assert compute_basis(["RB-003"]) == Basis.runbook
-    assert compute_basis(["mem-20261020-01"]) == Basis.memory
-    assert compute_basis(["ref-docker-docs-start"]) == Basis.reference
-    assert compute_basis(["op-manual-override"]) == Basis.operator
+    assert compute_basis(["RB-003"], {"RB-003"}) == Basis.runbook
+    assert compute_basis(["mem-20261020-01"], {"mem-20261020-01"}) == Basis.memory
+    assert compute_basis(["ref-docker-docs-start"], {"ref-docker-docs-start"}) == Basis.reference
+    assert compute_basis(["op-manual-override"], {"op-manual-override"}) == Basis.operator
+    assert compute_basis(["RB-999"]) == Basis.none
     assert compute_basis(["unverified_external_url"]) == Basis.none
     assert compute_basis([]) == Basis.none
 
@@ -109,6 +110,7 @@ def test_suggest_action_is_strictly_read_only_text():
         text="Cache is down; execute container.start after verifying memory limit.",
         closest_capability="container.start",
         grounds=["RB-003"],
+        verified_sources={"RB-003"},
     )
     assert isinstance(s, ActionSuggestion)
     assert s.is_executable is False
@@ -145,6 +147,7 @@ def test_sc03_exit_proof_suggests_start_cache_and_never_restart_api(risk_table, 
         observations=cache_obs,
         grounds=["RB-003"],
         is_victim=False,
+        verified_sources={"RB-003"},
     )
     assert len(cache_candidates) == 1
     assert cache_candidates[0].action == "container.start"
@@ -173,6 +176,7 @@ def test_sc03_exit_proof_suggests_start_cache_and_never_restart_api(risk_table, 
         observations=api_obs,
         grounds=["RB-003"],
         is_victim=True,  # Victim of dependency outage (RB-002, RB-003)
+        verified_sources={"RB-003"},
     )
     # Restarting victim is explicitly forbidden / rejected
     assert not any(c.action == "container.restart" for c in api_candidates)
@@ -185,10 +189,19 @@ def test_candidate_requires_verified_ground_and_closed_catalogue(risk_table, act
     ref = TargetRef.parse("vm-166/container:argus-lab-cache")
     assert evaluate_candidate_actions(ref, cache, action_cards, risk_table, {"status": "exited"}) == []
     assert evaluate_candidate_actions(ref, cache, action_cards, risk_table, {"status": "exited"},
-                                      grounds=["RB-999"]) == []
+                                      grounds=["RB-999"], verified_sources={"RB-003"}) == []
 
     unknown = ActionCard("invented.action", "invented_action", "action-gateway", "/x", {}, [], [], [], {},
                          "none", ["RB-003"])
     permissive = RiskTable({"invented.action": {"stateless": RiskColor.green}})
     assert evaluate_candidate_actions(ref, cache, {"invented.action": unknown}, permissive, {},
-                                      grounds=["RB-003"]) == []
+                                      grounds=["RB-003"], verified_sources={"RB-003"}) == []
+
+
+def test_risk_escalation_to_forbidden_removes_candidate(risk_table, action_cards):
+    service = ServiceCard("worker", "stateful", "platform", "high", "persistent",
+                          ["container.stop"], [])
+    ref = TargetRef.parse("vm-166/container:argus-lab-worker")
+    assert evaluate_candidate_actions(ref, service, {"container.stop": action_cards["container.stop"]},
+                                      risk_table, {"status": "running"}, grounds=["RB-004"],
+                                      verified_sources={"RB-004"}, is_victim=False) == []

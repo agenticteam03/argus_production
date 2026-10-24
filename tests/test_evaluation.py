@@ -99,6 +99,15 @@ def test_the_grader_names_what_is_wrong(ev, label, run_kw, problem):
     assert any(problem in p for p in problems), problems
 
 
+def test_action_answer_keys_grade_missing_and_forbidden_offers(ev):
+    expected = {"action": "container.start", "target": "vm-166/container:argus-lab-cache"}
+    forbidden = {"action": "container.restart", "target": "vm-166/container:argus-lab-api"}
+    c = _case(ev, expected_actions=[expected], forbidden_actions=[forbidden])
+    assert any("missing action" in p for p in ev.grade(c, _run(ev)))
+    assert ev.grade(c, _run(ev, next_actions=[expected])) == []
+    assert any("forbidden action" in p for p in ev.grade(c, _run(ev, next_actions=[expected, forbidden])))
+
+
 def test_the_word_checks_ignore_case_hyphens_and_underscores(ev):
     """Try 4: "health-check failures" did not count for the label word "health check"."""
     c = _case(ev, diagnosis_any=["health check"])

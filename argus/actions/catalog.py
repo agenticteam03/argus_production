@@ -108,6 +108,13 @@ ACTION_CATALOGUE: dict[str, ActionSpec] = {
     ),
 }
 
+# Each released card must name the exact gateway route reviewed for that capability.
+ACTION_ROUTES = {
+    "container.start": "/containers/{name}/start",
+    "container.restart": "/containers/{name}/restart",
+    "container.stop": "/containers/{name}/stop",
+}
+
 
 def get_action_spec(name: str) -> ActionSpec:
     if name not in ACTION_CATALOGUE:
@@ -117,7 +124,7 @@ def get_action_spec(name: str) -> ActionSpec:
 
 def is_action_permitted_on_service(action: str, service: ServiceCard) -> bool:
     """Verifies that an action is allowed by the target's ServiceCard."""
-    if action in NEVER_OFFERED_ACTIONS:
+    if action not in ACTION_CATALOGUE or action in NEVER_OFFERED_ACTIONS:
         return False
     if action in service.never:
         return False

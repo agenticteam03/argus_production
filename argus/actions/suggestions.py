@@ -7,9 +7,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import StrEnum
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Collection
 
-from argus.actions.catalog import is_action_permitted_on_service
+from argus.actions.catalog import get_action_spec, is_action_permitted_on_service
 from argus.actions.risk import RiskColor, RiskTable, resolve_proposal_risk
 
 if TYPE_CHECKING:
@@ -37,7 +37,7 @@ class ActionSuggestion:
     is_executable: bool = False  # Suggestions in Phase 17 are strictly non-executable text for operators
 
 
-def compute_basis(grounds: list[str]) -> Basis:
+def compute_basis(grounds: list[str], verified_sources: Collection[str] = ()) -> Basis:
     """Computes the basis strictly by code from cited grounds.
 
     - RB-* -> runbook
@@ -46,7 +46,10 @@ def compute_basis(grounds: list[str]) -> Basis:
     - op-* -> operator manual guidance
     Any uncited or unverified ground results in Basis.none (downgraded to suggestion).
     """
+    verified = set(verified_sources)
     for g in grounds:
+        if g not in verified:
+            continue
         if g.startswith("RB-"):
             return Basis.runbook
         if g.startswith("mem-"):
@@ -63,11 +66,12 @@ def suggest_action(
     text: str,
     closest_capability: str | None = None,
     grounds: list[str] | None = None,
+    verified_sources: Collection[str] = (),
     risk_color: RiskColor = RiskColor.green,
 ) -> ActionSuggestion:
     """Creates a human-readable action suggestion for the operator."""
     cited_grounds = grounds or []
-    basis = compute_basis(cited_grounds)
+    basis = compute_basis(cited_grounds, verified_sources)
     return ActionSuggestion(
         target=target,
         text=text,
@@ -87,7 +91,8 @@ def evaluate_candidate_actions(
     risk_table: RiskTable,
     observations: dict[str, Any],
     grounds: list[str] | None = None,
-    is_victim: bool = False,
+    is_victim: bool | None = None,
+    verified_sources: Collection[str] = (),
 ) -> list[ActionSuggestion]:
     """Evaluates candidate actions for a target against service card, action cards, and observations.
 
@@ -99,15 +104,22 @@ def evaluate_candidate_actions(
     """
     candidates: list[ActionSuggestion] = []
     cited_grounds = grounds or []
-    basis = compute_basis(cited_grounds)
 
     for action_name, card in action_cards.items():
         # Rule: restarting the victim instead of the cause is strictly forbidden
-        if is_victim and action_name == "container.restart":
+        if is_victim is not False and action_name == "container.restart":
             continue
 
         # Service Card authorization
         if not is_action_permitted_on_service(action_name, service_card):
+            continue
+        spec = get_action_spec(action_name)
+        if card.name != spec.name or card.model_name != spec.model_name:
+            continue
+
+        supported = set(card.sources).intersection(cited_grounds, verified_sources)
+        basis = compute_basis(cited_grounds, supported)
+        if basis == Basis.none:
             continue
 
         # Base risk lookup
@@ -127,6 +139,8 @@ def evaluate_candidate_actions(
             criticality=service_card.criticality,
             judge_verdict="agree",
         )
+        if resolved_color == RiskColor.forbidden:
+            continue
 
         candidates.append(
             ActionSuggestion(

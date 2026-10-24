@@ -4,9 +4,10 @@ model_name: restart_container
 executor: action-gateway
 route: /containers/{name}/restart
 parameters:
-  timeout: int
+  timeout: {type: int, min: 1, max: 60}
+identity_fields: [container_id]
 preconditions:
-  - 'status == "running" or status == "restarting"'
+  - 'state == "running" or state == "restarting"'
 useful_when:
   - "Container is in a restart loop without OOM"
   - "Process is unresponsive or hung"

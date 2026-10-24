@@ -22,6 +22,36 @@ class _MissingSentinel:
 _MISSING = _MissingSentinel()
 
 
+def _validate_observation(value: Any, *, depth: int = 0, seen: set[int] | None = None,
+                         budget: list[int] | None = None) -> None:
+    """Reject custom objects so comparisons cannot dispatch user-defined Python methods."""
+    if value is None or type(value) in (bool, int, float, str):
+        return
+    if depth >= 64:
+        raise PreconditionSyntaxError("Observation values are nested too deeply")
+    if type(value) not in (dict, list, tuple):
+        raise PreconditionSyntaxError("Observation values must use built-in JSON types")
+    if seen is None:
+        seen = set()
+    if budget is None:
+        budget = [10_000]
+    ident = id(value)
+    if ident in seen:
+        raise PreconditionSyntaxError("Observation values must not contain cycles")
+    seen.add(ident)
+    try:
+        items = value.items() if type(value) is dict else enumerate(value)
+        for key, child in items:
+            budget[0] -= 1
+            if budget[0] < 0:
+                raise PreconditionSyntaxError("Observation values contain too many entries")
+            if type(value) is dict and type(key) is not str:
+                raise PreconditionSyntaxError("Observation mappings must have string keys")
+            _validate_observation(child, depth=depth + 1, seen=seen, budget=budget)
+    finally:
+        seen.remove(ident)
+
+
 class _SafeEvaluator:
     """Recursive AST evaluator restricted to safe boolean logic and comparisons."""
 
@@ -50,6 +80,9 @@ class _SafeEvaluator:
     )
 
     def __init__(self, context: dict[str, Any]) -> None:
+        if type(context) is not dict:
+            raise PreconditionSyntaxError("Observation context must be a dictionary")
+        _validate_observation(context)
         self.context = context
 
     def evaluate(self, node: ast.AST) -> Any:
@@ -82,7 +115,7 @@ class _SafeEvaluator:
             return _MISSING
         if isinstance(base, dict):
             return base.get(attr, _MISSING)
-        return getattr(base, attr, _MISSING)
+        raise PreconditionSyntaxError("Observation paths must contain dictionaries only")
 
     def _eval_List(self, node: ast.List) -> list[Any]:
         return [self.evaluate(elem) for elem in node.elts]
@@ -94,40 +127,49 @@ class _SafeEvaluator:
         val = self.evaluate(node.operand)
         if isinstance(node.op, ast.Not):
             if isinstance(val, _MissingSentinel):
-                return True
+                return _MISSING
             return not bool(val)
         raise PreconditionSyntaxError(f"Disallowed unary operator: {type(node.op).__name__}")
 
-    def _eval_BoolOp(self, node: ast.BoolOp) -> bool:
+    def _eval_BoolOp(self, node: ast.BoolOp) -> Any:
         if isinstance(node.op, ast.And):
+            missing = False
             for val_node in node.values:
                 val = self.evaluate(val_node)
-                if isinstance(val, _MissingSentinel) or not val:
+                if isinstance(val, _MissingSentinel):
+                    missing = True
+                elif not val:
                     return False
-            return True
+            return _MISSING if missing else True
         if isinstance(node.op, ast.Or):
+            missing = False
             for val_node in node.values:
                 val = self.evaluate(val_node)
-                if not isinstance(val, _MissingSentinel) and bool(val):
+                if isinstance(val, _MissingSentinel):
+                    missing = True
+                elif bool(val):
                     return True
-            return False
+            return _MISSING if missing else False
         raise PreconditionSyntaxError(f"Disallowed boolean operator: {type(node.op).__name__}")
 
-    def _eval_Compare(self, node: ast.Compare) -> bool:
+    def _eval_Compare(self, node: ast.Compare) -> Any:
         left = self.evaluate(node.left)
         current = left
 
         for op, comp_node in zip(node.ops, node.comparators):
             right = self.evaluate(comp_node)
-            if not self._apply_comparison(current, op, right):
+            compared = self._apply_comparison(current, op, right)
+            if isinstance(compared, _MissingSentinel):
+                return _MISSING
+            if not compared:
                 return False
             current = right
         return True
 
-    def _apply_comparison(self, left: Any, op: ast.cmpop, right: Any) -> bool:
-        # If either operand is missing, any equality or relational comparison is False
+    def _apply_comparison(self, left: Any, op: ast.cmpop, right: Any) -> Any:
+        # Preserve unknown through negation so missing evidence cannot satisfy a guard.
         if isinstance(left, _MissingSentinel) or isinstance(right, _MissingSentinel):
-            return False
+            return _MISSING
 
         try:
             if isinstance(op, ast.Eq):

@@ -2,6 +2,10 @@
 """
 from __future__ import annotations
 
+import pytest
+import yaml
+from pathlib import Path
+
 from argus.actions.cards import (
     ActionCard,
     ServiceCard,
@@ -97,7 +101,11 @@ def test_load_real_action_cards():
 
     start_card = cards["container.start"]
     assert start_card.name == "container.start"
-    assert start_card.check_preconditions({"status": "exited"}) is True
+    assert start_card.check_preconditions({"state": "exited"}) is True
+    assert start_card.check_preconditions({"state": "running"}) is False
+    assert cards["container.restart"].check_preconditions({"state": "running"}) is True
+    assert cards["container.restart"].check_preconditions({"state": "restarting"}) is True
+    assert cards["container.stop"].check_preconditions({"state": "running"}) is True
 
 
 def test_real_inventory_has_service_cards():
@@ -122,3 +130,52 @@ def test_real_inventory_has_service_cards():
     assert db_service is not None
     assert db_service.kind == "database"
     assert "container.restart" in db_service.never
+
+
+def test_service_card_rejects_missing_or_unsafe_fields():
+    with pytest.raises(ValueError, match="missing"):
+        ServiceCard.from_dict({"role": "cache", "safe_actions": ["container.start"]})
+    with pytest.raises(ValueError, match="mapping"):
+        ServiceCard.from_dict([])
+    with pytest.raises(ValueError, match="criticality"):
+        ServiceCard.from_dict({"role": "cache", "kind": "stateless", "owner": "platform",
+                               "criticality": "unknown", "data": "ephemeral",
+                               "safe_actions": ["container.start"], "never": []})
+
+
+def test_action_loader_rejects_unreviewed_route(tmp_path):
+    root = Path(__file__).resolve().parent.parent
+    raw = yaml.safe_load((root / "config/actions/container.start.yaml").read_text(encoding="utf-8"))
+    raw["route"] = "/containers/{name}/exec"
+    (tmp_path / "container.start.yaml").write_text(yaml.safe_dump(raw), encoding="utf-8")
+    with pytest.raises(ValueError, match="not reviewed"):
+        load_action_cards(tmp_path)
+
+
+def test_action_loader_rejects_incomplete_card(tmp_path):
+    root = Path(__file__).resolve().parent.parent
+    raw = yaml.safe_load((root / "config/actions/container.start.yaml").read_text(encoding="utf-8"))
+    raw.pop("verify")
+    (tmp_path / "container.start.yaml").write_text(yaml.safe_dump(raw), encoding="utf-8")
+    with pytest.raises(ValueError, match="verify"):
+        load_action_cards(tmp_path)
+
+
+def test_action_loader_rejects_boolean_integer_bounds(tmp_path):
+    root = Path(__file__).resolve().parent.parent
+    raw = yaml.safe_load((root / "config/actions/container.start.yaml").read_text(encoding="utf-8"))
+    raw["parameters"]["timeout"]["min"] = True
+    (tmp_path / "container.start.yaml").write_text(yaml.safe_dump(raw), encoding="utf-8")
+    with pytest.raises(ValueError, match="integer bounds"):
+        load_action_cards(tmp_path)
+
+
+def test_inventory_rejects_unknown_never_action():
+    from argus.adapters.outbound.config_adapters import YamlInventory
+
+    root = Path(__file__).resolve().parent.parent
+    raw = yaml.safe_load((root / "config/inventory.yaml").read_text(encoding="utf-8"))
+    cache = next(t for t in raw["targets"] if t["ref"] == "vm-166/container:argus-lab-cache")
+    cache["service"]["never"] = ["invented.action"]
+    with pytest.raises(ValueError, match="unsupported actions"):
+        YamlInventory(yaml.safe_dump(raw))

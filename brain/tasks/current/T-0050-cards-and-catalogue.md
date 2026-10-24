@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | `in progress` — local work on branch `task/T-0050-cards-and-catalogue` |
+| Status | `in progress` — Phase 17 checkpoint `e5cd3d7` is in draft PR [#316](https://github.com/agenticteam03/argus_production/pull/316); local C5 incident integration is verified, awaiting commit/push and CI ([evidence](../../journal/entries/2026-10-23-T-0050-phase17-cards-and-catalogue.md)) |
 | Phase | 17 of [NEXT-PHASE](NEXT-PHASE-supervised-remediation.md) ([`../../IMPLEMENTATION_PLAN.md`](../../IMPLEMENTATION_PLAN.md)) |
 | Architecture | [ACR-0019](../../architecture/changes/ACR-0019-human-approved-remediation.md) (`accepted`, PR #302) |
 | Branch | `task/T-0050-cards-and-catalogue` |
@@ -50,3 +50,13 @@ No write capability is released in this phase; the write gate stays closed. All 
   - `evaluate_next_actions(target, service_card, action_cards, observations)`: candidate actions that pass preconditions and service card safe_actions.
 - SC-03 exit proof verification: suggests starting `argus-lab-cache`, forbids restarting `argus-lab-api`.
 - **Tests:** `tests/test_action_suggestions.py` (red seen first).
+
+### C5 — Review corrections and incident integration
+- Service card data lives in the domain layer; inventory validates required fields and catalogue names at load time.
+- Candidate evaluation requires a reviewed action name, matching card, verified ground and fresh source timestamp;
+  missing observations cannot satisfy negated guards. Risk escalation to `forbidden` removes the candidate.
+- RB-003 v1.0.1 declares the cache-start action and its guard. The incident read view and offline replay compute
+  `next_actions` only from that declaration, a recalled runbook and stored root-cause evidence. The output is text
+  for operators and cannot execute a write.
+- The SC-03 evaluation key requires `container.start` on the cache and rejects `container.restart` on the API.
+- **Tests:** `tests/test_action_incident.py`, the SC-03 baseline replay, UI contract and write-gate standing tests.
