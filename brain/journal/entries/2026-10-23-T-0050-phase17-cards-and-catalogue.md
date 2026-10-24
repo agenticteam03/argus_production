@@ -71,9 +71,14 @@ References: [T-0050](../../tasks/current/T-0050-cards-and-catalogue.md),
   from precondition context. Focused regressions passed.
 - `brain.py lint` is clean. `brain.py audit` reports an unrelated Windows-profile-path finding in
   `.review-pr297/review.txt`; that untracked review artifact was left untouched.
-- PR #316 is open as a draft on `e5cd3d7`. Its description explicitly says not to review or approve. The C5 local
-  changes are not yet part of the remote head; CI is pending for their push. `brain/execution/current/code.bash`
-  contains unrelated edits and is excluded from this task commit.
+- After updating from the latest `origin/main` (`c8d8594`), `tests/test_evaluation.py`,
+  `tests/test_t0049_r1_prior_incident_fixtures.py` and `tests/test_t0047_hypothesis_check_steps.py` passed **116 tests**;
+  Ruff and `brain.py lint` are clean. The merge had one conflict in `argus/evaluation/replay.py`, resolved by retaining
+  both T-0049 prior-incident seeding and Phase 17 `next_actions`. Per REVIEW_PROTOCOL, this manual conflict resolution
+  requires a fresh review before merge.
+- PR #316 remains a draft with the explicit no-review/no-approval instruction. The aligned merge commit is
+  `13a54ae`; CI will run after it is pushed. `brain/execution/current/code.bash` contains unrelated edits and is
+  excluded from this task commit.
 
 ### Next step
 
