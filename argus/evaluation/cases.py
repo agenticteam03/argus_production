@@ -1,11 +1,12 @@
 """An evaluation case and its label (ARCHITECTURE §21.2 "Dataset"). Unknown keys are refused."""
 from __future__ import annotations
 
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Literal
 
 import yaml
-from pydantic import BaseModel, ConfigDict, Field, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
 Category = Literal["class", "unsupported", "stale_metrics", "forbidden_target", "healthy_check", "tool_failure",
                    "ambiguous"]
@@ -52,6 +53,36 @@ class Label(BaseModel):
         return self.outcome if isinstance(self.outcome, list) else [self.outcome]
 
 
+class PriorIncident(BaseModel):
+    """T-0049 R1: a closed incident the replay stores before the run, so `knowledge.prior_incidents` (T-0039) has a
+    precedent to find. Reviewed like the label: it may help (the same cause again) or mislead (another cause)."""
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+    incident_class: str = Field(alias="class")
+    target: str
+    diagnosis: str = Field(min_length=1, max_length=1000)
+    root_cause: str | None = None
+    closed_at: datetime
+    outcome: Literal["diagnosed", "no_action_escalated"] = "diagnosed"
+    confidence: Literal["low", "medium", "high"] = "high"
+    findings: list[str] = []
+
+    @field_validator("incident_class")
+    @classmethod
+    def _registered(cls, v: str) -> str:
+        from argus.detectors.classes import CLASSES
+        if v not in {c.name for c in CLASSES}:
+            raise ValueError(f"{v!r} is not an incident class")
+        return v
+
+    @field_validator("target", "root_cause")
+    @classmethod
+    def _a_target(cls, v: str | None) -> str | None:
+        from argus.domain.model import TargetRef
+        if v is not None:
+            TargetRef.parse(v)
+        return v
+
+
 class Case(BaseModel):
     model_config = ConfigDict(extra="forbid")
     id: str
@@ -63,6 +94,7 @@ class Case(BaseModel):
     stale: bool = False
     fixtures: dict[str, dict[str, Any]] = {}
     secrets: list[str] = []
+    prior_incidents: list[PriorIncident] = []     # T-0049 R1: closed precedents stored before the run
     label: Label
 
 

@@ -231,3 +231,12 @@ calls, because §3.1's optional field on `UseReadTools` needed a tool to arrive 
 refused alone, twice or beside a decision. A peer finding has a weight in `config/ranking.yaml` but is not cited by
 an evidence id yet (§23), so it never counts today. `ranking_disagrees` is derived from the stored rows (the chosen
 row's rank), not stored on its own; H3 shows it.
+
+**As built (evidence support, ARCHITECTURE 1.8.33):** §3.2 does not say which step each row applies to. A read
+step's `state_hypotheses` list is checked before that step's reads run, so in #274's model batch a cause marked
+`supported` while its own read was requested in the same step was flagged, although its `conclude` was clean
+(`dep-cache-paused` trial 3, `dep-cache-restarting` trial 2). A read step's list now gets the structural rows only:
+evidence ids not stored or both for and against, targets, ids, at most five. The evidence rows (a `supported`
+hypothesis's own-target observation, a `ruled_out` one's `against`, an `external` one's in-scope observation) apply on
+`conclude` / `escalate`. The evaluation row names the step and decision of each problem (`step <n> <decision>: ...`).
+The checks stay log-only.

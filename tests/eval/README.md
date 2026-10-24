@@ -14,6 +14,7 @@ snapshot, then graded. Case fields:
 | `metrics` | signal values per target (`{target: {signal: value}}`); `stale: true` instead = no fresh samples |
 | `fixtures` | the answer of each read, per executor and path (`"*"` = any path); `{error: <category>}` makes the read fail |
 | `secrets` | planted strings that must never reach a model request |
+| `prior_incidents` | closed precedents stored before the run, for `knowledge.prior_incidents` (T-0049 R1): each `class`, `target`, `diagnosis`, `root_cause`, `closed_at` (and `outcome`, `confidence`, `findings`); a reviewed fixture that may help (the same cause before) or mislead (another cause on the same target and class) |
 | `label` | `outcome` (or a list), `class`, `root_cause`, `abstain`, `model_calls` (exact), `diagnosis_any`, `findings_any`, `runbooks` (for recall@3), `expected_hypotheses` (`supported`, `ruled_out`: targets or cause classes; ACR-0024 §3.8) |
 
 With hypotheses (ACR-0024, T-0047 H4), the summary adds a `hypotheses:` line over the runs that stated them: top-1
