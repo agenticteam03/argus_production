@@ -76,13 +76,12 @@ References: [T-0050](../../tasks/current/T-0050-cards-and-catalogue.md),
   Ruff and `brain.py lint` are clean. The merge had one conflict in `argus/evaluation/replay.py`, resolved by retaining
   both T-0049 prior-incident seeding and Phase 17 `next_actions`. Per REVIEW_PROTOCOL, this manual conflict resolution
   requires a fresh review before merge.
-- PR #316 remains a draft with the explicit no-review/no-approval instruction. The aligned merge commit is
-  `13a54ae`; CI will run after it is pushed. `brain/execution/current/code.bash` contains unrelated edits and is
-  excluded from this task commit.
+- PR #316 is ready for review at head `be3043b`; the aligned merge commit is `13a54ae`. GitHub `test` and `frontend`
+  checks passed; `main-guard` was skipped. `brain/execution/current/code.bash` contains unrelated edits and is excluded
+  from this task commit.
 
 ### Next step
 
-Commit and push the verified C5 incident integration to draft PR #316. Keep it as a draft and do not review or approve
-it until explicitly requested. CI will run on the push. After the task is ready for review and merge, proceed to Phase
-18 offline simulation machinery (§14 tables, proposals with grounds/predictions/alternatives against a fake gateway,
-judge integration), preserving the closed write gate.
+The main-aligned branch is ready for teammate review. After review, merge with a merge commit and retain the source
+branch. Then proceed to Phase 18 offline simulation machinery (§14 tables, proposals with grounds/predictions/
+alternatives against a fake gateway, judge integration), preserving the closed write gate.

@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | `in progress` — Phase 17 checkpoint `e5cd3d7` is in draft PR [#316](https://github.com/agenticteam03/argus_production/pull/316); C5 is committed as `a703ff0` (177 focused tests passed), awaiting push and CI ([evidence](../../journal/entries/2026-10-23-T-0050-phase17-cards-and-catalogue.md)) |
+| Status | `in progress` — Phase 17 is in PR [#316](https://github.com/agenticteam03/argus_production/pull/316); branch is aligned with `main` at `c8d8594` (`13a54ae`); 116 post-alignment tests and GitHub test/frontend checks passed ([evidence](../../journal/entries/2026-10-23-T-0050-phase17-cards-and-catalogue.md)) |
 | Phase | 17 of [NEXT-PHASE](NEXT-PHASE-supervised-remediation.md) ([`../../IMPLEMENTATION_PLAN.md`](../../IMPLEMENTATION_PLAN.md)) |
 | Architecture | [ACR-0019](../../architecture/changes/ACR-0019-human-approved-remediation.md) (`accepted`, PR #302) |
 | Branch | `task/T-0050-cards-and-catalogue` |
