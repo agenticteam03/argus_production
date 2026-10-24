@@ -56,6 +56,14 @@ same steps every time, and a script catches the known traps before a developer r
 | R3 | **Confirmed incident to proposed runbook diff.** From confirmed cases only, draft a diff to one runbook, with evidence and counterexamples, reviewed in a PR and checked by the evaluation. Never applied automatically. | T-0048 (confirmed feedback) |
 | O1 | **Read-only on-call skill** for an operator's own agent: reads one incident through the authenticated API and drafts a handover note. GET only, a short-lived least-privilege token from the operator's credential store, never in the skill, the repo or the chat. | phase 16 deployed (ACR-0018: per-person sessions and permissions) |
 
+### R1 candidate preparation: `container.processes`
+
+S2's offline ranking selected `container.processes` (`processes`) for `container_restart_loop` as the second candidate.
+The six labelled `restart-*` cases now include Docker `/containers/<name>/top` snapshots shaped like the T-0037 gateway
+response and its real-output evidence. These fixtures only make the read replayable; `container.processes` remains
+unoffered to every class, and a class offer stays a separate measured R1 step. See the S4 R1b journal entry for the
+case-level details and checks.
+
 ## Inventory at `main` `953331f` (2026-10-21; S0 re-checks it)
 
 | Guide claim | At `main` |
