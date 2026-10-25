@@ -36,9 +36,8 @@ ANY_TOKEN_WRITES = {("POST", "/api/v1/auth/logout")}   # ACR-0018: every token m
 SECOND_FACTOR_WRITES = {("POST", f"/api/v1/auth/webauthn/{c}/{s}") for c in ("register", "login", "step-up")
                         for s in ("options", "verify")}
 # ACR-0018 §17.3: permissions are explicit and checked per route; a role is a bundle of them. Only the permissions of
-# what is built are listed; propose_action, approve_action, place_hold, open_terminal and admin come with their routes.
-# ACR-0018: a privileged permission counts only for a session completed with a WebAuthn credential, held by a person
-# with two (D3). None is granted yet: they come with their routes (phase 17 on).
+# what is built are listed; remaining privileged permissions come with their routes. ACR-0018: a privileged
+# permission counts only for a session completed with a WebAuthn credential, held by a person with two (D3).
 PRIVILEGED_PERMISSIONS = frozenset({"propose_action", "approve_action", "place_hold", "open_terminal", "admin"})
 # ACR-0018 step 4: every route that needs a privileged permission lives under this prefix, the only one the public
 # edge passes on the private path (a client certificate of the team's CA and an allowlisted address; else 404).
@@ -87,6 +86,14 @@ class CeremonyIn(BaseModel):
 class StepUpIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
     object: str = Field(max_length=224)
+
+
+class ApprovalAnswerIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    decision: Literal["approved", "denied"]
+    proposal_digest: str = Field(pattern=r"^[0-9a-f]{64}$")
+    step_up_token: str = Field(min_length=1, max_length=64)
+    confirmation_target: str | None = Field(None, max_length=128)
 
 
 class InvestigationIn(BaseModel):
@@ -231,18 +238,25 @@ def build_api(app_ctx) -> FastAPI:
     second = SecondFactor(app_ctx.store, app_ctx.settings.webauthn_rp_id, app_ctx.settings.webauthn_origin,
                           ticket_hours=app_ctx.settings.webauthn_enrol_ticket_hours)
     api.state.second_factor = second
+    action_rows = getattr(app_ctx, "action_rows", None)
+
+    def role_permissions(p: Principal) -> frozenset[str]:
+        perms = permissions_of(p)
+        if action_rows is not None and p.role in ("operator", "approver"):
+            return perms | {"approve_action"}
+        return perms
 
     def granted(request: Request, p: Principal) -> frozenset[str]:
-        perms = permissions_of(p)
+        perms = role_permissions(p)
         if not perms & PRIVILEGED_PERMISSIONS:
             return perms
-        return granted_permissions(p, second.privileged_ready(p.id, getattr(request.state, "session", None)))
+        return perms if second.privileged_ready(p.id, getattr(request.state, "session", None)) else perms - PRIVILEGED_PERMISSIONS
 
     def require(permission: str):
         """ACR-0018: a route names the permission it needs; the principal's role must grant it, and a privileged one
         needs the session's second factor and two credentials (step 3)."""
         def dep(request: Request, p: Annotated[Principal, Depends(current)]) -> Principal:
-            if permission not in permissions_of(p):
+            if permission not in role_permissions(p):
                 raise HTTPException(status.HTTP_403_FORBIDDEN, f"role {p.role} lacks the permission {permission}")
             if permission not in granted(request, p):
                 raise HTTPException(status.HTTP_403_FORBIDDEN,
@@ -622,6 +636,39 @@ def build_api(app_ctx) -> FastAPI:
     @api.get("/api/v1/escalations", tags=["incidents"])
     def escalations(p: Annotated[Principal, Depends(current)]):
         return app_ctx.store.notifications()
+
+    # Phase 19 draft: mounted only by explicit composition. Production does not supply action_rows.
+    if action_rows is not None:
+        from argus.application.approval_view import ApprovalViewRefused, approval_view, answerable_approval
+
+        @api.get("/api/v1/ops/approvals/{approval_id}", tags=["ops"])
+        def inspect_approval(approval_id: str, p: Annotated[Principal, Depends(require("approve_action"))]):
+            if p.kind != "human":
+                raise HTTPException(403, "a human principal is required")
+            try:
+                return approval_view(action_rows, approval_id)
+            except ApprovalViewRefused as exc:
+                raise HTTPException(409, str(exc)) from exc
+
+        @api.post("/api/v1/ops/approvals/{approval_id}/answer", tags=["ops"])
+        def answer_approval(approval_id: str, body: ApprovalAnswerIn, request: Request,
+                            p: Annotated[Principal, Depends(require("approve_action"))]):
+            if p.kind != "human":
+                raise HTTPException(403, "a human principal is required")
+            try:
+                answerable_approval(action_rows, approval_id, body.proposal_digest,
+                                    body.decision, body.confirmation_target)
+            except ApprovalViewRefused as exc:
+                raise HTTPException(409, str(exc)) from exc
+            try:
+                second.consume_step_up(body.step_up_token, p.id, request.state.jti,
+                                       f"approval:{approval_id}:{body.proposal_digest}")
+            except SecondFactorRefused as exc:
+                raise HTTPException(403, str(exc)) from exc
+            if not action_rows.answer_action_approval(approval_id, body.proposal_digest, p.id,
+                                                      body.decision, utcnow()):
+                raise HTTPException(409, "approval is no longer pending")
+            return {"state": body.decision}
 
     @api.get("/healthz", tags=["ops"])
     def healthz():
