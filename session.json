@@ -1,23 +1,23 @@
 {
   "holder": "juanbetancurm",
-  "session_id": "fc315c089570",
-  "task": "T-0047-H4V2",
+  "session_id": "3496100a6d8f",
+  "task": "T-0047-H4W2",
   "branch": "task/T-0047-h4i-gate",
   "base_commit": "106190b2b14bd756158950892ca5d85331d13829",
-  "started_at": "2026-10-25T21:35:18+00:00",
-  "expires_at": "2026-10-25T23:35:24+00:00",
-  "released": true,
+  "started_at": "2026-10-25T22:36:14+00:00",
+  "expires_at": "2026-10-25T23:36:14+00:00",
+  "released": false,
   "handoff": null,
   "vms": {
     "vm-095": {
       "holder": "juanbetancurm",
-      "session_id": "fc315c089570",
-      "task": "T-0047-H4V2",
+      "session_id": "3496100a6d8f",
+      "task": "T-0047-H4W2",
       "branch": "task/T-0047-h4i-gate",
       "base_commit": "106190b2b14bd756158950892ca5d85331d13829",
-      "started_at": "2026-10-25T21:35:18+00:00",
-      "expires_at": "2026-10-25T23:35:24+00:00",
-      "released": true,
+      "started_at": "2026-10-25T22:36:14+00:00",
+      "expires_at": "2026-10-25T23:36:14+00:00",
+      "released": false,
       "handoff": null
     },
     "vm-166": {
