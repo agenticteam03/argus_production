@@ -21,6 +21,20 @@ class GatewayRefused(ValueError):
     """The gateway refused an unauthenticated, unlisted or duplicate action."""
 
 
+def validated_pairs(host, released):
+    pairs = dict(released or {})
+    if pairs and host == "vm-095":
+        raise GatewayRefused("Argus's own host cannot have an action route")
+    for (capability, target), route in pairs.items():
+        if not re.fullmatch(re.escape(host) + r"/container:argus-lab-[A-Za-z0-9_.-]+", target):
+            raise GatewayRefused("only an exact lab container on this host may be configured")
+        name = target.split(":", 1)[1]
+        verb = capability.removeprefix("container.")
+        if verb not in {"start", "stop", "restart", "pause", "unpause"} or route != f"POST /containers/{name}/{verb}":
+            raise GatewayRefused("capability and exact Docker route differ")
+    return MappingProxyType(pairs)
+
+
 class ActionJournal:
     def __init__(self, path):
         self.path = path
@@ -88,17 +102,7 @@ class ActionJournal:
 class ActionGateway:
     def __init__(self, host, token, journal, proxy, *, released=None):
         self.host, self.token, self.journal, self.proxy = host, token, journal, proxy
-        pairs = dict(released or {})
-        if pairs and host == "vm-095":
-            raise GatewayRefused("Argus's own host cannot have an action route")
-        for (capability, target), route in pairs.items():
-            if not re.fullmatch(re.escape(host) + r"/container:argus-lab-[A-Za-z0-9_.-]+", target):
-                raise GatewayRefused("only an exact lab container on this host may be configured")
-            name = target.split(":", 1)[1]
-            verb = capability.removeprefix("container.")
-            if verb not in {"start", "stop", "restart", "pause", "unpause"} or route != f"POST /containers/{name}/{verb}":
-                raise GatewayRefused("capability and exact Docker route differ")
-        self.released = MappingProxyType(pairs)
+        self.released = validated_pairs(host, released)
 
     def _authenticate(self, token, action_id):
         if not self.token or not token or not hmac.compare_digest(token, self.token):

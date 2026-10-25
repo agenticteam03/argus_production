@@ -32,7 +32,10 @@ do not connect a real target or credential in this draft.
   before calling an injected proxy, and refuses any duplicate ID. An import-boundary test keeps the model and MCP
   code out of this module. A narrow HTTP handler is exercised on loopback with a fake transport; it denies unlisted
   paths, missing credentials and duplicate action IDs. Its receipt and result are separate insert-only journal
-  events, enforced by database triggers. There is no Docker transport or deployed service.
+  events, enforced by database triggers. A second socket-proxy ACL allows only exact inspect and released POST paths;
+  Docker inspect is reduced to the container ID before it crosses back. The gateway's proxy transport rechecks
+  identity before POST. An image and separate-role startup exist, but the committed configuration has no routes;
+  startup refuses an empty release map. No compose service, token or real Docker connection is deployed.
 - An approval arriving after a target or global hold is rejected before consuming its step-up; the execution
   precheck independently checks the hold again.
 
@@ -49,8 +52,8 @@ token has been implemented. Acceptance and the required safety approval must pre
    ordering through #316, #318 and #323.
 2. Resolve ACR-0031, then build the private Actions tab, colours, judge rationale and suggestions. Add a deliberate
    path to release ordinary holds; the emergency stop must not be cleared by an unreviewed UI toggle.
-3. Build the gateway image/startup and socket proxy with exact route ACLs and token isolation; keep the released
-   route map empty. Add real-image route tests.
+3. Run gateway/proxy real-image tests with a throwaway Docker engine and prove socket/token isolation; Docker Desktop
+   is unavailable on this Windows host. Keep the released route map empty in the repository and deployment absent.
 4. Exercise the approval flow with real WebAuthn ceremonies and the private edge; run full offline, PostgreSQL and
    CI gates on the final head. Check production wiring and the write gate remain closed.
 5. Only then request review. Phase 20 has a separate release PR for the first `(capability, scope)` pair.
