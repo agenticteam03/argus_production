@@ -5,7 +5,7 @@
   "branch": "task/T-0047-h4i-gate",
   "base_commit": "106190b2b14bd756158950892ca5d85331d13829",
   "started_at": "2026-10-25T22:36:14+00:00",
-  "expires_at": "2026-10-25T23:36:14+00:00",
+  "expires_at": "2026-10-26T00:36:19+00:00",
   "released": false,
   "handoff": null,
   "vms": {
@@ -16,7 +16,7 @@
       "branch": "task/T-0047-h4i-gate",
       "base_commit": "106190b2b14bd756158950892ca5d85331d13829",
       "started_at": "2026-10-25T22:36:14+00:00",
-      "expires_at": "2026-10-25T23:36:14+00:00",
+      "expires_at": "2026-10-26T00:36:19+00:00",
       "released": false,
       "handoff": null
     },
