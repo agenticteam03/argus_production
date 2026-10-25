@@ -91,6 +91,102 @@ CREATE TABLE IF NOT EXISTS webauthn_enrol_ticket (
 CREATE TABLE IF NOT EXISTS step_up_token (
   id TEXT PRIMARY KEY, principal TEXT NOT NULL, session TEXT NOT NULL, object TEXT NOT NULL, created_at TEXT NOT NULL,
   expires_at TEXT NOT NULL, used_at TEXT);
+CREATE TABLE IF NOT EXISTS action_proposal (
+  proposal_id TEXT PRIMARY KEY, incident_id TEXT NOT NULL, capability TEXT NOT NULL, target TEXT NOT NULL,
+  digest TEXT NOT NULL CHECK (length(digest) = 64), body TEXT NOT NULL,
+  created_at TEXT NOT NULL, expires_at TEXT NOT NULL);
+CREATE INDEX IF NOT EXISTS action_proposal_incident ON action_proposal(incident_id, created_at);
+CREATE TRIGGER IF NOT EXISTS action_proposal_no_update BEFORE UPDATE ON action_proposal
+  BEGIN SELECT RAISE(ABORT, 'action_proposal is insert-only'); END;
+CREATE TRIGGER IF NOT EXISTS action_proposal_no_delete BEFORE DELETE ON action_proposal
+  BEGIN SELECT RAISE(ABORT, 'action_proposal is insert-only'); END;
+CREATE TABLE IF NOT EXISTS judge_verdict (
+  proposal_id TEXT PRIMARY KEY REFERENCES action_proposal(proposal_id), model_id TEXT NOT NULL,
+  verdict TEXT NOT NULL CHECK (verdict IN ('agree','doubt','disagree')),
+  body TEXT NOT NULL, reviewed_at TEXT NOT NULL);
+CREATE TRIGGER IF NOT EXISTS judge_verdict_no_update BEFORE UPDATE ON judge_verdict
+  BEGIN SELECT RAISE(ABORT, 'judge_verdict is insert-only'); END;
+CREATE TRIGGER IF NOT EXISTS judge_verdict_no_delete BEFORE DELETE ON judge_verdict
+  BEGIN SELECT RAISE(ABORT, 'judge_verdict is insert-only'); END;
+CREATE TABLE IF NOT EXISTS approval (
+  approval_id TEXT PRIMARY KEY, proposal_id TEXT NOT NULL UNIQUE REFERENCES action_proposal(proposal_id),
+  proposal_digest TEXT NOT NULL, state TEXT NOT NULL CHECK (state IN ('pending','approved','denied','expired','cancelled')),
+  actor TEXT, requested_at TEXT NOT NULL, expires_at TEXT NOT NULL CHECK (expires_at > requested_at), answered_at TEXT);
+CREATE INDEX IF NOT EXISTS approval_pending ON approval(state, expires_at);
+CREATE TRIGGER IF NOT EXISTS approval_insert BEFORE INSERT ON approval
+  WHEN NEW.state <> 'pending' OR NEW.actor IS NOT NULL OR NEW.answered_at IS NOT NULL
+    OR NEW.proposal_digest IS NOT (SELECT digest FROM action_proposal WHERE proposal_id=NEW.proposal_id)
+    OR NEW.expires_at IS NOT (SELECT expires_at FROM action_proposal WHERE proposal_id=NEW.proposal_id)
+  BEGIN SELECT RAISE(ABORT, 'approval must bind the frozen proposal'); END;
+CREATE TRIGGER IF NOT EXISTS approval_no_delete BEFORE DELETE ON approval
+  BEGIN SELECT RAISE(ABORT, 'approval rows are never deleted'); END;
+CREATE TRIGGER IF NOT EXISTS approval_forward BEFORE UPDATE ON approval
+  WHEN OLD.state <> 'pending' OR NEW.state NOT IN ('approved','denied','expired','cancelled')
+    OR NEW.proposal_id <> OLD.proposal_id OR NEW.proposal_digest <> OLD.proposal_digest
+    OR NEW.requested_at <> OLD.requested_at OR NEW.expires_at <> OLD.expires_at
+    OR NEW.answered_at IS NULL
+    OR (NEW.state IN ('approved','denied') AND (NEW.actor IS NULL OR NEW.answered_at >= OLD.expires_at))
+  BEGIN SELECT RAISE(ABORT, 'approval transition is not forward-only'); END;
+CREATE TABLE IF NOT EXISTS notification_outbox (
+  key TEXT PRIMARY KEY, channel TEXT NOT NULL, payload TEXT NOT NULL, attempts INTEGER NOT NULL DEFAULT 0,
+  next_attempt_at TEXT NOT NULL, last_result TEXT, delivered_at TEXT);
+CREATE TABLE IF NOT EXISTS resume_intent (
+  approval_id TEXT PRIMARY KEY REFERENCES approval(approval_id), incident_id TEXT NOT NULL,
+  decision TEXT NOT NULL CHECK (decision IN ('approved','denied','expired','cancelled')),
+  state TEXT NOT NULL CHECK (state IN ('pending','done','failed')),
+  attempts INTEGER NOT NULL DEFAULT 0, last_outcome TEXT);
+CREATE TRIGGER IF NOT EXISTS resume_intent_insert BEFORE INSERT ON resume_intent
+  WHEN NEW.state <> 'pending' OR NEW.decision IS NOT (SELECT state FROM approval WHERE approval_id=NEW.approval_id)
+    OR NEW.incident_id IS NOT (SELECT p.incident_id FROM approval a
+                              JOIN action_proposal p ON p.proposal_id=a.proposal_id
+                              WHERE a.approval_id=NEW.approval_id)
+  BEGIN SELECT RAISE(ABORT, 'resume intent does not match approval'); END;
+CREATE TABLE IF NOT EXISTS action (
+  action_id TEXT PRIMARY KEY, proposal_id TEXT NOT NULL REFERENCES action_proposal(proposal_id),
+  approval_id TEXT NOT NULL UNIQUE REFERENCES approval(approval_id),
+  state TEXT NOT NULL CHECK (state IN ('unstarted','attempting','confirmed','failed','indeterminate')),
+  attempted_at TEXT, result_at TEXT, evidence TEXT NOT NULL DEFAULT '{}');
+CREATE TRIGGER IF NOT EXISTS action_insert BEFORE INSERT ON action
+  WHEN NEW.state NOT IN ('unstarted','attempting')
+    OR NEW.proposal_id IS NOT (SELECT proposal_id FROM approval WHERE approval_id=NEW.approval_id)
+    OR (SELECT state FROM approval WHERE approval_id=NEW.approval_id) IS NOT 'approved'
+    OR (NEW.state='attempting' AND NEW.attempted_at IS NULL)
+  BEGIN SELECT RAISE(ABORT, 'action requires approved proposal'); END;
+CREATE TRIGGER IF NOT EXISTS action_no_delete BEFORE DELETE ON action
+  BEGIN SELECT RAISE(ABORT, 'action rows are never deleted'); END;
+CREATE TRIGGER IF NOT EXISTS action_forward BEFORE UPDATE ON action
+  WHEN NEW.proposal_id <> OLD.proposal_id OR NEW.approval_id <> OLD.approval_id
+    OR NOT ((OLD.state = 'unstarted' AND NEW.state = 'attempting')
+         OR (OLD.state = 'attempting' AND NEW.state IN ('confirmed','failed','indeterminate')))
+    OR (OLD.state='unstarted' AND (NEW.attempted_at IS NULL OR NEW.result_at IS NOT NULL))
+    OR (OLD.state='attempting' AND (NEW.attempted_at IS NOT OLD.attempted_at OR NEW.result_at IS NULL))
+  BEGIN SELECT RAISE(ABORT, 'action transition is not forward-only'); END;
+CREATE TABLE IF NOT EXISTS target_hold (
+  hold_id TEXT PRIMARY KEY, target TEXT NOT NULL, reason TEXT NOT NULL, placed_by TEXT NOT NULL,
+  placed_at TEXT NOT NULL, expires_at TEXT, released_by TEXT, released_at TEXT);
+CREATE INDEX IF NOT EXISTS target_hold_active ON target_hold(target, placed_at) WHERE released_at IS NULL;
+CREATE TRIGGER IF NOT EXISTS target_hold_no_delete BEFORE DELETE ON target_hold
+  BEGIN SELECT RAISE(ABORT, 'target_hold rows are never deleted'); END;
+CREATE TRIGGER IF NOT EXISTS target_hold_release BEFORE UPDATE ON target_hold
+  WHEN OLD.released_at IS NOT NULL OR NEW.released_at IS NULL OR NEW.target <> OLD.target
+    OR NEW.reason <> OLD.reason OR NEW.placed_by <> OLD.placed_by
+    OR NEW.placed_at <> OLD.placed_at OR NEW.expires_at IS NOT OLD.expires_at
+  BEGIN SELECT RAISE(ABORT, 'target hold can be released only once'); END;
+CREATE TABLE IF NOT EXISTS action_outcome (
+  action_id TEXT PRIMARY KEY REFERENCES action(action_id), incident_id TEXT NOT NULL,
+  origin TEXT NOT NULL CHECK (origin IN ('lab','drill','production')),
+  outcome TEXT NOT NULL CHECK (outcome IN ('recovered_verified','action_failed','indeterminate_escalated')),
+  body TEXT NOT NULL, recorded_at TEXT NOT NULL);
+CREATE TRIGGER IF NOT EXISTS action_outcome_insert BEFORE INSERT ON action_outcome
+  WHEN (NEW.outcome='recovered_verified' AND
+        (SELECT state FROM action WHERE action_id=NEW.action_id) IS NOT 'confirmed')
+    OR (NEW.outcome='indeterminate_escalated' AND
+        (SELECT state FROM action WHERE action_id=NEW.action_id) IS NOT 'indeterminate')
+  BEGIN SELECT RAISE(ABORT, 'action outcome conflicts with ledger'); END;
+CREATE TRIGGER IF NOT EXISTS action_outcome_no_update BEFORE UPDATE ON action_outcome
+  BEGIN SELECT RAISE(ABORT, 'action_outcome is insert-only'); END;
+CREATE TRIGGER IF NOT EXISTS action_outcome_no_delete BEFORE DELETE ON action_outcome
+  BEGIN SELECT RAISE(ABORT, 'action_outcome is insert-only'); END;
 CREATE TRIGGER IF NOT EXISTS webauthn_credential_no_delete BEFORE DELETE ON webauthn_credential
   BEGIN SELECT RAISE(ABORT, 'webauthn_credential rows are never deleted'); END;
 CREATE TRIGGER IF NOT EXISTS webauthn_challenge_no_delete BEFORE DELETE ON webauthn_challenge
@@ -151,6 +247,219 @@ class SqliteStore:
     def _q(self, sql: str, params: tuple = ()) -> list[tuple]:
         with self._lock:
             return self._db.execute(sql, params).fetchall()
+
+    # --- phase 18: offline proposals and human answers --------------------------------------------
+    def add_action_proposal(self, proposal) -> None:
+        body = proposal.model_dump(mode="json")
+        self._q("INSERT INTO action_proposal (proposal_id, incident_id, capability, target, digest, body, "
+                "created_at, expires_at) VALUES (?,?,?,?,?,?,?,?)",
+                (proposal.id, proposal.input.incident_id, proposal.input.capability, proposal.input.target,
+                 proposal.digest, json.dumps(body), _utc(proposal.created_at), _utc(proposal.expires_at)))
+
+    def get_action_proposal(self, proposal_id: str):
+        from argus.actions.remediation import FrozenProposal
+
+        rows = self._q("SELECT body FROM action_proposal WHERE proposal_id=?", (proposal_id,))
+        return FrozenProposal.model_validate(json.loads(rows[0][0])) if rows else None
+
+    def latest_action_proposal_for_incident(self, incident_id: str):
+        rows = self._q("SELECT proposal_id FROM action_proposal WHERE incident_id=? "
+                       "ORDER BY created_at DESC, proposal_id DESC LIMIT 1", (incident_id,))
+        return self.get_action_proposal(rows[0][0]) if rows else None
+
+    def add_judge_verdict(self, proposal_id: str, model_id: str, verdict: dict, at: datetime) -> None:
+        self._q("INSERT INTO judge_verdict (proposal_id, model_id, verdict, body, reviewed_at) "
+                "VALUES (?,?,?,?,?)", (proposal_id, model_id, verdict["verdict"], json.dumps(verdict), _utc(at)))
+
+    def get_judge_verdict(self, proposal_id: str) -> dict[str, Any] | None:
+        rows = self._q("SELECT body FROM judge_verdict WHERE proposal_id=?", (proposal_id,))
+        return json.loads(rows[0][0]) if rows else None
+
+    def add_action_approval(self, approval_id: str, proposal_id: str, digest: str,
+                            requested_at: datetime, expires_at: datetime) -> None:
+        with self._lock:
+            self._db.execute("BEGIN IMMEDIATE")
+            try:
+                self._db.execute("INSERT INTO approval (approval_id, proposal_id, proposal_digest, state, "
+                                 "requested_at, expires_at) VALUES (?,?,?,'pending',?,?)",
+                                 (approval_id, proposal_id, digest, _utc(requested_at), _utc(expires_at)))
+                self._db.execute("INSERT INTO notification_outbox (key, channel, payload, next_attempt_at) "
+                                 "VALUES (?,'recording',?,?)",
+                                 (approval_id, json.dumps({"approval_id": approval_id, "proposal_digest": digest}),
+                                  _utc(requested_at)))
+                self._db.execute("COMMIT")
+            except Exception:
+                self._db.execute("ROLLBACK")
+                raise
+
+    def get_action_approval(self, approval_id: str) -> dict[str, Any] | None:
+        rows = self._q("SELECT proposal_id, proposal_digest, state, actor, requested_at, expires_at, answered_at "
+                       "FROM approval WHERE approval_id=?", (approval_id,))
+        if not rows:
+            return None
+        proposal_id, digest, state, actor, requested, expires, answered = rows[0]
+        return {"id": approval_id, "proposal_id": proposal_id, "proposal_digest": digest, "state": state,
+                "actor": actor, "requested_at": requested, "expires_at": expires, "answered_at": answered}
+
+    def get_action_approval_for_proposal(self, proposal_id: str) -> dict[str, Any] | None:
+        rows = self._q("SELECT approval_id FROM approval WHERE proposal_id=?", (proposal_id,))
+        return self.get_action_approval(rows[0][0]) if rows else None
+
+    def answer_action_approval(self, approval_id: str, digest: str, actor: str, decision: str,
+                               at: datetime) -> bool:
+        if decision not in ("approved", "denied") or not actor:
+            raise ValueError("a human decision and actor are required")
+        with self._lock:
+            self._db.execute("BEGIN IMMEDIATE")
+            try:
+                cur = self._db.execute("UPDATE approval SET state=?, actor=?, answered_at=? WHERE approval_id=? "
+                                       "AND proposal_digest=? AND state='pending' AND expires_at>?",
+                                       (decision, actor, _utc(at), approval_id, digest, _utc(at)))
+                if cur.rowcount == 1:
+                    self._db.execute("INSERT INTO resume_intent (approval_id, incident_id, decision, state) "
+                                     "SELECT ?, p.incident_id, ?, 'pending' FROM approval a "
+                                     "JOIN action_proposal p ON a.proposal_id=p.proposal_id WHERE a.approval_id=?",
+                                     (approval_id, decision, approval_id))
+                self._db.execute("COMMIT")
+                return cur.rowcount == 1
+            except Exception:
+                self._db.execute("ROLLBACK")
+                raise
+
+    def get_resume_intent(self, approval_id: str) -> dict[str, Any] | None:
+        rows = self._q("SELECT incident_id, decision, state, attempts, last_outcome FROM resume_intent "
+                       "WHERE approval_id=?", (approval_id,))
+        if not rows:
+            return None
+        incident_id, decision, state, attempts, last_outcome = rows[0]
+        return {"approval_id": approval_id, "incident_id": incident_id, "decision": decision,
+                "state": state, "attempts": attempts, "last_outcome": last_outcome}
+
+    def pending_resume_intents(self, limit: int = 20) -> list[dict[str, Any]]:
+        rows = self._q("SELECT approval_id FROM resume_intent WHERE state='pending' "
+                       "ORDER BY rowid LIMIT ?", (limit,))
+        return [self.get_resume_intent(r[0]) for r in rows]
+
+    def mark_resume_intent(self, approval_id: str, state: str, outcome: str) -> bool:
+        if state not in ("pending", "done", "failed"):
+            raise ValueError("invalid resume state")
+        with self._lock:
+            cur = self._db.execute("UPDATE resume_intent SET state=?, attempts=attempts+1, last_outcome=? "
+                                   "WHERE approval_id=? AND state='pending'", (state, outcome, approval_id))
+            return cur.rowcount == 1
+
+    def pending_action_notifications(self, at: datetime, limit: int = 20) -> list[dict[str, Any]]:
+        rows = self._q("SELECT key, channel, payload, attempts FROM notification_outbox "
+                       "WHERE delivered_at IS NULL AND next_attempt_at<=? ORDER BY next_attempt_at, key LIMIT ?",
+                       (_utc(at), limit))
+        return [{"key": key, "channel": channel, "payload": json.loads(payload), "attempts": attempts}
+                for key, channel, payload, attempts in rows]
+
+    def mark_action_notification(self, key: str, *, at: datetime, delivered: bool, result: str) -> bool:
+        with self._lock:
+            cur = self._db.execute("UPDATE notification_outbox SET attempts=attempts+1, last_result=?, "
+                                   "delivered_at=CASE WHEN ? THEN ? ELSE delivered_at END, next_attempt_at=? "
+                                   "WHERE key=? AND delivered_at IS NULL",
+                                   (result, int(delivered), _utc(at), _utc(at + timedelta(minutes=5)), key))
+            return cur.rowcount == 1
+
+    def add_action(self, action_id: str, proposal_id: str, approval_id: str) -> None:
+        self._q("INSERT INTO action (action_id, proposal_id, approval_id, state) "
+                "VALUES (?,?,?,'unstarted')", (action_id, proposal_id, approval_id))
+
+    def start_action(self, action_id: str, at: datetime) -> bool:
+        with self._lock:
+            cur = self._db.execute("UPDATE action SET state='attempting', attempted_at=? "
+                                   "WHERE action_id=? AND state='unstarted'", (_utc(at), action_id))
+            return cur.rowcount == 1
+
+    def finish_action(self, action_id: str, state: str, at: datetime, evidence: dict[str, Any]) -> bool:
+        if state not in ("confirmed", "failed", "indeterminate"):
+            raise ValueError("invalid terminal action state")
+        with self._lock:
+            cur = self._db.execute("UPDATE action SET state=?, result_at=?, evidence=? "
+                                   "WHERE action_id=? AND state='attempting'",
+                                   (state, _utc(at), json.dumps(evidence), action_id))
+            return cur.rowcount == 1
+
+    def get_action(self, action_id: str) -> dict[str, Any] | None:
+        rows = self._q("SELECT proposal_id, approval_id, state, attempted_at, result_at, evidence "
+                       "FROM action WHERE action_id=?", (action_id,))
+        if not rows:
+            return None
+        proposal_id, approval_id, state, attempted_at, result_at, evidence = rows[0]
+        return {"id": action_id, "proposal_id": proposal_id, "approval_id": approval_id, "state": state,
+                "attempted_at": attempted_at, "result_at": result_at, "evidence": json.loads(evidence)}
+
+    def get_action_for_approval(self, approval_id: str) -> dict[str, Any] | None:
+        rows = self._q("SELECT action_id FROM action WHERE approval_id=?", (approval_id,))
+        return self.get_action(rows[0][0]) if rows else None
+
+    def reserve_action(self, action_id: str, proposal_id: str, approval_id: str, target: str,
+                       at: datetime, *, daily_host_cap: int) -> bool:
+        """Atomically enforce single use, a target cooldown and a host daily cap."""
+        if daily_host_cap < 1:
+            return False
+        host = target.split("/", 1)[0]
+        with self._lock:
+            self._db.execute("BEGIN IMMEDIATE")
+            try:
+                active = self._db.execute(
+                    "SELECT COUNT(*) FROM action a JOIN action_proposal p ON p.proposal_id=a.proposal_id "
+                    "WHERE p.target=? AND a.state IN ('attempting','indeterminate')",
+                    (target,)).fetchone()[0]
+                recent = self._db.execute(
+                    "SELECT COUNT(*) FROM action a JOIN action_proposal p ON p.proposal_id=a.proposal_id "
+                    "WHERE p.target=? AND a.attempted_at>?",
+                    (target, _utc(at - timedelta(minutes=10)))).fetchone()[0]
+                daily = self._db.execute(
+                    "SELECT COUNT(*) FROM action a JOIN action_proposal p ON p.proposal_id=a.proposal_id "
+                    "WHERE p.target LIKE ? AND a.attempted_at>=?",
+                    (host + '/%', _utc(at - timedelta(hours=24)))).fetchone()[0]
+                used = self._db.execute("SELECT 1 FROM action WHERE approval_id=?", (approval_id,)).fetchone()
+                if active or recent or daily >= daily_host_cap or used:
+                    self._db.execute("ROLLBACK")
+                    return False
+                self._db.execute("INSERT INTO action (action_id, proposal_id, approval_id, state, attempted_at) "
+                                 "VALUES (?,?,?,'attempting',?)",
+                                 (action_id, proposal_id, approval_id, _utc(at)))
+                self._db.execute("COMMIT")
+                return True
+            except Exception:
+                self._db.execute("ROLLBACK")
+                raise
+
+    def add_target_hold(self, hold_id: str, target: str, reason: str, placed_by: str, at: datetime,
+                        expires_at: datetime | None = None) -> None:
+        self._q("INSERT INTO target_hold (hold_id, target, reason, placed_by, placed_at, expires_at) "
+                "VALUES (?,?,?,?,?,?)", (hold_id, target, reason, placed_by, _utc(at),
+                                          _utc(expires_at) if expires_at else None))
+
+    def release_target_hold(self, hold_id: str, released_by: str, at: datetime) -> bool:
+        with self._lock:
+            cur = self._db.execute("UPDATE target_hold SET released_by=?, released_at=? "
+                                   "WHERE hold_id=? AND released_at IS NULL",
+                                   (released_by, _utc(at), hold_id))
+            return cur.rowcount == 1
+
+    def active_target_holds(self, target: str, at: datetime) -> list[str]:
+        return [r[0] for r in self._q("SELECT hold_id FROM target_hold WHERE target=? AND released_at IS NULL "
+                                      "AND (expires_at IS NULL OR expires_at>?) ORDER BY placed_at, hold_id",
+                                      (target, _utc(at)))]
+
+    def add_action_outcome(self, action_id: str, incident_id: str, origin: str, outcome: str,
+                           body: dict[str, Any], at: datetime) -> None:
+        if origin not in ("lab", "drill", "production") or outcome not in (
+                "recovered_verified", "action_failed", "indeterminate_escalated"):
+            raise ValueError("invalid action outcome")
+        self._q("INSERT INTO action_outcome (action_id, incident_id, origin, outcome, body, recorded_at) "
+                "VALUES (?,?,?,?,?,?)", (action_id, incident_id, origin, outcome, json.dumps(body), _utc(at)))
+
+    def get_action_outcome(self, action_id: str) -> dict[str, Any] | None:
+        rows = self._q("SELECT outcome, body, recorded_at FROM action_outcome WHERE action_id=?", (action_id,))
+        if not rows:
+            return None
+        return {"outcome": rows[0][0], "body": json.loads(rows[0][1]), "recorded_at": rows[0][2]}
 
     # --- incidents -------------------------------------------------------------------------------
     def create_incident(self, incident: Incident, idempotency_key: str | None) -> tuple[Incident, bool]:

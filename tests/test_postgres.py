@@ -50,6 +50,53 @@ def _incident(target="vm-166/container:argus-lab-worker", status="queued", minut
                     opened_at=utcnow() - timedelta(minutes=minutes_ago), status=status)
 
 
+def test_remediation_migration_014_freezes_proposal_and_answers_once(runtime_dsn, store):
+    """Phase 18 storage cannot rewrite the reviewed proposal or reopen a terminal approval."""
+    import psycopg
+    from argus.actions.remediation import Alternative, Prediction, ProposalInput, freeze_proposal
+    from argus.domain.model import utcnow
+
+    inc = _incident(target="vm-166/container:argus-lab-cache")
+    store.create_incident(inc, None)
+    now = utcnow()
+    proposal = freeze_proposal(ProposalInput(
+        incident_id=inc.id, capability="container.start", target=str(inc.target),
+        target_identity={"container_id": "cache-1"}, arguments={}, root_cause=str(inc.target),
+        rationale="Start the stopped cache", evidence_refs=["ev_cache"], grounds=["runbook:RB-003"],
+        prediction=Prediction(signal="dependency_probe_min", target=str(inc.target), expected="healthy",
+                              within_seconds=120),
+        alternatives=[Alternative(action="wait", why_not="The dependency remains unavailable")],
+        preview="Start existing container", rollback="container.stop", inventory_version="inv-1",
+        policy_version="pol-1", evidence_version="ev-1"), at=now)
+    store.add_action_proposal(proposal)
+    assert store.get_action_proposal(proposal.id).digest == proposal.digest
+    store.add_judge_verdict(proposal.id, "gpt-6.1-sol", {"verdict": "agree", "checks": {}, "reasons": []}, now)
+    assert store.get_judge_verdict(proposal.id)["verdict"] == "agree"
+    store.add_action_approval("appr_test14", proposal.id, proposal.digest, now, proposal.expires_at)
+    assert store.answer_action_approval("appr_test14", proposal.digest, "operator", "approved", now)
+    assert not store.answer_action_approval("appr_test14", proposal.digest, "operator", "approved", now)
+    assert store.get_resume_intent("appr_test14")["decision"] == "approved"
+    store.add_target_hold("hold_test14", str(inc.target), "review", "operator", now)
+    assert store.active_target_holds(str(inc.target), now) == ["hold_test14"]
+    assert store.release_target_hold("hold_test14", "operator", now)
+    assert not store.release_target_hold("hold_test14", "operator", now)
+    store.add_action("act_test14", proposal.id, "appr_test14")
+    assert store.start_action("act_test14", now)
+    assert not store.start_action("act_test14", now)
+    assert store.finish_action("act_test14", "confirmed", now, {"gateway": "confirmed"})
+    assert not store.finish_action("act_test14", "failed", now, {})
+    store.add_action_outcome("act_test14", inc.id, "lab", "recovered_verified", {"prediction_met": True}, now)
+    with psycopg.connect(runtime_dsn, autocommit=True) as c:
+        for sql in ("UPDATE action_proposal SET target = 'changed' WHERE proposal_id = %s",
+                    "DELETE FROM action_proposal WHERE proposal_id = %s"):
+            with pytest.raises(psycopg.Error):
+                c.execute(sql, (proposal.id,))
+        with pytest.raises(psycopg.Error):
+            c.execute("UPDATE approval SET state = 'pending' WHERE approval_id = 'appr_test14'")
+        with pytest.raises(psycopg.Error):
+            c.execute("UPDATE judge_verdict SET verdict = 'doubt' WHERE proposal_id = %s", (proposal.id,))
+
+
 def test_incident_lifecycle_and_forward_only(store):
     import psycopg
     from argus.domain.model import IncidentStatus
