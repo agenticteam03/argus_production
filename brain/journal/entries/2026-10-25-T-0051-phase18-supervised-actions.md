@@ -12,10 +12,11 @@
 ### Test state
 
 - RED: `tests/test_phase18_remediation.py` initially failed on the missing remediation module and SQLite methods; both were then implemented.
-- GREEN: 21 focused phase-18 tests passed after the current failure-injection and guard updates. Ruff, Brain lint/audit, the migration checker and the judge-evaluation dry run passed on this checkpoint. The earlier full offline suite passed 1,996 tests with 74 skipped before the latest guard additions; it is being rerun against this checkpoint.
-- PostgreSQL migration test: pending because Docker Desktop is unavailable locally and `ARGUS_TEST_PG_OWNER_DSN` is unset. Exact-head CI: pending; the GitHub API was unreachable at the latest check, so current PR checks could not be observed.
+- GREEN: 21 focused phase-18 and graph tests passed on commit `666a990`. Ruff, Brain lint/audit, the migration checker and the judge-evaluation dry run also passed. Exact-head CI `test` and `frontend` checks passed; `main-guard` was skipped for this stacked PR.
+- Full offline suite completed locally with 23 environment-bound failures: Windows resolved `bash` to WSL without `/bin/bash`, Git Bash subprocesses were denied by the sandbox, and placing pytest's temp root inside the checkout made deploy tests detect the parent repository. The exact-head CI test passed. PostgreSQL migration test was not run locally because Docker Desktop is unavailable and `ARGUS_TEST_PG_OWNER_DSN` is unset.
+- Paid OpenAI model comparison remains pending because this checkout has no API credential; no live metric or winner is claimed.
 - Paid OpenAI model comparison: pending; this checkout has no OpenAI API credential. Official catalog/pricing comparison and a provisional model choice are recorded in the task.
 
 ### Next step
 
-Finish the full offline suite and exact-head CI, resolve review comments, then merge #316 and #318 before retargeting this PR to `main`. Phase 19 still requires ACR-0018's off-host audit exit proof and a separate approval route/gateway review; phase 20 releases the first action pair in its own PR.
+Resolve review comments, then merge #316 and #318 before retargeting this PR to `main`. Phase 19 still requires ACR-0018's off-host audit exit proof and a separate approval route/gateway review; phase 20 releases the first action pair in its own PR.
