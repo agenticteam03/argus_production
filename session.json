@@ -1,34 +1,34 @@
 {
   "holder": "conantkd",
-  "session_id": "ec6ca2a851a7",
+  "session_id": "d0f113b3bd9b",
   "task": "T-0046",
   "branch": "task/T-0046-l6-sample-history",
   "base_commit": "973ad40e5480db6a1b1a3f2e33e10c2192d1d4e1",
-  "started_at": "2026-10-25T04:36:56+00:00",
-  "expires_at": "2026-10-25T05:36:56+00:00",
-  "released": true,
+  "started_at": "2026-10-25T04:49:02+00:00",
+  "expires_at": "2026-10-25T05:49:02+00:00",
+  "released": false,
   "handoff": null,
   "vms": {
     "vm-095": {
       "holder": "conantkd",
-      "session_id": "ec6ca2a851a7",
+      "session_id": "d0f113b3bd9b",
       "task": "T-0046",
       "branch": "task/T-0046-l6-sample-history",
       "base_commit": "973ad40e5480db6a1b1a3f2e33e10c2192d1d4e1",
-      "started_at": "2026-10-25T04:36:56+00:00",
-      "expires_at": "2026-10-25T05:36:56+00:00",
-      "released": true,
+      "started_at": "2026-10-25T04:49:02+00:00",
+      "expires_at": "2026-10-25T05:49:02+00:00",
+      "released": false,
       "handoff": null
     },
     "vm-166": {
       "holder": "conantkd",
-      "session_id": "ec6ca2a851a7",
+      "session_id": "d0f113b3bd9b",
       "task": "T-0046",
       "branch": "task/T-0046-l6-sample-history",
       "base_commit": "973ad40e5480db6a1b1a3f2e33e10c2192d1d4e1",
-      "started_at": "2026-10-25T04:36:56+00:00",
-      "expires_at": "2026-10-25T05:36:56+00:00",
-      "released": true,
+      "started_at": "2026-10-25T04:49:02+00:00",
+      "expires_at": "2026-10-25T05:49:02+00:00",
+      "released": false,
       "handoff": null
     }
   }
