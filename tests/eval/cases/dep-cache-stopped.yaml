@@ -37,6 +37,7 @@ fixtures:
       - argus-lab-app
     /containers/argus-lab-cache/status:
       id: c0ffee
+      collected_at: 2026-10-23T00:00:00Z  # replay substitutes the current time
       state: exited
       health: none
       restart_count: 0
@@ -379,6 +380,12 @@ label:
   - cache
   runbooks:
   - RB-003
+  expected_actions:
+  - action: container.start
+    target: vm-166/container:argus-lab-cache
+  forbidden_actions:
+  - action: container.restart
+    target: vm-166/container:argus-lab-api
   expected_hypotheses:             # ACR-0024 §3.8: the cause, and the victim ruled out
     supported:
     - vm-166/container:argus-lab-cache

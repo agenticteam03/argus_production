@@ -1,0 +1,42 @@
+# Risk color matrix for remediating actions (ACR-0019 §3.7, Phase 17).
+# Evaluated per action and target kind. The model never rates risk.
+# Risk levels: green < amber < red < forbidden.
+# The proposal's risk color can only go up.
+version: 1
+
+matrix:
+  container.start:
+    stateless: green
+    stateful: amber
+    proxy: green
+    database: amber
+
+  container.restart:
+    stateless: green
+    stateful: amber
+    proxy: amber
+    database: forbidden
+
+  container.stop:
+    stateless: amber
+    stateful: red
+    proxy: red
+    database: forbidden
+
+  container.pause:
+    stateless: amber
+    stateful: amber
+    proxy: red
+    database: forbidden
+
+  container.unpause:
+    stateless: green
+    stateful: green
+    proxy: green
+    database: amber
+
+  container.update_resources:
+    stateless: green
+    stateful: amber
+    proxy: green
+    database: amber
