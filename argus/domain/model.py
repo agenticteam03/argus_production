@@ -301,6 +301,13 @@ class TargetInfo(BaseModel):
     database: str | None = None          # dbname read by the db-probe (inventory `database`)
     profile: str | None = None           # ACR-0021: "scenario" = a lab container that only runs during a scenario
     link_warning_ms: float | None = None  # ACR-0021: a dependency answer slower than this is `slow` (default 100 ms)
+    service: dict[str, Any] | None = None  # ACR-0019: service card defining safe/never actions, role and kind
+
+    def service_card(self):
+        if not self.service:
+            return None
+        from argus.domain.service_card import ServiceCard
+        return ServiceCard.from_dict(self.service)
 
     def link(self, dep: TargetRef) -> DependencyLink:
         """The declared link to `dep`; a plain ref (or a target built without links) is port None, required."""

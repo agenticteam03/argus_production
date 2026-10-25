@@ -38,7 +38,8 @@ def runs_from_file(path: Path, cases: list[Case]) -> list[tuple[Case, CaseRun]]:
                                   passages=[tuple(x) for x in r.get("passages") or []],
                                   audit_events=list(r.get("audit_events") or []),
                                   invalid_decisions=list(r.get("invalid_decisions") or []),
-                                  duration_ms=int(r.get("duration_ms") or 0), trial=int(r.get("trial") or 1))))
+                                  duration_ms=int(r.get("duration_ms") or 0), trial=int(r.get("trial") or 1),
+                                  next_actions=list(r.get("next_actions") or []))))
     return out
 
 
