@@ -7,12 +7,18 @@ id: RB-003
 title: Dependency unavailable
 status: draft
 owner: Argus Team
-version: 1.0.0
+version: 1.0.1
 created: 2026-09-29
-last_reviewed: 2026-09-29
+last_reviewed: 2026-10-23
 source_review_date: 2026-09-29
 last_tested: null
 detector: dependency_unavailable
+actions:
+  - action: container.start
+    target_role: root_cause
+    service_role: cache
+    when: 'state == "exited" or state == "created"'
+    rationale: A stopped cache dependency may be started after its own status is confirmed.
 ```
 
 ## Scope
