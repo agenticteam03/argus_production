@@ -96,6 +96,13 @@ class ApprovalAnswerIn(BaseModel):
     confirmation_target: str | None = Field(None, max_length=128)
 
 
+class HoldIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    target: str = Field(min_length=1, max_length=128)
+    reason: str = Field(min_length=1, max_length=500)
+    step_up_token: str = Field(min_length=1, max_length=64)
+
+
 class InvestigationIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
     target: str
@@ -243,11 +250,13 @@ def build_api(app_ctx) -> FastAPI:
     def role_permissions(p: Principal) -> frozenset[str]:
         perms = permissions_of(p)
         if action_rows is not None and p.role in ("operator", "approver"):
-            return perms | {"approve_action"}
+            return perms | {"approve_action", "place_hold"}
         return perms
 
     def granted(request: Request, p: Principal) -> frozenset[str]:
         perms = role_permissions(p)
+        if getattr(request.state, "access", "full") != "full":
+            perms = perms - PRIVILEGED_PERMISSIONS
         if not perms & PRIVILEGED_PERMISSIONS:
             return perms
         return perms if second.privileged_ready(p.id, getattr(request.state, "session", None)) else perms - PRIVILEGED_PERMISSIONS
@@ -640,15 +649,23 @@ def build_api(app_ctx) -> FastAPI:
     # Phase 19 draft: mounted only by explicit composition. Production does not supply action_rows.
     if action_rows is not None:
         from argus.application.approval_view import ApprovalViewRefused, approval_view, answerable_approval
+        from argus.application.holds import hold_step_up_object, validate_hold_target
+
+        def require_action_scope(p: Principal, target: str) -> None:
+            info = app_ctx.inventory.target(TargetRef.parse(target))
+            if info is None or info.scope not in p.scopes:
+                raise HTTPException(403, "target is outside this principal's scope")
 
         @api.get("/api/v1/ops/approvals/{approval_id}", tags=["ops"])
         def inspect_approval(approval_id: str, p: Annotated[Principal, Depends(require("approve_action"))]):
             if p.kind != "human":
                 raise HTTPException(403, "a human principal is required")
             try:
-                return approval_view(action_rows, approval_id)
+                view = approval_view(action_rows, approval_id)
             except ApprovalViewRefused as exc:
                 raise HTTPException(409, str(exc)) from exc
+            require_action_scope(p, view["proposal"]["input"]["target"])
+            return view
 
         @api.post("/api/v1/ops/approvals/{approval_id}/answer", tags=["ops"])
         def answer_approval(approval_id: str, body: ApprovalAnswerIn, request: Request,
@@ -656,10 +673,11 @@ def build_api(app_ctx) -> FastAPI:
             if p.kind != "human":
                 raise HTTPException(403, "a human principal is required")
             try:
-                answerable_approval(action_rows, approval_id, body.proposal_digest,
-                                    body.decision, body.confirmation_target)
+                view = answerable_approval(action_rows, approval_id, body.proposal_digest,
+                                           body.decision, body.confirmation_target)
             except ApprovalViewRefused as exc:
                 raise HTTPException(409, str(exc)) from exc
+            require_action_scope(p, view["proposal"]["input"]["target"])
             try:
                 second.consume_step_up(body.step_up_token, p.id, request.state.jti,
                                        f"approval:{approval_id}:{body.proposal_digest}")
@@ -669,6 +687,42 @@ def build_api(app_ctx) -> FastAPI:
                                                       body.decision, utcnow()):
                 raise HTTPException(409, "approval is no longer pending")
             return {"state": body.decision}
+
+        @api.get("/api/v1/ops/holds", tags=["ops"])
+        def inspect_holds(target: Annotated[str, Query(max_length=128)],
+                          p: Annotated[Principal, Depends(require("place_hold"))]):
+            if p.kind != "human":
+                raise HTTPException(403, "a human principal is required")
+            try:
+                validate_hold_target(target, app_ctx.inventory)
+            except ValueError as exc:
+                raise HTTPException(422, str(exc)) from exc
+            if target != "*":
+                require_action_scope(p, target)
+            return action_rows.list_active_target_holds(target, utcnow())
+
+        @api.post("/api/v1/ops/holds", status_code=201, tags=["ops"])
+        def place_hold(body: HoldIn, request: Request,
+                       p: Annotated[Principal, Depends(require("place_hold"))]):
+            if p.kind != "human":
+                raise HTTPException(403, "a human principal is required")
+            try:
+                validate_hold_target(body.target, app_ctx.inventory)
+            except ValueError as exc:
+                raise HTTPException(422, str(exc)) from exc
+            if body.target != "*":
+                require_action_scope(p, body.target)
+            try:
+                second.consume_step_up(body.step_up_token, p.id, request.state.jti,
+                                       hold_step_up_object(body.target))
+            except SecondFactorRefused as exc:
+                raise HTTPException(403, str(exc)) from exc
+            now, hold_id = utcnow(), f"hold_{uuid.uuid4().hex}"
+            audit = AuditRecord(audit_id=f"aud_{uuid.uuid4().hex[:16]}", incident_id=None, at=now,
+                                category="decision", event="action.hold_placed", actor=p.id,
+                                detail={"hold_id": hold_id, "target": body.target})
+            action_rows.place_target_hold(hold_id, body.target, body.reason, p.id, now, audit)
+            return {"id": hold_id, "target": body.target, "placed_at": now}
 
     @api.get("/healthz", tags=["ops"])
     def healthz():

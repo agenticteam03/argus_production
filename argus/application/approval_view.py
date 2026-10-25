@@ -40,7 +40,7 @@ def approval_view(rows, approval_id: str) -> dict:
 
 
 def answerable_approval(rows, approval_id: str, digest: str, decision: str,
-                        confirmation_target: str | None) -> None:
+                        confirmation_target: str | None) -> dict:
     """Validate the stored package before consuming a human's one-use step-up."""
     view = approval_view(rows, approval_id)
     if view["state"] != "pending":
@@ -53,3 +53,4 @@ def answerable_approval(rows, approval_id: str, digest: str, decision: str,
         if (view["judge"]["risk"] == "red"
                 and confirmation_target != TargetRef.parse(view["proposal"]["input"]["target"]).name):
             raise ApprovalViewRefused("red action requires typing the target name")
+    return view

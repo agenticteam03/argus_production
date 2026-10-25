@@ -229,6 +229,20 @@ class PostgresStore:
         self._q("INSERT INTO target_hold (hold_id, target, reason, placed_by, placed_at, expires_at) "
                 "VALUES (%s,%s,%s,%s,%s,%s)", (hold_id, target, reason, placed_by, at, expires_at))
 
+    def place_target_hold(self, hold_id: str, target: str, reason: str, placed_by: str,
+                          at: datetime, audit: AuditRecord) -> None:
+        """Insert the hold and chained audit row in one transaction."""
+        with self.pool.connection() as c, c.transaction():
+            c.execute("INSERT INTO target_hold (hold_id, target, reason, placed_by, placed_at) "
+                      "VALUES (%s,%s,%s,%s,%s)", (hold_id, target, reason, placed_by, at))
+            append_chained(c, audit)
+
+    def list_active_target_holds(self, target: str, at: datetime) -> list[dict[str, Any]]:
+        rows = self._q("SELECT hold_id, target, reason, placed_by, placed_at, expires_at FROM target_hold "
+                       "WHERE target IN (%s, '*') AND released_at IS NULL AND "
+                       "(expires_at IS NULL OR expires_at>%s) ORDER BY placed_at, hold_id", (target, at))
+        return [dict(zip(("id", "target", "reason", "placed_by", "placed_at", "expires_at"), row)) for row in rows]
+
     def release_target_hold(self, hold_id: str, released_by: str, at: datetime) -> bool:
         return bool(self._q("UPDATE target_hold SET released_by=%s, released_at=%s "
                             "WHERE hold_id=%s AND released_at IS NULL RETURNING hold_id",

@@ -14,8 +14,13 @@
 - RED: the new answer-route test returned 404 before its implementation.
 - GREEN: focused approval tests and existing authentication/write-gate tests passed locally. Full suite and
   exact-head CI remain to be recorded after the draft push.
+- The first PR head `ab7091d` passed exact-head `test` and `frontend` CI. This continuation added holds and the
+  closed gateway core. RED was observed for the missing hold route, missing gateway behavior, and absent cross-scope
+  approval check; focused tests are green. The six Phase 16 allowlist-script failures on Windows are environmental:
+  `bash.exe` enters WSL without `/bin/bash`. Ruff passed. PostgreSQL and Linux CI for this new head are pending.
 
 ### Next step
 
-Complete the private Actions UI, holds, emergency stop and isolated gateway. Verify Phase 16 deployment and the
-stacked dependencies before requesting any review or approval. Do not open a real action route in this PR.
+Resolve proposed ACR-0031 before a private full-token browser login. Complete the Actions UI and isolated gateway
+listener/socket proxy, then test the real images. Verify Phase 16 deployment and stacked dependencies before
+requesting any review or approval. Do not open a real action route in this PR.

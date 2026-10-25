@@ -444,6 +444,25 @@ class SqliteStore:
                 "VALUES (?,?,?,?,?,?)", (hold_id, target, reason, placed_by, _utc(at),
                                           _utc(expires_at) if expires_at else None))
 
+    def place_target_hold(self, hold_id: str, target: str, reason: str, placed_by: str,
+                          at: datetime, audit: AuditRecord) -> None:
+        """A hold without its chained audit row must never become active."""
+        with self._lock:
+            self._db.execute("BEGIN IMMEDIATE")
+            try:
+                self.add_target_hold(hold_id, target, reason, placed_by, at)
+                self.append(audit)
+                self._db.execute("COMMIT")
+            except Exception:
+                self._db.execute("ROLLBACK")
+                raise
+
+    def list_active_target_holds(self, target: str, at: datetime) -> list[dict[str, Any]]:
+        rows = self._q("SELECT hold_id, target, reason, placed_by, placed_at, expires_at FROM target_hold "
+                       "WHERE target IN (?, '*') AND released_at IS NULL AND "
+                       "(expires_at IS NULL OR expires_at>?) ORDER BY placed_at, hold_id", (target, _utc(at)))
+        return [dict(zip(("id", "target", "reason", "placed_by", "placed_at", "expires_at"), row)) for row in rows]
+
     def release_target_hold(self, hold_id: str, released_by: str, at: datetime) -> bool:
         with self._lock:
             cur = self._db.execute("UPDATE target_hold SET released_by=?, released_at=? "

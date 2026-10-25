@@ -99,6 +99,22 @@ def test_remediation_migration_014_freezes_proposal_and_answers_once(runtime_dsn
             c.execute("UPDATE judge_verdict SET verdict = 'doubt' WHERE proposal_id = %s", (proposal.id,))
 
 
+def test_phase19_hold_and_chained_audit_commit_together(store):
+    import psycopg
+    from argus.domain.model import AuditRecord, utcnow
+
+    now = utcnow()
+    audit = AuditRecord(audit_id="aud_phase19_hold", incident_id=None, at=now,
+                        category="decision", event="action.hold_placed", actor="operator", detail={"target": "*"})
+    store.place_target_hold("hold_phase19", "*", "emergency", "operator", now, audit)
+    assert store.list_active_target_holds("*", now)[0]["id"] == "hold_phase19"
+    assert any(body["event"] == "action.hold_placed" for _, body, _, _ in store.audit_chain())
+    with pytest.raises(psycopg.Error):
+        store.place_target_hold("hold_phase19", "*", "duplicate", "operator", now,
+                                audit.model_copy(update={"audit_id": "aud_phase19_duplicate"}))
+    assert not any(aid == "aud_phase19_duplicate" for aid, _, _, _ in store.audit_chain())
+
+
 def test_incident_lifecycle_and_forward_only(store):
     import psycopg
     from argus.domain.model import IncidentStatus

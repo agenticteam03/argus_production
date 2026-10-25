@@ -24,14 +24,29 @@ do not connect a real target or credential in this draft.
   records an answer and a resume intent. It is also unmounted in production.
 - The ordinary `/me` response does not advertise `approve_action` while action rows are absent. No route calls an
   action executor or gateway.
+- Opt-in private holds require `place_hold`, a human with a WebAuthn-ready full session, a step-up bound to the exact
+  target scope, and a known inventory target or `*` for emergency stop. Hold insertion and the chained audit record
+  commit atomically. The Phase 18 precheck already refuses a global or target hold.
+- The action-gateway core has an empty route map by default. Its test-only released map rejects vm-095, non-lab
+  targets and route mismatches. It checks the credential, action ID and target identity, writes a durable receipt
+  before calling an injected proxy, and refuses any duplicate ID. An import-boundary test keeps the model and MCP
+  code out of this module. It has no listener or Docker transport.
+
+## Proposed architecture decision
+
+[ACR-0031](../../architecture/changes/ACR-0031-private-browser-login.md) records a gap found while wiring the
+private UI: the public browser login cannot issue a full token, while approval POSTs require one. The ACR proposes a
+private login protected by the existing mTLS/allowlist. It is **proposed only**; no private login or full browser
+token has been implemented. Acceptance and the required safety approval must precede that step.
 
 ## Remaining work before this PR can be reviewed
 
 1. Verify and record Phase 16 deployment and the off-host audit digest; resolve the #314 dependency and stack
    ordering through #316, #318 and #323.
-2. Build the private Actions tab, colours, judge rationale, suggestions, holds and emergency stop.
-3. Build the action gateway and socket proxy with exact routes, action IDs, journal, token isolation and no target
-   route enabled. Add import-boundary and real-image route tests.
+2. Resolve ACR-0031, then build the private Actions tab, colours, judge rationale and suggestions. Add a deliberate
+   path to release ordinary holds; the emergency stop must not be cleared by an unreviewed UI toggle.
+3. Build the gateway listener/image and socket proxy with exact route ACLs and token isolation; keep the released
+   route map empty. Add real-image route tests.
 4. Exercise the approval flow with real WebAuthn ceremonies and the private edge; run full offline, PostgreSQL and
    CI gates on the final head. Check production wiring and the write gate remain closed.
 5. Only then request review. Phase 20 has a separate release PR for the first `(capability, scope)` pair.
