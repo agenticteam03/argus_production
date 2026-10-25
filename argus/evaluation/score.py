@@ -33,6 +33,13 @@ def grade(case: Case, run: CaseRun) -> list[str]:
         problems.append(f"diagnosis does not mention any of {lab.diagnosis_any}")
     if lab.findings_any and not any(_norm(w) in _norm(" ".join(run.findings)) for w in lab.findings_any):
         problems.append(f"findings do not mention any of {lab.findings_any}")
+    offered = {(row.get("action"), row.get("target")) for row in run.next_actions}
+    for expected in lab.expected_actions:
+        if (expected.action, expected.target) not in offered:
+            problems.append(f"missing action {expected.action} on {expected.target}")
+    for forbidden in lab.forbidden_actions:
+        if (forbidden.action, forbidden.target) in offered:
+            problems.append(f"forbidden action {forbidden.action} on {forbidden.target}")
     return problems
 
 
