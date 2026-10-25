@@ -76,7 +76,8 @@ def scheduler() -> None:
     from argus.adapters.outbound.alerts_alertmanager import AlertmanagerSource
     from argus.adapters.outbound.config_adapters import YamlInventory
     from argus.application.alerts import HandleAlertNotification, ReconcileFiringAlerts
-    from argus.infrastructure.scheduler import AuditChainCheck, Scheduler, load_audit_chain, load_reconcile, load_schedules
+    from argus.infrastructure.scheduler import (AuditChainCheck, Scheduler, load_audit_chain, load_audit_digest,
+                                                load_reconcile, load_schedules)
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
     s = Settings()
     inventory = YamlInventory((s.config_dir / "inventory.yaml").read_text(encoding="utf-8"))
@@ -85,6 +86,7 @@ def scheduler() -> None:
     schedules = load_schedules(text, inventory, min_interval_s=int(os.getenv("ARGUS_SCHEDULE_MIN_INTERVAL_S", "300")))
     cfg = load_reconcile(text)
     chain_every = load_audit_chain(text)               # ACR-0018: the audit hash chain, verified on a schedule
+    digest_every = load_audit_digest(text)             # ACR-0018 step 5: its signed daily digest, shipped off host
     log = logging.getLogger("argus.scheduler")
     log.info("%d schedules, %d enabled; reconcile firing alerts: %s", len(schedules),
              sum(x.enabled for x in schedules), f"every {cfg.every_s} s" if cfg.enabled else "off")
@@ -115,8 +117,15 @@ def scheduler() -> None:
     signal.signal(signal.SIGINT, lambda *_: stop.set())
     log.info("audit chain check: %s", f"every {chain_every} s" if chain_every else "off")
     chain = AuditChainCheck(store) if chain_every else None
+    digest = None
+    if digest_every:
+        from argus.infrastructure.audit_digest import AuditDigestJob
+        from argus.infrastructure.wiring import ed25519_signing_key, make_digest_sink
+        digest = AuditDigestJob(store, ed25519_signing_key(s.secret("audit_digest_ed25519_key"),
+                                                           name="audit_digest_ed25519_key"), make_digest_sink(s))
+    log.info("audit digest: %s", f"every {digest_every} s" if digest_every else "off")
     Scheduler(store, schedules, reconcile, cfg.every_s, chain_check=chain, chain_every_s=chain_every or 86400,
-              links=links).run_forever(stop)
+              links=links, digest_job=digest, digest_every_s=digest_every or 86400).run_forever(stop)
 
 
 def _prometheus_ready(inventory):

@@ -7,6 +7,15 @@ Replayable cases (`cases/*.yaml`) and thresholds (`thresholds.yaml`). The harnes
 A case is replayed through the real wiring (policy, graph, evidence store) with fixture executors and a fixed metric
 snapshot, then graded. Case fields:
 
+To compare two saved runs without making model calls:
+
+```sh
+python -m argus.evaluation.compare --before before.jsonl --after after.jsonl --cases tests/eval/cases
+```
+
+The report validates paired `(case, trial)` coverage and compatible model/strategy metadata, then scores each run
+against the case's expected label. Missing token fields remain unknown.
+
 | Field | Meaning |
 |---|---|
 | `id`, `category` | unique id; `class` for a diagnosable incident, otherwise the §21.2 safety row (`unsupported`, `stale_metrics`, `forbidden_target`, `healthy_check`, `tool_failure`, `ambiguous`) |
@@ -14,6 +23,7 @@ snapshot, then graded. Case fields:
 | `metrics` | signal values per target (`{target: {signal: value}}`); `stale: true` instead = no fresh samples |
 | `fixtures` | the answer of each read, per executor and path (`"*"` = any path); `{error: <category>}` makes the read fail |
 | `secrets` | planted strings that must never reach a model request |
+| `prior_incidents` | closed precedents stored before the run, for `knowledge.prior_incidents` (T-0049 R1): each `class`, `target`, `diagnosis`, `root_cause`, `closed_at` (and `outcome`, `confidence`, `findings`); a reviewed fixture that may help (the same cause before) or mislead (another cause on the same target and class) |
 | `label` | `outcome` (or a list), `class`, `root_cause`, `abstain`, `model_calls` (exact), `diagnosis_any`, `findings_any`, `runbooks` (for recall@3), `expected_hypotheses` (`supported`, `ruled_out`: targets or cause classes; ACR-0024 §3.8) |
 
 With hypotheses (ACR-0024, T-0047 H4), the summary adds a `hypotheses:` line over the runs that stated them: top-1

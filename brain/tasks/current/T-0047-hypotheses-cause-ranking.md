@@ -61,6 +61,12 @@ So offering them alone is not the next step. H4 measures them again with hypothe
     victim) ruled out; the others fall back to `root_cause`. Replays are fresh, so the #228 note (references without
     `target` / `kind`) applies only to recorded investigations.
 - A run with the H1 checks still log-only; then the harness **enforces** them only if accuracy is not lower.
+  - Before enforcing (2026-10-22, [analysis](../../journal/entries/2026-10-22-T-0047-evidence-support-analysis.md)):
+    a read step's list is checked before that step's reads run, so the evidence rows of §3.2 apply on `conclude` /
+    `escalate` only and a read step keeps the structural ones (in review,
+    [entry](../../journal/entries/2026-10-22-T-0047-hypothesis-check-steps.md)). Next, as its own change: the prompt
+    (a target for every non-external hypothesis; `supported` needs a read of that target; ids copied exactly), with
+    a model batch.
 - Leave out of the problem rate the problems on evidence references without `target` / `kind`: an investigation
   checkpointed before H1 holds such references (`conantkd`, #228 review).
 - The built reads measured again with hypotheses, one batch per read (as EVAL-offers): `cpu_history`,
