@@ -141,7 +141,7 @@ memory and feedback are [T-0048](T-0048-incident-feedback.md); controlled extern
 6. Approval expiry (proposed 30 min in the lab) and the per-target action rate (one per 10 min). **Answered
    (ACR-0019 §5):** 30 minutes; one per 10 minutes.
 7. The off-host store for the audit digest and the terminal recordings, and their retention. **Answered (ACR-0018
-   §5):** a versioned object-storage bucket with a retention lock and a put-only credential; digests 1 year,
+   §5):** an object-storage bucket with a locked retention rule (no versioning) and a put-only credential; digests 1 year,
    recordings 90 days; the provider is OCI Object Storage, administered by `conantkd`. OCI cannot combine versioning
    with a retention rule, so the bucket uses a locked retention rule without versioning (ACR-0018 §5).
 8. Whether vm-095 (Argus's own host) ever gets actions (recommendation: no). **Answered (ACR-0019 §5):** no.

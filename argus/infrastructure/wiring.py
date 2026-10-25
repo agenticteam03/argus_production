@@ -46,6 +46,7 @@ class Settings:
     pg_host: str = field(default_factory=lambda: os.getenv("ARGUS_PG_HOST", "argus-v18-postgres"))
     pg_db: str = field(default_factory=lambda: os.getenv("ARGUS_PG_DB", "argus"))
     pg_user: str = field(default_factory=lambda: os.getenv("ARGUS_PG_USER", "argus_runtime"))
+    audit_digest_sink: str = field(default_factory=lambda: os.getenv("ARGUS_AUDIT_DIGEST_SINK", "").strip())
     llm_model: str = field(default_factory=lambda: os.getenv("ARGUS_LLM_MODEL", "gpt-5.6-luna"))
     # ACR-0013: optional, filtered OTLP tracing to a self-hosted Langfuse; off by default. The project keys are the
     # secret files langfuse_public_key / langfuse_secret_key, mounted into the worker only.
@@ -137,9 +138,10 @@ class App:
 
 
 
-def ed25519_signing_key(pem: str | None):
-    """ACR-0018 §17.2: the API's token signing key, an Ed25519 private key in PEM (secret `jwt_ed25519_key`). None when
-    the secret is absent (the lab's HS256 key is used). Any other key type refuses startup."""
+def ed25519_signing_key(pem: str | None, name: str = "jwt_ed25519_key"):
+    """ACR-0018 §17.2: an Ed25519 private key in PEM: the API's token signing key (secret `jwt_ed25519_key`) or the audit
+    digest key (`audit_digest_ed25519_key`). None when the secret is absent (the lab's HS256 key is used for tokens).
+    Any other key type refuses startup."""
     if not pem:
         return None
     from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
@@ -147,10 +149,48 @@ def ed25519_signing_key(pem: str | None):
     try:
         key = load_pem_private_key(pem.encode(), password=None)
     except ValueError:
-        raise SystemExit("jwt_ed25519_key is not a PEM private key")
+        raise SystemExit(f"{name} is not a PEM private key")
     if not isinstance(key, Ed25519PrivateKey):
-        raise SystemExit("jwt_ed25519_key must be an Ed25519 private key")
+        raise SystemExit(f"{name} must be an Ed25519 private key")
     return key
+
+
+def oci_object_client(config_path: Path):
+    """An OCI Object Storage client from the credential folder: `config` (a profile `[DEFAULT]`) and `key.pem` beside it.
+    The `key_file` written in the config is a path on the person's laptop; here the key beside the config wins."""
+    try:
+        import oci
+    except ImportError:
+        raise SystemExit("ARGUS_AUDIT_DIGEST_SINK=oci:... needs the 'oci' package")
+    import configparser
+    parser = configparser.ConfigParser(interpolation=None)
+    parser.read(config_path, encoding="utf-8")
+    # Read the profile ourselves: `oci.config.from_file` checks the `key_file` path before we can replace it.
+    config = {**oci.config.DEFAULT_CONFIG, **parser.defaults(), "key_file": str(config_path.with_name("key.pem"))}
+    oci.config.validate_config(config)
+    return oci.object_storage.ObjectStorageClient(config, timeout=(10, 60))
+
+
+def make_digest_sink(s: "Settings"):
+    """ACR-0018 step 5: where the signed audit digests go, from `ARGUS_AUDIT_DIGEST_SINK`. None when unset.
+    `dir:<path>` is the local sink (tests and the lab; it is not off host). `oci:<namespace>/<bucket>` is OCI Object
+    Storage, with its credential in `<secrets>/oci_digest/config` and `key.pem`."""
+    spec = s.audit_digest_sink
+    if not spec:
+        return None
+    if spec.startswith("dir:") and len(spec) > 4:
+        from argus.adapters.outbound.digest_sinks import LocalDirSink
+        return LocalDirSink(spec[4:])
+    if spec.startswith("oci:"):
+        namespace, _, bucket = spec[4:].partition("/")
+        if not namespace or not bucket or "/" in bucket:
+            raise SystemExit("ARGUS_AUDIT_DIGEST_SINK must be 'oci:<namespace>/<bucket>'")
+        for rel in ("oci_digest/config", "oci_digest/key.pem"):
+            if not (s.secrets_dir / rel).is_file():
+                raise SystemExit(f"ARGUS_AUDIT_DIGEST_SINK=oci:... needs the file {rel} under {s.secrets_dir}")
+        from argus.adapters.outbound.digest_sinks import OciObjectSink
+        return OciObjectSink(oci_object_client(s.secrets_dir / "oci_digest" / "config"), namespace, bucket)
+    raise SystemExit("ARGUS_AUDIT_DIGEST_SINK must be 'dir:<path>' or 'oci:<namespace>/<bucket>'")
 
 def _credentials(s: Settings, inventory: YamlInventory, require: bool, errors: list[str],
                  load: bool = True) -> dict[tuple[str, str], str]:

@@ -42,6 +42,15 @@ References: [T-0050](../../tasks/current/T-0050-cards-and-catalogue.md),
 
 ### Test state
 
+- Alignment on 2026-10-24: merged `origin/main` at `106190b` (including #300 and the #320 main-guard recovery) into
+  the #316 head `84c2ed9` in an isolated checkout. Git's automatic merge succeeded without conflicts; both the action
+  policy wiring and main's audit-digest wiring are retained. Already-merged ACR-0018/ACR-0019 changes no longer appear
+  as changes unique to #316. The staged code tree was checked against `git merge-tree` and matches Git's automatic
+  result; additional edits only update this journal and the task status. Ruff, Brain lint/audit, journal/status validation
+  and staged whitespace checks passed. Full local pytest passed: **1979 passed, 73 skipped in 1146.94 seconds**, using
+  the repaired repository virtual environment, Git Bash first on PATH and default pytest temporary directories outside
+  the checkout. Main and the source ref were refreshed after the suite and had not moved. No new runtime behavior or
+  tests were introduced by the alignment. Exact-head GitHub checks are required after publication.
 - RED seen:
   - `tests/test_action_preconditions.py`: `ModuleNotFoundError: No module named 'argus.actions'`
   - `tests/test_action_risk.py`: `ModuleNotFoundError: No module named 'argus.actions.risk'`
@@ -82,6 +91,8 @@ References: [T-0050](../../tasks/current/T-0050-cards-and-catalogue.md),
 
 ### Next step
 
-The main-aligned branch is ready for teammate review. After review, merge with a merge commit and retain the source
+Publish the validated alignment and require exact-head CI plus teammate approval of the updated
+protected-path changes. No approval is currently recorded on #316; this alignment cannot authorize self-merge.
+After review, merge with a merge commit and retain the source
 branch. Then proceed to Phase 18 offline simulation machinery (§14 tables, proposals with grounds/predictions/
 alternatives against a fake gateway, judge integration), preserving the closed write gate.
