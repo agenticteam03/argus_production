@@ -2,9 +2,9 @@
 
 | Field | Value |
 |---|---|
-| Status | `approved` as a plan (PR #170 merged); its ACRs are still `proposed`. Phase 15 in progress (2026-10-20) |
+| Status | `approved` as a plan (PR #170 merged); ACR-0020 accepted for offline 21A, safety approval pending |
 | Phase | 15–23 (planned, [`../../IMPLEMENTATION_PLAN.md`](../../IMPLEMENTATION_PLAN.md)) |
-| Architecture | [ACR-0018](../../architecture/changes/ACR-0018-operator-access-and-audit.md) operator access and audit · [ACR-0019](../../architecture/changes/ACR-0019-human-approved-remediation.md) human-approved remediation · [ACR-0020](../../architecture/changes/ACR-0020-operator-terminal.md) operator terminal · [ACR-0022](../../architecture/changes/ACR-0022-autonomous-investigation.md) more autonomous investigation — all `proposed` |
+| Architecture | [ACR-0018](../../architecture/changes/ACR-0018-operator-access-and-audit.md) operator access and audit · [ACR-0019](../../architecture/changes/ACR-0019-human-approved-remediation.md) human-approved remediation · [ACR-0020](../../architecture/changes/ACR-0020-operator-terminal.md) operator terminal (`accepted`, 21A) · [ACR-0022](../../architecture/changes/ACR-0022-autonomous-investigation.md) more autonomous investigation |
 | Sources | this proposal (juanbetancurm) merged with `conantkd`'s "Argus actúa" (2026-10-18) |
 | Branch | `task/NEXT-PHASE-proposal` (documentation only) |
 | Owner | `juanbetancurm` and `conantkd` (+ agents); lanes below |
@@ -123,7 +123,10 @@ memory and feedback are [T-0048](T-0048-incident-feedback.md); controlled extern
 
 ## Open decisions (for the proposal review)
 
-1. Terminal broker: adopt (Teleport Community Edition) or build (OD-17)?
+1. Terminal broker: **decided by ACR-0020 (2026-10-23): build the narrow Argus broker** so it reuses ACR-0018's
+   identity, step-up and private path and binds each session to its incident and lease. Teleport Community Edition
+   remains the scale-out alternative, but adds another identity/UI plane and a licensing decision. The independent
+   safety approval is still pending.
 2. Private path: a team VPN, or mTLS client certificates with an address allowlist? (`wg0` belongs to the protected
    deployment and is not reused without its owner's agreement.) **Answered (ACR-0018 §5):** mTLS with an address
    allowlist on the existing edge.
@@ -131,16 +134,20 @@ memory and feedback are [T-0048](T-0048-incident-feedback.md); controlled extern
    **Answered (ACR-0018 §5):** `approve_action` for the three enabled operators; `open_terminal:<host>` for nobody
    until ACR-0020 decides it; on the lab profile a self-approval is allowed and recorded, not refused.
 4. First released pair: `container.start` (this proposal) or `container.restart` (`conantkd`'s 1A) on
-   `argus-lab-cache`? The cache is stopped in SC-03, so `start` is the narrower action.
-5. The judge's model: another provider or family than the deciding model, and its cost.
-6. Approval expiry (proposed 30 min in the lab) and the per-target action rate (one per 10 min).
+   `argus-lab-cache`? The cache is stopped in SC-03, so `start` is the narrower action. **Answered (ACR-0019 §5):**
+   `container.start`.
+5. The judge's model: another provider or family than the deciding model, and its cost. **Set when phase 18
+   starts (ACR-0019 §5)**, from a measured comparison.
+6. Approval expiry (proposed 30 min in the lab) and the per-target action rate (one per 10 min). **Answered
+   (ACR-0019 §5):** 30 minutes; one per 10 minutes.
 7. The off-host store for the audit digest and the terminal recordings, and their retention. **Answered (ACR-0018
-   §5):** a versioned object-storage bucket with a retention lock and a put-only credential; digests 1 year,
-   recordings 90 days; the provider is chosen when phase 16 is deployed.
-8. Whether vm-095 (Argus's own host) ever gets actions (recommendation: no).
+   §5):** an object-storage bucket with a locked retention rule (no versioning) and a put-only credential; digests 1 year,
+   recordings 90 days; the provider is OCI Object Storage, administered by `conantkd`. OCI cannot combine versioning
+   with a retention rule, so the bucket uses a locked retention rule without versioning (ACR-0018 §5).
+8. Whether vm-095 (Argus's own host) ever gets actions (recommendation: no). **Answered (ACR-0019 §5):** no.
 9. Whether drills count as memory for production (recommendation: counts are per scope; lab counts never apply to
-   production).
-10. The model-evaluation budget for phases 17, 18 and 20.
+   production). **Answered (ACR-0019 §5):** counted per origin.
+10. The model-evaluation budget for phases 17, 18 and 20. **Set in each phase's plan (ACR-0019 §5).**
 
 ## Not in this proposal
 

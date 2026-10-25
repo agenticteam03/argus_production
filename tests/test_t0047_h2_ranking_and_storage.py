@@ -172,10 +172,12 @@ def test_state_hypotheses_never_stands_alone_or_beside_a_decision():
 
 
 def test_a_bad_list_beside_reads_is_reported_not_refused():
+    # a read step keeps the structural checks; the evidence checks wait for the decision (test_t0047_hypothesis_check_steps)
     bad = (STATE_TOOL, {"hypotheses": [{"id": "h1", "statement": "x", "cause_class": "other", "target": WORKER,
-                                        "relation": "self", "status": "ruled_out"}]})
+                                        "relation": "self", "status": "ruled_out", "against": ["ev9"]}]})
     d = ModelHarness(llm=None).convert(reply(READ, bad), view())
-    assert isinstance(d, UseReadTools) and d.hypothesis_problems == ["h1: ruled out without evidence against it"]
+    assert isinstance(d, UseReadTools) and d.hypothesis_problems == [
+        "h1: cites evidence not stored for this incident: ['ev9']"]
 
 
 # --- the context slot (§3.4) -----------------------------------------------------------------------------------------

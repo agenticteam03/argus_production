@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | `in progress` — step 1 merged (#223) and deployed on vm-095 (DEPLOY-A4479DF, 2026-10-21); steps 2–6 planned below |
+| Status | `in review` - step 5a is in [PR #303](https://github.com/agenticteam03/argus_production/pull/303); step 5b is in stacked [PR #311](https://github.com/agenticteam03/argus_production/pull/311), updated from the latest #303 head with architecture conflicts resolved; fresh review and CI pending. |
 | Phase | 16 of [NEXT-PHASE](NEXT-PHASE-supervised-remediation.md) ([`../../IMPLEMENTATION_PLAN.md`](../../IMPLEMENTATION_PLAN.md)) |
 | Architecture | [ACR-0018](../../architecture/changes/ACR-0018-operator-access-and-audit.md) (`accepted`, #209); each step applies only what it builds (its §6) |
 | Branch | one per step: `task/PHASE-16-step-<n>-<slug>` |
@@ -84,6 +84,8 @@ single-use, ≤ 5 min; the sign counter refuses a clone (a counter that goes bac
 step-up bound to a test object, with the binding to approvals added in phase 17.
 
 ### Step 4 — the private path (mTLS) and separation of duties
+**Built (`task/PHASE-16-step-4-private-path`, ARCHITECTURE 1.8.30):** decided with conantkd on 2026-10-22: one prefix for every privileged route (`/api/v1/ops/`), the edge passing it only for a client certificate of the team's CA from an allowlisted address (else 404); the CA key encrypted on conantkd's laptop, a copy with juanbetancurm; per-person keys and CSRs; 90-day certificates and a CRL; the allowlist on vm-095 with named, expiring entries and a daily prune; off by default. **Next:** the deploy (create `/opt/argus-v18/edge-ops/` and an empty `allow.conf` before the edge's `up`; the private path stays off), then the CA, each person's certificate, the allowlist and `ARGUS_OPS_PATH=on`. Separation of duties waits for ACR-0019's routes.
+
 - The team's client CA, its private key off vm-095; one 90-day certificate per person; a CRL.
 - `deploy/ui/nginx/`: `ssl_verify_client optional`; privileged locations answer 404 unless the certificate verifies
   **and** the source address is in the allowlist. The allowlist is a file under `/opt/argus-v18/` on vm-095 with a
@@ -93,8 +95,14 @@ step-up bound to a test object, with the binding to approvals added in phase 17.
   of ACR-0019; the rule and its test come with them). `config/policy.yaml`'s profile is decided here (ACR-0027).
 
 ### Step 5 — the off-host digest and security alerts
-- **Open decisions:** the bucket's provider (versioned, retention-locked, a put-only credential, outside both VMs);
-  the team's alert receiver (none exists: Argus only reads its Alertmanager).
+- **Decided (ACR-0018 §5, 2026-10-23):** the bucket is OCI Object Storage, administered by `conantkd`: a locked
+  time-bound retention rule with versioning off (OCI cannot combine them) and a create-only credential. **Open:** the
+  team's alert receiver (none exists: Argus only reads its Alertmanager).
+- **5a built (`task/PHASE-16-step-5a-digest`, ARCHITECTURE 1.8.32):** the digest, the signature, the job and a local
+  sink, all offline and tested. **5b built (`task/PHASE-16-step-5b-oci-sink`, ARCHITECTURE 1.8.34):** the OCI sink
+  (`oci==2.189.0`) and an opt-in test against the real bucket. **5c:** the key and the credential on vm-095, their compose
+  mounts (a protected path) and the egress line in `policies/NETWORK.md`, the schedule on, `argus audit` to check shipped
+  digests against the chain.
 - The daily digest: the hash of each day's last chained audit row, signed (the audit digest key, §17.2) and shipped;
   the scheduler's chain check (built in step 1) raises the alert on `security.audit_chain_broken`, on lockouts and on
   refused privileged requests.

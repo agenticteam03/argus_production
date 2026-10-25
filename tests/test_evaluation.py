@@ -6,7 +6,6 @@ no model, or a scripted one; trials with a real model are step 3.
 """
 from __future__ import annotations
 
-from pathlib import Path
 
 import pytest
 import yaml
@@ -301,8 +300,28 @@ def test_the_command_line_runs_the_model_and_writes_one_json_line_per_run(ev, tm
     assert {r["trial"] for r in rows} == {1, 2}
     assert all(r["model_calls"] >= 1 for r in rows if r["case"] not in no_model)
     assert all(r["model_calls"] == 0 for r in rows if r["case"] in no_model)
-    assert {"case", "category", "strategy", "verdict", "problems", "hard", "outcome"} <= set(rows[0])
+    assert {"case", "category", "strategy", "verdict", "problems", "hard", "outcome",
+            "input_tokens", "output_tokens"} <= set(rows[0])
     assert "container_restart_loop" in text and "worst" in text
+
+
+def test_a_model_run_records_provider_token_usage(ev, tmp_path):
+    from argus.ports.ports import Usage
+
+    class MeteredScriptedLLM:
+        def __init__(self):
+            self.inner = ScriptedLLM(lambda _: {"calls": [("escalate", {"reason": "usage test"})]})
+
+        def decide(self, messages, tools):
+            reply = self.inner.decide(messages, tools)
+            return reply.model_copy(update={"usage": Usage(input_tokens=17, output_tokens=5)})
+
+    run = ev.run_case(case(ev, "health-api-vm095-01"), workdir=tmp_path,
+                      llm=MeteredScriptedLLM(), strategy="model_loop")
+
+    assert run.model_calls >= 1
+    assert run.input_tokens == run.model_calls * 17
+    assert run.output_tokens == run.model_calls * 5
 
 
 def test_the_summary_reports_mean_and_worst_trial_per_class(ev):

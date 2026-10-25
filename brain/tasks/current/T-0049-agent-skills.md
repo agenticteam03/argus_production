@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | `proposed` — plan only; S0 (governance) is the first pull request and needs `conantkd`'s review |
+| Status | `in progress` — S0 (#268), S1 (#275), S2 (#277), S3 (#281, #285, #286), S4 (#283, #289, #290, #296) and S5's first evidence (#293) merged; R1: `container.detailed_logs` measured for `health_check_failed` and **not offered** ([evidence](../../execution/history/T-0049-R1/step-01/evidence.md)); the paired skill runs of S5 not measured yet |
 | Phase | 24 (developer track, parallel to 15–23; the Argus runtime does not change) |
 | Architecture | none for S0–S5 (development tooling only); the runtime steps R1–R3 and O1 each go through their own ACR |
 | Branch | one branch per step: `task/T-0049-s<n>-<slug>` |
@@ -55,6 +55,14 @@ same steps every time, and a script catches the known traps before a developer r
 | R2 | **Per-class pre-checks, only if they win.** A third arm: the same authorized reads run deterministically before the model, counted in the same `max_per_incident` budget, each a typed observation (`status`: success, missing, stale, error, denied). Proposed as an ACR only if it beats R1's second arm without any new permission. A class manifest **references** the detector, runbooks and signals and copies none of them. | R1, ACR-0022 (phase 22) |
 | R3 | **Confirmed incident to proposed runbook diff.** From confirmed cases only, draft a diff to one runbook, with evidence and counterexamples, reviewed in a PR and checked by the evaluation. Never applied automatically. | T-0048 (confirmed feedback) |
 | O1 | **Read-only on-call skill** for an operator's own agent: reads one incident through the authenticated API and drafts a handover note. GET only, a short-lived least-privilege token from the operator's credential store, never in the skill, the repo or the chat. | phase 16 deployed (ACR-0018: per-person sessions and permissions) |
+
+### R1 candidate preparation: `container.processes`
+
+S2's offline ranking selected `container.processes` (`processes`) for `container_restart_loop` as the second candidate.
+The six labelled `restart-*` cases now include Docker `/containers/<name>/top` snapshots shaped like the T-0037 gateway
+response and its real-output evidence. These fixtures only make the read replayable; `container.processes` remains
+unoffered to every class, and a class offer stays a separate measured R1 step. See the S4 R1b journal entry for the
+case-level details and checks.
 
 ## Inventory at `main` `953331f` (2026-10-21; S0 re-checks it)
 

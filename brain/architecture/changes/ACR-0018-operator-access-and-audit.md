@@ -2,8 +2,8 @@
 
 Part of the next-phase proposal ([task](../../tasks/current/NEXT-PHASE-supervised-remediation.md)) with
 [ACR-0019](ACR-0019-human-approved-remediation.md) (human-approved remediation) and
-[ACR-0020](ACR-0020-operator-terminal.md) (operator terminal). This ACR is their precondition: neither may be
-implemented before this one is applied and deployed.
+[ACR-0020](ACR-0020-operator-terminal.md) (operator terminal). This ACR is their precondition: phases 17 and 18 may
+start earlier under ACR-0019 §5, but phase 19 and any write-gate release wait until this ACR is applied and deployed.
 
 | Field | Value |
 |---|---|
@@ -132,12 +132,22 @@ ACR-0019 and ACR-0020.
    **Separation of duties:** enforced on the production profile, as in §3. On the lab profile it is **allowed and
    recorded**: with three operators, enforcing it would often leave nobody to approve; the audit row and the UI mark
    a self-approval, and the scheduled evaluation counts them.
-3. **Off-host store (decision 7):** an object-storage bucket outside both VMs, with versioning and a write-once
-   retention lock, written through a **put-only** credential that cannot delete or overwrite (a new secret under
+3. **Off-host store (decision 7):** an object-storage bucket outside both VMs, with a locked time-bound retention
+   rule and no versioning, written through a **put-only** credential that cannot delete or overwrite (a new secret under
    `secrets/agent/`, never printed). Not vm-166 and not a developer's laptop: every developer has sudo on both VMs,
    and a laptop is one person's. **Retention:** audit digests 1 year; terminal recordings 90 days (ACR-0020 may
-   change the latter). The provider is chosen by whoever administers the cloud account when phase 16 is deployed,
-   and recorded in `policies/NETWORK.md` with the other egress (§6). Until the bucket exists, phase 16 cannot be
+   change the latter). The provider is **OCI Object Storage**, administered by `conantkd` (chosen 2026-10-23), and is
+   recorded in `policies/NETWORK.md` with the other egress (§6) when phase 16 is deployed. **OCI does not allow
+   versioning and a retention rule on the same bucket** (Oracle's "Object Storage Data Retention Rules" and "Object
+   Storage Versioning" pages): there the write-once property comes from a **locked time-bound retention rule**
+   (digests 1 year) with versioning left off, each digest written once under a unique name. The rule is measured per
+   object from its last modification, and a lock takes effect only after a mandatory 14-day delay and cannot be undone
+   (it can only grow); the rule is created unlocked and tested first; enabling the lock then starts the 14-day delay, during which it can still be cancelled.
+   Put-only on OCI means a policy that grants `OBJECT_INSPECT` and `OBJECT_CREATE` and neither `OBJECT_OVERWRITE` nor
+   `OBJECT_DELETE` (`PutObject` needs `OBJECT_CREATE` for a new name and `OBJECT_OVERWRITE` for an existing one; no
+   verb alone grants create-only, so it is written with a `request.permission` condition scoped to the bucket with
+   `target.bucket.name`, as in Oracle's own policy for writing objects). The step that creates the bucket proves it: the credential must be refused an
+   overwrite and a delete. Until the bucket exists, phase 16 cannot be
    deployed: the digest job fails closed and raises the security alert of §18.
 
 Next: phase 16 applies this ACR, with its first code, in one pull request (§6).
@@ -184,7 +194,26 @@ Applied in steps (phase 16). Each step writes into `ARCHITECTURE.md` only what i
       second factor; the routes through the public edge; `tests/test_acr0018_webauthn.py` (a software authenticator).
       The step-up's binding to approvals comes with ACR-0019's routes (phase 17); the UI dialogs are step 3b
 
-**Not yet** (step 4 on): separation of duties; the signed daily digest off
-Host A; security alerts (§18), which wait for the team's alert route (no receiver exists: Argus only reads its
-Alertmanager), including the alert on `security.audit_chain_broken`; the private path (mTLS, `deploy/ui/nginx/`) and `policies/NETWORK.md`;
-`policies/SECURITY.md` (the new secrets).
+- [x] step 4 (1.8.30): the private path. Privileged routes under `/api/v1/ops/` (a test keeps them there); the
+      edge passes the prefix only for a client certificate of the team's CA, not revoked, from an allowlisted address,
+      else 404; the CA (`ops/edge-ca.sh`, its key encrypted on a laptop, a copy with the other administrator), the
+      allowlist (`ops/edge-allow.sh`, named entries with an expiry, a daily prune, addresses never in Git); off until
+      `ARGUS_OPS_PATH=on`; `policies/NETWORK.md`; `tests/test_phase16_private_path.py` (the real Nginx with mTLS)
+
+- [x] step 5a (1.8.32): the signed daily digest. `domain/audit_digest.py` (the digest of a closed UTC day: the last
+      chained row, its hash, the row count; Ed25519 signature over the canonical JSON; a check against the chain),
+      `infrastructure/audit_digest.py` (`AuditDigestJob`: verify the chain, sign nothing if it is broken, put each
+      closed day once, never overwrite a different object; every outcome a `security.audit_digest_*` event),
+      `adapters/outbound/digest_sinks.py` (`LocalDirSink`, which says it is not off host), `audit_digest` in
+      `deploy/scheduler/schedules.yaml` (off), `ARGUS_AUDIT_DIGEST_SINK`; `tests/test_phase16_step5_digest.py`.
+      Not built in 5a: the OCI sink (5b), the key on vm-095 and the schedule turned on (5c)
+
+- [x] step 5b (1.8.34): the OCI sink. `OciObjectSink` (`adapters/outbound/digest_sinks.py`): a digest is created once
+      with `If-None-Match: *`, its SHA-256 as object metadata, and, when the service refuses, a HEAD tells whether the
+      name holds the same bytes (the credential cannot read a body); `DigestSinkError` carries a status and a code, never
+      the service's message. `ARGUS_AUDIT_DIGEST_SINK=oci:<namespace>/<bucket>`, the credential in `oci_digest/config` and
+      `key.pem` under the secrets folder; `oci==2.189.0`; `tests/test_phase16_step5b_oci_sink.py`, with an opt-in test
+      against a real bucket. The bucket and its permissions were proved by hand on 2026-10-23 (§5)
+
+**Not yet** (step 5c on): separation of duties; the digest key and the OCI credential on vm-095, their compose mounts, the network note and the schedule turned on (step 5c); security alerts (§18), which wait for the team's alert route (no receiver exists: Argus only reads its
+Alertmanager), including the alert on `security.audit_chain_broken`.

@@ -211,7 +211,7 @@ class ModelHarness:
             raw = json.loads(stated[0].arguments_json or "{}")
         except ValueError:
             raw = None
-        hyps, problems = check_hypotheses(raw.get("hypotheses") if isinstance(raw, dict) else None, view)
+        hyps, problems = check_hypotheses(raw.get("hypotheses") if isinstance(raw, dict) else None, view, deciding=False)
         if not isinstance(raw, dict):
             problems = [f"{STATE_TOOL}: arguments must be an object", *problems]
         return UseReadTools(calls=reads, hypotheses=hyps, hypothesis_problems=problems)
@@ -254,8 +254,11 @@ class ModelHarness:
 OBSERVED = ("observation", "metric_snapshot")       # what can show a target's state; alerts and reports cannot
 
 
-def check_hypotheses(raw: Any, view: InvestigationView) -> tuple[list[Hypothesis], list[str]]:
-    """The hypotheses that pass their schema, and every would-be refusal of §3.2 (as short sentences)."""
+def check_hypotheses(raw: Any, view: InvestigationView, deciding: bool = True) -> tuple[list[Hypothesis], list[str]]:
+    """The hypotheses that pass their schema, and every would-be refusal of §3.2 (as short sentences).
+
+    A read step's list (`deciding=False`) is checked before that step's reads run, so the evidence checks (support of
+    its own target, `ruled_out` without `against`) wait for `conclude` / `escalate`; it keeps the structural ones."""
     if not raw:
         return [], []
     if not isinstance(raw, list):
@@ -285,6 +288,8 @@ def check_hypotheses(raw: Any, view: InvestigationView) -> tuple[list[Hypothesis
             problems.append(f"{h.id}: no target, but its relation is {h.relation}, not external")
         if h.target is not None and h.target not in scope:
             problems.append(f"{h.id}: target {h.target} is not in the incident's scope")
+        if not deciding:
+            continue
         observed = {by_id[i].target for i in h.support if i in by_id and by_id[i].kind in OBSERVED}
         if h.status == "supported":
             if h.relation == "external" and not observed & scope:
