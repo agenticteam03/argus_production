@@ -6,8 +6,12 @@
   "base_commit": "973ad40e5480db6a1b1a3f2e33e10c2192d1d4e1",
   "started_at": "2026-10-25T04:49:02+00:00",
   "expires_at": "2026-10-25T05:49:02+00:00",
-  "released": false,
-  "handoff": null,
+  "released": true,
+  "handoff": {
+    "note": "done: T-0046 implementation and read-only VM probes recorded in PR #322 (commit 5657763); next: Phase 18 full implementation; environment: PR #322 remains open pending review/merge, vm-095 c8d8594, vm-166 bdcd048, no deployment or migration, both VM leases released",
+    "branch": "task/T-0046-l6-sample-history",
+    "at": "2026-10-25T04:57:26+00:00"
+  },
   "vms": {
     "vm-095": {
       "holder": "conantkd",
@@ -17,8 +21,12 @@
       "base_commit": "973ad40e5480db6a1b1a3f2e33e10c2192d1d4e1",
       "started_at": "2026-10-25T04:49:02+00:00",
       "expires_at": "2026-10-25T05:49:02+00:00",
-      "released": false,
-      "handoff": null
+      "released": true,
+      "handoff": {
+        "note": "done: T-0046 implementation and read-only VM probes recorded in PR #322 (commit 5657763); next: Phase 18 full implementation; environment: PR #322 remains open pending review/merge, vm-095 c8d8594, vm-166 bdcd048, no deployment or migration, both VM leases released",
+        "branch": "task/T-0046-l6-sample-history",
+        "at": "2026-10-25T04:57:26+00:00"
+      }
     },
     "vm-166": {
       "holder": "conantkd",
@@ -28,8 +36,12 @@
       "base_commit": "973ad40e5480db6a1b1a3f2e33e10c2192d1d4e1",
       "started_at": "2026-10-25T04:49:02+00:00",
       "expires_at": "2026-10-25T05:49:02+00:00",
-      "released": false,
-      "handoff": null
+      "released": true,
+      "handoff": {
+        "note": "done: T-0046 implementation and read-only VM probes recorded in PR #322 (commit 5657763); next: Phase 18 full implementation; environment: PR #322 remains open pending review/merge, vm-095 c8d8594, vm-166 bdcd048, no deployment or migration, both VM leases released",
+        "branch": "task/T-0046-l6-sample-history",
+        "at": "2026-10-25T04:57:26+00:00"
+      }
     }
   }
 }
