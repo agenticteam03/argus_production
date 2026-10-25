@@ -1,46 +1,34 @@
 {
   "holder": "conantkd",
-  "session_id": "8dd6075fec37",
-  "task": "DEPLOY-c8d8594-ui",
-  "branch": "HEAD",
-  "base_commit": "c8d859465f8d5272885b4d0cecaf4d60df14155e",
-  "started_at": "2026-10-24T04:11:29+00:00",
-  "expires_at": "2026-10-24T05:11:29+00:00",
-  "released": true,
+  "session_id": "071396c974ba",
+  "task": "T-0046",
+  "branch": "task/T-0046-l6-sample-history",
+  "base_commit": "973ad40e5480db6a1b1a3f2e33e10c2192d1d4e1",
+  "started_at": "2026-10-25T04:36:01+00:00",
+  "expires_at": "2026-10-25T05:36:01+00:00",
+  "released": false,
   "handoff": null,
-  "took_over_from": {
-    "holder": "juanbetancurm",
-    "task": "T-0047-H4I",
-    "branch": "HEAD",
-    "expired_at": "2026-10-24T01:07:31+00:00"
-  },
   "vms": {
     "vm-095": {
       "holder": "conantkd",
-      "session_id": "8dd6075fec37",
-      "task": "DEPLOY-c8d8594-ui",
-      "branch": "HEAD",
-      "base_commit": "c8d859465f8d5272885b4d0cecaf4d60df14155e",
-      "started_at": "2026-10-24T04:11:29+00:00",
-      "expires_at": "2026-10-24T05:11:29+00:00",
-      "released": true,
-      "handoff": null,
-      "took_over_from": {
-        "holder": "juanbetancurm",
-        "task": "T-0047-H4I",
-        "branch": "HEAD",
-        "expired_at": "2026-10-24T01:07:31+00:00"
-      }
+      "session_id": "071396c974ba",
+      "task": "T-0046",
+      "branch": "task/T-0046-l6-sample-history",
+      "base_commit": "973ad40e5480db6a1b1a3f2e33e10c2192d1d4e1",
+      "started_at": "2026-10-25T04:36:01+00:00",
+      "expires_at": "2026-10-25T05:36:01+00:00",
+      "released": false,
+      "handoff": null
     },
     "vm-166": {
       "holder": "conantkd",
-      "session_id": "3f6be5c33317",
-      "task": "DEPLOY-77c4524",
-      "branch": "main",
-      "base_commit": "863dbf0bd0ad583fd066d1488b30cbd8cbafb199",
-      "started_at": "2026-10-22T20:28:52+00:00",
-      "expires_at": "2026-10-22T21:28:52+00:00",
-      "released": true,
+      "session_id": "071396c974ba",
+      "task": "T-0046",
+      "branch": "task/T-0046-l6-sample-history",
+      "base_commit": "973ad40e5480db6a1b1a3f2e33e10c2192d1d4e1",
+      "started_at": "2026-10-25T04:36:01+00:00",
+      "expires_at": "2026-10-25T05:36:01+00:00",
+      "released": false,
       "handoff": null
     }
   }
