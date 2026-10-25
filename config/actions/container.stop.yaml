@@ -1,0 +1,21 @@
+# Action card: container.stop (ACR-0019 §3.4, Phase 17)
+name: container.stop
+model_name: stop_container
+executor: action-gateway
+route: /containers/{name}/stop
+parameters:
+  timeout: {type: int, min: 1, max: 30}
+identity_fields: [container_id]
+preconditions:
+  - 'state == "running"'
+useful_when:
+  - "Container is actively leaking resources, saturating host, or compromised"
+not_useful_when:
+  - "Essential production service"
+verify:
+  signal: up
+  expected: 0
+  window_sec: 30
+rollback: container.start
+sources:
+  - RB-004

@@ -120,7 +120,8 @@ def hypotheses_view(rows: list[dict], evidence: list[EvidenceRecord], show_evide
 
 
 def build_verdict(inc: Incident, spec: IncidentClassSpec | None, evidence: list[EvidenceRecord], cited: list[str],
-                  depends: dict[str, list[str]], show_evidence: bool, hypotheses: list[dict] | None = None) -> dict:
+                  depends: dict[str, list[str]], show_evidence: bool, hypotheses: list[dict] | None = None,
+                  next_actions: list[dict] | None = None) -> dict:
     """`cited`: the evidence ids the conclusion cites (the `incident.recorded` audit event). `show_evidence`: False for a
     viewer, whose view carries no evidence text (so no highlights). `hypotheses`: the incident's stored rows
     (`incident_hypothesis`, every step)."""
@@ -146,5 +147,5 @@ def build_verdict(inc: Incident, spec: IncidentClassSpec | None, evidence: list[
             "evidence_highlights": highlights, "not_checked": list(dict.fromkeys(not_checked)),
             "cause_path": cause_path(depends, str(inc.target), inc.root_cause_target),
             "duration_ms": (round((inc.closed_at - inc.opened_at).total_seconds() * 1000) if inc.closed_at else None),
-            "next_actions": [],                            # until the runbook Actions section exists
+            "next_actions": next_actions or [],
             "hypotheses": ranked, "ranking_disagrees": disagrees}

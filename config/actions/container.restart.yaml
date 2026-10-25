@@ -1,0 +1,25 @@
+# Action card: container.restart (ACR-0019 §3.4, Phase 17)
+name: container.restart
+model_name: restart_container
+executor: action-gateway
+route: /containers/{name}/restart
+parameters:
+  timeout: {type: int, min: 1, max: 60}
+identity_fields: [container_id]
+preconditions:
+  - 'state == "running" or state == "restarting"'
+useful_when:
+  - "Container is in a restart loop without OOM"
+  - "Process is unresponsive or hung"
+not_useful_when:
+  - "Victim container of an external dependency outage (RB-002, RB-003)"
+  - "Database or persistent storage backend"
+  - "Container died of OOM (RB-001): action is update_resources"
+verify:
+  signal: up
+  expected: 1
+  window_sec: 60
+rollback: none
+sources:
+  - RB-001
+  - RB-008
