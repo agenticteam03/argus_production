@@ -1,0 +1,75 @@
+# the api loses its cache after the cache container is OOM-killed
+id: dep-cache-oom-killed
+category: class
+target: vm-166/container:argus-lab-api
+request: report
+reason: api requests fail while its cache dependency is unavailable
+metrics:
+  vm-166/container:argus-lab-api:
+    dependency_probe_min: 0
+    restarts_10m: 0
+fixtures:
+  docker_read:
+    /containers/argus-lab-api/status:
+      state: running
+      restart_count: 0
+      oom_killed: false
+      networks: [argus-lab-app]
+    /containers/argus-lab-api/logs:
+      lines:
+      - 'GET /items 502 cache unavailable: connection refused'
+    /containers/argus-lab-cache/status:
+      state: exited
+      restart_count: 1
+      oom_killed: true
+      exit_code: 137
+      networks: [argus-lab-app]
+    /containers/argus-lab-cache/logs:
+      lines:
+      - 'container stopped after the kernel OOM killer terminated the process'
+    /containers/argus-lab-api/stats:
+      memory_usage_bytes: 31457280
+      memory_limit_bytes: 67108864
+      cpu_percent: 3.0
+    /containers/argus-lab-api/health:
+      status: none
+      failing_streak: 0
+      log: []
+    /containers/argus-lab-api/events:
+      events: []
+    /containers/argus-lab-cache/stats:
+      memory_usage_bytes: 134217728
+      memory_limit_bytes: 134217728
+      cpu_percent: 1.0
+    /containers/argus-lab-cache/health:
+      status: none
+      failing_streak: 0
+      log: []
+    /containers/argus-lab-cache/events:
+      events:
+      - action: oom
+      - action: die
+    /connectivity?from=argus-lab-api&to=argus-lab-cache:
+      shared: [argus-lab-app]
+  network_probe:
+    /dns?name=argus-lab-cache:
+      ok: false
+      error: Name does not resolve
+    /tcp?host=argus-lab-cache&port=6379:
+      ok: false
+      error: Connection refused
+    '*':
+      ok: false
+      error: Name does not resolve
+      addresses: []
+      duration_ms: 2
+      status: 200
+label:
+  outcome: diagnosed
+  class: dependency_unavailable
+  root_cause: vm-166/container:argus-lab-cache
+  diagnosis_any: [cache]
+  runbooks: [RB-003]
+  expected_hypotheses:
+    supported: [vm-166/container:argus-lab-cache, memory_exhaustion]
+    ruled_out: [vm-166/container:argus-lab-api]

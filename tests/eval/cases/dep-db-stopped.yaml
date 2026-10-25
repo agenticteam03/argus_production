@@ -1,0 +1,70 @@
+# the database dependency stops while its leaker victim remains running
+id: dep-db-stopped
+category: class
+target: vm-166/container:argus-lab-leaker
+request: report
+reason: the leaker cannot open new database sessions
+metrics:
+  vm-166/container:argus-lab-leaker:
+    dependency_probe_min: 0
+    restarts_10m: 0
+fixtures:
+  docker_read:
+    /containers/argus-lab-leaker/status:
+      state: running
+      restart_count: 0
+      networks: [argus-lab-app]
+    /containers/argus-lab-leaker/logs:
+      lines:
+      - 'ERROR database connection refused by argus-lab-db'
+    /containers/argus-lab-db/status:
+      state: exited
+      restart_count: 0
+      oom_killed: false
+      exit_code: 0
+      networks: [argus-lab-app]
+    /containers/argus-lab-db/logs:
+      lines:
+      - 'database stopped for a scheduled maintenance window'
+    /containers/argus-lab-leaker/stats:
+      memory_usage_bytes: 12582912
+      memory_limit_bytes: 134217728
+      cpu_percent: 1.0
+    /containers/argus-lab-leaker/health:
+      status: none
+      failing_streak: 0
+      log: []
+    /containers/argus-lab-leaker/events:
+      events: []
+    /containers/argus-lab-db/stats:
+      memory_usage_bytes: 31457280
+      memory_limit_bytes: 134217728
+      cpu_percent: 0.0
+    /containers/argus-lab-db/health:
+      status: none
+      failing_streak: 0
+      log: []
+    /containers/argus-lab-db/events:
+      events:
+      - action: die
+    /connectivity?from=argus-lab-leaker&to=argus-lab-db:
+      shared: [argus-lab-app]
+  network_probe:
+    /dns?name=argus-lab-db:
+      ok: false
+      error: Name does not resolve
+    /tcp?host=argus-lab-db&port=5432:
+      ok: false
+      error: Connection refused
+    '*':
+      ok: false
+      error: Name does not resolve
+label:
+  outcome: diagnosed
+  class: dependency_unavailable
+  root_cause: vm-166/container:argus-lab-db
+  diagnosis_any: [argus-lab-db]
+  runbooks: [RB-003]
+  expected_hypotheses:
+    supported: [vm-166/container:argus-lab-db]
+    ruled_out: [vm-166/container:argus-lab-leaker]

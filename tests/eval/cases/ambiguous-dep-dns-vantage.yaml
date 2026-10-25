@@ -1,0 +1,63 @@
+# Alert-window probe failed; one client lookup failed while a nearby probe resolves the dependency.
+id: ambiguous-dep-dns-vantage
+category: ambiguous
+target: vm-166/container:argus-lab-client
+request: report
+reason: requests to the backend fail name resolution from the client
+metrics:
+  vm-166/container:argus-lab-client:
+    dependency_probe_min: 0
+    restarts_10m: 0
+fixtures:
+  docker_read:
+    /containers/argus-lab-client/status:
+      state: running
+      restart_count: 0
+      networks: [argus-lab-app]
+    /containers/argus-lab-client/logs:
+      lines:
+      - 'ERROR backend name lookup failed for one request; the next request is pending'
+    /containers/argus-lab-backend/status:
+      state: running
+      restart_count: 0
+      networks: [argus-lab-app]
+    /containers/argus-lab-backend/logs:
+      lines:
+      - 'GET /health 200'
+    /containers/argus-lab-client/stats:
+      memory_usage_bytes: 31457280
+      memory_limit_bytes: 67108864
+      cpu_percent: 3.0
+    /containers/argus-lab-client/health:
+      status: none
+      failing_streak: 0
+      log: []
+    /containers/argus-lab-client/events:
+      events: []
+    /containers/argus-lab-backend/stats:
+      memory_usage_bytes: 20971520
+      memory_limit_bytes: 67108864
+      cpu_percent: 1.0
+    /containers/argus-lab-backend/health:
+      status: none
+      failing_streak: 0
+      log: []
+    /containers/argus-lab-backend/events:
+      events: []
+    /connectivity?from=argus-lab-client&to=argus-lab-backend:
+      shared: [argus-lab-app]
+  network_probe:
+    /dns?name=argus-lab-backend:
+      ok: true
+      addresses: [backend-alias]  # symbolic fixture answer; no host address
+      duration_ms: 2
+    '*':
+      ok: true
+      addresses: []
+      duration_ms: 2
+      status: 200
+label:
+  outcome: no_action_escalated
+  class: dependency_unavailable
+  abstain: true
+  runbooks: [RB-003]

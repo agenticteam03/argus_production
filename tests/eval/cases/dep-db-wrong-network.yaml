@@ -1,0 +1,67 @@
+# the database is isolated from the client network, so Docker DNS cannot resolve it
+id: dep-db-wrong-network
+category: class
+target: vm-166/container:argus-lab-leaker
+request: report
+reason: the leaker cannot reach its declared database dependency
+metrics:
+  vm-166/container:argus-lab-leaker:
+    dependency_probe_min: 0
+    restarts_10m: 0
+fixtures:
+  docker_read:
+    /containers/argus-lab-leaker/status:
+      state: running
+      restart_count: 0
+      networks: [argus-lab-app]
+    /containers/argus-lab-leaker/logs:
+      lines:
+      - 'ERROR database hostname does not resolve from the client network'
+    /containers/argus-lab-db/status:
+      state: running
+      restart_count: 0
+      networks: [argus-lab-iso]
+    /containers/argus-lab-db/logs:
+      lines:
+      - 'database ready to accept connections'
+    /containers/argus-lab-leaker/stats:
+      memory_usage_bytes: 12582912
+      memory_limit_bytes: 134217728
+      cpu_percent: 1.0
+    /containers/argus-lab-leaker/health:
+      status: none
+      failing_streak: 0
+      log: []
+    /containers/argus-lab-leaker/events:
+      events: []
+    /containers/argus-lab-db/stats:
+      memory_usage_bytes: 31457280
+      memory_limit_bytes: 134217728
+      cpu_percent: 3.0
+    /containers/argus-lab-db/health:
+      status: none
+      failing_streak: 0
+      log: []
+    /containers/argus-lab-db/events:
+      events: []
+    /connectivity?from=argus-lab-leaker&to=argus-lab-db:
+      shared: []
+  network_probe:
+    /dns?name=argus-lab-db:
+      ok: false
+      error: Name does not resolve
+    /tcp?host=argus-lab-db&port=5432:
+      ok: false
+      error: Name does not resolve
+    '*':
+      ok: false
+      error: Name does not resolve
+label:
+  outcome: diagnosed
+  class: dependency_unavailable
+  root_cause: vm-166/container:argus-lab-db
+  diagnosis_any: [network]
+  runbooks: [RB-003]
+  expected_hypotheses:
+    supported: [vm-166/container:argus-lab-db]
+    ruled_out: [vm-166/container:argus-lab-leaker]

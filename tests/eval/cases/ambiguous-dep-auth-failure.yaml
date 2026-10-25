@@ -1,0 +1,62 @@
+# Alert-window probe failed at protocol admission; cache TCP works, but credential ownership is unknown.
+id: ambiguous-dep-auth-failure
+category: ambiguous
+target: vm-166/container:argus-lab-api
+request: report
+reason: api cache commands fail authentication
+metrics:
+  vm-166/container:argus-lab-api:
+    dependency_probe_min: 0
+    restarts_10m: 0
+fixtures:
+  docker_read:
+    /containers/argus-lab-api/status:
+      state: running
+      restart_count: 0
+      networks: [argus-lab-app]
+    /containers/argus-lab-api/logs:
+      lines:
+      - 'ERROR cache command rejected: WRONGPASS invalid username-password pair'
+    /containers/argus-lab-cache/status:
+      state: running
+      restart_count: 0
+      networks: [argus-lab-app]
+    /containers/argus-lab-cache/logs:
+      lines:
+      - 'Ready to accept connections tcp'
+    /containers/argus-lab-api/stats:
+      memory_usage_bytes: 31457280
+      memory_limit_bytes: 67108864
+      cpu_percent: 3.0
+    /containers/argus-lab-api/health:
+      status: none
+      failing_streak: 0
+      log: []
+    /containers/argus-lab-api/events:
+      events: []
+    /containers/argus-lab-cache/stats:
+      memory_usage_bytes: 12582912
+      memory_limit_bytes: 134217728
+      cpu_percent: 1.0
+    /containers/argus-lab-cache/health:
+      status: none
+      failing_streak: 0
+      log: []
+    /containers/argus-lab-cache/events:
+      events: []
+    /connectivity?from=argus-lab-api&to=argus-lab-cache:
+      shared: [argus-lab-app]
+  network_probe:
+    /tcp?host=argus-lab-cache&port=6379:
+      ok: true
+      duration_ms: 2
+    '*':
+      ok: true
+      addresses: []
+      duration_ms: 2
+      status: 200
+label:
+  outcome: no_action_escalated
+  class: dependency_unavailable
+  abstain: true
+  runbooks: [RB-003]
