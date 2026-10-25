@@ -7,7 +7,7 @@
 | Context | Phase 18 PR #323 remains in review; Phase 16 deployment is assumed for planning at the user's direction |
 | Decision / result | Start a draft PR for the private approval contract. Keep routes opt-in and the production write gate closed. |
 | Consequences | The draft is explicitly not ready for review, approval, merge or deployment. |
-| References | [Task](../../tasks/current/PHASE-19-approval-ui-gateway.md), [ACR-0019](../../architecture/changes/ACR-0019-human-approved-remediation.md) |
+| References | [Task](../../tasks/current/PHASE-19-approval-ui-gateway.md), [ACR-0019](../../architecture/changes/ACR-0019-human-approved-remediation.md), [proposed ACR-0031 draft PR #325](https://github.com/agenticteam03/argus_production/pull/325) |
 
 ### Test state
 

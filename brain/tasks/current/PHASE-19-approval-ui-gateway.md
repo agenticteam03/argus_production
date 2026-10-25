@@ -41,7 +41,7 @@ do not connect a real target or credential in this draft.
 
 ## Proposed architecture decision
 
-[ACR-0031](../../architecture/changes/ACR-0031-private-browser-login.md) records a gap found while wiring the
+[ACR-0031 draft PR #325](https://github.com/agenticteam03/argus_production/pull/325) records a gap found while wiring the
 private UI: the public browser login cannot issue a full token, while approval POSTs require one. The ACR proposes a
 private login protected by the existing mTLS/allowlist. It is **proposed only**; no private login or full browser
 token has been implemented. Acceptance and the required safety approval must precede that step.
