@@ -1,32 +1,24 @@
 {
   "holder": "juanbetancurm",
-  "session_id": "a4081f973fed",
-  "task": "T-0047-H4I",
+  "session_id": "fc315c089570",
+  "task": "T-0047-H4V2",
   "branch": "task/T-0047-h4i-gate",
   "base_commit": "106190b2b14bd756158950892ca5d85331d13829",
-  "started_at": "2026-10-25T17:36:20+00:00",
-  "expires_at": "2026-10-25T18:36:20+00:00",
-  "released": true,
-  "handoff": {
-    "note": "done: read-only collection of the T-0047 H4I result files (60 rows per arm) and the paired comparison on the laptop; next: gate decision for PR 310; environment: vm-095 unchanged at c8d8594, nothing deployed or restarted, lease released",
-    "branch": "task/T-0047-h4i-gate",
-    "at": "2026-10-25T18:05:36+00:00"
-  },
+  "started_at": "2026-10-25T21:35:18+00:00",
+  "expires_at": "2026-10-25T22:35:18+00:00",
+  "released": false,
+  "handoff": null,
   "vms": {
     "vm-095": {
       "holder": "juanbetancurm",
-      "session_id": "a4081f973fed",
-      "task": "T-0047-H4I",
+      "session_id": "fc315c089570",
+      "task": "T-0047-H4V2",
       "branch": "task/T-0047-h4i-gate",
       "base_commit": "106190b2b14bd756158950892ca5d85331d13829",
-      "started_at": "2026-10-25T17:36:20+00:00",
-      "expires_at": "2026-10-25T18:36:20+00:00",
-      "released": true,
-      "handoff": {
-        "note": "done: read-only collection of the T-0047 H4I result files (60 rows per arm) and the paired comparison on the laptop; next: gate decision for PR 310; environment: vm-095 unchanged at c8d8594, nothing deployed or restarted, lease released",
-        "branch": "task/T-0047-h4i-gate",
-        "at": "2026-10-25T18:05:36+00:00"
-      }
+      "started_at": "2026-10-25T21:35:18+00:00",
+      "expires_at": "2026-10-25T22:35:18+00:00",
+      "released": false,
+      "handoff": null
     },
     "vm-166": {
       "holder": "conantkd",
