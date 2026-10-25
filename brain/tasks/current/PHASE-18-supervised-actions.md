@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | `in review` — draft PR [#323](https://github.com/agenticteam03/argus_production/pull/323), head `666a990`; `test` and `frontend` CI passed. Stacked on #318 pending #316; [test evidence](../../journal/entries/2026-10-25-T-0051-phase18-supervised-actions.md) |
+| Status | `in review` — PR [#323](https://github.com/agenticteam03/argus_production/pull/323) is ready for review; `test` and `frontend` CI passed on the implementation head. Stacked on #318 pending #316; [test evidence](../../journal/entries/2026-10-25-T-0051-phase18-supervised-actions.md) |
 | Phase | 18 of [NEXT-PHASE](NEXT-PHASE-supervised-remediation.md) |
 | Architecture | [ACR-0019](../../architecture/changes/ACR-0019-human-approved-remediation.md), accepted; §14 designed, not yet built on main |
 | Branch | `task/T-0051-supervised-actions`, stacked on #318 and current #316 until those PRs reach main |
