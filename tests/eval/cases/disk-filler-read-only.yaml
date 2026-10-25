@@ -97,6 +97,24 @@ fixtures:
       load1: 0.3
       cpus: 2
   docker_read:
+    # Host-wide totals exclude the lab-fill bind mount and carry no per-container ownership.
+    /docker/df:
+      images:
+        count: 2
+        bytes: 450000000
+        unused_count: 1
+        unused_bytes: 300000000
+      containers:
+        count: 2
+        writable_bytes: 6000000
+        stopped_count: 0
+      volumes:
+        count: 2
+        bytes: 850000000
+        unused_count: 1
+        unused_bytes: 50000000
+      build_cache_bytes: 10000000
+      collected_at: '2026-10-12T06:00:00+00:00'
     /containers/argus-lab-filler/status:
       id: f1f1f1
       state: running
