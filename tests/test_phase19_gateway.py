@@ -1,6 +1,8 @@
 """Phase 19 gateway core: no released route exists by default, even in a test image."""
 from __future__ import annotations
 
+import sqlite3
+
 import pytest
 
 from services.action_gateway.core import ActionGateway, ActionJournal, GatewayRefused
@@ -95,3 +97,19 @@ def test_gateway_core_has_no_model_or_mcp_import_path():
     source = Path(core.__file__).read_text(encoding="utf-8")
     for forbidden in ("argus.adapters.outbound.llm", "argus.tooling.model_harness", "argus.tooling.mcp", "openai"):
         assert forbidden not in source
+
+
+def test_journal_appends_received_and_result_events_instead_of_rewriting_one_row(tmp_path):
+    path = tmp_path / "journal.db"
+    gateway = ActionGateway("vm-166", "test-secret", ActionJournal(path), FakeProxy(),
+                            released={("container.start", TARGET): ROUTE})
+    gateway.dispatch("test-secret", ACTION_ID, "container.start", TARGET, ROUTE, IDENTITY)
+    with sqlite3.connect(path) as db:
+        tables = {row[0] for row in db.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+        assert "action_event" in tables
+        assert [row[0] for row in db.execute("SELECT docker_status FROM action_event WHERE action_id=? ORDER BY seq",
+                                             (ACTION_ID,))] == ["received", "confirmed"]
+        with pytest.raises(sqlite3.IntegrityError):
+            db.execute("UPDATE action_event SET docker_status='failed' WHERE action_id=?", (ACTION_ID,))
+        with pytest.raises(sqlite3.IntegrityError):
+            db.execute("DELETE FROM action_receipt WHERE action_id=?", (ACTION_ID,))

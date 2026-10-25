@@ -30,7 +30,11 @@ do not connect a real target or credential in this draft.
 - The action-gateway core has an empty route map by default. Its test-only released map rejects vm-095, non-lab
   targets and route mismatches. It checks the credential, action ID and target identity, writes a durable receipt
   before calling an injected proxy, and refuses any duplicate ID. An import-boundary test keeps the model and MCP
-  code out of this module. It has no listener or Docker transport.
+  code out of this module. A narrow HTTP handler is exercised on loopback with a fake transport; it denies unlisted
+  paths, missing credentials and duplicate action IDs. Its receipt and result are separate insert-only journal
+  events, enforced by database triggers. There is no Docker transport or deployed service.
+- An approval arriving after a target or global hold is rejected before consuming its step-up; the execution
+  precheck independently checks the hold again.
 
 ## Proposed architecture decision
 
@@ -45,7 +49,7 @@ token has been implemented. Acceptance and the required safety approval must pre
    ordering through #316, #318 and #323.
 2. Resolve ACR-0031, then build the private Actions tab, colours, judge rationale and suggestions. Add a deliberate
    path to release ordinary holds; the emergency stop must not be cleared by an unreviewed UI toggle.
-3. Build the gateway listener/image and socket proxy with exact route ACLs and token isolation; keep the released
+3. Build the gateway image/startup and socket proxy with exact route ACLs and token isolation; keep the released
    route map empty. Add real-image route tests.
 4. Exercise the approval flow with real WebAuthn ceremonies and the private edge; run full offline, PostgreSQL and
    CI gates on the final head. Check production wiring and the write gate remain closed.

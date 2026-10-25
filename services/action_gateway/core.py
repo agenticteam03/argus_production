@@ -27,30 +27,58 @@ class ActionJournal:
         self._lock = RLock()
         self._db = sqlite3.connect(path, check_same_thread=False, isolation_level=None)
         self._db.execute("PRAGMA synchronous=FULL")
-        self._db.execute("CREATE TABLE IF NOT EXISTS action_journal ("
+        self._db.execute("PRAGMA foreign_keys=ON")
+        self._db.execute("CREATE TABLE IF NOT EXISTS action_receipt ("
                          "action_id TEXT PRIMARY KEY, capability TEXT NOT NULL, target TEXT NOT NULL, "
-                         "target_identity TEXT NOT NULL, route TEXT NOT NULL, received_at TEXT NOT NULL, "
+                         "target_identity TEXT NOT NULL, route TEXT NOT NULL, received_at TEXT NOT NULL)")
+        self._db.execute("CREATE TABLE IF NOT EXISTS action_event ("
+                         "seq INTEGER PRIMARY KEY AUTOINCREMENT, action_id TEXT NOT NULL "
+                         "REFERENCES action_receipt(action_id), at TEXT NOT NULL, "
                          "docker_status TEXT NOT NULL CHECK(docker_status IN ('received','confirmed','failed')))")
+        for table in ("action_receipt", "action_event"):
+            self._db.execute(f"CREATE TRIGGER IF NOT EXISTS {table}_no_update BEFORE UPDATE ON {table} "
+                             "BEGIN SELECT RAISE(ABORT, 'gateway journal is append-only'); END")
+            self._db.execute(f"CREATE TRIGGER IF NOT EXISTS {table}_no_delete BEFORE DELETE ON {table} "
+                             "BEGIN SELECT RAISE(ABORT, 'gateway journal is append-only'); END")
 
     def accept(self, action_id, capability, target, route, identity):
         with self._lock:
+            self._db.execute("BEGIN IMMEDIATE")
             try:
-                self._db.execute("INSERT INTO action_journal "
-                                 "(action_id, capability, target, target_identity, route, received_at, docker_status) "
-                                 "VALUES (?,?,?,?,?,?,'received')",
+                self._db.execute("INSERT INTO action_receipt "
+                                 "(action_id, capability, target, target_identity, route, received_at) "
+                                 "VALUES (?,?,?,?,?,?)",
                                  (action_id, capability, target, json.dumps(identity, sort_keys=True), route,
                                   datetime.now(timezone.utc).isoformat()))
+                self._db.execute("INSERT INTO action_event (action_id, at, docker_status) VALUES (?,?,'received')",
+                                 (action_id, datetime.now(timezone.utc).isoformat()))
+                self._db.execute("COMMIT")
             except sqlite3.IntegrityError as exc:
+                self._db.execute("ROLLBACK")
                 raise GatewayRefused("action id already accepted") from exc
+            except Exception:
+                self._db.execute("ROLLBACK")
+                raise
 
     def finish(self, action_id, status):
         with self._lock:
-            self._db.execute("UPDATE action_journal SET docker_status=? "
-                             "WHERE action_id=? AND docker_status='received'", (status, action_id))
+            if status not in ("confirmed", "failed"):
+                raise GatewayRefused("invalid Docker result")
+            self._db.execute("BEGIN IMMEDIATE")
+            try:
+                if self.status(action_id) != "received":
+                    raise GatewayRefused("action is not awaiting a result")
+                self._db.execute("INSERT INTO action_event (action_id, at, docker_status) VALUES (?,?,?)",
+                                 (action_id, datetime.now(timezone.utc).isoformat(), status))
+                self._db.execute("COMMIT")
+            except Exception:
+                self._db.execute("ROLLBACK")
+                raise
 
     def status(self, action_id):
         with self._lock:
-            row = self._db.execute("SELECT docker_status FROM action_journal WHERE action_id=?", (action_id,)).fetchone()
+            row = self._db.execute("SELECT docker_status FROM action_event WHERE action_id=? "
+                                   "ORDER BY seq DESC LIMIT 1", (action_id,)).fetchone()
         return row[0] if row else None
 
     def close(self):

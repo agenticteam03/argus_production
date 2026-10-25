@@ -48,6 +48,11 @@ def answerable_approval(rows, approval_id: str, digest: str, decision: str,
     if not hmac.compare_digest(view["proposal"]["digest"], digest):
         raise ApprovalViewRefused("approval digest mismatch")
     if decision == "approved":
+        target = view["proposal"]["input"]["target"]
+        now = datetime.now(timezone.utc)
+        if (rows.active_target_holds(target, now) or rows.active_target_holds(target.split("/", 1)[0], now)
+                or rows.active_target_holds("*", now)):
+            raise ApprovalViewRefused("an active hold prevents approval")
         if view["judge"]["verdict"] != "agree" or view["judge"]["risk"] == "forbidden":
             raise ApprovalViewRefused("judge has not agreed to this action")
         if (view["judge"]["risk"] == "red"

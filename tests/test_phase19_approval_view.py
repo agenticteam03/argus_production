@@ -157,3 +157,28 @@ def test_a_hold_and_its_chained_audit_record_are_atomic(make_app):  # noqa: F811
         app.store.place_target_hold("hold_atomic", "*", "stop", "alice", at, audit("two"))
     assert len(app.store.audit_chain()) == before
     assert app.store.active_target_holds("*", at) == ["hold_atomic"]
+
+
+def test_a_new_hold_invalidates_an_unanswered_approval_before_step_up(make_app, monkeypatch):  # noqa: F811
+    app = make_app()
+    app.action_rows = app.store
+    app.store.upsert_principal("alice", "human", "operator", ["lab"], PasswordHash.recommended().hash(PASSWORD))
+    now = datetime.now(timezone.utc)
+    proposal = freeze_proposal(candidate(), at=now)
+    app.store.add_action_proposal(proposal)
+    app.store.add_judge_verdict(proposal.id, "test-judge", {
+        "verdict": "agree", "risk": "green", "reasons": [], "checks": {}, "proposal_digest": proposal.digest,
+    }, now)
+    app.store.add_action_approval("appr_held", proposal.id, proposal.digest, now, proposal.expires_at)
+    app.store.add_target_hold("hold_after_request", "*", "emergency", "alice", now)
+    api = build_api(app)
+    client = TestClient(api)
+    auth = _login(client, "alice")
+    monkeypatch.setattr(api.state.second_factor, "privileged_ready", lambda user, session: True)
+    seen = []
+    monkeypatch.setattr(api.state.second_factor, "consume_step_up", lambda *args: seen.append(args))
+    response = client.post("/api/v1/ops/approvals/appr_held/answer", headers=auth, json={
+        "decision": "approved", "proposal_digest": proposal.digest, "step_up_token": "unused",
+    })
+    assert response.status_code == 409 and "hold" in response.json()["detail"]
+    assert seen == [] and app.store.get_action_approval("appr_held")["state"] == "pending"
