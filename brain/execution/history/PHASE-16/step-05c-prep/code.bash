@@ -55,10 +55,12 @@ fi
 # (The VM's `install -o 10010` refuses a user id with no name, so the owner is set with `chown` afterwards.)
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
-Set-Location -LiteralPath (Join-Path $HOME 'OneDrive\Documentos\SoftServe\ArgusAgentV2\wt-ticket')
+# Set ARGUS_REPO_ROOT to the local checkout containing brain/tools/brain.py.
+if (-not $env:ARGUS_REPO_ROOT) { throw 'Set ARGUS_REPO_ROOT to the Argus checkout first.' }
+Set-Location -LiteralPath (Resolve-Path -LiteralPath $env:ARGUS_REPO_ROOT)
 $top = git rev-parse --show-toplevel
 $ok = 0
-if (($top -replace '/', '\') -like '*\wt-ticket') { $ok++ }
+if ((Resolve-Path -LiteralPath $top).Path -eq (Get-Location).Path) { $ok++ } else { throw 'ARGUS_REPO_ROOT is not the Git checkout root.' }
 $cfg = Get-Content (Join-Path $HOME '.oci\config') -Raw
 $m = [regex]::Match($cfg, '(?ms)^\[ARGUS_DIGEST\]\s*\r?\n(.*?)(?=^\[|\z)')
 if ($m.Success) { $ok++ }
@@ -103,11 +105,16 @@ fi
 # Undo: brain.py start --vm vm-095 again. The secrets stay where they are; the deploy of step 5c claims the lease again.
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
-Set-Location -LiteralPath (Join-Path $HOME 'OneDrive\Documentos\SoftServe\ArgusAgentV2\wt-ticket')
+if (-not $env:ARGUS_REPO_ROOT) { throw 'Set ARGUS_REPO_ROOT to the Argus checkout first.' }
+Set-Location -LiteralPath (Resolve-Path -LiteralPath $env:ARGUS_REPO_ROOT)
 $top = git rev-parse --show-toplevel
 $ok = 0
-if (($top -replace '/', '\') -like '*\wt-ticket') { $ok++ }
-..\argus_production\.venv\Scripts\python.exe brain/tools/brain.py --as conantkd release --vm vm-095
+if ((Resolve-Path -LiteralPath $top).Path -eq (Get-Location).Path) { $ok++ } else { throw 'ARGUS_REPO_ROOT is not the Git checkout root.' }
+$venvPython = Join-Path $top '.venv\Scripts\python.exe'
+$python = if ($env:ARGUS_PYTHON) { $env:ARGUS_PYTHON } elseif (Test-Path -LiteralPath $venvPython) {
+  $venvPython
+} else { (Get-Command python -ErrorAction Stop).Source }
+& $python brain/tools/brain.py --as conantkd release --vm vm-095
 if ($LASTEXITCODE -eq 0) { $ok++ }
 if ($ok -eq 2) { 'VERDICT: KE.4 PASS (2 of 2)' } else { "VERDICT: KE.4 FAIL ($ok of 2)" }
 # Expected: "Lease released on vm-095"; VERDICT: KE.4 PASS (2 of 2).

@@ -7,7 +7,7 @@ can read them (the shipping credential cannot).
 """
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from pathlib import Path
 
 import pytest
@@ -22,6 +22,7 @@ from argus.domain.model import AuditRecord
 
 UTC = timezone.utc
 ROOT = Path(__file__).resolve().parents[1]
+THROUGH = date(2026, 10, 22)
 
 
 def at(day: int, hour: int = 12) -> datetime:
@@ -46,7 +47,7 @@ def shipped(tmp_path):
 def test_a_clean_series_checks_out(shipped):
     from argus.infrastructure.audit_digest import check_digest_files
     store, out, key, pem = shipped
-    assert check_digest_files([out], store.audit_chain(), pem) == []
+    assert check_digest_files([out], store.audit_chain(), pem, through_day=THROUGH) == []
 
 
 def test_a_single_file_and_a_folder_are_both_accepted(shipped):
@@ -61,7 +62,8 @@ def test_an_edited_digest_no_longer_verifies(shipped):
     store, out, key, pem = shipped
     f = next(out.rglob("2026-10-21.json"))
     f.write_text(f.read_text(encoding="utf-8").replace('"chained_rows":2', '"chained_rows":3'), encoding="utf-8")
-    assert check_digest_files([out], store.audit_chain(), pem) == ["2026-10-21: the signature does not verify"]
+    assert check_digest_files([out], store.audit_chain(), pem, through_day=THROUGH) == [
+        "2026-10-21: the signature does not verify"]
 
 
 def test_another_key_is_named_and_refused(shipped):
@@ -69,7 +71,7 @@ def test_another_key_is_named_and_refused(shipped):
     store, out, key, pem = shipped
     other = Ed25519PrivateKey.generate().public_key().public_bytes(
         serialization.Encoding.PEM, serialization.PublicFormat.SubjectPublicKeyInfo)
-    problems = check_digest_files([out], store.audit_chain(), other)
+    problems = check_digest_files([out], store.audit_chain(), other, through_day=THROUGH)
     assert len(problems) == 3 and all("signature does not verify" in p for p in problems)
 
 
@@ -77,7 +79,34 @@ def test_a_missing_day_is_a_gap(shipped):
     from argus.infrastructure.audit_digest import check_digest_files
     store, out, key, pem = shipped
     next(out.rglob("2026-10-21.json")).unlink()
-    assert check_digest_files([out], store.audit_chain(), pem) == ["2026-10-21: no digest for this day (a gap in the series)"]
+    assert check_digest_files([out], store.audit_chain(), pem, through_day=THROUGH) == [
+        "2026-10-21: no digest for this day (a gap in the series)"]
+
+
+def test_a_deleted_latest_digest_is_not_a_clean_series(shipped, monkeypatch):
+    import argus.infrastructure.audit_digest as digest_check
+
+    store, out, key, pem = shipped
+    next(out.rglob("2026-10-22.json")).unlink()
+    monkeypatch.setattr(digest_check, "utcnow", lambda: at(23, 8))
+    assert digest_check.check_digest_files([out], store.audit_chain(), pem) == [
+        "2026-10-22: no digest for this day (a gap in the series)"]
+
+
+def test_the_first_digest_can_postdate_the_audit_chain(shipped):
+    from argus.infrastructure.audit_digest import check_digest_files
+
+    store, out, key, pem = shipped
+    next(out.rglob("2026-10-20.json")).unlink()
+    assert check_digest_files([out], store.audit_chain(), pem, through_day=THROUGH) == []
+
+
+def test_an_explicit_cutoff_detects_a_missing_quiet_day(shipped):
+    from argus.infrastructure.audit_digest import check_digest_files
+
+    store, out, key, pem = shipped
+    assert check_digest_files([out], store.audit_chain(), pem, through_day=date(2026, 10, 23)) == [
+        "2026-10-23: no digest for this day (a gap in the series)"]
 
 
 def test_a_rewritten_chain_is_caught_by_the_digest_that_survived_off_host(shipped):
@@ -85,7 +114,7 @@ def test_a_rewritten_chain_is_caught_by_the_digest_that_survived_off_host(shippe
     store, out, key, pem = shipped
     rows = store.audit_chain()
     rewritten = [rows[0], (rows[1][0], rows[1][1], rows[1][2], "f" * 64), *rows[2:]]       # hashes recomputed by an intruder
-    problems = check_digest_files([out], rewritten, pem)
+    problems = check_digest_files([out], rewritten, pem, through_day=THROUGH)
     assert problems and all("different hash for aud_0001" in p for p in problems[:2])
     assert problems[0].startswith("2026-10-20:")
 
@@ -99,7 +128,7 @@ def test_a_body_tamper_with_the_stored_hash_is_rejected_even_when_the_digest_sti
     tampered[0][1]["event"] = "access.logout"
 
     assert verify(tampered)[2] == ["aud_0000: hash does not match its body (the row was edited)"]
-    assert check_digest_files([out], tampered, pem) == [
+    assert check_digest_files([out], tampered, pem, through_day=THROUGH) == [
         "audit chain: aud_0000: hash does not match its body (the row was edited)"]
 
 
@@ -114,7 +143,8 @@ def test_the_command_rejects_an_edited_body_without_printing_digests_ok(shipped,
     monkeypatch.setattr(cli, "make_store", lambda settings: store)
     public_key = tmp_path / "public.pem"
     public_key.write_bytes(pem)
-    args = cli.build_parser().parse_args(["audit", "check-digests", str(out), "--public-key", str(public_key)])
+    args = cli.build_parser().parse_args(["audit", "check-digests", str(out), "--public-key", str(public_key),
+                                          "--through-day", THROUGH.isoformat()])
 
     with pytest.raises(SystemExit, match="DIGESTS DO NOT MATCH THE CHAIN: 1 problem"):
         cli.audit(args)
@@ -124,11 +154,31 @@ def test_the_command_rejects_an_edited_body_without_printing_digests_ok(shipped,
     assert "DIGESTS OK" not in output and "access.logout" not in output
 
 
+def test_the_command_rejects_a_deleted_latest_digest(shipped, tmp_path, monkeypatch, capsys):
+    import argus.__main__ as cli
+
+    store, out, key, pem = shipped
+    next(out.rglob("2026-10-22.json")).unlink()
+    monkeypatch.setattr(cli, "make_store", lambda settings: store)
+    public_key = tmp_path / "public.pem"
+    public_key.write_bytes(pem)
+    args = cli.build_parser().parse_args(["audit", "check-digests", str(out), "--public-key", str(public_key),
+                                          "--through-day", THROUGH.isoformat()])
+
+    with pytest.raises(SystemExit, match="DIGESTS DO NOT MATCH THE CHAIN: 1 problem"):
+        cli.audit(args)
+
+    output = capsys.readouterr().out
+    assert "PROBLEM  2026-10-22: no digest for this day" in output
+    assert "DIGESTS OK" not in output
+
+
 def test_a_file_that_is_not_a_digest_is_reported_not_skipped(shipped):
     from argus.infrastructure.audit_digest import check_digest_files
     store, out, key, pem = shipped
     (out / "audit-digest" / "2026" / "notes.json").write_text("not json at all", encoding="utf-8")
-    assert "notes.json: not a signed digest" in check_digest_files([out], store.audit_chain(), pem)[0]
+    assert "notes.json: not a signed digest" in check_digest_files(
+        [out], store.audit_chain(), pem, through_day=THROUGH)[0]
 
 
 def test_nothing_to_check_is_a_problem_not_a_pass(tmp_path, shipped):

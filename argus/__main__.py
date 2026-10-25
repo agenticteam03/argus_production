@@ -11,6 +11,7 @@ import signal
 import threading
 import time
 import uuid
+from datetime import date
 
 from argus.domain.model import AuditRecord, utcnow
 from argus.infrastructure.wiring import Settings, build, make_metrics, make_store
@@ -237,7 +238,9 @@ def audit(args) -> None:
         if not args.paths or not args.public_key:
             raise SystemExit("check-digests needs the digest files or folders and --public-key <pem>")
         try:
-            problems = check_digest_files(args.paths, store.audit_chain(), Path(args.public_key).read_bytes())
+            through_day = date.fromisoformat(args.through_day) if args.through_day else None
+            problems = check_digest_files(args.paths, store.audit_chain(), Path(args.public_key).read_bytes(),
+                                          through_day=through_day)
         except (OSError, ValueError) as e:
             raise SystemExit(f"check-digests: {e}")
         for p in problems[:50]:
@@ -350,6 +353,7 @@ def build_parser() -> argparse.ArgumentParser:
     au.add_argument("action", choices=["verify", "check-digests"])
     au.add_argument("paths", nargs="*", help="check-digests: the digest files or folders")
     au.add_argument("--public-key", help="check-digests: the audit digest key's public half (PEM)")
+    au.add_argument("--through-day", help="check-digests: last expected UTC day (YYYY-MM-DD); folders default to yesterday")
     se = sub.add_parser("session", help="ACR-0018: end every open session of a principal now")
     se.add_argument("action", choices=["revoke"])
     se.add_argument("name")

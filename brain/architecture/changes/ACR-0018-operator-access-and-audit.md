@@ -220,7 +220,8 @@ Applied in steps (phase 16). Each step writes into `ARCHITECTURE.md` only what i
       `execution/history/PHASE-16/step-05c-prep`); the scheduler mounts them read-only and no other service does
       (`compose.core.yml`, `mem_limit` 256m), `ARGUS_AUDIT_DIGEST_SINK` from `hosts.env`; `argus audit check-digests
       <files> --public-key <pem>` checks shipped digests as a series against the chain; `policies/NETWORK.md` names
-      OCI Object Storage as the scheduler's one outbound destination. `audit_digest` stays `enabled: false` until a
+      OCI Object Storage as the scheduler's intended application destination; the shared bridge has no scheduler
+      egress allowlist yet (tracked in the phase-16 task). `audit_digest` stays `enabled: false` until a
       first run has been checked after the deploy; `tests/test_phase16_step5c_check.py`
 
 **Not yet** (step 5c on): separation of duties; the deploy of step 5c, a first checked run and the schedule turned on; security alerts (§18), which wait for the team's alert route (no receiver exists: Argus only reads its

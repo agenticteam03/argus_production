@@ -101,9 +101,10 @@ step-up bound to a test object, with the binding to approvals added in phase 17.
 - **5a built (`task/PHASE-16-step-5a-digest`, ARCHITECTURE 1.8.32):** the digest, the signature, the job and a local
   sink, all offline and tested. **5b built (`task/PHASE-16-step-5b-oci-sink`, ARCHITECTURE 1.8.34):** the OCI sink
   (`oci==2.189.0`) and an opt-in test against the real bucket. **5c built, not deployed (`task/PHASE-16-step-5c-wiring`, ARCHITECTURE 1.8.35):** the
-  key and the credential are on vm-095 in `secrets/digest/`, the scheduler's mounts, the egress line in
+  key and the credential are on vm-095 in `secrets/digest/`, the scheduler's mounts, the intended OCI destination in
   `policies/NETWORK.md` and `argus audit check-digests`. **Left:** the deploy (both leases), a first checked run and the
-  schedule turned on.
+  schedule turned on. **Follow-up:** the scheduler currently shares an unfiltered bridge; enforce and test an outbound
+  allowlist or proxy for OCI before claiming OCI-only egress.
 - The daily digest: the hash of each day's last chained audit row, signed (the audit digest key, §17.2) and shipped;
   the scheduler's chain check (built in step 1) raises the alert on `security.audit_chain_broken`, on lockouts and on
   refused privileged requests.

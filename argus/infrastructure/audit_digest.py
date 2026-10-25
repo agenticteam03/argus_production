@@ -10,7 +10,7 @@ from __future__ import annotations
 import json
 import logging
 import uuid
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 from typing import Callable
 
@@ -74,17 +74,20 @@ class AuditDigestJob:
         return self.sink.put_once(object_name(day), to_bytes(sign(body, self.key)))
 
 
-def check_digest_files(paths, rows, public_pem: bytes) -> list[str]:
+def check_digest_files(paths, rows, public_pem: bytes, *, through_day: date | None = None) -> list[str]:
     """`argus audit check-digests`: read the shipped digests (files, or folders searched for `*.json`) and check them as a
     series against the chain and the audit digest key's public half. A file that is not a signed digest is reported by name,
-    and finding nothing to check is a problem, not a pass."""
+    and finding nothing to check is a problem, not a pass. A folder is a complete daily series through yesterday
+    unless `through_day` selects an earlier cutoff; a single file is a spot check unless one is supplied."""
     from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
     from cryptography.hazmat.primitives.serialization import load_pem_public_key
     key = load_pem_public_key(public_pem)
     if not isinstance(key, Ed25519PublicKey):
         raise ValueError("the public key must be an Ed25519 key")
+    inputs = list(map(Path, paths))
+    complete = through_day is not None or any(p.is_dir() for p in inputs)
     files: list[Path] = []
-    for p in map(Path, paths):
+    for p in inputs:
         files += sorted(p.rglob("*.json")) if p.is_dir() else [p]
     if not files:
         return ["no digest files found"]
@@ -101,5 +104,6 @@ def check_digest_files(paths, rows, public_pem: bytes) -> list[str]:
         items.append(item)
     rows = list(rows)
     _, _, chain_problems = verify(rows)
-    return (problems + check_series(items, rows, key)
+    last = through_day if through_day is not None else (utcnow().date() - timedelta(days=1) if complete else None)
+    return (problems + check_series(items, rows, key, expected_end=last)
             + [f"audit chain: {problem}" for problem in chain_problems])

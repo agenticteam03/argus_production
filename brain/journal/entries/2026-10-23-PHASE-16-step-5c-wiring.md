@@ -18,11 +18,18 @@ Decision / result:
   whose credential can read them: the shipping credential cannot) and reports a signature that does not verify, a row the
   chain no longer holds, a changed hash, a wrong row count, a digest twice for a day and a gap in the days. A file that is not
   a digest is named; finding nothing to check is a problem, not a pass.
-- **`policies/NETWORK.md`** names the scheduler's one outbound destination, OCI Object Storage; **`policies/SECURITY.md`** now
+- **`policies/NETWORK.md`** names OCI Object Storage as the scheduler's configured destination; **`policies/SECURITY.md`** now
   says where the two secrets live. `audit_digest` stays **`enabled: false`**.
 - **Review correction (2026-10-24):** verify the supplied audit chain as well as the signed digests, using the same
   implementation proposed in #317 (`deb42c5`). An edited row body with its stored hash unchanged now produces a generic
   audit-chain problem; the command exits unsuccessfully and never prints `DIGESTS OK`. Added function and CLI regressions.
+- **Review correction (2026-10-25):** when given a folder, `check-digests` now checks the series through the prior UTC
+  day by default; `--through-day` provides a reproducible cutoff. Deleting the latest digest is a failure in both the
+  function and CLI. A single file remains a spot check. The audit chain may predate digest activation, so its first
+  row does not define the expected first digest day. `policies/NETWORK.md`, ACR-0018 and the architecture changelog
+  now state that OCI is the configured destination while the shared bridge does not enforce outbound filtering; the
+  phase-16 task tracks enforcement. The historical preparation blocks now take `ARGUS_REPO_ROOT` instead of a
+  developer-specific checkout path. Integrated current `main` at `01dfe0b`.
 - Integrated `main` at `ada9fec9`; preserved its published architecture versions and assigned step 5c the free version
   **1.8.35**. This resolves the parallel branches' version collision without changing their accepted architecture content.
 - The first attempt to generate the key from the agent's session was refused by the permission classifier (a remote write), so
@@ -59,11 +66,12 @@ the result. The tested runtime, tests, architecture, policies and compose files 
 `737707e`; only task/journal prose differed between the isolated worktrees. This supersedes the earlier environment
 failures and the lack of a single successful full-suite run. No runtime change is made by this evidence update.
 
+Review correction on 2026-10-25: two missing-tail regressions failed on the prior implementation. After the fix,
+`tests/test_phase16_step5c_check.py` passed (18 tests); Ruff, Brain lint and Brain audit were clean. The full offline
+suite finished with exit 0 on the corrected tree, with Git Bash first on PATH. Exact-head CI is required after push.
+
 ### Next step
 
-Dependencies #302, #303 and #311 are merged. The correction is published and #314 targets main.
-Obtain a fresh teammate review of the integrity fix and conflict resolution,
-with exact-head CI and current main-guard green before merging; retain the source branch. Main-guard on `ada9fec9`
-failed in run `40115433517`: #303 lacks a valid teammate approval of its last push. The team must resolve that review-policy
-failure before merging #314. #317 proposes the same integrity
-fix separately: reconcile that PR after this correction is published. A later deploy needs both leases and its own block.
+Dependencies #302, #303 and #311 are merged. Publish the 2026-10-25 review corrections on #314, obtain exact-head CI
+and a fresh teammate review before merging; retain the source branch. Enforce the scheduler's outbound destination in a
+follow-up before claiming OCI-only egress. A later deploy needs both leases and its own block.
