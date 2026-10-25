@@ -26,11 +26,35 @@ targets:
   - ref: vm-095/host:vm-095
     mounts: ["/"]
   - ref: vm-095/container:argus-lab-worker        # SC-02 non-OOM crash loop (same name as on vm-166)
+    service:
+      role: worker
+      kind: stateless
+      owner: platform
+      criticality: low
+      data: ephemeral
+      safe_actions: [container.start, container.restart]
+      never: [container.stop]
   - ref: vm-095/container:argus-lab-api           # healthy control twin of vm-166's api (SC-09)
+    service:
+      role: api
+      kind: stateless
+      owner: platform
+      criticality: medium
+      data: ephemeral
+      safe_actions: [container.start, container.restart]
+      never: [container.stop]
   # --- vm-166 (primary target host) ---------------------------------------------------------------
   - ref: vm-166/host:vm-166
     mounts: ["/", "/srv/argus-lab-fill"]
   - ref: vm-166/container:argus-lab-worker        # SC-01 OOM restart loop
+    service:
+      role: worker
+      kind: stateless
+      owner: platform
+      criticality: low
+      data: ephemeral
+      safe_actions: [container.start, container.restart, container.update_resources]
+      never: [container.stop]
   - ref: vm-166/container:argus-lab-nginx         # SC-08 (T-0029): a reverse proxy in front of a slow upstream
     profile: scenario
     depends_on: [vm-166/container:argus-lab-slow]
@@ -46,8 +70,24 @@ targets:
   - ref: vm-166/container:argus-lab-api           # SC-03 victim of its dependency
     depends_on: [vm-166/container:argus-lab-cache]
     http_endpoints: ["http://argus-lab-api:8080/health"]
+    service:
+      role: api
+      kind: stateless
+      owner: platform
+      criticality: medium
+      data: ephemeral
+      safe_actions: [container.start, container.restart]
+      never: [container.stop]
   - ref: vm-166/container:argus-lab-cache
     tcp_ports: [6379]
+    service:
+      role: cache
+      kind: stateless
+      owner: platform
+      criticality: low
+      data: ephemeral
+      safe_actions: [container.start, container.restart]
+      never: [container.stop]
   - ref: vm-166/container:argus-lab-client        # SC-07 victim: cannot reach its backend (only on argus-lab-app)
     profile: scenario
     depends_on: [vm-166/container:argus-lab-backend]
@@ -59,6 +99,14 @@ targets:
   - ref: vm-166/container:argus-lab-db            # T-0019 / SC-04: lab PostgreSQL, TESTING ONLY (see compose.lab.yml)
     database: {dbname: argus_lab, port: 5432}     # read by argus-v18-db-probe with the argus_monitor role
     tcp_ports: [5432]
+    service:
+      role: database
+      kind: database
+      owner: data-team
+      criticality: high
+      data: persistent
+      safe_actions: []
+      never: [container.restart, container.stop, container.pause]
   - ref: vm-166/container:argus-lab-leaker        # SC-04 (T-0020): leaks idle-in-transaction sessions on argus-lab-db
     profile: scenario
     depends_on: [vm-166/container:argus-lab-db]
