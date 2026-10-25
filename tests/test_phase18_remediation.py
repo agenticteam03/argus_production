@@ -14,6 +14,7 @@ from argus.actions.execution import ActionExecutor, Precheck, Verification
 from argus.adapters.outbound.judge import OpenAIJudge
 from argus.orchestration.action_recovery import OfflineActionRecovery
 from argus.orchestration.action_path import OfflineActionPath
+from argus.actions.risk import RiskColor
 
 
 NOW = datetime(2026, 10, 25, tzinfo=timezone.utc)
@@ -98,6 +99,26 @@ def test_second_model_adapter_has_no_tools_or_decider_conversation():
     assert set(captured[0]["input"][0]) == {"role", "content"}
     with pytest.raises(ValueError, match="different model"):
         OpenAIJudge("", "gpt-6.1-sol", deciding_model="gpt-6.1-sol", client=client)
+
+
+def test_dispatch_module_has_no_model_or_harness_import_boundary():
+    from pathlib import Path
+    import argus.actions.execution as execution
+
+    source = Path(execution.__file__).read_text(encoding="utf-8")
+    assert "argus.adapters.outbound.llm" not in source
+    assert "argus.tooling.model_harness" not in source
+    assert "openai" not in source.lower()
+
+
+def test_judge_comparison_manifest_has_labeled_good_bad_and_trap_cases():
+    from ops.phase18_judge_eval import CASES, packet
+
+    assert {group: sum(case.group == group for case in CASES) for group in ("good", "bad", "trap")} == {
+        "good": 6, "bad": 6, "trap": 6}
+    assert len({case.id for case in CASES}) == 18
+    assert all(case.expected in ("agree", "doubt", "disagree") for case in CASES)
+    assert all(packet(case)[0].basis == "runbook" for case in CASES)
 
 
 def test_mutating_nested_proposal_after_freeze_refuses_approval():
@@ -252,16 +273,78 @@ def test_crash_after_claim_reconciles_without_second_dispatch(tmp_path):
         store._db.close()
 
 
+def test_ambiguous_status_failure_stays_indeterminate_without_retry(tmp_path):
+    class LostReply(FakeActionGateway):
+        def dispatch(self, action_id, proposal):
+            self.calls.append(action_id)
+            raise TimeoutError("response lost")
+
+        def status(self, action_id):
+            raise TimeoutError("journal unavailable")
+
+    store, gateway, executor, check = _durable_setup(tmp_path, gateway=LostReply())
+    try:
+        action = executor.execute("appr_durable", check, at=NOW)
+        assert action["state"] == "indeterminate"
+        assert executor.execute("appr_durable", check, at=NOW)["state"] == "indeterminate"
+        assert len(gateway.calls) == 1
+    finally:
+        store._db.close()
+
+
 def test_precheck_and_global_hold_refuse_before_claim(tmp_path):
     store, gateway, executor, check = _durable_setup(tmp_path)
     try:
         with pytest.raises(RemediationRefused, match="current"):
             executor.execute("appr_durable", Precheck(**{**check.__dict__,
                                                         "observed_at": NOW - timedelta(minutes=1)}), at=NOW)
+        with pytest.raises(RemediationRefused, match="current"):
+            executor.execute("appr_durable", Precheck(**{**check.__dict__,
+                                                        "observed_at": NOW + timedelta(seconds=10)}), at=NOW)
         store.add_target_hold("emergency", "*", "stop", "operator", NOW)
         with pytest.raises(RemediationRefused, match="hold"):
             executor.execute("appr_durable", check, at=NOW)
         assert gateway.calls == [] and store.get_action_for_approval("appr_durable") is None
+    finally:
+        store._db.close()
+
+
+def test_verification_waits_for_prediction_window_before_declaring_failure(tmp_path):
+    store, _, executor, check = _durable_setup(tmp_path)
+    try:
+        action = executor.execute("appr_durable", check, at=NOW)
+        miss_at = NOW + timedelta(seconds=10)
+        miss = Verification(miss_at, False, "dependency_probe_min", "vm-166/container:argus-lab-api", "unhealthy")
+        assert executor.verify(action["id"], miss, at=miss_at) is None
+        assert store.get_action_outcome(action["id"]) is None
+        hit_at = NOW + timedelta(seconds=20)
+        hit = Verification(hit_at, True, "dependency_probe_min", "vm-166/container:argus-lab-api", "healthy")
+        assert executor.verify(action["id"], hit, at=hit_at) == "recovered_verified"
+    finally:
+        store._db.close()
+
+
+def test_durable_target_cooldown_and_host_daily_cap(tmp_path):
+    store, gateway, executor, check = _durable_setup(tmp_path)
+    try:
+        executor.execute("appr_durable", check, at=NOW)
+        later = NOW + timedelta(minutes=1)
+        second = freeze_proposal(candidate(), at=later)
+        store.add_action_proposal(second)
+        store.add_action_approval("appr_second", second.id, second.digest, later, second.expires_at)
+        assert store.answer_action_approval("appr_second", second.digest, "operator", "approved", later)
+        with pytest.raises(RemediationRefused, match="cooldown"):
+            executor.execute("appr_second", Precheck(**{**check.__dict__, "observed_at": later}), at=later)
+
+        other = "vm-166/container:argus-lab-worker"
+        third = freeze_proposal(candidate(target=other), at=later)
+        store.add_action_proposal(third)
+        store.add_action_approval("appr_third", third.id, third.digest, later, third.expires_at)
+        assert store.answer_action_approval("appr_third", third.digest, "operator", "approved", later)
+        capped = ActionExecutor(store, gateway, gate_open=frozenset({("container.start", other)}), daily_host_cap=1)
+        with pytest.raises(RemediationRefused, match="daily cap"):
+            capped.execute("appr_third", Precheck(**{**check.__dict__, "observed_at": later}), at=later)
+        assert len(gateway.calls) == 1
     finally:
         store._db.close()
 
@@ -308,6 +391,7 @@ def test_offline_path_checks_candidate_judges_and_uses_persisted_answer(tmp_path
     class Policy:
         cards = {"container.start": SimpleNamespace(identity_fields=["container_id"],
                                                      parameters={"timeout": {"min": 1, "max": 30}})}
+        risk_table = SimpleNamespace(lookup=lambda action, kind: RiskColor.green)
 
         def next_actions(self, *args, **kwargs):
             return [{"action": "container.start", "target": TARGET, "grounds": ["RB-003"],
@@ -315,13 +399,14 @@ def test_offline_path_checks_candidate_judges_and_uses_persisted_answer(tmp_path
 
     class Inventory:
         def target(self, target):
-            return SimpleNamespace(service_card=lambda: SimpleNamespace(safe_actions=["container.start"], never=[]))
+            return SimpleNamespace(service_card=lambda: SimpleNamespace(safe_actions=["container.start"], never=[],
+                                                                   kind="stateless", criticality="low"))
 
     path = OfflineActionPath(
         rows=store, action_policy=Policy(), inventory=Inventory(),
         proposer=lambda *_: candidate(), judge_model=lambda _: {"verdict": "agree", "checks": GOOD_CHECKS,
                                                                   "reasons": []},
-        judge_model_id="gpt-6.1-sol", judge_context=lambda _: {**JUDGE_CONTEXT, "initial_risk": "green"},
+        judge_model_id="gpt-6.1-sol", judge_context=lambda _: JUDGE_CONTEXT,
         snapshot=lambda _, at: Precheck({"container_id": "cache-1"}, "inventory-1", "policy-1", "evidence-1",
                                         at, True, True, True, True),
         sample=lambda _, at: Verification(at, True, "dependency_probe_min", "vm-166/container:argus-lab-api",
@@ -336,6 +421,7 @@ def test_offline_path_checks_candidate_judges_and_uses_persisted_answer(tmp_path
         assert path.propose(Incident(), {}) == proposal_id  # crash replay uses the frozen row
         assert path.judge(proposal_id).verdict == "agree"
         assert path.judge(proposal_id).verdict == "agree"  # no second judge call
+        assert store.get_evidence(["ev_judge_" + proposal_id])[0].values["verdict"] == "agree"
         approval_id = path.request(proposal_id)
         assert path.request(proposal_id) == approval_id
         with pytest.raises(RemediationRefused, match="human"):

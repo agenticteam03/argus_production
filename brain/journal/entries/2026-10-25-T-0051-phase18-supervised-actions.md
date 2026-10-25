@@ -12,10 +12,10 @@
 ### Test state
 
 - RED: `tests/test_phase18_remediation.py` initially failed on the missing remediation module and SQLite methods; both were then implemented.
-- GREEN: 16 focused phase-18 tests passed after the durable path, outbox recovery, judge adapter and store constraints; 2 LangGraph pause/resume tests passed. The earlier combined graph/phase-18/write-gate run passed 34 tests. Ruff and the migration checker passed at the checkpoint.
-- Full offline suite: pending. PostgreSQL migration test: pending because Docker Desktop is unavailable locally and `ARGUS_TEST_PG_OWNER_DSN` is unset. Exact-head CI: pending until PR push.
+- GREEN: 21 focused phase-18 tests passed after the current failure-injection and guard updates. Ruff, Brain lint/audit, the migration checker and the judge-evaluation dry run passed on this checkpoint. The earlier full offline suite passed 1,996 tests with 74 skipped before the latest guard additions; it is being rerun against this checkpoint.
+- PostgreSQL migration test: pending because Docker Desktop is unavailable locally and `ARGUS_TEST_PG_OWNER_DSN` is unset. Exact-head CI: pending; the GitHub API was unreachable at the latest check, so current PR checks could not be observed.
 - Paid OpenAI model comparison: pending; this checkout has no OpenAI API credential. Official catalog/pricing comparison and a provisional model choice are recorded in the task.
 
 ### Next step
 
-Finish the Phase 18 failure-injection checks, run the full offline suite and CI, resolve review comments, then merge #316 and #318 before retargeting this PR to `main`. Phase 19 still requires ACR-0018's off-host audit exit proof and a separate approval route/gateway review; phase 20 releases the first action pair in its own PR.
+Finish the full offline suite and exact-head CI, resolve review comments, then merge #316 and #318 before retargeting this PR to `main`. Phase 19 still requires ACR-0018's off-host audit exit proof and a separate approval route/gateway review; phase 20 releases the first action pair in its own PR.

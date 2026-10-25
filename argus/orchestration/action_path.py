@@ -7,9 +7,10 @@ from typing import Callable
 from uuid import uuid4
 
 from argus.actions.execution import ActionExecutor, Precheck, Verification
-from argus.actions.remediation import (FrozenProposal, JudgeResult, ProposalInput, RemediationRefused,
+from argus.actions.risk import RiskColor
+from argus.actions.remediation import (FakeActionGateway, FrozenProposal, JudgeResult, ProposalInput, RemediationRefused,
                                        freeze_proposal, judge_proposal, verify_frozen_proposal)
-from argus.domain.model import IncidentOutcome, TargetRef
+from argus.domain.model import EvidenceRecord, IncidentOutcome, TargetRef
 
 
 class OfflineActionPath:
@@ -25,6 +26,8 @@ class OfflineActionPath:
                  sample: Callable[[str, datetime], Verification | None], gateway,
                  gate_open: frozenset[tuple[str, str]], daily_host_cap: int,
                  clock: Callable[[], datetime] = lambda: datetime.now(timezone.utc)):
+        if not isinstance(gateway, FakeActionGateway):
+            raise ValueError("Phase 18 action path accepts only the fake gateway")
         self.rows, self.action_policy, self.inventory = rows, action_policy, inventory
         self.proposer, self.judge_model, self.judge_model_id = proposer, judge_model, judge_model_id
         self.judge_context, self.snapshot, self.sample, self.clock = judge_context, snapshot, sample, clock
@@ -74,18 +77,44 @@ class OfflineActionPath:
     def judge(self, proposal_id: str) -> JudgeResult:
         existing = self.rows.get_judge_verdict(proposal_id)
         if existing:
+            self._ensure_judge_evidence(proposal_id, existing)
             return JudgeResult(**{key: existing[key] for key in (
                 "verdict", "checks", "reasons", "risk", "proposal_digest")})
         proposal = self.rows.get_action_proposal(proposal_id)
         verify_frozen_proposal(proposal)
         context = self.judge_context(proposal)
-        result = judge_proposal(proposal, self.judge_model, initial_risk=context["initial_risk"],
+        info = self.inventory.target(TargetRef.parse(proposal.input.target))
+        service = info.service_card() if info is not None else None
+        if service is None:
+            raise RemediationRefused("reviewed service card is unavailable")
+        base = self.action_policy.risk_table.lookup(proposal.input.capability, service.kind)
+        if base == RiskColor.forbidden:
+            raise RemediationRefused("reviewed risk table forbids the action")
+        initial_risk = base.elevate(1 if service.criticality == "high" else 0).value
+        result = judge_proposal(proposal, self.judge_model, initial_risk=initial_risk,
                                 evidence_extracts=context["evidence_extracts"],
                                 ground_extracts=context["ground_extracts"],
                                 service_card=context["service_card"], action_card=context["action_card"])
-        self.rows.add_judge_verdict(proposal_id, self.judge_model_id,
-                                    {**asdict(result), "reasons": list(result.reasons)}, self.clock())
+        body = {**asdict(result), "reasons": list(result.reasons)}
+        self.rows.add_judge_verdict(proposal_id, self.judge_model_id, body, self.clock())
+        self._ensure_judge_evidence(proposal_id, body)
         return result
+
+    def _ensure_judge_evidence(self, proposal_id: str, body: dict) -> None:
+        evidence_id = "ev_judge_" + proposal_id
+        if self.rows.get_evidence([evidence_id]):
+            return
+        proposal = self.rows.get_action_proposal(proposal_id)
+        at = self.clock()
+        evidence = EvidenceRecord(
+            evidence_id=evidence_id, incident_id=proposal.input.incident_id, kind="observation",
+            capability="judge.verdict", target=proposal.input.target,
+            host=TargetRef.parse(proposal.input.target).host, executor="openai-judge", caller="judge",
+            source_time=at, collected_at=at, status=body["verdict"],
+            values={"proposal_digest": proposal.digest, "verdict": body["verdict"],
+                    "risk": body["risk"], "checks": body["checks"], "reasons": body["reasons"]},
+            model_text="; ".join(body["reasons"])[:500]).with_hash()
+        self.rows.append_evidence(evidence)
 
     def request(self, proposal_id: str) -> str | None:
         existing = self.rows.get_action_approval_for_proposal(proposal_id)
@@ -104,10 +133,18 @@ class OfflineActionPath:
         return approval_id
 
     def answer(self, approval_id: str, *, digest: str, principal: str, principal_kind: str,
-               decision: str) -> bool:
+               decision: str, confirmation_target: str | None = None) -> bool:
         """Offline only; the Phase 19 private route must add permission and step-up checks."""
         if principal_kind != "human" or not principal:
             raise RemediationRefused("a human principal is required")
+        approval = self.rows.get_action_approval(approval_id)
+        if approval is None or approval["proposal_digest"] != digest:
+            raise RemediationRefused("approval digest mismatch")
+        proposal = self.rows.get_action_proposal(approval["proposal_id"])
+        verdict = self.rows.get_judge_verdict(proposal.id)
+        if decision == "approved" and verdict and verdict["risk"] == "red":
+            if confirmation_target != TargetRef.parse(proposal.input.target).name:
+                raise RemediationRefused("red action requires typing the target name")
         return self.rows.answer_action_approval(approval_id, digest, principal, decision, self.clock())
 
     def approval_state(self, approval_id: str) -> str:

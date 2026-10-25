@@ -15,6 +15,8 @@ from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from argus.domain.model import TargetRef
+
 
 class RemediationRefused(ValueError):
     """A proposal, approval or attempted action failed a deterministic guard."""
@@ -58,6 +60,7 @@ class FrozenProposal(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
     id: str
     input: ProposalInput
+    basis: Literal["runbook", "memory", "reference", "operator"]
     created_at: datetime
     expires_at: datetime
     digest: str
@@ -67,16 +70,26 @@ def _canonical(value: dict) -> bytes:
     return json.dumps(value, sort_keys=True, ensure_ascii=False, separators=(",", ":"), allow_nan=False).encode()
 
 
+def _basis(grounds: list[str]) -> str:
+    return next(prefix for prefix in ("runbook", "memory", "reference", "operator")
+                if any(ground.startswith(prefix + ":") for ground in grounds))
+
+
 def _proposal_digest(data: ProposalInput, created: datetime, expires: datetime) -> str:
     return hashlib.sha256(_canonical({"input": data.model_dump(mode="json"),
+                                      "basis": _basis(data.grounds),
                                       "created_at": created.isoformat(),
                                       "expires_at": expires.isoformat()})).hexdigest()
 
 
 def verify_frozen_proposal(proposal: FrozenProposal) -> None:
     """Refuse a mutable nested payload even if its stored digest was left intact."""
-    expected = _proposal_digest(proposal.input, proposal.created_at, proposal.expires_at)
-    if not hmac.compare_digest(expected, proposal.digest):
+    try:
+        expected = _proposal_digest(proposal.input, proposal.created_at, proposal.expires_at)
+        matches_basis = proposal.basis == _basis(proposal.input.grounds)
+    except (StopIteration, TypeError, ValueError) as exc:
+        raise RemediationRefused("proposal digest does not match its body") from exc
+    if not matches_basis or not hmac.compare_digest(expected, proposal.digest):
         raise RemediationRefused("proposal digest does not match its body")
 
 
@@ -84,21 +97,32 @@ def freeze_proposal(data: ProposalInput, *, at: datetime) -> FrozenProposal:
     """Freeze every field shown to the approver in a stable digest."""
     if at.tzinfo is None:
         raise RemediationRefused("a timezone-aware creation time is required")
-    if data.target.startswith("vm-095/"):
+    try:
+        target = TargetRef.parse(data.target)
+    except ValueError as exc:
+        raise RemediationRefused("invalid host-qualified action target") from exc
+    if target.host == "vm-095":
         raise RemediationRefused("vm-095 is Argus's own host")
+    if target.kind != "container" or not target.name.startswith("argus-lab-"):
+        raise RemediationRefused("Phase 18 accepts only named lab containers")
     if not data.target_identity or not all(data.target_identity.values()):
         raise RemediationRefused("target identity is required")
     if not data.evidence_refs or not all(data.evidence_refs):
         raise RemediationRefused("cited evidence is required")
+    if len(data.evidence_refs) > 20 or len(data.grounds) > 10:
+        raise RemediationRefused("proposal cites too many sources")
     if not data.grounds or not all(g.startswith(("runbook:", "memory:", "reference:", "operator:"))
                                    for g in data.grounds):
         raise RemediationRefused("verified grounds are required")
     if not 1 <= len(data.alternatives) <= 3:
         raise RemediationRefused("one to three alternatives are required")
+    if len(_canonical(data.model_dump(mode="json"))) > 12_000:
+        raise RemediationRefused("proposal exceeds the review size limit")
     created = at.astimezone(timezone.utc)
     expires = created + timedelta(minutes=30)
     digest = _proposal_digest(data, created, expires)
-    return FrozenProposal(id=f"prop_{uuid4().hex}", input=data.model_copy(deep=True), created_at=created,
+    return FrozenProposal(id=f"prop_{uuid4().hex}", input=data.model_copy(deep=True), basis=_basis(data.grounds),
+                          created_at=created,
                           expires_at=expires,
                           digest=digest)
 
@@ -136,6 +160,8 @@ def judge_proposal(proposal: FrozenProposal, model: Callable[[dict], dict], *, i
         raise RemediationRefused("bounded ground extracts are required")
     if not service_card or not action_card:
         raise RemediationRefused("reviewed service and action cards are required")
+    if len(_canonical({"service_card": service_card, "action_card": action_card})) > 8_000:
+        raise RemediationRefused("review cards exceed the size limit")
     packet = {"proposal_digest": proposal.digest, "proposal": proposal.input.model_dump(mode="json"),
               "evidence_extracts": evidence_extracts, "ground_extracts": ground_extracts,
               "service_card": service_card, "action_card": action_card}

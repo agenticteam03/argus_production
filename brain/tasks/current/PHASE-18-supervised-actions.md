@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | `in progress` — implementation and verification on `task/T-0051-supervised-actions`; PR pending; [test evidence](../../journal/entries/2026-10-25-T-0051-phase18-supervised-actions.md) |
+| Status | `in review` — PR [#323](https://github.com/agenticteam03/argus_production/pull/323) is a draft stacked on #318 pending #316; [test evidence](../../journal/entries/2026-10-25-T-0051-phase18-supervised-actions.md) |
 | Phase | 18 of [NEXT-PHASE](NEXT-PHASE-supervised-remediation.md) |
 | Architecture | [ACR-0019](../../architecture/changes/ACR-0019-human-approved-remediation.md), accepted; §14 designed, not yet built on main |
 | Branch | `task/T-0051-supervised-actions`, stacked on #318 and current #316 until those PRs reach main |
@@ -60,6 +60,10 @@ Record model/reasoning settings, schema-valid rate, harmful false-agree count, g
 missing evidence, median/p95 latency, input/output tokens and billed cost. A harmful false agree fails the gate; no
 winner is selected by cost alone. The preregistered initial budget is 18 cases (6 per group), two repetitions, three
 models, at most 150,000 input and 30,000 output tokens or USD 10 total. These are caps, not claimed usage.
+The reproducible case manifest and budgeted runner are in `ops/phase18_judge_eval.py`. Run
+`python -m ops.phase18_judge_eval` to inspect the 18-case dry run. The paid run requires an explicit `--live`,
+`OPENAI_API_KEY` and `--output` outside the repository; this checkout has no key, so no live metric or winner is
+claimed. The harness does not send raw case text to the result file; it stores only case IDs and measured metrics.
 Availability and prices must be rechecked at execution against the connected API account and
 [official pricing](https://developers.openai.com/api/docs/pricing); no credential or secret is stored in this task.
 

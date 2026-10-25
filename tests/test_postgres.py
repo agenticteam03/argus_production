@@ -80,9 +80,11 @@ def test_remediation_migration_014_freezes_proposal_and_answers_once(runtime_dsn
     assert store.active_target_holds(str(inc.target), now) == ["hold_test14"]
     assert store.release_target_hold("hold_test14", "operator", now)
     assert not store.release_target_hold("hold_test14", "operator", now)
-    store.add_action("act_test14", proposal.id, "appr_test14")
-    assert store.start_action("act_test14", now)
-    assert not store.start_action("act_test14", now)
+    assert store.reserve_action("act_test14", proposal.id, "appr_test14", str(inc.target), now,
+                                daily_host_cap=1)
+    assert not store.reserve_action("act_test14_again", proposal.id, "appr_test14", str(inc.target), now,
+                                    daily_host_cap=1)
+    assert store.get_action("act_test14")["state"] == "attempting"
     assert store.finish_action("act_test14", "confirmed", now, {"gateway": "confirmed"})
     assert not store.finish_action("act_test14", "failed", now, {})
     store.add_action_outcome("act_test14", inc.id, "lab", "recovered_verified", {"prediction_met": True}, now)

@@ -130,6 +130,10 @@ CREATE TRIGGER IF NOT EXISTS approval_forward BEFORE UPDATE ON approval
 CREATE TABLE IF NOT EXISTS notification_outbox (
   key TEXT PRIMARY KEY, channel TEXT NOT NULL, payload TEXT NOT NULL, attempts INTEGER NOT NULL DEFAULT 0,
   next_attempt_at TEXT NOT NULL, last_result TEXT, delivered_at TEXT);
+CREATE TRIGGER IF NOT EXISTS notification_outbox_forward BEFORE UPDATE ON notification_outbox
+  WHEN NEW.key <> OLD.key OR NEW.channel <> OLD.channel OR NEW.payload <> OLD.payload
+    OR OLD.delivered_at IS NOT NULL OR NEW.attempts <= OLD.attempts
+  BEGIN SELECT RAISE(ABORT, 'notification outbox is forward-only'); END;
 CREATE TABLE IF NOT EXISTS resume_intent (
   approval_id TEXT PRIMARY KEY REFERENCES approval(approval_id), incident_id TEXT NOT NULL,
   decision TEXT NOT NULL CHECK (decision IN ('approved','denied','expired','cancelled')),
@@ -141,6 +145,11 @@ CREATE TRIGGER IF NOT EXISTS resume_intent_insert BEFORE INSERT ON resume_intent
                               JOIN action_proposal p ON p.proposal_id=a.proposal_id
                               WHERE a.approval_id=NEW.approval_id)
   BEGIN SELECT RAISE(ABORT, 'resume intent does not match approval'); END;
+CREATE TRIGGER IF NOT EXISTS resume_intent_forward BEFORE UPDATE ON resume_intent
+  WHEN NEW.approval_id <> OLD.approval_id OR NEW.incident_id <> OLD.incident_id
+    OR NEW.decision <> OLD.decision OR OLD.state <> 'pending'
+    OR NEW.state NOT IN ('pending','done','failed') OR NEW.attempts <= OLD.attempts
+  BEGIN SELECT RAISE(ABORT, 'resume intent is forward-only'); END;
 CREATE TABLE IF NOT EXISTS action (
   action_id TEXT PRIMARY KEY, proposal_id TEXT NOT NULL REFERENCES action_proposal(proposal_id),
   approval_id TEXT NOT NULL UNIQUE REFERENCES approval(approval_id),

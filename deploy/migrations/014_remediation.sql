@@ -77,6 +77,16 @@ CREATE TABLE notification_outbox (
   last_result text,
   delivered_at timestamptz
 );
+CREATE FUNCTION notification_outbox_forward_only() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  IF NEW.key <> OLD.key OR NEW.channel <> OLD.channel OR NEW.payload <> OLD.payload
+     OR OLD.delivered_at IS NOT NULL OR NEW.attempts <= OLD.attempts THEN
+    RAISE EXCEPTION 'notification outbox is forward-only';
+  END IF;
+  RETURN NEW;
+END $$;
+CREATE TRIGGER notification_outbox_forward BEFORE UPDATE ON notification_outbox
+  FOR EACH ROW EXECUTE FUNCTION notification_outbox_forward_only();
 GRANT SELECT, INSERT ON notification_outbox TO argus_runtime;
 GRANT UPDATE (attempts, next_attempt_at, last_result, delivered_at) ON notification_outbox TO argus_runtime;
 
@@ -100,6 +110,17 @@ BEGIN
 END $$;
 CREATE TRIGGER resume_intent_insert BEFORE INSERT ON resume_intent
   FOR EACH ROW EXECUTE FUNCTION resume_intent_insert_checked();
+CREATE FUNCTION resume_intent_forward_only() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  IF NEW.approval_id <> OLD.approval_id OR NEW.incident_id <> OLD.incident_id
+     OR NEW.decision <> OLD.decision OR OLD.state <> 'pending'
+     OR NEW.state NOT IN ('pending','done','failed') OR NEW.attempts <= OLD.attempts THEN
+    RAISE EXCEPTION 'resume intent is forward-only';
+  END IF;
+  RETURN NEW;
+END $$;
+CREATE TRIGGER resume_intent_forward BEFORE UPDATE ON resume_intent
+  FOR EACH ROW EXECUTE FUNCTION resume_intent_forward_only();
 GRANT SELECT, INSERT ON resume_intent TO argus_runtime;
 GRANT UPDATE (state, attempts, last_outcome) ON resume_intent TO argus_runtime;
 

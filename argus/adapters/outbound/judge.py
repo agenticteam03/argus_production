@@ -46,6 +46,7 @@ class OpenAIJudge:
         self.last_usage: dict[str, int] | None = None
 
     def __call__(self, packet: dict) -> dict:
+        self.last_usage = None
         response = self.client.responses.create(
             model=self.model,
             reasoning={"effort": self.reasoning_effort},

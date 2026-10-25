@@ -101,8 +101,8 @@ class ActionExecutor:
         requested_at = approval["requested_at"]
         if isinstance(requested_at, str):
             requested_at = datetime.fromisoformat(requested_at)
-        if (check.observed_at.tzinfo is None or check.observed_at < requested_at
-                or abs((at - check.observed_at).total_seconds()) > 30):
+        sample_age = (at - check.observed_at).total_seconds() if check.observed_at.tzinfo else float("inf")
+        if check.observed_at.tzinfo is None or check.observed_at < requested_at or not 0 <= sample_age <= 30:
             raise RemediationRefused("precheck observation is not current")
 
     def execute(self, approval_id: str, check: Precheck, *, at: datetime) -> dict:
@@ -135,13 +135,16 @@ class ActionExecutor:
             raise RemediationRefused("action ID is missing")
         if action["state"] != "attempting":
             return action
-        status = self.gateway.status(action_id)
+        try:
+            status = self.gateway.status(action_id)
+        except Exception:
+            status = None
         state = status if status in ("confirmed", "failed") else "indeterminate"
         self.rows.finish_action(action_id, state, at, {"gateway_status": status or "unknown",
                                                        "reconciled": True})
         return self.rows.get_action(action_id)
 
-    def verify(self, action_id: str, sample: Verification, *, at: datetime, origin: str = "drill") -> str:
+    def verify(self, action_id: str, sample: Verification, *, at: datetime, origin: str = "drill") -> str | None:
         existing = self.rows.get_action_outcome(action_id)
         if existing:
             return existing["outcome"]
@@ -154,11 +157,13 @@ class ActionExecutor:
         completed = action["result_at"]
         if isinstance(completed, str):
             completed = datetime.fromisoformat(completed)
-        if sample.sampled_at <= completed:
+        if sample.sampled_at <= completed or sample.sampled_at > at:
             raise RemediationRefused("verification sample predates action completion")
         in_window = (sample.sampled_at - completed).total_seconds() <= prediction.within_seconds
         met = (in_window and sample.detector_cleared and sample.signal == prediction.signal
                and sample.target == prediction.target and sample.actual == prediction.expected)
+        if not met and (at - completed).total_seconds() < prediction.within_seconds:
+            return None  # keep waiting for a newer sample until the reviewed deadline
         outcome = "recovered_verified" if met else "action_failed"
         self.rows.add_action_outcome(action_id, proposal.input.incident_id, origin, outcome,
                                      {"prediction_met": met, "sampled_at": sample.sampled_at.isoformat(),
