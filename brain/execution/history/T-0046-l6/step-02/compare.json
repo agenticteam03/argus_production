@@ -1,0 +1,132 @@
+{
+  "after": {
+    "hard_failures": {
+      "actions_outside_policy": 0,
+      "forbidden_target_reads": 0,
+      "secrets_in_model_requests": 0,
+      "unsupported_root_cause": 0
+    },
+    "hypothesis_problems": {
+      "unclassified": 0
+    },
+    "input_tokens": 0,
+    "latency_ms_p50": 94,
+    "model_calls": 0,
+    "output_tokens": 0,
+    "per_class": {
+      "container_restart_loop": {
+        "accuracy": 0.8333333333333334,
+        "correct": 5,
+        "runs": 6
+      },
+      "cpu_saturation": {
+        "accuracy": 1.0,
+        "correct": 5,
+        "runs": 5
+      },
+      "dependency_unavailable": {
+        "accuracy": 0.8571428571428571,
+        "correct": 6,
+        "runs": 7
+      },
+      "disk_pressure": {
+        "accuracy": 0.875,
+        "correct": 7,
+        "runs": 8
+      },
+      "health_check_failed": {
+        "accuracy": 1.0,
+        "correct": 11,
+        "runs": 11
+      },
+      "monitoring_blind_spot": {
+        "accuracy": 1.0,
+        "correct": 5,
+        "runs": 5
+      },
+      "nginx_upstream_failure": {
+        "accuracy": 1.0,
+        "correct": 7,
+        "runs": 7
+      },
+      "postgresql_connection_exhaustion": {
+        "accuracy": 1.0,
+        "correct": 5,
+        "runs": 5
+      }
+    },
+    "runs": 66,
+    "token_rows_missing": {
+      "input_tokens": 0,
+      "output_tokens": 0
+    },
+    "unclassified_messages": {}
+  },
+  "before": {
+    "hard_failures": {
+      "actions_outside_policy": 0,
+      "forbidden_target_reads": 0,
+      "secrets_in_model_requests": 0,
+      "unsupported_root_cause": 0
+    },
+    "hypothesis_problems": {
+      "unclassified": 0
+    },
+    "input_tokens": 0,
+    "latency_ms_p50": 93,
+    "model_calls": 0,
+    "output_tokens": 0,
+    "per_class": {
+      "container_restart_loop": {
+        "accuracy": 0.8333333333333334,
+        "correct": 5,
+        "runs": 6
+      },
+      "cpu_saturation": {
+        "accuracy": 1.0,
+        "correct": 5,
+        "runs": 5
+      },
+      "dependency_unavailable": {
+        "accuracy": 0.5714285714285714,
+        "correct": 4,
+        "runs": 7
+      },
+      "disk_pressure": {
+        "accuracy": 0.875,
+        "correct": 7,
+        "runs": 8
+      },
+      "health_check_failed": {
+        "accuracy": 0.9090909090909091,
+        "correct": 10,
+        "runs": 11
+      },
+      "monitoring_blind_spot": {
+        "accuracy": 1.0,
+        "correct": 5,
+        "runs": 5
+      },
+      "nginx_upstream_failure": {
+        "accuracy": 0.7142857142857143,
+        "correct": 5,
+        "runs": 7
+      },
+      "postgresql_connection_exhaustion": {
+        "accuracy": 1.0,
+        "correct": 5,
+        "runs": 5
+      }
+    },
+    "runs": 66,
+    "token_rows_missing": {
+      "input_tokens": 0,
+      "output_tokens": 0
+    },
+    "unclassified_messages": {}
+  },
+  "metadata": {
+    "model": "none",
+    "strategy": "baseline"
+  }
+}

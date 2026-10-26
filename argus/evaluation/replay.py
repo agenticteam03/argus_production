@@ -17,7 +17,7 @@ from argus.domain.model import (Incident, IncidentOutcome, IncidentStatus, Metri
                                 TriggerKind, utcnow)
 from argus.evaluation.cases import Case
 from argus.infrastructure.wiring import Settings, build, load_anomaly_inputs, read_signals
-from argus.ports.ports import StaleMetrics
+from argus.ports.ports import ProbeSample, StaleMetrics
 from argus.tooling.executors import ExecutorRegistry
 
 EXECUTORS = ("docker_read", "host_probe", "network_probe", "db_probe", "prometheus")
@@ -171,7 +171,10 @@ class CaseMetrics:
         return []
 
     def dependency_probes(self, target) -> dict:
-        return {}
+        raw = self.case.fixtures.get("argus_internal", {}).get("current_probes", {}).get(str(target), {})
+        return {dependency: ProbeSample(sample.get("success"), sample.get("duration_s"), utcnow(),
+                                        sample.get("error_kind"))
+                for dependency, sample in raw.items()}
 
 
 class RecordingLLM:
@@ -229,6 +232,7 @@ def run_case(case: Case, workdir: Path, llm: Any | None = None, settings: Settin
             if name != "evidence_pack":            # unsupported / undiagnosable keep the evidence pack
                 app.runner.strategies[name] = chosen
     seed_prior_incidents(app.store, case)
+    seed_link_history(app.store, case)
     app.store.create_incident(inc, None)
     t0 = time.monotonic()
     done = app.runner.run(inc.id)
@@ -294,6 +298,17 @@ def seed_prior_incidents(store: Any, case: Case) -> None:
             status=IncidentStatus.closed, outcome=IncidentOutcome(p.outcome), diagnosis=p.diagnosis,
             confidence=p.confidence, root_cause_target=p.root_cause, findings=list(p.findings),
             opened_at=p.closed_at - timedelta(minutes=5), closed_at=p.closed_at), None)
+
+
+def seed_link_history(store: Any, case: Case) -> None:
+    """T-0046 L6: replay reviewed internal link-history fixtures as rows in the throwaway evaluation store."""
+    from datetime import timedelta
+
+    now = utcnow()
+    for sample in case.fixtures.get("argus_internal", {}).get("link_history", []):
+        store.add_link_event(sample["owner"], sample["dependency"], sample["state"],
+                             sample.get("latency_ms"), sample.get("reason"),
+                             now - timedelta(seconds=int(sample["seconds_ago"])))
 
 
 def _drop_store(app: Any, db: Path) -> None:

@@ -1,0 +1,28 @@
+# T-0046 L6 / SC-08: nginx and its upstream run, but the recorded network link is broken.
+id: t0046-sc08-upstream-link-broken
+category: class
+target: vm-166/container:argus-lab-nginx
+request: report
+reason: proxy returns 502 while its upstream is running
+metrics:
+  vm-166/container:argus-lab-nginx:
+    http_gateway_error_ratio_5m: 1
+    restarts_10m: 0
+fixtures:
+  network_probe:
+    '*': {ok: true, duration_ms: 2, addresses: [172.30.1.20], status: 200}
+  argus_internal:
+    current_probes:
+      vm-166/container:argus-lab-nginx:
+        argus-lab-slow: {success: 0, duration_s: 0.02, error_kind: timeout}
+    link_history:
+    - {owner: vm-166/container:argus-lab-nginx, dependency: vm-166/container:argus-lab-slow, state: broken, seconds_ago: 20, reason: timeout}
+  docker_read:
+    /containers/argus-lab-nginx/status: {id: nginx, state: running, health: healthy, restart_count: 0, networks: [argus-lab-app]}
+    /containers/argus-lab-slow/status: {id: slow, state: running, health: healthy, restart_count: 0, networks: [argus-lab-app]}
+label:
+  outcome: diagnosed
+  class: nginx_upstream_failure
+  root_cause: vm-166/container:argus-lab-slow
+  diagnosis_any: [broken]
+  runbooks: [RB-015]
