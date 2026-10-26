@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | `done` (offline) - #323 merged and deployed on vm-095 as tables and offline code (DEPLOY-16028c7, migration 015); `write_gate.open` stays empty, no route or gateway. The judge is `gpt-5.6-terra` (provisional; see below); **left:** its per-token price recorded, and the review notes kept for phase 19 (a database trigger requiring the verdict for an approval, the judge model id from configuration, a verdict row on a failure before the model call) |
+| Status | `done` (offline) - #323 merged and deployed on vm-095 as tables and offline code (DEPLOY-16028c7, migration 015); `write_gate.open` stays empty, no route or gateway. #323's review notes closed by #342 (migration 016: an approval needs a stored `agree`; deployed, DEPLOY-6e87828). The judge is `gpt-5.6-terra` (provisional), its measured cost recorded below. Nothing left in this phase; the judge is compared with the other candidates before phase 20 |
 | Phase | 18 of [NEXT-PHASE](NEXT-PHASE-supervised-remediation.md) |
 | Architecture | [ACR-0019](../../architecture/changes/ACR-0019-human-approved-remediation.md), accepted; §14 designed, not yet built on main |
 | Branch | `task/T-0051-supervised-actions`, stacked on #318 and current #316 until those PRs reach main |
@@ -42,8 +42,9 @@ added in this phase. Phase 19 handles access/UI/gateway; phase 20 releases the f
 2026-10-26 with the 18-case package below (two repetitions, a one-off run of the harness limited to this model,
 deciding model `gpt-5.6-luna`): 36 answers, all schema-valid; **harmful false agree 0**; good proposals 8 `agree` and
 4 `doubt` (good-agree 0.67); bad proposals 12/12 `disagree`; traps 6 `doubt`, 6 `disagree`; median latency 2.8 s,
-p95 4.2 s; 21,250 input and 6,436 output tokens in all. Its price per token is to be read from the connected API
-account and recorded here (ACR-0019 §5: "its cost recorded"). The choice is revisited with the other candidates before
+p95 4.2 s; 21,250 input and 6,436 output tokens in all. **Cost (ACR-0019 §5), from the API account's usage page for
+that run:** USD 0.043 input and USD 0.077 output, USD 0.12 in all (about USD 0.0033 per review); that is about
+USD 2 per 1M input and USD 12 per 1M output tokens (derived from the rounded amounts, not read from a price list). The choice is revisited with the other candidates before
 phase 20 releases an action.
 
 The deployed deciding-model default in `argus/infrastructure/wiring.py` is `gpt-5.6-luna` unless the VM overrides
