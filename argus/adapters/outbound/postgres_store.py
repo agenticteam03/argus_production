@@ -603,6 +603,12 @@ class PostgresStore:
         """ACR-0018: every audit row in write order, for `argus audit verify`."""
         return [tuple(r) for r in self._q("SELECT audit_id, body, prev_hash, hash FROM audit ORDER BY seq")]
 
+    def audit_since(self, since: datetime, events: tuple[str, ...]) -> list[AuditRecord]:
+        """ACR-0018 §18: the audit rows of these events written after `since`, oldest first (the security alerts)."""
+        rows = self._q("SELECT body FROM audit WHERE at > %s AND body->>'event' = ANY(%s) ORDER BY at, seq",
+                       (since, list(events)))
+        return [AuditRecord.model_validate(r[0]) for r in rows]
+
     def list_for(self, incident_id: str) -> list[AuditRecord]:
         rows = self._q("SELECT body FROM audit WHERE incident_id = %s ORDER BY at", (incident_id,))
         return [AuditRecord.model_validate(r[0]) for r in rows]

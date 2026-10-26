@@ -4,7 +4,8 @@ One Argus-owned Alertmanager per host, URL from the inventory (`hosts.<name>.ale
 the active alerts that are neither silenced nor inhibited (what intake submits); `active_alerts` reads every active
 alert, silenced and inhibited included, so that only an alert that really stopped counts as resolved (ACR-0005). An
 alert is returned only when its `argus_host` label is the host
-asked: another host's alert is dropped and logged, never reassigned (no cross-host fallback, §3.2).
+asked: another host's alert is dropped and logged, never reassigned (no cross-host fallback, §3.2). Argus's own security
+alerts (`argus_security="true"`, ACR-0018 §18) go to the team, never to intake: they are skipped silently.
 """
 from __future__ import annotations
 
@@ -49,6 +50,8 @@ class AlertmanagerSource:
         out = []
         for it in items:
             labels = {str(k): str(v) for k, v in (it.get("labels") or {}).items()}
+            if labels.get("argus_security") == "true":
+                continue
             if labels.get("argus_host") != host:
                 log.warning("dropped alert %s from %s's Alertmanager: argus_host=%r", labels.get("alertname"), host,
                             labels.get("argus_host"))

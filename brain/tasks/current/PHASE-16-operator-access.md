@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | `in progress` - steps 1-5 merged and deployed on vm-095 (step 5d 2026-10-26: the audit digest ships daily to OCI, first run checked 5/5). Exit proof: the authorization matrix and the public-404 tests are green in CI and the public edge answers 404 for `/api/v1/ops/` live; the tamper drill passed on vm-095 (step 6, 2026-10-26: an edited audit row named by `argus audit verify` and the scheduled check, then restored); **left:** the scheduler's outbound allowlist and the team's alert receiver |
+| Status | `in progress` - steps 1-5 merged and deployed on vm-095 (step 5d 2026-10-26: the audit digest ships daily to OCI, first run checked 5/5). Exit proof: the authorization matrix and the public-404 tests are green in CI and the public edge answers 404 for `/api/v1/ops/` live; the tamper drill passed on vm-095 (step 6, 2026-10-26: an edited audit row named by `argus audit verify` and the scheduled check, then restored); **left:** the deploy of the security alerts and the egress proxy (`task/PHASE-16-egress-and-alerts`, built: the team's route is a Telegram group; needs the bot token and chat id on vm-095) |
 | Phase | 16 of [NEXT-PHASE](NEXT-PHASE-supervised-remediation.md) ([`../../IMPLEMENTATION_PLAN.md`](../../IMPLEMENTATION_PLAN.md)) |
 | Architecture | [ACR-0018](../../architecture/changes/ACR-0018-operator-access-and-audit.md) (`accepted`, #209); each step applies only what it builds (its §6) |
 | Branch | one per step: `task/PHASE-16-step-<n>-<slug>` |
@@ -105,7 +105,10 @@ step-up bound to a test object, with the binding to approvals added in phase 17.
   `policies/NETWORK.md` and `argus audit check-digests`. **5d done (2026-10-26, [evidence](../../execution/history/PHASE-16/step-05d-first-run/evidence.md)):**
   deployed (DEPLOY-01db0d7), the sink set in `hosts.env`, a first checked run shipped five digests (2026-10-21 to
   2026-10-25; each stored SHA-256 equals the chain's signed digest, signatures and series verified), the schedule on. **Follow-up:** the scheduler currently shares an unfiltered bridge; enforce and test an outbound
-  allowlist or proxy for OCI before claiming OCI-only egress.
+  allowlist or proxy for OCI before claiming OCI-only egress. **Built (`task/PHASE-16-egress-and-alerts`, ARCHITECTURE
+  1.8.37):** the scheduler on the internal `argus-v18-sched` network, `argus-v18-egress` (tinyproxy: CONNECT :443 to OCI
+  Object Storage and the Telegram Bot API only) its one way out; the security events posted to vm-095's Alertmanager
+  (`security_alerts`) and routed to the team's Telegram group (decided by conantkd on 2026-10-26).
 - The daily digest: the hash of each day's last chained audit row, signed (the audit digest key, §17.2) and shipped;
   the scheduler's chain check (built in step 1) raises the alert on `security.audit_chain_broken`, on lockouts and on
   refused privileged requests.

@@ -1,5 +1,10 @@
 services:
-  argus-v18-prometheus: {networks: [argus-v18-mon, argus-v18-core]}
-  argus-v18-alertmanager: {networks: [argus-v18-mon, argus-v18-core]}   # T-0022: vm-095, read by the scheduler
+  argus-v18-prometheus: {networks: [argus-v18-mon, argus-v18-core, argus-v18-sched]}
+  argus-v18-alertmanager:                # T-0022: vm-095, read by the scheduler
+    networks: [argus-v18-mon, argus-v18-core, argus-v18-sched]
+    volumes:                             # ACR-0018 §18: vm-095's route for security events to the team (Telegram)
+      - ./alertmanager-vm-095.yml:/etc/alertmanager/alertmanager.yml:ro
+      - /opt/argus-v18/secrets/alertmanager:/etc/alertmanager/secrets:ro   # bot token, chat id (owner nobody, 400)
 networks:
   argus-v18-core: {external: true, name: argus-v18-core}
+  argus-v18-sched: {external: true, name: argus-v18-sched}   # ACR-0018 §18: the scheduler's internal network

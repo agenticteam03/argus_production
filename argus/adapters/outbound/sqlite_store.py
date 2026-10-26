@@ -901,6 +901,13 @@ class SqliteStore:
         return [(a, json.loads(b), p, h) for a, b, p, h in
                 self._q("SELECT audit_id, body, prev_hash, hash FROM audit ORDER BY rowid")]
 
+    def audit_since(self, since: datetime, events: tuple[str, ...]) -> list[AuditRecord]:
+        """ACR-0018 §18: the audit rows of these events written after `since`, oldest first (the security alerts)."""
+        marks = ",".join("?" * len(events))
+        rows = self._q(f"SELECT body FROM audit WHERE at > ? AND json_extract(body, '$.event') IN ({marks}) "
+                       "ORDER BY at, rowid", (since.isoformat(), *events))
+        return [AuditRecord.model_validate_json(r[0]) for r in rows]
+
     def list_for(self, incident_id: str) -> list[AuditRecord]:
         rows = self._q("SELECT body FROM audit WHERE incident_id=? ORDER BY at", (incident_id,))
         return [AuditRecord.model_validate_json(r[0]) for r in rows]
