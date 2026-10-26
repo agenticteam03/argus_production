@@ -40,8 +40,8 @@ WEB_DB, WEB_CACHE, API_QUEUE = ("h1/container:web", "h1/container:db"), ("h1/con
     ("h2/container:api", "h2/container:queue")
 
 
-def sample(success, duration=0.01, kind=None):
-    return ProbeSample(success, duration, T0, kind)
+def sample(success, duration=0.01, kind=None, at=T0):
+    return ProbeSample(success, duration, at, kind)
 
 
 class Metrics:
@@ -57,6 +57,16 @@ class Metrics:
         if target.host in self.stale:
             raise StaleMetrics("no fresh samples")
         return self.probes.get(str(target), {})
+
+    def dependency_probe_history(self, target, start, end):
+        self.reads.append(str(target))
+        if target.host in self.down:
+            raise MetricsUnavailable(f"prometheus for {target.host}")
+        if target.host in self.stale:
+            raise StaleMetrics("no fresh samples")
+        return {name: [sample for sample in (probe if isinstance(probe, list) else [probe])
+                       if start < sample.at <= end]
+                for name, probe in self.probes.get(str(target), {}).items()}
 
 
 class Store(SqliteStore):
@@ -99,11 +109,14 @@ def test_the_first_tick_records_every_link_once(store):
 
 
 def test_no_row_while_nothing_changes(store):
-    rec, clock = recorder(store, Metrics(healthy()))
+    m = Metrics(healthy())
+    rec, clock = recorder(store, m)
     rec.run_once()
     before = len(rows(store)) + len(rows(store, "h2/container:api"))
     for i in range(5):
         clock["now"] = T0 + timedelta(minutes=i + 1)
+        for owner, probes in m.probes.items():
+            m.probes[owner] = {name: probe._replace(at=clock["now"]) for name, probe in probes.items()}
         assert rec.run_once().startswith("0 link change(s)")
     assert len(rows(store)) + len(rows(store, "h2/container:api")) == before
 
@@ -112,10 +125,10 @@ def test_one_row_per_change_audited_with_both_states(store):
     m = Metrics(healthy())
     rec, clock = recorder(store, m)
     rec.run_once()
-    m.probes["h1/container:web"]["db"] = sample(0, kind="refused")
+    m.probes["h1/container:web"]["db"] = sample(0, kind="refused", at=T0 + timedelta(minutes=1))
     clock["now"] = T0 + timedelta(minutes=1)
     rec.run_once()
-    m.probes["h1/container:web"]["db"] = sample(1, duration=0.2)       # 200 ms > 100 ms: slow
+    m.probes["h1/container:web"]["db"] = sample(1, duration=0.2, at=T0 + timedelta(minutes=2))
     clock["now"] = T0 + timedelta(minutes=2)
     rec.run_once()
     db = [r for r in store.link_events("h1/container:db", T0 - timedelta(1), T0 + timedelta(1))]
@@ -157,12 +170,18 @@ def test_a_prometheus_failure_skips_that_host_for_the_tick_only(store):
     m.down.add("h1")
     m.probes["h2/container:api"]["queue"] = sample(0, kind="timeout")
     clock["now"] = T0 + timedelta(minutes=1)
+    m.probes["h2/container:api"]["queue"] = m.probes["h2/container:api"]["queue"]._replace(at=clock["now"])
     summary = rec.run_once()
     assert "skipped (Prometheus unreadable): h1" in summary
     assert [r[2] for r in rows(store) if r[1] == "h1/container:db"] == ["ok"]           # no `unknown` burst
     assert [r[2] for r in rows(store, "h2/container:api")] == ["ok", "broken"]          # the other host goes on
     m.down.clear()
     clock["now"] = T0 + timedelta(minutes=2)
+    recovered = {}
+    for name, probe in m.probes["h1/container:web"].items():
+        recovered[name] = [probe._replace(at=T0 + timedelta(seconds=seconds))
+                           for seconds in range(15, 121, 15)]
+    m.probes["h1/container:web"] = recovered
     rec.run_once()
     assert [r[2] for r in rows(store) if r[1] == "h1/container:db"] == ["ok"]           # and no recovery burst
 
@@ -176,12 +195,12 @@ def test_a_host_dependency_is_never_probed_or_recorded(store):
     assert rows(store, "h1/container:filler") == []
 
 
-def test_a_restarted_scheduler_records_the_current_state_once(store):
+def test_a_restarted_scheduler_does_not_replay_the_last_sample(store):
     rec, _ = recorder(store, Metrics(healthy()))
     rec.run_once()
     again, _ = recorder(store, Metrics(healthy()))
     again.run_once()
-    assert [r[2] for r in rows(store) if r[1] == "h1/container:db"] == ["ok", "ok"]     # "once at startup"
+    assert [r[2] for r in rows(store) if r[1] == "h1/container:db"] == ["ok"]
 
 
 # --- configuration and the scheduler loop ---------------------------------------------------------------------------

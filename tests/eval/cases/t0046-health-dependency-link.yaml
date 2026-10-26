@@ -1,0 +1,29 @@
+# T-0046 L6: the API health check fails while its dependency link history shows a cache outage.
+id: t0046-health-dependency-link
+category: class
+target: vm-166/container:argus-lab-api
+request: report
+reason: API health check is failing
+metrics:
+  vm-166/container:argus-lab-api:
+    health_unhealthy: 1
+    restarts_10m: 0
+fixtures:
+  network_probe:
+    '*': {ok: true, duration_ms: 2, addresses: [172.30.1.20], status: 200}
+  argus_internal:
+    current_probes:
+      vm-166/container:argus-lab-api:
+        argus-lab-cache: {success: 0, duration_s: 0.02, error_kind: timeout}
+    link_history:
+    - {owner: vm-166/container:argus-lab-api, dependency: vm-166/container:argus-lab-cache, state: broken, seconds_ago: 20, reason: timeout}
+  docker_read:
+    /containers/argus-lab-api/health: {status: unhealthy, failing_streak: 4, log: []}
+    /containers/argus-lab-api/status: {id: api, state: running, health: unhealthy, restart_count: 0, networks: [argus-lab-app]}
+    /containers/argus-lab-cache/status: {id: cache, state: running, health: none, restart_count: 0, networks: [argus-lab-app]}
+label:
+  outcome: diagnosed
+  class: health_check_failed
+  root_cause: vm-166/container:argus-lab-cache
+  diagnosis_any: [health, link, broken, cache]
+  runbooks: [RB-002]

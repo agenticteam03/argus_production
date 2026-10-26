@@ -133,6 +133,30 @@ def test_link_events_migration_009(runtime_dsn, store):
             c.execute("INSERT INTO link_event (owner, dependency, state, at) VALUES ('a', 'b', 'down', now())")
 
 
+def test_link_probe_cursor_migration_014(runtime_dsn, store):
+    """T-0046: cursor advances atomically with a transition and allows only monotonic sample-time updates."""
+    import psycopg
+    from argus.domain.model import utcnow
+    owner, dependency = "vm-166/container:cursor-owner", "vm-166/container:cursor-dependency"
+    at = utcnow()
+    assert store.record_link_probe(owner, dependency, "ok", 2.0, None, at) is True
+    assert store.record_link_probe(owner, dependency, "ok", 2.0, None, at + timedelta(seconds=15)) is False
+    assert store.record_link_probe(owner, dependency, "broken", None, "timeout", at + timedelta(seconds=30)) is True
+    cursor = store.link_probe_cursors(owner)[dependency]
+    assert cursor == {"state": "broken", "at": at + timedelta(seconds=30)}
+    events = store.link_events(dependency, at - timedelta(seconds=1), at + timedelta(minutes=1))
+    assert [event["state"] for event in events] == ["ok", "broken"]
+    assert [event for event in store.audit_chain() if event[1].get("event") == "link.changed"][-1][1]["at"] == \
+        (at + timedelta(seconds=30)).isoformat().replace("+00:00", "Z")
+    with psycopg.connect(runtime_dsn, autocommit=True) as c:
+        with pytest.raises(psycopg.Error, match="permission denied"):
+            c.execute("UPDATE link_probe_cursor SET owner='changed' WHERE owner=%s", (owner,))
+        with pytest.raises(psycopg.Error, match="cannot move backwards"):
+            c.execute("UPDATE link_probe_cursor SET at=at - interval '1 second' WHERE owner=%s", (owner,))
+        with pytest.raises(psycopg.Error, match="permission denied"):
+            c.execute("DELETE FROM link_probe_cursor WHERE owner=%s", (owner,))
+
+
 def test_hypotheses_migration_012(runtime_dsn, store):
     """ACR-0024 §3.5 (T-0047 H2): one row per hypothesis per decision step, read by step then rank; insert-only for
     the runtime role; an id, relation or status outside the vocabulary is refused by the table itself."""

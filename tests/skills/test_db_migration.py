@@ -79,7 +79,8 @@ def problems(root: Path, migration=WIDGET) -> list[str]:
 
 @pytest.mark.parametrize("migration", ["007_incident_parent.sql", "008_deploy_event.sql", "009_link_event.sql",
                                        "010_session_login.sql", "011_audit_chain.sql",
-                                       "012_incident_hypothesis.sql"])
+                                       "012_incident_hypothesis.sql", "013_webauthn.sql",
+                                       "014_link_probe_cursor.sql"])
 def test_the_committed_migrations_of_the_current_pattern_pass(migration):
     assert cm.check(ROOT, migration) == []
 

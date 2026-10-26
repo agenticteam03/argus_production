@@ -1,0 +1,33 @@
+# T-0046 L6 / SC-07: the client and backend run, while the recorded client-to-backend link is broken.
+id: t0046-sc07-live-backend-link
+category: class
+target: vm-166/container:argus-lab-client
+request: report
+reason: client requests fail despite a running backend
+metrics:
+  vm-166/container:argus-lab-client:
+    dependency_probe_min: 0
+    restarts_10m: 0
+fixtures:
+  network_probe:
+    '*': {ok: true, duration_ms: 2, addresses: [172.30.1.20], status: 200}
+  argus_internal:
+    current_probes:
+      vm-166/container:argus-lab-client:
+        argus-lab-backend: {success: 0, duration_s: 0.02, error_kind: refused}
+    link_history:
+    - {owner: vm-166/container:argus-lab-client, dependency: vm-166/container:argus-lab-backend, state: ok, seconds_ago: 90}
+    - {owner: vm-166/container:argus-lab-client, dependency: vm-166/container:argus-lab-backend, state: broken, seconds_ago: 20, reason: connection refused}
+  docker_read:
+    /connectivity?from=argus-lab-client&to=argus-lab-backend:
+      from: {name: argus-lab-client, running: true, networks: [argus-lab-app]}
+      to: {name: argus-lab-backend, running: true, networks: [argus-lab-app]}
+      shared: [argus-lab-app]
+    /containers/argus-lab-client/status: {id: client, state: running, health: healthy, restart_count: 0, networks: [argus-lab-app]}
+    /containers/argus-lab-backend/status: {id: backend, state: running, health: healthy, restart_count: 0, networks: [argus-lab-app]}
+label:
+  outcome: diagnosed
+  class: dependency_unavailable
+  root_cause: vm-166/container:argus-lab-backend
+  diagnosis_any: [link, broken, backend]
+  runbooks: [RB-003]

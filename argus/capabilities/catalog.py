@@ -1173,7 +1173,7 @@ def build_catalog() -> list[CapabilitySpec]:
                        "latency and the failure kind.",
                        "a dependency may have failed or slowed: when each link broke or recovered, before or after "
                        "the errors", HistoryArgs, C, 2, "READ_ONLY_SAFE", frozenset({"link_states"}),
-                       "argus_internal", link_states, runs_in="worker"),   # T-0046 L4: offered to no class yet (L6)
+                       "argus_internal", link_states, runs_in="worker"),   # T-0046 L4; offered since L6
         CapabilitySpec("database.health", "inspect_database_health",
                        "PostgreSQL health read on the target host with a monitoring role: connection slots used vs "
                        "usable, connections by state and by client (application/role), the longest open transactions "

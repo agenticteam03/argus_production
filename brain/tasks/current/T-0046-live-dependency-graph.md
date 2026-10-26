@@ -2,21 +2,23 @@
 
 | Field | Value |
 |---|---|
-| Status | `in progress` — [ACR-0025](../../architecture/changes/ACR-0025-live-dependency-graph.md) accepted (#214); L1 merged (#219), L2 merged (#220), L3 merged (#226), L4 merged (#227), its restart follow-up merged (#231); deployed on vm-095 at `a4479df` (DEPLOY-A4479DF); L5: `link_states` on (#234) and deployed on vm-095 at `2324186` ([evidence](../../execution/history/T-0046-L5/step-01/evidence.md)); SC-03 / SC-07 PASS with link recording on ([evidence](../../execution/history/T-0046-L5/step-02/evidence.md)); before L6: the row's time is the recorder's, not the sample's, and a fault shorter than the 60 s tick is missed |
+| Status | `in progress` — L1–L4 and the first L5 deployment are complete as recorded below; the remaining L5 temporal-history correction and L6 are in [PR #322](https://github.com/agenticteam03/argus_production/pull/322). Red regression observed: `ok → broken → ok` within one 60 s tick lost the intermediate state, and restart recovery needs a durable source-sample cursor. Current local state: implementation, migration 014, five L6 replay cases and ACR-0031; review fixes of 2026-10-25 applied. Paired baseline evaluation on the branch: control without the offer 57/66, treatment 62/66, hard checks 0 in both (`execution/history/T-0046-l6/step-02/`); the model arm is not measured. Full local suite has 15 Bash-backed failures because the Windows WSL launcher cannot execute `/bin/bash`. GitHub CI test (including Postgres) and frontend jobs pass on `26aeb79`; pre-deploy probes on both VMs report `LAB BASELINE OK` and `NO INTERFERENCE`. Deployment remains pending review/merge. |
 | Phase | next phase, area B (separate track of [NEXT-PHASE](NEXT-PHASE-supervised-remediation.md)) |
-| Architecture | ACR-0025 (`accepted`, applied in 1.8.24 by L1) |
-| Branch | one branch per step: `task/T-0046-l<n>-<slug>` |
-| Owner | `juanbetancurm` (+ agent); review `conantkd` |
-| Needs the VM lease | L5 only (deploy on vm-095) |
+| Architecture | ACR-0025 (`accepted`, applied in 1.8.24 by L1); [ACR-0031](../../architecture/changes/ACR-0031-replay-link-probe-history.md) accepted and applied in 1.8.36 in this PR |
+| Branch | `task/T-0046-l6-sample-history` (one PR across the remaining L5 temporal correction and L6, per developer direction) |
+| Task owner | `juanbetancurm`; implementation branch author `conantkd` (+ agent); review required from `juanbetancurm` |
+| Needs the VM lease | L5 deployment and SC-03/SC-07 verification (both leases; the agent on vm-095 changes) |
 
 ## Goal (plain language)
 
 The map already shows whether each connection works *right now*. This task makes Argus **remember** when a connection
 broke and came back, show it on the incident charts ("link to the cache broke 40 s before the API's errors"), and let
 the investigation read it as evidence. No new traffic to the monitored hosts: it reuses the probe the exporter already
-runs on every scrape.
+runs on every scrape. The recorder reads the retained sample history by source timestamp and resumes from a per-link
+cursor after restarts or temporary Prometheus outages. The cursor lives in Argus Postgres on vm-095; vm-166 remains the
+Prometheus sample source.
 
-## Steps (each a PR, red tests first)
+## Steps (completed phases remain historical; the remaining L5 correction and L6 ship in one PR)
 
 ### L1 — The link-state rules in one place, and the inventory mapping
 - `application/links.py`: the state of one link from a probe sample (`ok` / `slow` / `broken` / `unknown`), moved out of
@@ -57,12 +59,40 @@ runs on every scrape.
 ### L5 — Deploy and measure (vm-095 lease)
 - `db-migrate.sh` (the new migration), the new image, `link_states.enabled: true`; `nonint-check` before and after.
 - Run SC-03 and SC-07 once each: the transitions are recorded with the right order against the errors.
+- **Temporal correction in the remaining L5 work:** `MetricsPort` reads bounded four-hour range history at source
+  scrape timestamps; migration 014 persists each link's source-sample cursor; an event, chained audit row and cursor
+  update commit atomically. On a Prometheus outage the cursor does not move; once it returns, retained samples replay.
+  If the cursor is older than the four-hour window, the gap is made explicit with `unknown` before replaying newer
+  samples. Migration and application deployment are on vm-095; vm-166's Prometheus remains unchanged.
+- **Validation:** test a transition sequence within one scheduler interval, interruption/restart, Prometheus down/up,
+  an over-window cursor, PostgreSQL permissions and `argus db check`; run the full evaluation before and after.
 
 ### L6 — Offer `network.link_states` to its classes
 - Add the `link_states` tag to `dependency_unavailable`, `health_check_failed`, `nginx_upstream_failure`
   (`argus/detectors/classes.py`: a teammate reviews it, OP-014 step 8; never a self-merge); at least five evaluation
   cases that need it
-  (SC-03, SC-07, SC-08 variants); a full evaluation run before and after; accuracy not lower, hard checks at 0.
+  (SC-03, SC-07, health-check dependency failure, and SC-08 broken/slow upstream); deterministic baselines read and
+  consume the evidence. Full evaluation before and after; accuracy not lower, hard checks at 0.
+- **As measured (2026-10-25):** baseline only. Each of the five cases fails without the offer (`test_t0046_l6_eval.py`):
+  SC-03, SC-07 and the health case on the root cause, the SC-08 cases on the mechanism. Control 57/66, treatment 62/66.
+  The `model_loop` arm for `health_check_failed` needs the replay's `now` pinned and is not measured.
+
+## Current handoff
+
+- Red observed before the history implementation: three regression checks failed for dropped intermediate transitions,
+  restart replay and the missing durable cursor table.
+- The focused suite includes the Prometheus source-timestamp adapter, four-hour bound, store invariants, both staleness
+  boundaries, a silent exporter and the five baseline replay cases with their control arm. The paired 66-case baseline
+  evaluation (control 57, treatment 62) is stored in `execution/history/T-0046-l6/step-02/`; hard checks remained zero.
+  Four unrelated existing failures appear in both arms.
+- Full offline pytest completed; all 15 failures are Bash-backed tests blocked by the WSL launcher (`/bin/bash` missing).
+  PostgreSQL runtime test passes in GitHub CI; locally it is unavailable because Docker is not running.
+- Read-only pre-deployment probes ran on both VMs: vm-095 is at `c8d8594`, vm-166 at `bdcd048`; both report
+  `LAB BASELINE OK` and `NO INTERFERENCE`. No application deploy or migration ran because PR #322 is unmerged. The
+  sanitized evidence and commands are archived under `execution/history/T-0046-l6/step-01/`.
+- PR #322 is open; its first CI run found a UTC JSON timestamp formatting mismatch in the Postgres test, corrected in
+  `26aeb79` (`+00:00` normalizes to `Z`). Latest test and frontend jobs pass; wait for `juanbetancurm` review. The author
+  must not self-approve or merge.
 
 ## Out of scope
 

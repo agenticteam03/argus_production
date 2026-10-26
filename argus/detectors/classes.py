@@ -144,12 +144,13 @@ CLASSES: list[IncidentClassSpec] = [
     IncidentClassSpec(name="dependency_unavailable", family="dependency", target_kinds={"container"},
                       required_signals={"dependency_probe_min"}, runbook_ids=["RB-003"],
                       branch_runbook_ids=["RB-004", "RB-009"], strategy="baseline",   # D-003 (§21.2)
-                      tool_tags={"dependency", "network", "logs", "container", "availability", "knowledge", "connectivity"},
+                      tool_tags={"dependency", "network", "logs", "container", "availability", "knowledge", "connectivity",
+                                 "link_states"},
                       detector=dependency_unavailable),
     IncidentClassSpec(name="health_check_failed", family="availability", target_kinds={"container"},
                       required_signals={"health_unhealthy"}, runbook_ids=["RB-002"],
                       branch_runbook_ids=["RB-003"], strategy="model_loop",
-                      tool_tags={"availability", "logs", "dependency", "network", "container", "knowledge"},
+                      tool_tags={"availability", "logs", "dependency", "network", "container", "knowledge", "link_states"},
                       detector=health_check_failed),
     IncidentClassSpec(name="postgresql_connection_exhaustion", family="database", target_kinds={"container"},
                       required_signals={"db_connection_usage", "db_up"}, runbook_ids=["RB-004"],
@@ -159,7 +160,8 @@ CLASSES: list[IncidentClassSpec] = [
     IncidentClassSpec(name="nginx_upstream_failure", family="availability", target_kinds={"container"},
                       required_signals={"http_gateway_error_ratio_5m"}, runbook_ids=["RB-015"],
                       branch_runbook_ids=["RB-002", "RB-003"], strategy="baseline",   # D-003 (§21.2)
-                      tool_tags={"availability", "network", "dependency", "logs", "container", "knowledge", "config"},
+                      tool_tags={"availability", "network", "dependency", "logs", "container", "knowledge", "config",
+                                 "link_states"},
                       detector=nginx_upstream_failure),
 
 
