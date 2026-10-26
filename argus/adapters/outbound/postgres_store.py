@@ -819,7 +819,8 @@ CHECKS_SQL: list[tuple[str, str, bool]] = [
     ("action proposal is insert-only (DELETE refused)",
      "DELETE FROM action_proposal WHERE proposal_id = 'prop_dbcheck'", False),
     ("insert judge verdict (migration 014)", "INSERT INTO judge_verdict (proposal_id, model_id, verdict, body, "
-                                              "reviewed_at) VALUES ('prop_dbcheck','gpt-5.6-terra','agree','{}',now())", True),
+                                              "reviewed_at) VALUES ('prop_dbcheck','gpt-5.6-terra','agree', "
+                                              "jsonb_build_object('proposal_digest', repeat('a',64)), now())", True),
     ("judge verdict is insert-only (UPDATE refused)",
      "UPDATE judge_verdict SET verdict = 'doubt' WHERE proposal_id = 'prop_dbcheck'", False),
     ("judge verdict is insert-only (DELETE refused)",
@@ -827,6 +828,13 @@ CHECKS_SQL: list[tuple[str, str, bool]] = [
     ("insert approval (migration 014)", "INSERT INTO approval (approval_id, proposal_id, proposal_digest, "
                                        "state, requested_at, expires_at) VALUES ('appr_dbcheck', 'prop_dbcheck', "
                                        "repeat('a',64), 'pending', now(), now() + interval '30 minutes')", True),
+    ("insert a second action proposal (migration 016's check)",
+     "INSERT INTO action_proposal (proposal_id, incident_id, capability, target, digest, body, created_at, expires_at) "
+     "VALUES ('prop_dbcheck2', 'inc_dbcheck', 'container.start', 'vm-166/container:argus-lab-cache', repeat('b',64), "
+     "'{}', now(), now() + interval '30 minutes')", True),
+    ("an approval without the judge's agree is refused (migration 016)",
+     "INSERT INTO approval (approval_id, proposal_id, proposal_digest, state, requested_at, expires_at) VALUES "
+     "('appr_dbcheck2', 'prop_dbcheck2', repeat('b',64), 'pending', now(), now() + interval '30 minutes')", False),
     ("insert notification outbox (migration 014)",
      "INSERT INTO notification_outbox (key, channel, payload, next_attempt_at) "
      "VALUES ('appr_dbcheck', 'recording', '{}', now())", True),

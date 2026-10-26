@@ -201,6 +201,7 @@ def test_sqlite_proposal_and_approval_survive_reopen_and_answer_once(tmp_path):
     proposal = freeze_proposal(candidate(), at=NOW)
     store = SqliteStore(path)
     store.add_action_proposal(proposal)
+    agreed(store, proposal, NOW)
     store.add_action_approval("appr_test", proposal.id, proposal.digest, NOW, proposal.expires_at)
     store._db.close()
     reopened = SqliteStore(path)
@@ -458,6 +459,8 @@ def _approved_without_verdict(tmp_path, verdict=None, target=TARGET):
         proposal = proposal.model_copy(update={"input": data, "digest": _proposal_digest(
             data, proposal.created_at, proposal.expires_at)})
     store.add_action_proposal(proposal)
+    store._db.execute("DROP TRIGGER approval_needs_agree")   # the executor's own check, without the store's
+    store._db.execute("DROP TRIGGER approval_approved_needs_agree")
     if verdict:
         body = {**asdict(JudgeResult.agree(proposal.digest)), "reasons": [], "verdict": verdict}
         store.add_judge_verdict(proposal.id, "judge-test", body, NOW)
@@ -510,6 +513,7 @@ def test_answer_fails_closed_without_a_stored_verdict(tmp_path):
     try:
         proposal = freeze_proposal(candidate(), at=NOW)
         store.add_action_proposal(proposal)
+        store._db.execute("DROP TRIGGER approval_needs_agree")   # answer's own check, without the store's
         store.add_action_approval("appr_a", proposal.id, proposal.digest, NOW, proposal.expires_at)
         path = OfflineActionPath(
             rows=store, action_policy=None, inventory=None, proposer=None, judge_model=None, judge_model_id="none",
@@ -519,5 +523,85 @@ def test_answer_fails_closed_without_a_stored_verdict(tmp_path):
             path.answer("appr_a", digest=proposal.digest, principal="operator", principal_kind="human",
                         decision="approved")
         assert store.get_action_approval("appr_a")["state"] == "pending"
+    finally:
+        store._db.close()
+
+
+def _bare_path(store, **changes):
+    args = dict(rows=store, action_policy=None, inventory=None, proposer=None, judge_model=lambda _: {},
+                judge_model_id="judge-test", judge_context=lambda _: JUDGE_CONTEXT, snapshot=None, sample=None,
+                gateway=FakeActionGateway(), gate_open=frozenset(), daily_host_cap=1, clock=lambda: NOW)
+    return OfflineActionPath(**{**args, **changes})
+
+
+def test_a_review_that_cannot_start_stores_a_doubt_and_never_requests(tmp_path):
+    from argus.adapters.outbound.sqlite_store import SqliteStore
+
+    store = SqliteStore(str(tmp_path / "start.db"))
+    try:
+        proposal = freeze_proposal(candidate(), at=NOW)
+        store.add_action_proposal(proposal)
+
+        def broken_context(_):
+            raise KeyError("evidence extract unavailable")
+
+        path = _bare_path(store, judge_context=broken_context)
+        with pytest.raises(KeyError):
+            path.judge(proposal.id)
+        stored = store.get_judge_verdict(proposal.id)
+        assert stored["verdict"] == "doubt" and stored["risk"] == "red"
+        assert stored["proposal_digest"] == proposal.digest and "KeyError" in stored["reasons"][0]
+        assert path.request(proposal.id) is None
+        assert store.get_evidence(["ev_judge_" + proposal.id])[0].values["verdict"] == "doubt"
+    finally:
+        store._db.close()
+
+
+def test_the_stored_judge_model_id_is_the_model_the_adapter_calls(tmp_path):
+    from argus.adapters.outbound.sqlite_store import SqliteStore
+
+    client = SimpleNamespace(responses=SimpleNamespace(create=lambda **_: None))
+    judge = OpenAIJudge("", "gpt-5.6-terra", deciding_model="gpt-5.6-luna", client=client)
+    store = SqliteStore(str(tmp_path / "id.db"))
+    try:
+        with pytest.raises(ValueError, match="model the judge calls"):
+            _bare_path(store, judge_model=judge, judge_model_id="gpt-6-astra")
+        assert _bare_path(store, judge_model=judge, judge_model_id="gpt-5.6-terra")
+    finally:
+        store._db.close()
+
+
+@pytest.mark.parametrize("verdict", [None, "doubt", "disagree", "agree-other-digest"])
+def test_the_store_refuses_an_approval_without_the_judges_agree(tmp_path, verdict):
+    from argus.adapters.outbound.sqlite_store import SqliteStore
+
+    store = SqliteStore(str(tmp_path / "need-agree.db"))
+    try:
+        proposal = freeze_proposal(candidate(), at=NOW)
+        store.add_action_proposal(proposal)
+        if verdict:
+            body = {**asdict(JudgeResult.agree(proposal.digest)), "reasons": []}
+            if verdict == "agree-other-digest":
+                body["proposal_digest"] = "b" * 64
+            else:
+                body["verdict"] = verdict
+            store.add_judge_verdict(proposal.id, "judge-test", body, NOW)
+        with pytest.raises(Exception, match="judge"):
+            store.add_action_approval("appr_x", proposal.id, proposal.digest, NOW, proposal.expires_at)
+        assert store.get_action_approval("appr_x") is None
+    finally:
+        store._db.close()
+
+
+def test_the_store_accepts_an_approval_after_the_judges_agree(tmp_path):
+    from argus.adapters.outbound.sqlite_store import SqliteStore
+
+    store = SqliteStore(str(tmp_path / "agree.db"))
+    try:
+        proposal = freeze_proposal(candidate(), at=NOW)
+        store.add_action_proposal(proposal)
+        agreed(store, proposal, NOW)
+        store.add_action_approval("appr_ok", proposal.id, proposal.digest, NOW, proposal.expires_at)
+        assert store.answer_action_approval("appr_ok", proposal.digest, "operator", "approved", NOW)
     finally:
         store._db.close()

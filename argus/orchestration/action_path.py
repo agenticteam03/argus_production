@@ -28,6 +28,9 @@ class OfflineActionPath:
                  clock: Callable[[], datetime] = lambda: datetime.now(timezone.utc)):
         if not isinstance(gateway, FakeActionGateway):
             raise ValueError("Phase 18 action path accepts only the fake gateway")
+        called = getattr(judge_model, "model", None)       # an adapter knows the model it calls; the stored id is it
+        if called is not None and called != judge_model_id:
+            raise ValueError("judge_model_id must name the model the judge calls")
         self.rows, self.action_policy, self.inventory = rows, action_policy, inventory
         self.proposer, self.judge_model, self.judge_model_id = proposer, judge_model, judge_model_id
         self.judge_context, self.snapshot, self.sample, self.clock = judge_context, snapshot, sample, clock
@@ -82,15 +85,27 @@ class OfflineActionPath:
                 "verdict", "checks", "reasons", "risk", "proposal_digest")})
         proposal = self.rows.get_action_proposal(proposal_id)
         verify_frozen_proposal(proposal)
-        context = self.judge_context(proposal)
-        info = self.inventory.target(TargetRef.parse(proposal.input.target))
-        service = info.service_card() if info is not None else None
-        if service is None:
-            raise RemediationRefused("reviewed service card is unavailable")
-        base = self.action_policy.risk_table.lookup(proposal.input.capability, service.kind)
-        if base == RiskColor.forbidden:
-            raise RemediationRefused("reviewed risk table forbids the action")
-        initial_risk = base.elevate(1 if service.criticality == "high" else 0).value
+        try:
+            context = self.judge_context(proposal)
+            info = self.inventory.target(TargetRef.parse(proposal.input.target))
+            service = info.service_card() if info is not None else None
+            if service is None:
+                raise RemediationRefused("reviewed service card is unavailable")
+            base = self.action_policy.risk_table.lookup(proposal.input.capability, service.kind)
+            if base == RiskColor.forbidden:
+                raise RemediationRefused("reviewed risk table forbids the action")
+            initial_risk = base.elevate(1 if service.criticality == "high" else 0).value
+        except Exception as exc:
+            # A review that cannot start is still a stored `doubt` (fail closed), never a missing verdict row. A
+            # forbidden cell is the exception: it is never judged and leaves no verdict (the risk table decides).
+            if isinstance(exc, RemediationRefused) and "forbids" in str(exc):
+                raise
+            why = str(exc) if isinstance(exc, RemediationRefused) else type(exc).__name__
+            body = {"verdict": "doubt", "checks": {}, "reasons": [f"the review could not start: {why}"[:200]],
+                    "risk": "red", "proposal_digest": proposal.digest}
+            self.rows.add_judge_verdict(proposal_id, self.judge_model_id, body, self.clock())
+            self._ensure_judge_evidence(proposal_id, body)
+            raise
         result = judge_proposal(proposal, self.judge_model, initial_risk=initial_risk,
                                 evidence_extracts=context["evidence_extracts"],
                                 ground_extracts=context["ground_extracts"],
