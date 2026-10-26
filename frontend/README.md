@@ -25,6 +25,22 @@ npm run e2e       # acceptance tests (Playwright) on the real-mode build, API fa
 Mock logins (no real API): `viewer`, `operator`, `approver` — password `argus-demo`. They live in
 `src/services/mockAuthAdapter.js` and are demo-only client-side data, not real credentials.
 
+### Local Phase 19 action-card preview
+
+From `frontend/` in PowerShell, run:
+
+```powershell
+$env:VITE_ARGUS_PHASE19_DEMO = "1"
+npm.cmd run dev -- --host 127.0.0.1 --port 5189 --strictPort
+```
+
+Open `http://127.0.0.1:5189`, log in as `operator` with the demo password above, open **Incidents**, and choose the
+first row (the cache dependency demo). Its diagnosis page shows one read-only Suggested actions card. The demo flag
+adds only synthetic local data; it does not connect to a VM or permit an action. The **Actions** tab shows a frozen
+demo proposal, independent judge, risk and Approve / Deny controls. Those controls are disabled because the mock
+session cannot pass the private full-token and WebAuthn checks. Remove the environment variable to return to the
+ordinary demo.
+
 These logins need **no database**: replace them with your own in `.env.local` via `VITE_ARGUS_USERS`, a JSON map
 of username → `{ password, role }` (see `.env.example`). A session also **survives a page reload** in the same tab
 — mock and real alike — remembered until logout, closing the tab, or `VITE_ARGUS_SESSION_TTL_MIN` (default 8 h);

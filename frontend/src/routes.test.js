@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { ROLES, canSee, flat, routes } from "./routes.js";
 
 describe("routes", () => {
@@ -16,6 +16,17 @@ describe("routes", () => {
     expect(canSee({ path: "/x", roles: ["approver"] }, "approver")).toBe(true);
     expect(canSee({ path: "/x", roles: ["approver"] }, "operator")).toBe(false);
     expect(canSee({ path: "/x", roles: ["approver"] }, "viewer")).toBe(false);
+  });
+
+  it("shows private Actions only with the server action, except for the explicit local demo", () => {
+    const actions = routes.find((r) => r.path === "/actions");
+    expect(actions).toBeDefined();
+    expect(canSee(actions, "approver", [])).toBe(false);
+    expect(canSee(actions, "approver", ["approve_action"])).toBe(true);
+    expect(canSee(actions, "viewer", ["approve_action"])).toBe(false);
+    vi.stubEnv("VITE_ARGUS_PHASE19_DEMO", "1");
+    expect(canSee(actions, "operator", [])).toBe(true);
+    vi.unstubAllEnvs();
   });
 
   it("has no write screens in a read-only UI (approvals, simulator, scheduler)", () => {

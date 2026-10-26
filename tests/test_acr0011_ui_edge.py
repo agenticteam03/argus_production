@@ -47,9 +47,19 @@ def nginx_api_routes() -> set[tuple[str, str]]:
     return routes
 
 
+OPS_PREFIX = "/api/v1/ops/"
+
+
 def test_the_edge_proxies_exactly_the_routes_and_methods_of_the_ui_contract():
+    """Public routes: one exact location each. Private routes (ACR-0018 step 4): the single `/api/v1/ops/` prefix
+    location, passed only on the private path; the API checks each route's method and permission."""
     contract = {(method.upper(), path) for path, ops in CONTRACT["paths"].items() for method in ops}
-    assert nginx_api_routes() == contract
+    assert nginx_api_routes() == {(m, p) for m, p in contract if not p.startswith(OPS_PREFIX)}
+    if any(p.startswith(OPS_PREFIX) for _, p in contract):
+        text = (NGINX_DIR / "locations.conf").read_text(encoding="utf-8")
+        block = text[text.index(f"location ^~ {OPS_PREFIX} {{"):]
+        block = block[:block.index("\n}") + 2]
+        assert "if ($argus_ops_ok != 1) { return 404; }" in block and "proxy.conf" in block
 
 
 def test_everything_else_under_api_and_swagger_is_404_at_the_edge():

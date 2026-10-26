@@ -1,0 +1,71 @@
+"""Read-only presentation of a frozen approval for the Phase 19 private UI."""
+from __future__ import annotations
+
+import hmac
+from datetime import datetime, timezone
+
+from argus.actions.catalog import get_action_spec
+from argus.actions.remediation import RemediationRefused, verify_frozen_proposal
+
+
+class ApprovalViewRefused(ValueError):
+    """Stored approval data cannot be presented as a valid frozen request."""
+
+
+def approval_view(rows, approval_id: str) -> dict:
+    approval = rows.get_action_approval(approval_id)
+    if approval is None:
+        raise ApprovalViewRefused("approval is unavailable")
+    proposal = rows.get_action_proposal(approval["proposal_id"])
+    if proposal is None:
+        raise ApprovalViewRefused("proposal is unavailable")
+    try:
+        verify_frozen_proposal(proposal)
+    except RemediationRefused as exc:
+        raise ApprovalViewRefused("proposal integrity failed") from exc
+    if not hmac.compare_digest(approval["proposal_digest"], proposal.digest):
+        raise ApprovalViewRefused("approval digest mismatch")
+    judge = rows.get_judge_verdict(proposal.id)
+    if judge is None or not hmac.compare_digest(judge.get("proposal_digest", ""), proposal.digest):
+        raise ApprovalViewRefused("judge digest mismatch")
+    expires = approval["expires_at"]
+    if isinstance(expires, str):
+        expires = datetime.fromisoformat(expires)
+    state = "expired" if approval["state"] == "pending" and expires <= datetime.now(timezone.utc) else approval["state"]
+    return {
+        "id": approval["id"], "state": state, "expires_at": expires.isoformat(),
+        "reversible": _reversible(proposal.input.rollback),
+        "proposal": proposal.model_dump(mode="json"),
+        "judge": {"verdict": judge["verdict"], "risk": judge["risk"], "reasons": judge["reasons"]},
+    }
+
+
+def _reversible(rollback: str) -> bool:
+    """§3.10: reversible means the rollback is itself a catalogue action, not free text."""
+    try:
+        get_action_spec(rollback)
+    except (KeyError, ValueError):
+        return False
+    return True
+
+
+def answerable_approval(rows, approval_id: str, digest: str, decision: str,
+                        confirmation_target: str | None) -> dict:
+    """Validate the stored package before consuming a human's one-use step-up."""
+    view = approval_view(rows, approval_id)
+    if view["state"] != "pending":
+        raise ApprovalViewRefused("approval is no longer pending")
+    if not hmac.compare_digest(view["proposal"]["digest"], digest):
+        raise ApprovalViewRefused("approval digest mismatch")
+    if decision == "approved":
+        target = view["proposal"]["input"]["target"]
+        now = datetime.now(timezone.utc)
+        if (rows.active_target_holds(target, now) or rows.active_target_holds(target.split("/", 1)[0], now)
+                or rows.active_target_holds("*", now)):
+            raise ApprovalViewRefused("an active hold prevents approval")
+        if view["judge"]["verdict"] != "agree" or view["judge"]["risk"] == "forbidden":
+            raise ApprovalViewRefused("judge has not agreed to this action")
+        # the host-qualified target: a container name alone exists on both hosts
+        if view["judge"]["risk"] == "red" and confirmation_target != target:
+            raise ApprovalViewRefused("red action requires typing the host-qualified target")
+    return view

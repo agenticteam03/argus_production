@@ -18,7 +18,7 @@ import jwt
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, status
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from pwdlib import PasswordHash
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from argus.application.alerts import HandleAlertNotification
 from argus.application.incident_view import build_verdict
@@ -36,9 +36,8 @@ ANY_TOKEN_WRITES = {("POST", "/api/v1/auth/logout")}   # ACR-0018: every token m
 SECOND_FACTOR_WRITES = {("POST", f"/api/v1/auth/webauthn/{c}/{s}") for c in ("register", "login", "step-up")
                         for s in ("options", "verify")}
 # ACR-0018 §17.3: permissions are explicit and checked per route; a role is a bundle of them. Only the permissions of
-# what is built are listed; propose_action, approve_action, place_hold, open_terminal and admin come with their routes.
-# ACR-0018: a privileged permission counts only for a session completed with a WebAuthn credential, held by a person
-# with two (D3). None is granted yet: they come with their routes (phase 17 on).
+# what is built are listed; remaining privileged permissions come with their routes. ACR-0018: a privileged
+# permission counts only for a session completed with a WebAuthn credential, held by a person with two (D3).
 PRIVILEGED_PERMISSIONS = frozenset({"propose_action", "approve_action", "place_hold", "open_terminal", "admin"})
 # ACR-0018 step 4: every route that needs a privileged permission lives under this prefix, the only one the public
 # edge passes on the private path (a client certificate of the team's CA and an allowlisted address; else 404).
@@ -48,6 +47,8 @@ ROLE_PERMISSIONS: dict[str, frozenset[str]] = {
     "operator": frozenset({"view", "view_evidence", "investigate"}),
     "approver": frozenset({"view", "view_evidence", "investigate"}),
 }
+# Phase 19: granted only while the action routes are mounted (`action_rows`); production wiring mounts none yet.
+ACTION_ROLE_PERMISSIONS: dict[str, frozenset[str]] = {"approver": frozenset({"approve_action", "place_hold"})}
 
 
 def permissions_of(p: Principal) -> frozenset[str]:
@@ -87,6 +88,34 @@ class CeremonyIn(BaseModel):
 class StepUpIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
     object: str = Field(max_length=224)
+
+
+class ApprovalAnswerIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    decision: Literal["approved", "denied"]
+    proposal_digest: str = Field(pattern=r"^[0-9a-f]{64}$")
+    step_up_token: str = Field(min_length=1, max_length=64)
+    confirmation_target: str | None = Field(None, max_length=128)
+    reason: str | None = Field(None, max_length=500)
+
+    @model_validator(mode="after")
+    def _denial_has_a_reason(self):
+        if self.decision == "denied" and not (self.reason or "").strip():
+            raise ValueError("a denial needs a reason (ACR-0019 §3.12)")
+        return self
+
+
+class HoldReleaseIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    reason: str = Field(min_length=1, max_length=500)
+    step_up_token: str = Field(min_length=1, max_length=64)
+
+
+class HoldIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    target: str = Field(min_length=1, max_length=128)
+    reason: str = Field(min_length=1, max_length=500)
+    step_up_token: str = Field(min_length=1, max_length=64)
 
 
 class InvestigationIn(BaseModel):
@@ -231,18 +260,29 @@ def build_api(app_ctx) -> FastAPI:
     second = SecondFactor(app_ctx.store, app_ctx.settings.webauthn_rp_id, app_ctx.settings.webauthn_origin,
                           ticket_hours=app_ctx.settings.webauthn_enrol_ticket_hours)
     api.state.second_factor = second
+    action_rows = getattr(app_ctx, "action_rows", None)
+
+    def role_permissions(p: Principal) -> frozenset[str]:
+        """ACR-0018 §5: `approve_action` and `place_hold` belong to the approver role only, assigned per person with
+        `argus user add --role approver`; an operator investigates but never approves."""
+        perms = permissions_of(p)
+        if action_rows is not None:
+            return perms | ACTION_ROLE_PERMISSIONS.get(p.role, frozenset())
+        return perms
 
     def granted(request: Request, p: Principal) -> frozenset[str]:
-        perms = permissions_of(p)
+        perms = role_permissions(p)
+        if getattr(request.state, "access", "full") != "full":
+            perms = perms - PRIVILEGED_PERMISSIONS
         if not perms & PRIVILEGED_PERMISSIONS:
             return perms
-        return granted_permissions(p, second.privileged_ready(p.id, getattr(request.state, "session", None)))
+        return perms if second.privileged_ready(p.id, getattr(request.state, "session", None)) else perms - PRIVILEGED_PERMISSIONS
 
     def require(permission: str):
         """ACR-0018: a route names the permission it needs; the principal's role must grant it, and a privileged one
         needs the session's second factor and two credentials (step 3)."""
         def dep(request: Request, p: Annotated[Principal, Depends(current)]) -> Principal:
-            if permission not in permissions_of(p):
+            if permission not in role_permissions(p):
                 raise HTTPException(status.HTTP_403_FORBIDDEN, f"role {p.role} lacks the permission {permission}")
             if permission not in granted(request, p):
                 raise HTTPException(status.HTTP_403_FORBIDDEN,
@@ -622,6 +662,113 @@ def build_api(app_ctx) -> FastAPI:
     @api.get("/api/v1/escalations", tags=["incidents"])
     def escalations(p: Annotated[Principal, Depends(current)]):
         return app_ctx.store.notifications()
+
+    # Phase 19 draft: mounted only by explicit composition. Production does not supply action_rows.
+    if action_rows is not None:
+        from argus.application.approval_view import ApprovalViewRefused, approval_view, answerable_approval
+        from argus.application.holds import (hold_audit, hold_release_step_up_object, hold_step_up_object,
+                                             validate_hold_target)
+
+        def require_action_scope(p: Principal, target: str) -> None:
+            info = app_ctx.inventory.target(TargetRef.parse(target))
+            if info is None or info.scope not in p.scopes:
+                raise HTTPException(403, "target is outside this principal's scope")
+
+        @api.get("/api/v1/ops/approvals/{approval_id}", tags=["ops"])
+        def inspect_approval(approval_id: str, p: Annotated[Principal, Depends(require("approve_action"))]):
+            if p.kind != "human":
+                raise HTTPException(403, "a human principal is required")
+            try:
+                view = approval_view(action_rows, approval_id)
+            except ApprovalViewRefused as exc:
+                raise HTTPException(409, str(exc)) from exc
+            require_action_scope(p, view["proposal"]["input"]["target"])
+            return view
+
+        @api.post("/api/v1/ops/approvals/{approval_id}/answer", tags=["ops"])
+        def answer_approval(approval_id: str, body: ApprovalAnswerIn, request: Request,
+                            p: Annotated[Principal, Depends(require("approve_action"))]):
+            if p.kind != "human":
+                raise HTTPException(403, "a human principal is required")
+            try:
+                view = answerable_approval(action_rows, approval_id, body.proposal_digest,
+                                           body.decision, body.confirmation_target)
+            except ApprovalViewRefused as exc:
+                raise HTTPException(409, str(exc)) from exc
+            require_action_scope(p, view["proposal"]["input"]["target"])
+            try:
+                second.consume_step_up(body.step_up_token, p.id, request.state.jti,
+                                       f"approval:{approval_id}:{body.proposal_digest}")
+            except SecondFactorRefused as exc:
+                raise HTTPException(403, str(exc)) from exc
+            now = utcnow()
+            audit = hold_audit("action.approval_answered", p.id, now, approval_id=approval_id,
+                               proposal_digest=body.proposal_digest, decision=body.decision,
+                               reason=body.reason.strip() if body.reason else None)
+            if not action_rows.answer_action_approval(approval_id, body.proposal_digest, p.id,
+                                                      body.decision, now, audit=audit):
+                raise HTTPException(409, "approval is no longer pending")
+            return {"state": body.decision}
+
+        @api.get("/api/v1/ops/holds", tags=["ops"])
+        def inspect_holds(target: Annotated[str, Query(max_length=128)],
+                          p: Annotated[Principal, Depends(require("place_hold"))]):
+            if p.kind != "human":
+                raise HTTPException(403, "a human principal is required")
+            try:
+                validate_hold_target(target, app_ctx.inventory)
+            except ValueError as exc:
+                raise HTTPException(422, str(exc)) from exc
+            if target != "*" and "/" in target:
+                require_action_scope(p, target)
+            return action_rows.list_active_target_holds(target, utcnow())
+
+        @api.post("/api/v1/ops/holds", status_code=201, tags=["ops"])
+        def place_hold(body: HoldIn, request: Request,
+                       p: Annotated[Principal, Depends(require("place_hold"))]):
+            if p.kind != "human":
+                raise HTTPException(403, "a human principal is required")
+            try:
+                validate_hold_target(body.target, app_ctx.inventory)
+            except ValueError as exc:
+                raise HTTPException(422, str(exc)) from exc
+            if body.target != "*" and "/" in body.target:
+                require_action_scope(p, body.target)
+            try:
+                second.consume_step_up(body.step_up_token, p.id, request.state.jti,
+                                       hold_step_up_object(body.target))
+            except SecondFactorRefused as exc:
+                raise HTTPException(403, str(exc)) from exc
+            now, hold_id = utcnow(), f"hold_{uuid.uuid4().hex}"
+            audit = hold_audit("action.hold_placed", p.id, now, hold_id=hold_id, target=body.target)
+            action_rows.place_target_hold(hold_id, body.target, body.reason, p.id, now, audit)
+            return {"id": hold_id, "target": body.target, "placed_at": now}
+
+        @api.post("/api/v1/ops/holds/{hold_id}/release", tags=["ops"])
+        def release_hold(hold_id: str, body: HoldReleaseIn, request: Request,
+                         p: Annotated[Principal, Depends(require("place_hold"))]):
+            """Releasing raises power: its own step-up, bound to this hold. The emergency stop is released only from
+            the CLI on vm-095 (`argus hold release`), by the lease holder."""
+            if p.kind != "human":
+                raise HTTPException(403, "a human principal is required")
+            hold = action_rows.get_target_hold(hold_id)
+            if hold is None or hold["released_at"] is not None:
+                raise HTTPException(409, "hold is not active")
+            if hold["target"] == "*":
+                raise HTTPException(409, "the emergency stop is released only from the CLI on vm-095")
+            if "/" in hold["target"]:
+                require_action_scope(p, hold["target"])
+            try:
+                second.consume_step_up(body.step_up_token, p.id, request.state.jti,
+                                       hold_release_step_up_object(hold_id))
+            except SecondFactorRefused as exc:
+                raise HTTPException(403, str(exc)) from exc
+            now = utcnow()
+            audit = hold_audit("action.hold_released", p.id, now, hold_id=hold_id, target=hold["target"],
+                               reason=body.reason.strip())
+            if not action_rows.release_target_hold(hold_id, p.id, now, audit=audit):
+                raise HTTPException(409, "hold is not active")
+            return {"id": hold_id, "released_at": now}
 
     @api.get("/healthz", tags=["ops"])
     def healthz():

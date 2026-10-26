@@ -1,5 +1,5 @@
 // The HTTP adapter for the UI contract. An investigate token permits GETs and the one bounded investigation POST.
-// `apiFetch` logs the session out on any 401; approvals still have no UI route.
+// `apiFetch` logs the session out on any 401. Private approval routes require a full token granted by /me.
 import { apiFetch, httpError } from "./http.js";
 import { answerMetricQuestion, parseInvestigationRequest, parseMetricQuestion } from "./metricQuestion.js";
 
@@ -26,6 +26,20 @@ export const httpArgusAdapter = {
 
   async getEvidence(id) {
     return getJson(`/api/v1/evidence/${encodeURIComponent(id)}`);
+  },
+
+  async getApproval(id) {
+    return getJson(`/api/v1/ops/approvals/${encodeURIComponent(id)}`);
+  },
+
+  async answerApproval(id, { decision, proposalDigest, stepUpToken, confirmationTarget, reason }) {
+    const res = await apiFetch(`/api/v1/ops/approvals/${encodeURIComponent(id)}/answer`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ decision, proposal_digest: proposalDigest, step_up_token: stepUpToken,
+        confirmation_target: confirmationTarget ?? null, reason: reason ?? null }),
+    });
+    return res.json();
   },
 
   async listEscalations() {

@@ -123,7 +123,7 @@ class PostgresStore:
         return self.get_action_approval(rows[0][0]) if rows else None
 
     def answer_action_approval(self, approval_id: str, digest: str, actor: str, decision: str,
-                               at: datetime) -> bool:
+                               at: datetime, audit: AuditRecord | None = None) -> bool:
         if decision not in ("approved", "denied") or not actor:
             raise ValueError("a human decision and actor are required")
         with self.pool.connection() as c, c.transaction():
@@ -134,6 +134,8 @@ class PostgresStore:
                 c.execute("INSERT INTO resume_intent (approval_id, incident_id, decision, state) "
                           "SELECT %s, incident_id, %s, 'pending' FROM action_proposal WHERE proposal_id=%s",
                           (approval_id, decision, row[0]))
+                if audit is not None:
+                    append_chained(c, audit)
             return row is not None
 
     def get_resume_intent(self, approval_id: str) -> dict[str, Any] | None:
@@ -230,10 +232,34 @@ class PostgresStore:
         self._q("INSERT INTO target_hold (hold_id, target, reason, placed_by, placed_at, expires_at) "
                 "VALUES (%s,%s,%s,%s,%s,%s)", (hold_id, target, reason, placed_by, at, expires_at))
 
-    def release_target_hold(self, hold_id: str, released_by: str, at: datetime) -> bool:
-        return bool(self._q("UPDATE target_hold SET released_by=%s, released_at=%s "
+    def place_target_hold(self, hold_id: str, target: str, reason: str, placed_by: str,
+                          at: datetime, audit: AuditRecord) -> None:
+        """Insert the hold and chained audit row in one transaction."""
+        with self.pool.connection() as c, c.transaction():
+            c.execute("INSERT INTO target_hold (hold_id, target, reason, placed_by, placed_at) "
+                      "VALUES (%s,%s,%s,%s,%s)", (hold_id, target, reason, placed_by, at))
+            append_chained(c, audit)
+
+    def list_active_target_holds(self, target: str, at: datetime) -> list[dict[str, Any]]:
+        rows = self._q("SELECT hold_id, target, reason, placed_by, placed_at, expires_at FROM target_hold "
+                       "WHERE target IN (%s, '*') AND released_at IS NULL AND "
+                       "(expires_at IS NULL OR expires_at>%s) ORDER BY placed_at, hold_id", (target, at))
+        return [dict(zip(("id", "target", "reason", "placed_by", "placed_at", "expires_at"), row)) for row in rows]
+
+    def release_target_hold(self, hold_id: str, released_by: str, at: datetime,
+                            audit: AuditRecord | None = None) -> bool:
+        with self.pool.connection() as c, c.transaction():
+            row = c.execute("UPDATE target_hold SET released_by=%s, released_at=%s "
                             "WHERE hold_id=%s AND released_at IS NULL RETURNING hold_id",
-                            (released_by, at, hold_id)))
+                            (released_by, at, hold_id)).fetchone()
+            if row and audit is not None:
+                append_chained(c, audit)
+            return row is not None
+
+    def get_target_hold(self, hold_id: str) -> dict[str, Any] | None:
+        rows = self._q("SELECT hold_id, target, reason, placed_by, placed_at, released_at FROM target_hold "
+                       "WHERE hold_id=%s", (hold_id,))
+        return dict(zip(("id", "target", "reason", "placed_by", "placed_at", "released_at"), rows[0])) if rows else None
 
     def active_target_holds(self, target: str, at: datetime) -> list[str]:
         return [r[0] for r in self._q("SELECT hold_id FROM target_hold WHERE target=%s AND released_at IS NULL "

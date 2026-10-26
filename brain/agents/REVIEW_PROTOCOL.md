@@ -128,7 +128,8 @@ it cannot be self-merged). A teammate may object in any PR; an objection goes to
    - the action path, protected before it is built (phase 15, ACR-0019): `config/actions/` (action cards),
      `config/risk.yaml` (risk colours), `config/ranking.yaml` (ACR-0024's weights),
      `argus/capabilities/write_contract.py` (§14.8), and the reserved names of the dispatch module (`argus/actions/`)
-     and the action gateway (`services/action-gateway/`), which the first PR that builds them keeps;
+     and the action gateway (`services/action-gateway/`, built as the package `services/action_gateway/`), which the
+     first PR that builds them keeps;
 5. it is merged with a merge commit, and the branch is not deleted (`GIT_WORKFLOW.md`).
 
 The author's agent should still run the review checklist above and post its report as a PR comment before the merge:
