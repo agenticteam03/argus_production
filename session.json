@@ -1,47 +1,35 @@
 {
   "holder": "conantkd",
-  "session_id": "13d7ed009aaa",
-  "task": "DEPLOY-MAIN-014",
-  "branch": "task/DEPLOY-01db0d7",
-  "base_commit": "b7fee4fe96b4f87de256248dc597d29abc17cbc1",
-  "started_at": "2026-10-26T04:24:47+00:00",
-  "expires_at": "2026-10-26T06:40:38+00:00",
-  "released": true,
-  "handoff": {
-    "note": "done: vm-095 on main b6e64eb (migrations 014+015, phase 18 offline, audit digest daily to OCI, first run checked 5/5), SC-03/SC-07 live PASS, judge gpt-5.6-terra provisional; next: juanbetancurm reviews #339 (main-guard red only for #323), then phase 16 step 6 tamper drill with the team; environment: vm-166 unchanged, both leases released",
-    "branch": "task/NIGHT-2026-10-26-close",
-    "at": "2026-10-26T05:53:42+00:00"
-  },
+  "session_id": "903b77486495",
+  "task": "PHASE-16-step-6",
+  "branch": "task/PHASE-16-step-6-exit-drill",
+  "base_commit": "6e87828c51e2da71b1727bbbc5ce13fd98b92832",
+  "started_at": "2026-10-26T11:35:01+00:00",
+  "expires_at": "2026-10-26T12:35:01+00:00",
+  "released": false,
+  "handoff": null,
   "vms": {
     "vm-095": {
       "holder": "conantkd",
-      "session_id": "13d7ed009aaa",
-      "task": "DEPLOY-MAIN-014",
-      "branch": "task/DEPLOY-01db0d7",
-      "base_commit": "b7fee4fe96b4f87de256248dc597d29abc17cbc1",
-      "started_at": "2026-10-26T04:24:47+00:00",
-      "expires_at": "2026-10-26T06:40:38+00:00",
-      "released": true,
-      "handoff": {
-        "note": "done: vm-095 on main b6e64eb (migrations 014+015, phase 18 offline, audit digest daily to OCI, first run checked 5/5), SC-03/SC-07 live PASS, judge gpt-5.6-terra provisional; next: juanbetancurm reviews #339 (main-guard red only for #323), then phase 16 step 6 tamper drill with the team; environment: vm-166 unchanged, both leases released",
-        "branch": "task/NIGHT-2026-10-26-close",
-        "at": "2026-10-26T05:53:42+00:00"
-      }
+      "session_id": "903b77486495",
+      "task": "PHASE-16-step-6",
+      "branch": "task/PHASE-16-step-6-exit-drill",
+      "base_commit": "6e87828c51e2da71b1727bbbc5ce13fd98b92832",
+      "started_at": "2026-10-26T11:35:01+00:00",
+      "expires_at": "2026-10-26T12:35:01+00:00",
+      "released": false,
+      "handoff": null
     },
     "vm-166": {
       "holder": "conantkd",
-      "session_id": "13d7ed009aaa",
-      "task": "DEPLOY-MAIN-014",
-      "branch": "task/DEPLOY-01db0d7",
-      "base_commit": "b7fee4fe96b4f87de256248dc597d29abc17cbc1",
-      "started_at": "2026-10-26T04:24:47+00:00",
-      "expires_at": "2026-10-26T06:40:38+00:00",
-      "released": true,
-      "handoff": {
-        "note": "done: vm-095 on main b6e64eb (migrations 014+015, phase 18 offline, audit digest daily to OCI, first run checked 5/5), SC-03/SC-07 live PASS, judge gpt-5.6-terra provisional; next: juanbetancurm reviews #339 (main-guard red only for #323), then phase 16 step 6 tamper drill with the team; environment: vm-166 unchanged, both leases released",
-        "branch": "task/NIGHT-2026-10-26-close",
-        "at": "2026-10-26T05:53:42+00:00"
-      }
+      "session_id": "903b77486495",
+      "task": "PHASE-16-step-6",
+      "branch": "task/PHASE-16-step-6-exit-drill",
+      "base_commit": "6e87828c51e2da71b1727bbbc5ce13fd98b92832",
+      "started_at": "2026-10-26T11:35:01+00:00",
+      "expires_at": "2026-10-26T12:35:01+00:00",
+      "released": false,
+      "handoff": null
     }
   }
 }
