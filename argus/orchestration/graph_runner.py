@@ -15,6 +15,7 @@ from typing import Any, TypedDict
 
 from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.graph import END, START, StateGraph
+from langgraph.types import Command, interrupt
 
 from argus.application.invoke_capability import InvocationContext, refs_of
 from argus.detectors.classes import CLASSES, classes_for
@@ -49,23 +50,36 @@ class RunState(TypedDict, total=False):
     pack_step: int                # evidence-pack decisions taken so far
     act_open: bool                # an act batch is in progress (its enter event was emitted)
     final: dict                   # {"outcome", "status", "cited"} for record
+    proposal_id: str              # phase 18: only durable row IDs cross an action checkpoint
+    approval_id: str
+    action_id: str
 
 
 class GraphRunner(SkeletonRunner):
     """InvestigationRunner on LangGraph. Reuses SkeletonRunner's audit, evidence, scope, context and record."""
 
-    def __init__(self, *, checkpointer: Any = None, **kw):
+    def __init__(self, *, checkpointer: Any = None, action_path: Any = None, **kw):
         super().__init__(**kw)
+        self.action_path = action_path  # no production wiring while write_gate.open is empty
         self.checkpointer = checkpointer if checkpointer is not None else InMemorySaver()
         g = StateGraph(RunState)
-        for name in ("detect", "recall", "investigate", "act", "evidence_pack", "record"):
+        for name in ("detect", "recall", "investigate", "act", "evidence_pack", "propose_action",
+                     "judge_proposal", "request_approval", "await_approval", "precheck_action",
+                     "execute_write", "verify", "record"):
             g.add_node(name, self._guarded(getattr(self, f"_n_{name}")))
         g.add_edge(START, "detect")
         g.add_conditional_edges("detect", _route, ["recall", "evidence_pack", "record"])
         g.add_edge("recall", "investigate")
-        g.add_conditional_edges("investigate", _route, ["act", "investigate", "record"])
+        g.add_conditional_edges("investigate", _route, ["act", "investigate", "propose_action", "record"])
         g.add_conditional_edges("act", _route, ["act", "investigate"])           # one read per step
         g.add_conditional_edges("evidence_pack", _route, ["evidence_pack", "record"])
+        g.add_conditional_edges("propose_action", _route, ["judge_proposal", "record"])
+        g.add_conditional_edges("judge_proposal", _route, ["request_approval", "record"])
+        g.add_conditional_edges("request_approval", _route, ["await_approval", "record"])
+        g.add_conditional_edges("await_approval", _route, ["precheck_action", "record"])
+        g.add_conditional_edges("precheck_action", _route, ["execute_write", "record"])
+        g.add_conditional_edges("execute_write", _route, ["verify", "record"])
+        g.add_edge("verify", "record")
         g.add_edge("record", END)
         self.graph = g.compile(checkpointer=self.checkpointer)
 
@@ -103,7 +117,7 @@ class GraphRunner(SkeletonRunner):
         pending = self.graph.get_state(config).next
         if pending:                                   # interrupted earlier: continue after the last checkpoint
             self._audit(inc, "incident", "incident.resumed", actor=inc.principal, detail={"next": list(pending)})
-            payload = None
+            payload = Command(resume={}) if any(task.interrupts for task in self.graph.get_state(config).tasks) else None
         else:
             inc.status = IncidentStatus.running
             self.memory.update_incident(inc)
@@ -282,6 +296,10 @@ class GraphRunner(SkeletonRunner):
         if isinstance(d, Conclude):
             inc.diagnosis, inc.confidence, inc.root_cause_target = d.diagnosis, d.confidence, d.root_cause_target
             self.memory.update_incident(inc)
+            if self.action_path is not None:
+                return {**upd, "route": "propose_action",
+                        "final": {"outcome": str(IncidentOutcome.diagnosed),
+                                  "status": str(IncidentStatus.closed), "cited": d.evidence_ids}}
             return {**upd, **self._final(IncidentOutcome.diagnosed, IncidentStatus.closed, d.evidence_ids)}
         inc.diagnosis = d.reason                      # Escalate
         self.memory.update_incident(inc)
@@ -340,6 +358,98 @@ class GraphRunner(SkeletonRunner):
             return {**upd, **self._final(inc.outcome, IncidentStatus.escalated, d.evidence_ids)}
         notes.append(f"step {step + 1} was invalid ({getattr(d, 'reason', '?')}): {getattr(d, 'detail', '')}. Correct it.")
         return {**upd, "route": "evidence_pack", "notes": notes}
+
+    # Phase 18: the same incident graph carries an offline, opt-in action branch.
+    # Production never supplies action_path while policy.write_gate.open is empty.
+    def _n_propose_action(self, s: RunState) -> dict:
+        try:
+            proposal_id = self.action_path.propose(self._inc(s), s)
+        except Exception as exc:
+            self._audit(self._inc(s), "decision", "decision.downgraded_to_suggestion",
+                        detail={"reason": str(exc)[:200]})
+            return {"route": "record"}
+        return {"route": "judge_proposal", "proposal_id": proposal_id} if proposal_id else {"route": "record"}
+
+    def _n_judge_proposal(self, s: RunState) -> dict:
+        try:
+            verdict = self.action_path.judge(s["proposal_id"])
+        except Exception as exc:
+            self._audit(self._inc(s), "decision", "judge.doubt",
+                        detail={"proposal_id": s["proposal_id"], "reason": str(exc)[:200]})
+            return {"route": "record"}
+        self._audit(self._inc(s), "decision", "judge.verdict",
+                    detail={"proposal_id": s["proposal_id"], "verdict": verdict.verdict,
+                            "reasons": list(verdict.reasons), "risk": verdict.risk})
+        if verdict.verdict != "agree":
+            return {"route": "record"}  # recommendation remains visible; no approval or dispatch
+        return {"route": "request_approval"}
+
+    def _n_request_approval(self, s: RunState) -> dict:
+        try:
+            approval_id = self.action_path.request(s["proposal_id"])
+        except Exception as exc:
+            self._audit(self._inc(s), "access", "action.approval_refused",
+                        detail={"proposal_id": s["proposal_id"], "reason": str(exc)[:200]})
+            return {"route": "record"}
+        return {"route": "await_approval", "approval_id": approval_id} if approval_id else {"route": "record"}
+
+    def _n_await_approval(self, s: RunState) -> dict:
+        approval_id = s["approval_id"]
+        state = self.action_path.approval_state(approval_id)
+        if state == "pending":
+            interrupt({"approval_id": approval_id, "proposal_id": s["proposal_id"]})
+            state = self.action_path.approval_state(approval_id)  # a resume payload is never an answer
+        if state == "approved":
+            return {"route": "precheck_action"}
+        if state in ("denied", "expired", "cancelled"):
+            outcome = IncidentOutcome.expired if state == "expired" else IncidentOutcome.denied
+            return {**self._final(outcome, IncidentStatus.escalated, s["final"]["cited"])}
+        # A wakeup with no durable human answer pauses again.
+        interrupt({"approval_id": approval_id, "proposal_id": s["proposal_id"]})
+        return {"route": "await_approval"}
+
+    def _n_precheck_action(self, s: RunState) -> dict:
+        try:
+            self.action_path.precheck(s["approval_id"])
+        except Exception as exc:
+            self._audit(self._inc(s), "access", "action.precheck_refused",
+                        detail={"approval_id": s["approval_id"], "reason": str(exc)[:200]})
+            return {**self._final(IncidentOutcome.no_action_escalated, IncidentStatus.escalated,
+                                  s["final"]["cited"])}
+        return {"route": "execute_write"}
+
+    def _n_execute_write(self, s: RunState) -> dict:
+        # This service reads frozen database rows again and makes its own fresh precheck.
+        try:
+            action = self.action_path.execute(s["approval_id"])
+        except Exception as exc:
+            self._audit(self._inc(s), "access", "action.execution_refused",
+                        detail={"approval_id": s["approval_id"], "reason": str(exc)[:200]})
+            return self._final(IncidentOutcome.no_action_escalated, IncidentStatus.escalated, s["final"]["cited"])
+        if action["state"] == "confirmed":
+            return {"route": "verify", "action_id": action["id"]}
+        outcome = (IncidentOutcome.action_failed if action["state"] == "failed"
+                   else IncidentOutcome.indeterminate_escalated)
+        return {**self._final(outcome, IncidentStatus.escalated, s["final"]["cited"]),
+                "action_id": action["id"]}
+
+    def _n_verify(self, s: RunState) -> dict:
+        try:
+            outcome = self.action_path.verify(s["action_id"])
+        except Exception as exc:
+            self._audit(self._inc(s), "incident", "action.verification_failed",
+                        detail={"action_id": s["action_id"], "reason": str(exc)[:200]})
+            outcome = "indeterminate_escalated"
+        if outcome is None:
+            interrupt({"action_id": s["action_id"], "waiting_for": "fresh_verification_sample"})
+            try:
+                outcome = self.action_path.verify(s["action_id"])
+            except Exception:
+                outcome = "indeterminate_escalated"
+        if outcome not in ("recovered_verified", "action_failed"):
+            outcome = "indeterminate_escalated"
+        status = IncidentStatus.closed if outcome == "recovered_verified" else IncidentStatus.escalated
+        return self._final(IncidentOutcome(outcome), status, s["final"]["cited"])
 
     def _n_record(self, s: RunState) -> dict:
         f = s["final"]
