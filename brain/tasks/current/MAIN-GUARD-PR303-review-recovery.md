@@ -33,4 +33,4 @@ PR #303 merged as `d41b9ea2244dcf97e38f4365d9e0ca74b88d8406`, with final head
 References: [review protocol](../../agents/REVIEW_PROTOCOL.md),
 [PR #303](https://github.com/agenticteam03/argus_production/pull/303),
 [failed main-guard](https://github.com/agenticteam03/argus_production/actions/runs/40115433517/job/120935621714),
-[journal](../../journal/entries/2026-10-24-MAIN-GUARD-PR303-review-recovery.md).
+[journal](../../journal/logbook.md).
