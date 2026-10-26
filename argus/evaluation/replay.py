@@ -53,9 +53,11 @@ class CaseRun:
     duration_ms: int = 0
     trial: int = 1
     # ACR-0024 §3.8 (T-0047 H4): the final decision's hypotheses (`incident_hypothesis`), by rank, as
-    # {id, target, cause_class, status, rank, chosen}; whether the chosen one is not first; the H1 checks' problems,
-    # each as 'step <n> <decision>: <problem>'
+    # {id, target, cause_class, status, rank, chosen, support, against} (evidence ids only); whether the chosen
+    # one is not first; the H1 checks' problems, each as 'step <n> <decision>: <problem>'
     hypotheses: list[dict] = field(default_factory=list)
+    # Ranking inputs only; deliberately omit evidence text, values and other potentially sensitive contents.
+    evidence: list[dict] = field(default_factory=list)
     ranking_disagrees: bool = False
     hypothesis_problems: list[str] = field(default_factory=list)
     # targets with an `ok` observation or metric snapshot, or named in the values of an `ok` observation on their host
@@ -236,7 +238,9 @@ def run_case(case: Case, workdir: Path, llm: Any | None = None, settings: Settin
     rows = app.store.hypotheses(inc.id)
     final = [r for r in rows if r["step"] == max(x["step"] for x in rows)] if rows else []
     hypotheses = [{"id": r["hypothesis_id"], "target": r["target"], "cause_class": r["cause_class"],
-                   "status": r["status"], "rank": r["rank"], "chosen": r["chosen"]} for r in final]
+                   "status": r["status"], "rank": r["rank"], "chosen": r["chosen"],
+                   "support": list(r["support_ids"]), "against": list(r["against_ids"])} for r in final]
+    evidence_inputs = [{"evidence_id": e.evidence_id, "kind": e.kind, "target": e.target} for e in evidence]
     passages: list[tuple[str, str]] = []
     for a in audit:
         if a.event == "recall.passages":
@@ -251,7 +255,8 @@ def run_case(case: Case, workdir: Path, llm: Any | None = None, settings: Settin
         model_requests=rec.requests if rec else [], duration_ms=ms,
         invalid_decisions=[f"{(a.detail or {}).get('reason')}: {str((a.detail or {}).get('detail'))[:300]}"
                            for a in audit if a.event == "decision.invalid"],
-        hypotheses=hypotheses, ranking_disagrees=any(h["chosen"] and h["rank"] != 1 for h in hypotheses),
+        hypotheses=hypotheses, evidence=evidence_inputs,
+        ranking_disagrees=any(h["chosen"] and h["rank"] != 1 for h in hypotheses),
         hypothesis_problems=[f"step {(a.detail or {}).get('step')} {(a.detail or {}).get('decision')}: {p}"
                              for a in audit if a.event == "hypothesis.invalid" for p in (a.detail or {}).get("problems") or []],
         observed=_observed(evidence, [t.ref for t in app.inventory.targets()]),
