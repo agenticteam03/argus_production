@@ -59,6 +59,13 @@ class Metrics(FakeMetrics):
             raise MetricsUnavailable("prometheus down")
         return self.probes.get(str(target), {})
 
+    def dependency_probe_history(self, target, start, end):
+        if self.down:
+            raise MetricsUnavailable("prometheus down")
+        return {name: [probe for probe in (sample if isinstance(sample, list) else [sample])
+                       if start < probe.at <= end]
+                for name, sample in self.probes.get(str(target), {}).items()}
+
 
 @pytest.fixture()
 def store(tmp_path):
@@ -155,11 +162,13 @@ def test_the_links_of_the_targets_dependencies_are_shown_once(store):
 
 
 # --- the investigation read (§3.5) ----------------------------------------------------------------------------------
-def test_a_level_2_in_worker_read_offered_to_no_class():
+def test_a_level_2_in_worker_read_offered_only_to_the_reviewed_classes():
     assert (S.model_name, S.level, S.safety_class, S.executor, S.runs_in) == (
         "read_link_states", 2, "READ_ONLY_SAFE", "argus_internal", "worker")
     assert set(S.target_kinds) == {"container"} and S.tags == frozenset({"link_states"})
-    assert [c.name for c in CLASSES if S.tags & c.tool_tags] == []
+    assert sorted(c.name for c in CLASSES if S.tags & c.tool_tags) == [
+        "dependency_unavailable", "health_check_failed", "nginx_upstream_failure",
+    ]
     pol = yaml.safe_load((ROOT / "config" / "policy.yaml").read_text(encoding="utf-8"))
     assert pol["capabilities"]["network.link_states"]["max_per_incident"] == 2
 

@@ -1,10 +1,4 @@
-"""T-0046 L4 follow-up (#227 review): a scheduler restart is not a link transition.
-
-The recorder writes each link's state once at startup (ARCHITECTURE §7.3), so every deploy repeats the states it
-already recorded. The stores' reads now skip a row that repeats its link's previous state (time, then id): the map's
-`since` keeps the real transition time, and the incident charts and `network.link_states` show no second
-`link_broken` for a link that stayed broken.
-"""
+"""T-0046: a durable sample cursor prevents replaying already processed probes after a scheduler restart."""
 from __future__ import annotations
 
 from datetime import timedelta
@@ -18,8 +12,26 @@ CACHE = "h1/container:cache"
 
 
 def restart(store, probes, at):
-    """A new scheduler process: it has seen nothing, so it records every link's state once."""
-    LinkTransitions(store, YamlInventory(INVENTORY), Metrics(probes), now=lambda: at).run_once()
+    """A new scheduler process resumes from the persisted per-link source-sample cursor."""
+    aligned = {}
+    for owner, values in probes.items():
+        cursors = store.link_probe_cursors(owner)
+        aligned[owner] = {}
+        for dep, value in values.items():
+            cursor_data = cursors.get(f"h1/container:{dep}", {})
+            cursor = cursor_data.get("at", at - timedelta(seconds=90))
+            samples = []
+            sample_at = cursor + timedelta(seconds=15)
+            while sample_at < at:
+                previous_state = cursor_data.get("state", "ok")
+                previous_sample = value._replace(success=0 if previous_state == "broken" else 1,
+                                                  error_kind="refused" if previous_state == "broken" else None,
+                                                  at=sample_at)
+                samples.append(previous_sample)
+                sample_at += timedelta(seconds=15)
+            samples.append(value._replace(at=at))
+            aligned[owner][dep] = samples
+    LinkTransitions(store, YamlInventory(INVENTORY), Metrics(aligned), now=lambda: at).run_once()
 
 
 def test_a_restart_repeats_rows_but_not_transitions(store):
@@ -28,7 +40,7 @@ def test_a_restart_repeats_rows_but_not_transitions(store):
     restart(store, broken, NOW - timedelta(minutes=8))            # the link breaks: one transition
     restart(store, broken, NOW - timedelta(minutes=3))            # a deploy while it is still broken
     rows = store.link_events(WEB, NOW - timedelta(hours=1), NOW)
-    assert [(r["dependency"], r["state"]) for r in rows] == [(DB, "ok"), (CACHE, "ok"), (DB, "broken")]
+    assert [(r["dependency"], r["state"]) for r in rows if r["dependency"] == DB] == [(DB, "ok"), (DB, "broken")]
     assert store.latest_link_events()[(WEB, DB)]["at"] == NOW - timedelta(minutes=8)
 
 

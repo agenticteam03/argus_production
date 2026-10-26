@@ -21,7 +21,7 @@ against the case's expected label. Missing token fields remain unknown.
 | `id`, `category` | unique id; `class` for a diagnosable incident, otherwise the §21.2 safety row (`unsupported`, `stale_metrics`, `forbidden_target`, `healthy_check`, `tool_failure`, `ambiguous`) |
 | `target`, `request`, `reason` | what is asked (`request`: `report` or `check`) |
 | `metrics` | signal values per target (`{target: {signal: value}}`); `stale: true` instead = no fresh samples |
-| `fixtures` | the answer of each read, per executor and path (`"*"` = any path); `{error: <category>}` makes the read fail |
+| `fixtures` | the answer of each read, per executor and path (`"*"` = any path); `{error: <category>}` makes the read fail. `argus_internal.link_history` seeds reviewed link transitions in the throwaway SQLite store for T-0046 replay cases (`owner`, `dependency`, `state`, `seconds_ago`, optional `latency_ms` and `reason`); `argus_internal.current_probes` gives its latest probe per owner/dependency (`success`, `duration_s`, optional `error_kind`) |
 | `secrets` | planted strings that must never reach a model request |
 | `prior_incidents` | closed precedents stored before the run, for `knowledge.prior_incidents` (T-0049 R1): each `class`, `target`, `diagnosis`, `root_cause`, `closed_at` (and `outcome`, `confidence`, `findings`); a reviewed fixture that may help (the same cause before) or mislead (another cause on the same target and class) |
 | `label` | `outcome` (or a list), `class`, `root_cause`, `abstain`, `model_calls` (exact), `diagnosis_any`, `findings_any`, `runbooks` (for recall@3), `expected_hypotheses` (`supported`, `ruled_out`: targets or cause classes; ACR-0024 §3.8) |

@@ -7,6 +7,7 @@ from __future__ import annotations
 import json
 import sqlite3
 import threading
+import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
@@ -58,6 +59,14 @@ CREATE TRIGGER IF NOT EXISTS link_event_no_update BEFORE UPDATE ON link_event
   BEGIN SELECT RAISE(ABORT, 'link_event is insert-only'); END;
 CREATE TRIGGER IF NOT EXISTS link_event_no_delete BEFORE DELETE ON link_event
   BEGIN SELECT RAISE(ABORT, 'link_event is insert-only'); END;
+CREATE TABLE IF NOT EXISTS link_probe_cursor (
+  owner TEXT NOT NULL, dependency TEXT NOT NULL,
+  state TEXT NOT NULL CHECK (state IN ('ok', 'slow', 'broken', 'unknown')),
+  at TEXT NOT NULL, PRIMARY KEY (owner, dependency));
+CREATE TRIGGER IF NOT EXISTS link_probe_cursor_identity_immutable BEFORE UPDATE OF owner, dependency ON link_probe_cursor
+  BEGIN SELECT RAISE(ABORT, 'link_probe_cursor identity is immutable'); END;
+CREATE TRIGGER IF NOT EXISTS link_probe_cursor_monotonic BEFORE UPDATE OF at ON link_probe_cursor
+  WHEN NEW.at < OLD.at BEGIN SELECT RAISE(ABORT, 'link_probe_cursor cannot move backwards'); END;
 CREATE TABLE IF NOT EXISTS incident_hypothesis (
   id INTEGER PRIMARY KEY AUTOINCREMENT, incident_id TEXT NOT NULL, step INTEGER NOT NULL,
   hypothesis_id TEXT NOT NULL, statement TEXT NOT NULL, cause_class TEXT NOT NULL, target TEXT,
@@ -319,6 +328,45 @@ class SqliteStore:
         """ACR-0025 (T-0046 L2): a change of one declared link's state; insert-only."""
         self._q("INSERT INTO link_event(owner,dependency,state,latency_ms,reason,at) VALUES (?,?,?,?,?,?)",
                 (owner, dependency, state, latency_ms, reason, at.astimezone(timezone.utc).isoformat()))
+
+    def link_probe_cursors(self, owner: str) -> dict[str, dict[str, Any]]:
+        """The last sampled state and timestamp processed for each dependency of an owner (T-0046, migration 014)."""
+        rows = self._q("SELECT dependency,state,at FROM link_probe_cursor WHERE owner=?", (owner,))
+        return {dependency: {"state": state, "at": datetime.fromisoformat(at)}
+                for dependency, state, at in rows}
+
+    def record_link_probe(self, owner: str, dependency: str, state: str, latency_ms: float | None,
+                          reason: str | None, at: datetime) -> bool:
+        """Advance one link cursor; commit its transition row and chained audit atomically when state changed."""
+        from argus.domain.model import AuditRecord
+        at_text = at.astimezone(timezone.utc).isoformat()
+        with self._lock:
+            self._db.execute("BEGIN IMMEDIATE")
+            try:
+                row = self._db.execute("SELECT state,at FROM link_probe_cursor WHERE owner=? AND dependency=?",
+                                       (owner, dependency)).fetchone()
+                if row and at_text <= row[1]:
+                    self._db.execute("ROLLBACK")
+                    return False
+                previous = row[0] if row else None
+                changed = previous != state
+                if changed:
+                    self._db.execute("INSERT INTO link_event(owner,dependency,state,latency_ms,reason,at) "
+                                     "VALUES (?,?,?,?,?,?)", (owner, dependency, state, latency_ms, reason, at_text))
+                    self.append(AuditRecord(
+                        audit_id=f"aud_{uuid.uuid4().hex[:16]}", incident_id=None, at=at.astimezone(timezone.utc),
+                        category="incident", event="link.changed", actor="scheduler",
+                        detail={"owner": owner, "dependency": dependency, "from": previous, "to": state,
+                                "latency_ms": latency_ms, "reason": reason}))
+                self._db.execute("INSERT INTO link_probe_cursor(owner,dependency,state,at) VALUES (?,?,?,?) "
+                                 "ON CONFLICT(owner,dependency) DO UPDATE SET state=excluded.state, at=excluded.at",
+                                 (owner, dependency, state, at_text))
+                self._db.execute("COMMIT")
+                return changed
+            except Exception:
+                if self._db.in_transaction:
+                    self._db.execute("ROLLBACK")
+                raise
 
     # --- hypotheses (ACR-0024 §3.5, T-0047 H2) -----------------------------------------------------------------------
     def add_hypotheses(self, incident_id: str, step: int, rows: list[dict[str, Any]], at: datetime) -> None:

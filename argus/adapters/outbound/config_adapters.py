@@ -119,6 +119,9 @@ _MOUNT = re.compile(r"/[A-Za-z0-9_/-]*")
 class PrometheusMetrics:
     """Signal names → PromQL templates with $host/$name. Per-series freshness (G-003/G-007)."""
 
+    LINK_HISTORY_STEP_S = 5                 # oversamples the configured 15 s scrape; duplicate source samples collapse
+    LINK_HISTORY_MAX_S = 4 * 60 * 60         # maximum cursor replay range; older gaps become unknown
+
     def __init__(self, inventory: YamlInventory, signals: dict[str, str], max_staleness_s: int = 90):
         self.inventory, self.signals, self.max_staleness_s = inventory, signals, max_staleness_s
 
@@ -228,6 +231,73 @@ class PrometheusMetrics:
                                    took[1] if took and now - took[0] <= self.max_staleness_s else None, at,
                                    kind[1] if kind and now - kind[0] <= self.max_staleness_s else None)
         return out
+
+    def dependency_probe_history(self, target: TargetRef, start: datetime,
+                                 end: datetime) -> dict[str, list[ProbeSample]]:
+        """Every distinct exporter sample in (start, end], oldest first (T-0046).
+
+        `query_range` timestamps are evaluation times, so pair each series with `timestamp(series)` and retain the
+        source scrape time. Five-second evaluations ensure each configured 15-second scrape is observed between
+        scheduler ticks; repeated evaluations of the same scrape are collapsed. The exporter remains the only probe.
+        """
+        base = self._url(target.host)
+        names = ("dependency_probe_success", "dependency_probe_duration_s", "dependency_probe_error")
+        exprs = {name: Template(self.signals[name]).substitute(host=target.host, name=target.name, mounts="")
+                 for name in names}
+
+        def query(expr: str) -> list[dict]:
+            try:
+                response = httpx.get(f"{base}/api/v1/query_range", params={
+                    "query": expr, "start": start.timestamp(), "end": end.timestamp(),
+                    "step": f"{self.LINK_HISTORY_STEP_S}s",
+                }, timeout=8)
+                response.raise_for_status()
+            except httpx.HTTPError as exc:
+                raise MetricsUnavailable(f"prometheus at {base}: {type(exc).__name__}") from exc
+            return response.json().get("data", {}).get("result", [])
+
+        def grid(rows: list[dict], dimensions: tuple[str, ...]) -> dict[tuple[str, ...], dict[float, float]]:
+            out: dict[tuple[str, ...], dict[float, float]] = {}
+            for row in rows:
+                labels = row.get("metric") or {}
+                key = tuple(labels.get(label, "") for label in dimensions)
+                for evaluated_at, value in row.get("values", []):
+                    out.setdefault(key, {})[round(float(evaluated_at), 3)] = float(value)
+            return out
+
+        raw_success = grid(query(exprs["dependency_probe_success"]), ("dependency",))
+        source_success = grid(query(f"timestamp({exprs['dependency_probe_success']})"), ("dependency",))
+        raw_duration = grid(query(exprs["dependency_probe_duration_s"]), ("dependency",))
+        source_duration = grid(query(f"timestamp({exprs['dependency_probe_duration_s']})"), ("dependency",))
+        raw_error = grid(query(exprs["dependency_probe_error"]), ("dependency", "kind"))
+        source_error = grid(query(f"timestamp({exprs['dependency_probe_error']})"), ("dependency", "kind"))
+
+        start_ts, end_ts = start.timestamp(), end.timestamp()
+        result: dict[str, list[ProbeSample]] = {}
+        for (dependency,), success_points in raw_success.items():
+            source_points = source_success.get((dependency,), {})
+            duration_points = raw_duration.get((dependency,), {})
+            duration_times = source_duration.get((dependency,), {})
+            seen: set[float] = set()
+            samples = []
+            for evaluated_at in sorted(success_points):
+                source_at = source_points.get(evaluated_at)
+                if source_at is None or not start_ts < source_at <= end_ts or source_at in seen:
+                    continue
+                seen.add(source_at)
+                duration = duration_points.get(evaluated_at)
+                if duration is not None and not math.isclose(duration_times.get(evaluated_at, -1), source_at,
+                                                             rel_tol=0, abs_tol=0.001):
+                    duration = None
+                error_kind = next((kind for (dep, kind), points in raw_error.items()
+                                   if dep == dependency and points.get(evaluated_at) is not None
+                                   and math.isclose(source_error.get((dep, kind), {}).get(evaluated_at, -1), source_at,
+                                                    rel_tol=0, abs_tol=0.001)), None)
+                samples.append(ProbeSample(success_points[evaluated_at], duration,
+                                           datetime.fromtimestamp(source_at, timezone.utc), error_kind))
+            if samples:
+                result[dependency] = samples
+        return result
 
 
 # --- Knowledge ---------------------------------------------------------------------------------
