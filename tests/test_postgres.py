@@ -70,7 +70,7 @@ def test_remediation_migration_015_freezes_proposal_and_answers_once(runtime_dsn
         policy_version="pol-1", evidence_version="ev-1"), at=now)
     store.add_action_proposal(proposal)
     assert store.get_action_proposal(proposal.id).digest == proposal.digest
-    store.add_judge_verdict(proposal.id, "gpt-6.1-sol", {"verdict": "agree", "checks": {}, "reasons": []}, now)
+    store.add_judge_verdict(proposal.id, "gpt-5.6-terra", {"verdict": "agree", "checks": {}, "reasons": []}, now)
     assert store.get_judge_verdict(proposal.id)["verdict"] == "agree"
     store.add_action_approval("appr_test14", proposal.id, proposal.digest, now, proposal.expires_at)
     assert store.answer_action_approval("appr_test14", proposal.digest, "operator", "approved", now)

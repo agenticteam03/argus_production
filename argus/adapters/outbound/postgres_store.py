@@ -819,7 +819,7 @@ CHECKS_SQL: list[tuple[str, str, bool]] = [
     ("action proposal is insert-only (DELETE refused)",
      "DELETE FROM action_proposal WHERE proposal_id = 'prop_dbcheck'", False),
     ("insert judge verdict (migration 014)", "INSERT INTO judge_verdict (proposal_id, model_id, verdict, body, "
-                                              "reviewed_at) VALUES ('prop_dbcheck','gpt-6.1-sol','agree','{}',now())", True),
+                                              "reviewed_at) VALUES ('prop_dbcheck','gpt-5.6-terra','agree','{}',now())", True),
     ("judge verdict is insert-only (UPDATE refused)",
      "UPDATE judge_verdict SET verdict = 'doubt' WHERE proposal_id = 'prop_dbcheck'", False),
     ("judge verdict is insert-only (DELETE refused)",

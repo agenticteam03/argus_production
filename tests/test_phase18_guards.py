@@ -49,7 +49,7 @@ def _path(tmp_path, *, base=RiskColor.green, criticality="low", gate=True, gatew
     path = OfflineActionPath(
         rows=store, action_policy=Policy(), inventory=Inventory(), proposer=lambda *_: candidate(),
         judge_model=lambda _: {"verdict": verdict, "checks": checks, "reasons": reasons},
-        judge_model_id="gpt-6.1-sol", judge_context=lambda _: JUDGE_CONTEXT, snapshot=lambda _, at: CHECK,
+        judge_model_id="gpt-5.6-terra", judge_context=lambda _: JUDGE_CONTEXT, snapshot=lambda _, at: CHECK,
         sample=lambda _, at: None, gateway=gateway or FakeActionGateway(),
         gate_open=frozenset({("container.start", TARGET)}) if gate else frozenset(), daily_host_cap=2,
         clock=lambda: NOW)
@@ -66,7 +66,7 @@ def _stored_verdict(store, proposal_id, **changes):
     proposal = store.get_action_proposal(proposal_id)
     body = {"verdict": "agree", "checks": GOOD_CHECKS, "reasons": [], "risk": "green",
             "proposal_digest": proposal.digest, **changes}
-    store.add_judge_verdict(proposal_id, "gpt-6.1-sol", body, NOW)
+    store.add_judge_verdict(proposal_id, "gpt-5.6-terra", body, NOW)
 
 
 # --- risk colours and the typed name (M1, M2, M3) ---------------------------------------------------------------------

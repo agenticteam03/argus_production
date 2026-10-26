@@ -36,7 +36,7 @@ class OpenAIJudge:
             raise ValueError("judge API credential is required")
         if model == deciding_model:
             raise ValueError("judge must use a different model from the decider")
-        if model not in ("gpt-6-luna", "gpt-6.1-sol", "gpt-6-astra"):
+        if model not in ("gpt-5.6-terra", "gpt-6-luna", "gpt-6.1-sol", "gpt-6-astra"):   # terra: the phase 18 judge
             raise ValueError("judge model has not been evaluated for Phase 18")
         if client is None:
             from openai import OpenAI
