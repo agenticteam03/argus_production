@@ -28,7 +28,8 @@ Method and result:
 - GREEN: the focused tests pass. They cover the 15 isolated variants, a rank flip, label-based ruled-out recall,
   per-class metrics, legacy rows, stdin input, the regrader with new and old rows, and a round trip of a row in the
   CLI shape through a JSONL file into the analyzer.
-- The one full offline suite is pending the review.
+- Full offline suite on `299290f`: 1923 passed, 71 skipped, 1 deselected; the reviewer's independent run on the same
+  head also exited 0.
 
 ### Next step
 
