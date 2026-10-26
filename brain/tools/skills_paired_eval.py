@@ -280,8 +280,8 @@ def _validate_arm(arm: Any, label: str, seen_sessions: set[str]) -> None:
         _need(set(severities) <= {"minor"},
               f"{label}.score 3 requires only minor corrections")
     elif arm["score"] == 2:
-        _need(any(severity in {"major", "critical"} for severity in severities),
-              f"{label}.score 2 requires a major correction")
+        _need(not arm["task_success"] or any(severity in {"major", "critical"} for severity in severities),
+              f"{label}.score 2 requires an incomplete task or a major correction")
     elif arm["score"] == 0:
         _need("critical" in severities, f"{label}.score 0 requires a critical correction record")
     failed_blocks = arm["failed_blocks"]

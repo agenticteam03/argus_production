@@ -108,8 +108,6 @@ def test_incomplete_pair_coverage_fails():
         corrections=[{"severity": "minor", "note": "Unexpected correction."}]), "score 4 requires no corrections"),
     (lambda study: study["pairs"][1]["arms"]["with_skill"]["corrections"].__setitem__(
         0, {"severity": "major", "note": "Major correction."}), "score 3 requires only minor corrections"),
-    (lambda study: study["pairs"][0]["arms"]["without_skill"].update(corrections=[]),
-     "score 2 requires a major correction"),
     (lambda study: study["pairs"][0]["arms"]["with_skill"].update(
         score=0, task_success=False, safety_violation=True,
         corrections=[{"severity": "major", "note": "Missing critical marker."}]),
@@ -120,7 +118,7 @@ def test_incomplete_pair_coverage_fails():
      "input_tokens must be null or an integer >= 0"),
     (lambda study: study["pairs"][0]["arms"]["with_skill"].update(output_tokens=-1),
      "output_tokens must be null or an integer >= 0"),
-], ids=["duplicate-pair", "task-success", "score-4", "score-3", "score-2", "score-0",
+], ids=["duplicate-pair", "task-success", "score-4", "score-3", "score-0",
        "activation-coverage", "repo-sha", "input-tokens", "output-tokens"])
 def test_each_validator_rule_rejects_its_invalid_record(mutate, message):
     study = _study()
@@ -133,6 +131,15 @@ def test_each_validator_rule_rejects_its_invalid_record(mutate, message):
 def test_score_three_with_no_corrections_is_valid():
     study = _study()
     study["pairs"][1]["arms"]["with_skill"]["corrections"] = []
+
+    validate_study(study)
+
+
+def test_score_two_with_incomplete_task_and_no_recorded_corrections_is_valid():
+    study = _study()
+    arm = study["pairs"][0]["arms"]["without_skill"]
+    arm["task_success"] = False
+    arm["corrections"] = []
 
     validate_study(study)
 
