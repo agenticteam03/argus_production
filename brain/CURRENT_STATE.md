@@ -7,6 +7,13 @@ shared-Brain setup B1–B8 under way (three developers).
 > The VMs are authoritative for what runs there: run `sudo bash /opt/argus-v18/app/ops/deploy.sh status` (or read
 > `/opt/argus-v18/DEPLOYED`) and the state probe before trusting this file.
 
+> **Update 2026-10-26 (`conantkd`, DEPLOY-798b69a, OBSERVED with `deploy.sh status`):** **vm-095 runs `main`
+> `798b69a`**: #344: security events go from the scheduler to vm-095's Alertmanager and on to the team's Telegram
+> group (a test alert arrived); the scheduler is on `argus-v18-sched` (internal) and leaves only through
+> `argus-v18-egress` (OCI Object Storage, the Telegram API; other names refused). No migration (schema 001-016),
+> 91/91 database checks. **Phase 16 is done.** vm-166 unchanged. Evidence:
+> [DEPLOY-798b69a step 01](execution/history/DEPLOY-798b69a/step-01/evidence.md).
+
 > **Update 2026-10-26 (`conantkd`, DEPLOY-6e87828, OBSERVED with `deploy.sh status`):** **vm-095 runs `main`
 > `6e87828`**: migration **016** (an approval needs the judge's stored `agree` on the proposal's digest; #342), schema
 > 001-016, 91/91 database checks. Phase 18 stays offline. Phase 16's tamper drill passed (an edited audit row named by
