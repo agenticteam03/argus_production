@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | `in review` - step 5c in [PR #314](https://github.com/agenticteam03/argus_production/pull/314); digest-chain fix published and based on main; full offline suite 1922 passed, 73 skipped ([journal](../../journal/logbook.md)); exact-head CI and teammate re-review pending; not deployed |
+| Status | `in progress` - steps 1-5 merged and deployed on vm-095 (step 5d 2026-10-26: the audit digest ships daily to OCI, first run checked 5/5). Exit proof: the authorization matrix and the public-404 tests are green in CI and the public edge answers 404 for `/api/v1/ops/` live; **left:** the tamper drill on vm-095 (step 6, with the team), the scheduler's outbound allowlist and the team's alert receiver |
 | Phase | 16 of [NEXT-PHASE](NEXT-PHASE-supervised-remediation.md) ([`../../IMPLEMENTATION_PLAN.md`](../../IMPLEMENTATION_PLAN.md)) |
 | Architecture | [ACR-0018](../../architecture/changes/ACR-0018-operator-access-and-audit.md) (`accepted`, #209); each step applies only what it builds (its §6) |
 | Branch | one per step: `task/PHASE-16-step-<n>-<slug>` |

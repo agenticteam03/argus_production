@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | `in review` — PR [#323](https://github.com/agenticteam03/argus_production/pull/323) on `main` after #322 (migration 015); review fixes and the reviewer's guard tests (`tests/test_phase18_guards.py`) in; re-review pending; [test evidence](../../journal/logbook.md) |
+| Status | `done` (offline) - #323 merged and deployed on vm-095 as tables and offline code (DEPLOY-16028c7, migration 015); `write_gate.open` stays empty, no route or gateway. The judge is `gpt-5.6-terra` (provisional; see below); **left:** its per-token price recorded, and the review notes kept for phase 19 (a database trigger requiring the verdict for an approval, the judge model id from configuration, a verdict row on a failure before the model call) |
 | Phase | 18 of [NEXT-PHASE](NEXT-PHASE-supervised-remediation.md) |
 | Architecture | [ACR-0019](../../architecture/changes/ACR-0019-human-approved-remediation.md), accepted; §14 designed, not yet built on main |
 | Branch | `task/T-0051-supervised-actions`, stacked on #318 and current #316 until those PRs reach main |
