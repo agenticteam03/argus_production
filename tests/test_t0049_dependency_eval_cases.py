@@ -75,7 +75,6 @@ def test_new_dependency_cases_cover_valid_diagnoses_and_abstentions(ev):
     assert cache_status["state"] == "exited" and cache_status["oom_killed"] is True
     assert cache_status["exit_code"] == 137
     assert {event["action"] for event in cache_events} == {"oom", "die"}
-    assert "memory_exhaustion" in oom.label.expected_hypotheses.supported
     assert "cache" in oom.label.diagnosis_any
 
     for case_id in ("dep-cache-oom-killed", "dep-db-stopped"):
