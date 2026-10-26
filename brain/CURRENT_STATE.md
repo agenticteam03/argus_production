@@ -7,6 +7,12 @@ shared-Brain setup B1–B8 under way (three developers).
 > The VMs are authoritative for what runs there: run `sudo bash /opt/argus-v18/app/ops/deploy.sh status` (or read
 > `/opt/argus-v18/DEPLOYED`) and the state probe before trusting this file.
 
+> **Update 2026-10-26 (`conantkd`, DEPLOY-16028c7, OBSERVED with `deploy.sh status`):** **vm-095 runs `main`
+> `16028c7`**: migrations **014** (link probe cursors, T-0046 L6, #322) and **015** (phase 18's proposals, verdicts,
+> approvals, outbox, resume intents, actions, holds, outcomes; #323), schema 001-015. Phase 18 is tables and offline
+> code only (`write_gate.open` empty, no route or gateway). 89/89 database checks. vm-166 unchanged. Evidence:
+> [DEPLOY-16028c7 step 01](execution/history/DEPLOY-16028c7/step-01/evidence.md).
+
 > **Update 2026-10-26 (`conantkd`, DEPLOY-01db0d7, OBSERVED with `deploy.sh status`):** **vm-095 runs `main`
 > `01db0d7`**: phase 17's action cards and read-only suggestions with vm-095 denied (#316, #318); phase 16 step 5's
 > digest code and wiring (#303, #311, #314): the scheduler holds the key and the OCI credential, `audit_digest` is
