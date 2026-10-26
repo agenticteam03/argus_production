@@ -5,7 +5,7 @@
   "branch": "task/DEPLOY-798b69a",
   "base_commit": "798b69a73ca7f23847ef6e88dc4309a1762fbe59",
   "started_at": "2026-10-26T17:05:21+00:00",
-  "expires_at": "2026-10-26T18:05:21+00:00",
+  "expires_at": "2026-10-26T19:05:33+00:00",
   "released": false,
   "handoff": null,
   "vms": {
@@ -16,7 +16,7 @@
       "branch": "task/DEPLOY-798b69a",
       "base_commit": "798b69a73ca7f23847ef6e88dc4309a1762fbe59",
       "started_at": "2026-10-26T17:05:21+00:00",
-      "expires_at": "2026-10-26T18:05:21+00:00",
+      "expires_at": "2026-10-26T19:05:33+00:00",
       "released": false,
       "handoff": null
     },
@@ -27,7 +27,7 @@
       "branch": "task/DEPLOY-798b69a",
       "base_commit": "798b69a73ca7f23847ef6e88dc4309a1762fbe59",
       "started_at": "2026-10-26T17:05:21+00:00",
-      "expires_at": "2026-10-26T18:05:21+00:00",
+      "expires_at": "2026-10-26T19:05:33+00:00",
       "released": false,
       "handoff": null
     }
