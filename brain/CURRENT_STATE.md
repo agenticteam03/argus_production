@@ -7,6 +7,12 @@ shared-Brain setup B1–B8 under way (three developers).
 > The VMs are authoritative for what runs there: run `sudo bash /opt/argus-v18/app/ops/deploy.sh status` (or read
 > `/opt/argus-v18/DEPLOYED`) and the state probe before trusting this file.
 
+> **Update 2026-10-26 (`conantkd`, DEPLOY-01db0d7, OBSERVED with `deploy.sh status`):** **vm-095 runs `main`
+> `01db0d7`**: phase 17's action cards and read-only suggestions with vm-095 denied (#316, #318); phase 16 step 5's
+> digest code and wiring (#303, #311, #314): the scheduler holds the key and the OCI credential, `audit_digest` is
+> off, no sink set. No migration (schema 001-013). 56/56 database checks. vm-166 unchanged. Evidence:
+> [DEPLOY-01db0d7 step 01](execution/history/DEPLOY-01db0d7/step-01/evidence.md).
+
 > **Update 2026-10-23 (`conantkd`, OBSERVED with a read-only database check on vm-095):** WebAuthn enrolment tickets were
 > issued and keys registered: **`conantkd` 2, `juanes6554` 2, `juanbetancurm` 1** (D3 asks for two; the check's verdict is
 > `STOP` until the second key). No privileged permission exists yet. vm-095 still runs `77c4524`; `NO INTERFERENCE`.
