@@ -1,19 +1,13 @@
 {
   "holder": "conantkd",
-  "session_id": "509cd4bc6fbd",
+  "session_id": "4a8fd0176e86",
   "task": "DEPLOY-7f8c14b",
   "branch": "task/DEPLOY-7f8c14b",
   "base_commit": "7f8c14b3be244908b2299a8c8b594e7484bb85c3",
-  "started_at": "2026-10-26T01:17:07+00:00",
-  "expires_at": "2026-10-26T02:17:07+00:00",
+  "started_at": "2026-10-26T01:17:40+00:00",
+  "expires_at": "2026-10-26T02:17:40+00:00",
   "released": false,
   "handoff": null,
-  "took_over_from": {
-    "holder": "juanbetancurm",
-    "task": "T-0047-H4W2",
-    "branch": "task/T-0047-h4i-gate",
-    "expired_at": "2026-10-26T00:59:09+00:00"
-  },
   "vms": {
     "vm-095": {
       "holder": "conantkd",
@@ -34,18 +28,14 @@
     },
     "vm-166": {
       "holder": "conantkd",
-      "session_id": "d0f113b3bd9b",
-      "task": "T-0046",
-      "branch": "task/T-0046-l6-sample-history",
-      "base_commit": "973ad40e5480db6a1b1a3f2e33e10c2192d1d4e1",
-      "started_at": "2026-10-25T04:49:02+00:00",
-      "expires_at": "2026-10-25T05:49:02+00:00",
-      "released": true,
-      "handoff": {
-        "note": "done: T-0046 implementation and read-only VM probes recorded in PR #322 (commit 5657763); next: Phase 18 full implementation; environment: PR #322 remains open pending review/merge, vm-095 c8d8594, vm-166 bdcd048, no deployment or migration, both VM leases released",
-        "branch": "task/T-0046-l6-sample-history",
-        "at": "2026-10-25T04:57:26+00:00"
-      }
+      "session_id": "4a8fd0176e86",
+      "task": "DEPLOY-7f8c14b",
+      "branch": "task/DEPLOY-7f8c14b",
+      "base_commit": "7f8c14b3be244908b2299a8c8b594e7484bb85c3",
+      "started_at": "2026-10-26T01:17:40+00:00",
+      "expires_at": "2026-10-26T02:17:40+00:00",
+      "released": false,
+      "handoff": null
     }
   }
 }
