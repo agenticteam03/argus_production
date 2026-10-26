@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | `in review` — Phase 17 is in PR [#316](https://github.com/agenticteam03/argus_production/pull/316); automatically aligned with `main` at `106190b` on 2026-10-24; full local suite: 1979 passed, 73 skipped; exact-head CI and teammate approval required ([evidence](../../journal/entries/2026-10-23-T-0050-phase17-cards-and-catalogue.md)) |
+| Status | `in review` — Phase 17 is in PR [#316](https://github.com/agenticteam03/argus_production/pull/316); automatically aligned with `main` at `106190b` on 2026-10-24; full local suite: 1979 passed, 73 skipped; exact-head CI and teammate approval required ([evidence](../../journal/logbook.md)) |
 | Phase | 17 of [NEXT-PHASE](NEXT-PHASE-supervised-remediation.md) ([`../../IMPLEMENTATION_PLAN.md`](../../IMPLEMENTATION_PLAN.md)) |
 | Architecture | [ACR-0019](../../architecture/changes/ACR-0019-human-approved-remediation.md) (`accepted`, PR #302) |
 | Branch | `task/T-0050-cards-and-catalogue` |
