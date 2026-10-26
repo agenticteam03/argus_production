@@ -28,10 +28,14 @@ def test_only_the_api_publishes_a_port_and_only_on_loopback():
     assert "ports" not in CORE["argus-v18-worker"] and "ports" not in CORE["argus-v18-scheduler"]
 
 
-def test_scheduler_gets_the_database_credential_only():
+def test_scheduler_gets_the_database_credential_and_the_digest_secrets_only():
+    """No executor token and no model key; since phase 16 step 5 also the audit digest key and the OCI credential, from
+    their own folder (tests/test_phase16_step5c_check.py checks that only the scheduler mounts them)."""
     vols = CORE["argus-v18-scheduler"]["volumes"]
     secrets = [v for v in vols if "/secrets/" in v]
-    assert secrets == ["/opt/argus-v18/secrets/agent/db_password:/run/argus-secrets/db_password:ro"]
+    assert secrets == ["/opt/argus-v18/secrets/agent/db_password:/run/argus-secrets/db_password:ro",
+                       "/opt/argus-v18/secrets/digest/audit_digest_ed25519_key:/run/argus-secrets/audit_digest_ed25519_key:ro",
+                       "/opt/argus-v18/secrets/digest/oci_digest:/run/argus-secrets/oci_digest:ro"]
     assert all(v.endswith(":ro") for v in vols)
     env = CORE["argus-v18-scheduler"]["environment"]
     assert env["ARGUS_SCHEDULES"].startswith("/app/schedules/")                    # the image has no deploy/ folder
