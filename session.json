@@ -1,47 +1,35 @@
 {
   "holder": "conantkd",
-  "session_id": "903b77486495",
-  "task": "PHASE-16-step-6",
+  "session_id": "afc5feb9bf24",
+  "task": "PHASE-16-egress",
   "branch": "task/PHASE-16-step-6-exit-drill",
-  "base_commit": "6e87828c51e2da71b1727bbbc5ce13fd98b92832",
-  "started_at": "2026-10-26T11:35:01+00:00",
-  "expires_at": "2026-10-26T12:35:01+00:00",
-  "released": true,
-  "handoff": {
-    "note": "done: vm-095 on main 6e87828 (migration 016, schema 001-016, 91/91 db checks), phase 16 tamper drill passed (edited row detected, restored, chain OK); next: #343 records, then phase 16 left: scheduler outbound allowlist and team alert receiver; environment: vm-166 unchanged",
-    "branch": "task/PHASE-16-step-6-exit-drill",
-    "at": "2026-10-26T11:43:56+00:00"
-  },
+  "base_commit": "85ab276f86ff34efa2c18d5aa8ff72a31e72dbf5",
+  "started_at": "2026-10-26T12:09:30+00:00",
+  "expires_at": "2026-10-26T13:09:30+00:00",
+  "released": false,
+  "handoff": null,
   "vms": {
     "vm-095": {
       "holder": "conantkd",
-      "session_id": "903b77486495",
-      "task": "PHASE-16-step-6",
+      "session_id": "afc5feb9bf24",
+      "task": "PHASE-16-egress",
       "branch": "task/PHASE-16-step-6-exit-drill",
-      "base_commit": "6e87828c51e2da71b1727bbbc5ce13fd98b92832",
-      "started_at": "2026-10-26T11:35:01+00:00",
-      "expires_at": "2026-10-26T12:35:01+00:00",
-      "released": true,
-      "handoff": {
-        "note": "done: vm-095 on main 6e87828 (migration 016, schema 001-016, 91/91 db checks), phase 16 tamper drill passed (edited row detected, restored, chain OK); next: #343 records, then phase 16 left: scheduler outbound allowlist and team alert receiver; environment: vm-166 unchanged",
-        "branch": "task/PHASE-16-step-6-exit-drill",
-        "at": "2026-10-26T11:43:56+00:00"
-      }
+      "base_commit": "85ab276f86ff34efa2c18d5aa8ff72a31e72dbf5",
+      "started_at": "2026-10-26T12:09:30+00:00",
+      "expires_at": "2026-10-26T13:09:30+00:00",
+      "released": false,
+      "handoff": null
     },
     "vm-166": {
       "holder": "conantkd",
-      "session_id": "903b77486495",
-      "task": "PHASE-16-step-6",
+      "session_id": "afc5feb9bf24",
+      "task": "PHASE-16-egress",
       "branch": "task/PHASE-16-step-6-exit-drill",
-      "base_commit": "6e87828c51e2da71b1727bbbc5ce13fd98b92832",
-      "started_at": "2026-10-26T11:35:01+00:00",
-      "expires_at": "2026-10-26T12:35:01+00:00",
-      "released": true,
-      "handoff": {
-        "note": "done: vm-095 on main 6e87828 (migration 016, schema 001-016, 91/91 db checks), phase 16 tamper drill passed (edited row detected, restored, chain OK); next: #343 records, then phase 16 left: scheduler outbound allowlist and team alert receiver; environment: vm-166 unchanged",
-        "branch": "task/PHASE-16-step-6-exit-drill",
-        "at": "2026-10-26T11:43:56+00:00"
-      }
+      "base_commit": "85ab276f86ff34efa2c18d5aa8ff72a31e72dbf5",
+      "started_at": "2026-10-26T12:09:30+00:00",
+      "expires_at": "2026-10-26T13:09:30+00:00",
+      "released": false,
+      "handoff": null
     }
   }
 }
