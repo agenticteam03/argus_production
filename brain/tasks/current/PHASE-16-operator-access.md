@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | `in progress` - steps 1-5 merged and deployed on vm-095 (step 5d 2026-10-26: the audit digest ships daily to OCI, first run checked 5/5). Exit proof: the authorization matrix and the public-404 tests are green in CI and the public edge answers 404 for `/api/v1/ops/` live; **left:** the tamper drill on vm-095 (step 6, with the team), the scheduler's outbound allowlist and the team's alert receiver |
+| Status | `in progress` - steps 1-5 merged and deployed on vm-095 (step 5d 2026-10-26: the audit digest ships daily to OCI, first run checked 5/5). Exit proof: the authorization matrix and the public-404 tests are green in CI and the public edge answers 404 for `/api/v1/ops/` live; the tamper drill passed on vm-095 (step 6, 2026-10-26: an edited audit row named by `argus audit verify` and the scheduled check, then restored); **left:** the scheduler's outbound allowlist and the team's alert receiver |
 | Phase | 16 of [NEXT-PHASE](NEXT-PHASE-supervised-remediation.md) ([`../../IMPLEMENTATION_PLAN.md`](../../IMPLEMENTATION_PLAN.md)) |
 | Architecture | [ACR-0018](../../architecture/changes/ACR-0018-operator-access-and-audit.md) (`accepted`, #209); each step applies only what it builds (its §6) |
 | Branch | one per step: `task/PHASE-16-step-<n>-<slug>` |
@@ -113,6 +113,9 @@ step-up bound to a test object, with the binding to approvals added in phase 17.
 ### Step 6 — exit proof
 The authorization matrix over every route × role × token kind × permission; the public 404 test; a tamper drill on
 vm-095 (an owner edits a row; `argus audit verify` and the scheduled check name it); the record.
+**Drill done (2026-10-26, [evidence](../../execution/history/PHASE-16/step-06-exit-drill/evidence.md)):** with main
+`6e87828` (migration 016) deployed, the owner added one key to a chained audit row; `argus audit verify` and the
+scheduler's chain check named it, the digest job refused to sign; the key removed, both verified again.
 
 ## Not in this phase
 Approvals and actions (ACR-0019, phase 17 on), the operator terminal (ACR-0020, phase 21), OIDC (§17.3 "Future").

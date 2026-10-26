@@ -7,6 +7,12 @@ shared-Brain setup B1–B8 under way (three developers).
 > The VMs are authoritative for what runs there: run `sudo bash /opt/argus-v18/app/ops/deploy.sh status` (or read
 > `/opt/argus-v18/DEPLOYED`) and the state probe before trusting this file.
 
+> **Update 2026-10-26 (`conantkd`, DEPLOY-6e87828, OBSERVED with `deploy.sh status`):** **vm-095 runs `main`
+> `6e87828`**: migration **016** (an approval needs the judge's stored `agree` on the proposal's digest; #342), schema
+> 001-016, 91/91 database checks. Phase 18 stays offline. Phase 16's tamper drill passed (an edited audit row named by
+> `argus audit verify` and the scheduled check, then restored). vm-166 unchanged. Evidence:
+> [PHASE-16 step 06](execution/history/PHASE-16/step-06-exit-drill/evidence.md).
+
 > **Update 2026-10-26 (`conantkd`, DEPLOY-16028c7, OBSERVED with `deploy.sh status`):** **vm-095 runs `main`
 > `16028c7`**: migrations **014** (link probe cursors, T-0046 L6, #322) and **015** (phase 18's proposals, verdicts,
 > approvals, outbox, resume intents, actions, holds, outcomes; #323), schema 001-015. Phase 18 is tables and offline
