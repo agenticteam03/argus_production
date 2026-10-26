@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import json
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any
 
 from psycopg.types.json import Jsonb
@@ -71,6 +71,186 @@ class PostgresStore:
         with self.pool.connection() as c:
             cur = c.execute(sql, params)
             return cur.fetchall() if cur.description else []
+
+    # --- phase 18: frozen proposals and forward-only human answers -------------------------------
+    def add_action_proposal(self, proposal) -> None:
+        self._q("INSERT INTO action_proposal (proposal_id, incident_id, capability, target, digest, body, "
+                "created_at, expires_at) VALUES (%s,%s,%s,%s,%s,%s,%s,%s)",
+                (proposal.id, proposal.input.incident_id, proposal.input.capability, proposal.input.target,
+                 proposal.digest, Jsonb(proposal.model_dump(mode="json")), proposal.created_at, proposal.expires_at))
+
+    def get_action_proposal(self, proposal_id: str):
+        from argus.actions.remediation import FrozenProposal
+
+        rows = self._q("SELECT body FROM action_proposal WHERE proposal_id=%s", (proposal_id,))
+        return FrozenProposal.model_validate(rows[0][0]) if rows else None
+
+    def latest_action_proposal_for_incident(self, incident_id: str):
+        rows = self._q("SELECT proposal_id FROM action_proposal WHERE incident_id=%s "
+                       "ORDER BY created_at DESC, proposal_id DESC LIMIT 1", (incident_id,))
+        return self.get_action_proposal(rows[0][0]) if rows else None
+
+    def add_judge_verdict(self, proposal_id: str, model_id: str, verdict: dict, at: datetime) -> None:
+        self._q("INSERT INTO judge_verdict (proposal_id, model_id, verdict, body, reviewed_at) "
+                "VALUES (%s,%s,%s,%s,%s)",
+                (proposal_id, model_id, verdict["verdict"], Jsonb(verdict), at))
+
+    def get_judge_verdict(self, proposal_id: str) -> dict[str, Any] | None:
+        rows = self._q("SELECT body FROM judge_verdict WHERE proposal_id=%s", (proposal_id,))
+        return rows[0][0] if rows else None
+
+    def add_action_approval(self, approval_id: str, proposal_id: str, digest: str,
+                            requested_at: datetime, expires_at: datetime) -> None:
+        with self.pool.connection() as c, c.transaction():
+            c.execute("INSERT INTO approval (approval_id, proposal_id, proposal_digest, state, requested_at, "
+                      "expires_at) VALUES (%s,%s,%s,'pending',%s,%s)",
+                      (approval_id, proposal_id, digest, requested_at, expires_at))
+            c.execute("INSERT INTO notification_outbox (key, channel, payload, next_attempt_at) "
+                      "VALUES (%s,'recording',%s,%s)",
+                      (approval_id, Jsonb({"approval_id": approval_id, "proposal_digest": digest}), requested_at))
+
+    def get_action_approval(self, approval_id: str) -> dict[str, Any] | None:
+        rows = self._q("SELECT proposal_id, proposal_digest, state, actor, requested_at, expires_at, answered_at "
+                       "FROM approval WHERE approval_id=%s", (approval_id,))
+        if not rows:
+            return None
+        proposal_id, digest, state, actor, requested, expires, answered = rows[0]
+        return {"id": approval_id, "proposal_id": proposal_id, "proposal_digest": digest, "state": state,
+                "actor": actor, "requested_at": requested, "expires_at": expires, "answered_at": answered}
+
+    def get_action_approval_for_proposal(self, proposal_id: str) -> dict[str, Any] | None:
+        rows = self._q("SELECT approval_id FROM approval WHERE proposal_id=%s", (proposal_id,))
+        return self.get_action_approval(rows[0][0]) if rows else None
+
+    def answer_action_approval(self, approval_id: str, digest: str, actor: str, decision: str,
+                               at: datetime) -> bool:
+        if decision not in ("approved", "denied") or not actor:
+            raise ValueError("a human decision and actor are required")
+        with self.pool.connection() as c, c.transaction():
+            row = c.execute("UPDATE approval SET state=%s, actor=%s, answered_at=%s WHERE approval_id=%s "
+                            "AND proposal_digest=%s AND state='pending' AND expires_at>%s RETURNING proposal_id",
+                            (decision, actor, at, approval_id, digest, at)).fetchone()
+            if row:
+                c.execute("INSERT INTO resume_intent (approval_id, incident_id, decision, state) "
+                          "SELECT %s, incident_id, %s, 'pending' FROM action_proposal WHERE proposal_id=%s",
+                          (approval_id, decision, row[0]))
+            return row is not None
+
+    def get_resume_intent(self, approval_id: str) -> dict[str, Any] | None:
+        rows = self._q("SELECT incident_id, decision, state, attempts, last_outcome FROM resume_intent "
+                       "WHERE approval_id=%s", (approval_id,))
+        if not rows:
+            return None
+        incident_id, decision, state, attempts, last_outcome = rows[0]
+        return {"approval_id": approval_id, "incident_id": incident_id, "decision": decision,
+                "state": state, "attempts": attempts, "last_outcome": last_outcome}
+
+    def pending_resume_intents(self, limit: int = 20) -> list[dict[str, Any]]:
+        rows = self._q("SELECT approval_id FROM resume_intent WHERE state='pending' "
+                       "ORDER BY approval_id LIMIT %s", (limit,))
+        return [self.get_resume_intent(r[0]) for r in rows]
+
+    def mark_resume_intent(self, approval_id: str, state: str, outcome: str) -> bool:
+        if state not in ("pending", "done", "failed"):
+            raise ValueError("invalid resume state")
+        return bool(self._q("UPDATE resume_intent SET state=%s, attempts=attempts+1, last_outcome=%s "
+                            "WHERE approval_id=%s AND state='pending' RETURNING approval_id",
+                            (state, outcome, approval_id)))
+
+    def pending_action_notifications(self, at: datetime, limit: int = 20) -> list[dict[str, Any]]:
+        rows = self._q("SELECT key, channel, payload, attempts FROM notification_outbox "
+                       "WHERE delivered_at IS NULL AND next_attempt_at<=%s "
+                       "ORDER BY next_attempt_at, key LIMIT %s", (at, limit))
+        return [{"key": key, "channel": channel, "payload": payload, "attempts": attempts}
+                for key, channel, payload, attempts in rows]
+
+    def mark_action_notification(self, key: str, *, at: datetime, delivered: bool, result: str) -> bool:
+        return bool(self._q("UPDATE notification_outbox SET attempts=attempts+1, last_result=%s, "
+                            "delivered_at=CASE WHEN %s THEN %s ELSE delivered_at END, "
+                            "next_attempt_at=%s WHERE key=%s AND delivered_at IS NULL RETURNING key",
+                            (result, delivered, at, at + timedelta(minutes=5), key)))
+
+    def add_action(self, action_id: str, proposal_id: str, approval_id: str) -> None:
+        self._q("INSERT INTO action (action_id, proposal_id, approval_id, state) "
+                "VALUES (%s,%s,%s,'unstarted')", (action_id, proposal_id, approval_id))
+
+    def start_action(self, action_id: str, at: datetime) -> bool:
+        return bool(self._q("UPDATE action SET state='attempting', attempted_at=%s "
+                            "WHERE action_id=%s AND state='unstarted' RETURNING action_id", (at, action_id)))
+
+    def finish_action(self, action_id: str, state: str, at: datetime, evidence: dict[str, Any]) -> bool:
+        if state not in ("confirmed", "failed", "indeterminate"):
+            raise ValueError("invalid terminal action state")
+        return bool(self._q("UPDATE action SET state=%s, result_at=%s, evidence=%s "
+                            "WHERE action_id=%s AND state='attempting' RETURNING action_id",
+                            (state, at, Jsonb(evidence), action_id)))
+
+    def get_action(self, action_id: str) -> dict[str, Any] | None:
+        rows = self._q("SELECT proposal_id, approval_id, state, attempted_at, result_at, evidence "
+                       "FROM action WHERE action_id=%s", (action_id,))
+        if not rows:
+            return None
+        proposal_id, approval_id, state, attempted_at, result_at, evidence = rows[0]
+        return {"id": action_id, "proposal_id": proposal_id, "approval_id": approval_id, "state": state,
+                "attempted_at": attempted_at, "result_at": result_at, "evidence": evidence}
+
+    def get_action_for_approval(self, approval_id: str) -> dict[str, Any] | None:
+        rows = self._q("SELECT action_id FROM action WHERE approval_id=%s", (approval_id,))
+        return self.get_action(rows[0][0]) if rows else None
+
+    def reserve_action(self, action_id: str, proposal_id: str, approval_id: str, target: str,
+                       at: datetime, *, daily_host_cap: int) -> bool:
+        """Serialize claims by host and target before checking limits and inserting attempting."""
+        if daily_host_cap < 1:
+            return False
+        host = target.split("/", 1)[0]
+        with self.pool.connection() as c, c.transaction():
+            # Host lock also serializes claims for different targets under the daily cap.
+            c.execute("SELECT pg_advisory_xact_lock(hashtextextended(%s, 0))", ("action-host:" + host,))
+            c.execute("SELECT pg_advisory_xact_lock(hashtextextended(%s, 0))", ("action-target:" + target,))
+            active, recent, daily, used = c.execute(
+                "SELECT "
+                "(SELECT count(*) FROM action a JOIN action_proposal p USING (proposal_id) WHERE p.target=%s "
+                "AND a.state IN ('attempting','indeterminate')), "
+                "(SELECT count(*) FROM action a JOIN action_proposal p USING (proposal_id) WHERE p.target=%s "
+                "AND a.attempted_at>%s), "
+                "(SELECT count(*) FROM action a JOIN action_proposal p USING (proposal_id) WHERE "
+                "split_part(p.target,'/',1)=%s AND a.attempted_at>=%s), "
+                "(SELECT count(*) FROM action WHERE approval_id=%s)",
+                (target, target, at - timedelta(minutes=10), host, at - timedelta(hours=24), approval_id)
+            ).fetchone()
+            if active or recent or daily >= daily_host_cap or used:
+                return False
+            c.execute("INSERT INTO action (action_id, proposal_id, approval_id, state, attempted_at) "
+                      "VALUES (%s,%s,%s,'attempting',%s)", (action_id, proposal_id, approval_id, at))
+            return True
+
+    def add_target_hold(self, hold_id: str, target: str, reason: str, placed_by: str, at: datetime,
+                        expires_at: datetime | None = None) -> None:
+        self._q("INSERT INTO target_hold (hold_id, target, reason, placed_by, placed_at, expires_at) "
+                "VALUES (%s,%s,%s,%s,%s,%s)", (hold_id, target, reason, placed_by, at, expires_at))
+
+    def release_target_hold(self, hold_id: str, released_by: str, at: datetime) -> bool:
+        return bool(self._q("UPDATE target_hold SET released_by=%s, released_at=%s "
+                            "WHERE hold_id=%s AND released_at IS NULL RETURNING hold_id",
+                            (released_by, at, hold_id)))
+
+    def active_target_holds(self, target: str, at: datetime) -> list[str]:
+        return [r[0] for r in self._q("SELECT hold_id FROM target_hold WHERE target=%s AND released_at IS NULL "
+                                      "AND (expires_at IS NULL OR expires_at>%s) ORDER BY placed_at, hold_id",
+                                      (target, at))]
+
+    def add_action_outcome(self, action_id: str, incident_id: str, origin: str, outcome: str,
+                           body: dict[str, Any], at: datetime) -> None:
+        if origin not in ("lab", "drill", "production") or outcome not in (
+                "recovered_verified", "action_failed", "indeterminate_escalated"):
+            raise ValueError("invalid action outcome")
+        self._q("INSERT INTO action_outcome (action_id, incident_id, origin, outcome, body, recorded_at) "
+                "VALUES (%s,%s,%s,%s,%s,%s)", (action_id, incident_id, origin, outcome, Jsonb(body), at))
+
+    def get_action_outcome(self, action_id: str) -> dict[str, Any] | None:
+        rows = self._q("SELECT outcome, body, recorded_at FROM action_outcome WHERE action_id=%s", (action_id,))
+        return {"outcome": rows[0][0], "body": rows[0][1], "recorded_at": rows[0][2]} if rows else None
 
     # --- incidents -------------------------------------------------------------------------------
     def create_incident(self, incident: Incident, idempotency_key: str | None) -> tuple[Incident, bool]:
@@ -629,6 +809,65 @@ CHECKS_SQL: list[tuple[str, str, bool]] = [
                                                     "WHERE incident_id = 'inc_dbcheck'", False),
     ("hypotheses are insert-only (DELETE refused)", "DELETE FROM incident_hypothesis WHERE incident_id = 'inc_dbcheck'",
      False),
+    ("insert action proposal (migration 014)", "INSERT INTO action_proposal (proposal_id, incident_id, "
+                                               "capability, target, digest, body, created_at, expires_at) VALUES "
+                                               "('prop_dbcheck', 'inc_dbcheck', 'container.start', "
+                                               "'vm-166/container:argus-lab-cache', repeat('a',64), '{}', now(), "
+                                               "now() + interval '30 minutes')", True),
+    ("action proposal is insert-only (UPDATE refused)",
+     "UPDATE action_proposal SET target = 'x' WHERE proposal_id = 'prop_dbcheck'", False),
+    ("action proposal is insert-only (DELETE refused)",
+     "DELETE FROM action_proposal WHERE proposal_id = 'prop_dbcheck'", False),
+    ("insert judge verdict (migration 014)", "INSERT INTO judge_verdict (proposal_id, model_id, verdict, body, "
+                                              "reviewed_at) VALUES ('prop_dbcheck','gpt-6.1-sol','agree','{}',now())", True),
+    ("judge verdict is insert-only (UPDATE refused)",
+     "UPDATE judge_verdict SET verdict = 'doubt' WHERE proposal_id = 'prop_dbcheck'", False),
+    ("judge verdict is insert-only (DELETE refused)",
+     "DELETE FROM judge_verdict WHERE proposal_id = 'prop_dbcheck'", False),
+    ("insert approval (migration 014)", "INSERT INTO approval (approval_id, proposal_id, proposal_digest, "
+                                       "state, requested_at, expires_at) VALUES ('appr_dbcheck', 'prop_dbcheck', "
+                                       "repeat('a',64), 'pending', now(), now() + interval '30 minutes')", True),
+    ("insert notification outbox (migration 014)",
+     "INSERT INTO notification_outbox (key, channel, payload, next_attempt_at) "
+     "VALUES ('appr_dbcheck', 'recording', '{}', now())", True),
+    ("outbox delivery may be recorded", "UPDATE notification_outbox SET attempts = 1, delivered_at = now() "
+                                         "WHERE key = 'appr_dbcheck'", True),
+    ("outbox payload is fixed", "UPDATE notification_outbox SET payload = '{\"changed\":true}' "
+                                "WHERE key = 'appr_dbcheck'", False),
+    ("answer approval once", "UPDATE approval SET state = 'approved', actor = 'dbcheck', answered_at = now() "
+                             "WHERE approval_id = 'appr_dbcheck'", True),
+    ("insert resume intent (migration 014)", "INSERT INTO resume_intent (approval_id, incident_id, decision, state) "
+                                            "VALUES ('appr_dbcheck', 'inc_dbcheck', 'approved', 'pending')", True),
+    ("resume intent advances", "UPDATE resume_intent SET state = 'done', attempts = 1 "
+                               "WHERE approval_id = 'appr_dbcheck'", True),
+    ("resume intent decision is fixed", "UPDATE resume_intent SET decision = 'denied' "
+                                        "WHERE approval_id = 'appr_dbcheck'", False),
+    ("answered approval cannot reopen", "UPDATE approval SET state = 'pending', actor = NULL, answered_at = NULL "
+                                        "WHERE approval_id = 'appr_dbcheck'", False),
+    ("approval cannot be deleted", "DELETE FROM approval WHERE approval_id = 'appr_dbcheck'", False),
+    ("insert action (migration 014)", "INSERT INTO action (action_id, proposal_id, approval_id, state) "
+                                      "VALUES ('act_dbcheck', 'prop_dbcheck', 'appr_dbcheck', 'unstarted')", True),
+    ("action starts", "UPDATE action SET state = 'attempting', attempted_at = now() "
+                      "WHERE action_id = 'act_dbcheck'", True),
+    ("action confirms", "UPDATE action SET state = 'confirmed', result_at = now() "
+                        "WHERE action_id = 'act_dbcheck'", True),
+    ("action cannot reopen", "UPDATE action SET state = 'attempting' WHERE action_id = 'act_dbcheck'", False),
+    ("action identity fixed", "UPDATE action SET proposal_id = 'other' WHERE action_id = 'act_dbcheck'", False),
+    ("insert target hold (migration 014)", "INSERT INTO target_hold (hold_id, target, reason, placed_by, placed_at) "
+                                           "VALUES ('hold_dbcheck', 'vm-166/container:argus-lab-cache', 'test', "
+                                           "'dbcheck', now())", True),
+    ("release target hold", "UPDATE target_hold SET released_by = 'dbcheck', released_at = now() "
+                            "WHERE hold_id = 'hold_dbcheck'", True),
+    ("hold cannot be released twice", "UPDATE target_hold SET released_at = now() "
+                                      "WHERE hold_id = 'hold_dbcheck'", False),
+    ("hold target fixed", "UPDATE target_hold SET target = 'changed' WHERE hold_id = 'hold_dbcheck'", False),
+    ("insert action outcome (migration 014)", "INSERT INTO action_outcome (action_id, incident_id, origin, "
+                                               "outcome, body, recorded_at) VALUES ('act_dbcheck', 'inc_dbcheck', "
+                                               "'lab', 'recovered_verified', '{}', now())", True),
+    ("action outcome is insert-only (UPDATE refused)", "UPDATE action_outcome SET origin = 'production' "
+                                                       "WHERE action_id = 'act_dbcheck'", False),
+    ("action outcome is insert-only (DELETE refused)", "DELETE FROM action_outcome "
+                                                       "WHERE action_id = 'act_dbcheck'", False),
     ("runtime role is not superuser", "DO $$ BEGIN IF (SELECT rolsuper FROM pg_roles WHERE rolname = current_user) "
                                       "THEN RAISE EXCEPTION 'superuser'; END IF; END $$", True),
 ]

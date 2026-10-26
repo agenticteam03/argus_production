@@ -86,6 +86,11 @@ class IncidentOutcome(StrEnum):
     no_action_escalated = "no_action_escalated"
     refused = "refused"
     resolved_externally = "resolved_externally"     # every alert resolved before a run started (§6.4, T-0026)
+    recovered_verified = "recovered_verified"       # Phase 18 fake-gateway path; never inferred from dispatch alone
+    action_failed = "action_failed"
+    indeterminate_escalated = "indeterminate_escalated"
+    denied = "denied"
+    expired = "expired"
 
 
 class Incident(BaseModel):
