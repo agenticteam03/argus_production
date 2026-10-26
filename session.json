@@ -1,24 +1,36 @@
 {
-  "holder": "juanbetancurm",
-  "session_id": "3496100a6d8f",
-  "task": "T-0047-H4W2",
-  "branch": "task/T-0047-h4i-gate",
-  "base_commit": "106190b2b14bd756158950892ca5d85331d13829",
-  "started_at": "2026-10-25T22:36:14+00:00",
-  "expires_at": "2026-10-26T00:59:09+00:00",
+  "holder": "conantkd",
+  "session_id": "509cd4bc6fbd",
+  "task": "DEPLOY-7f8c14b",
+  "branch": "task/DEPLOY-7f8c14b",
+  "base_commit": "7f8c14b3be244908b2299a8c8b594e7484bb85c3",
+  "started_at": "2026-10-26T01:17:07+00:00",
+  "expires_at": "2026-10-26T02:17:07+00:00",
   "released": false,
   "handoff": null,
+  "took_over_from": {
+    "holder": "juanbetancurm",
+    "task": "T-0047-H4W2",
+    "branch": "task/T-0047-h4i-gate",
+    "expired_at": "2026-10-26T00:59:09+00:00"
+  },
   "vms": {
     "vm-095": {
-      "holder": "juanbetancurm",
-      "session_id": "3496100a6d8f",
-      "task": "T-0047-H4W2",
-      "branch": "task/T-0047-h4i-gate",
-      "base_commit": "106190b2b14bd756158950892ca5d85331d13829",
-      "started_at": "2026-10-25T22:36:14+00:00",
-      "expires_at": "2026-10-26T00:59:09+00:00",
+      "holder": "conantkd",
+      "session_id": "509cd4bc6fbd",
+      "task": "DEPLOY-7f8c14b",
+      "branch": "task/DEPLOY-7f8c14b",
+      "base_commit": "7f8c14b3be244908b2299a8c8b594e7484bb85c3",
+      "started_at": "2026-10-26T01:17:07+00:00",
+      "expires_at": "2026-10-26T02:17:07+00:00",
       "released": false,
-      "handoff": null
+      "handoff": null,
+      "took_over_from": {
+        "holder": "juanbetancurm",
+        "task": "T-0047-H4W2",
+        "branch": "task/T-0047-h4i-gate",
+        "expired_at": "2026-10-26T00:59:09+00:00"
+      }
     },
     "vm-166": {
       "holder": "conantkd",
