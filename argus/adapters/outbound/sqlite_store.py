@@ -136,6 +136,16 @@ CREATE TRIGGER IF NOT EXISTS approval_forward BEFORE UPDATE ON approval
     OR NEW.answered_at IS NULL
     OR (NEW.state IN ('approved','denied') AND (NEW.actor IS NULL OR NEW.answered_at >= OLD.expires_at))
   BEGIN SELECT RAISE(ABORT, 'approval transition is not forward-only'); END;
+CREATE TRIGGER IF NOT EXISTS approval_needs_agree BEFORE INSERT ON approval
+  WHEN NOT EXISTS (SELECT 1 FROM judge_verdict v WHERE v.proposal_id = NEW.proposal_id AND v.verdict = 'agree'
+                     AND json_extract(v.body, '$.proposal_digest') = NEW.proposal_digest
+                     AND coalesce(json_extract(v.body, '$.risk'), '') <> 'forbidden')
+  BEGIN SELECT RAISE(ABORT, 'an approval needs the judge''s agree on this proposal'); END;
+CREATE TRIGGER IF NOT EXISTS approval_approved_needs_agree BEFORE UPDATE ON approval
+  WHEN NEW.state = 'approved' AND NOT EXISTS (SELECT 1 FROM judge_verdict v WHERE v.proposal_id = NEW.proposal_id
+                     AND v.verdict = 'agree' AND json_extract(v.body, '$.proposal_digest') = NEW.proposal_digest
+                     AND coalesce(json_extract(v.body, '$.risk'), '') <> 'forbidden')
+  BEGIN SELECT RAISE(ABORT, 'an approval needs the judge''s agree on this proposal'); END;
 CREATE TABLE IF NOT EXISTS notification_outbox (
   key TEXT PRIMARY KEY, channel TEXT NOT NULL, payload TEXT NOT NULL, attempts INTEGER NOT NULL DEFAULT 0,
   next_attempt_at TEXT NOT NULL, last_result TEXT, delivered_at TEXT);

@@ -259,6 +259,7 @@ def test_the_store_itself_refuses_to_approve_without_an_actor(tmp_path):
     try:
         proposal = freeze_proposal(candidate(), at=NOW)
         store.add_action_proposal(proposal)
+        agreed(store, proposal, NOW)                       # migration 016: no approval without the judge's agree
         store.add_action_approval("appr_none", proposal.id, proposal.digest, NOW, proposal.expires_at)
         with pytest.raises(ValueError, match="actor"):
             store.answer_action_approval("appr_none", proposal.digest, "", "approved", NOW)
