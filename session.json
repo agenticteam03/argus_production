@@ -6,8 +6,12 @@
   "base_commit": "6e87828c51e2da71b1727bbbc5ce13fd98b92832",
   "started_at": "2026-10-26T11:35:01+00:00",
   "expires_at": "2026-10-26T12:35:01+00:00",
-  "released": false,
-  "handoff": null,
+  "released": true,
+  "handoff": {
+    "note": "done: vm-095 on main 6e87828 (migration 016, schema 001-016, 91/91 db checks), phase 16 tamper drill passed (edited row detected, restored, chain OK); next: #343 records, then phase 16 left: scheduler outbound allowlist and team alert receiver; environment: vm-166 unchanged",
+    "branch": "task/PHASE-16-step-6-exit-drill",
+    "at": "2026-10-26T11:43:56+00:00"
+  },
   "vms": {
     "vm-095": {
       "holder": "conantkd",
@@ -17,8 +21,12 @@
       "base_commit": "6e87828c51e2da71b1727bbbc5ce13fd98b92832",
       "started_at": "2026-10-26T11:35:01+00:00",
       "expires_at": "2026-10-26T12:35:01+00:00",
-      "released": false,
-      "handoff": null
+      "released": true,
+      "handoff": {
+        "note": "done: vm-095 on main 6e87828 (migration 016, schema 001-016, 91/91 db checks), phase 16 tamper drill passed (edited row detected, restored, chain OK); next: #343 records, then phase 16 left: scheduler outbound allowlist and team alert receiver; environment: vm-166 unchanged",
+        "branch": "task/PHASE-16-step-6-exit-drill",
+        "at": "2026-10-26T11:43:56+00:00"
+      }
     },
     "vm-166": {
       "holder": "conantkd",
@@ -28,8 +36,12 @@
       "base_commit": "6e87828c51e2da71b1727bbbc5ce13fd98b92832",
       "started_at": "2026-10-26T11:35:01+00:00",
       "expires_at": "2026-10-26T12:35:01+00:00",
-      "released": false,
-      "handoff": null
+      "released": true,
+      "handoff": {
+        "note": "done: vm-095 on main 6e87828 (migration 016, schema 001-016, 91/91 db checks), phase 16 tamper drill passed (edited row detected, restored, chain OK); next: #343 records, then phase 16 left: scheduler outbound allowlist and team alert receiver; environment: vm-166 unchanged",
+        "branch": "task/PHASE-16-step-6-exit-drill",
+        "at": "2026-10-26T11:43:56+00:00"
+      }
     }
   }
 }
