@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | `in progress` — L1–L4 and the first L5 deployment are complete as recorded below; the remaining L5 temporal-history correction and L6 are in [PR #322](https://github.com/agenticteam03/argus_production/pull/322). Red regression observed: `ok → broken → ok` within one 60 s tick lost the intermediate state, and restart recovery needs a durable source-sample cursor. Current local state: implementation, migration 014, five L6 replay cases and ACR-0031; review fixes of 2026-10-25 applied. Paired baseline evaluation on the branch: control without the offer 57/66, treatment 62/66, hard checks 0 in both (`execution/history/T-0046-l6/step-02/`); the model arm is not measured. Full local suite has 15 Bash-backed failures because the Windows WSL launcher cannot execute `/bin/bash`. GitHub CI test (including Postgres) and frontend jobs pass on `26aeb79`; pre-deploy probes on both VMs report `LAB BASELINE OK` and `NO INTERFERENCE`. Deployment remains pending review/merge. |
+| Status | `in progress` - L1-L6 merged and deployed (L6: #322, DEPLOY-16028c7); SC-03 and SC-07 checked live on 2026-10-26 ([evidence](../../execution/history/T-0046-l6/step-03/evidence.md)); **left:** the model arm (`health_check_failed`) once the replay's `now` is pinned |
 | Phase | next phase, area B (separate track of [NEXT-PHASE](NEXT-PHASE-supervised-remediation.md)) |
 | Architecture | ACR-0025 (`accepted`, applied in 1.8.24 by L1); [ACR-0031](../../architecture/changes/ACR-0031-replay-link-probe-history.md) accepted and applied in 1.8.36 in this PR |
 | Branch | `task/T-0046-l6-sample-history` (one PR across the remaining L5 temporal correction and L6, per developer direction) |
