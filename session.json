@@ -5,7 +5,7 @@
   "branch": "task/PHASE-16-step-6-exit-drill",
   "base_commit": "85ab276f86ff34efa2c18d5aa8ff72a31e72dbf5",
   "started_at": "2026-10-26T12:09:30+00:00",
-  "expires_at": "2026-10-26T13:09:30+00:00",
+  "expires_at": "2026-10-26T15:51:18+00:00",
   "released": false,
   "handoff": null,
   "vms": {
@@ -16,7 +16,7 @@
       "branch": "task/PHASE-16-step-6-exit-drill",
       "base_commit": "85ab276f86ff34efa2c18d5aa8ff72a31e72dbf5",
       "started_at": "2026-10-26T12:09:30+00:00",
-      "expires_at": "2026-10-26T13:09:30+00:00",
+      "expires_at": "2026-10-26T15:51:18+00:00",
       "released": false,
       "handoff": null
     },
@@ -27,7 +27,7 @@
       "branch": "task/PHASE-16-step-6-exit-drill",
       "base_commit": "85ab276f86ff34efa2c18d5aa8ff72a31e72dbf5",
       "started_at": "2026-10-26T12:09:30+00:00",
-      "expires_at": "2026-10-26T13:09:30+00:00",
+      "expires_at": "2026-10-26T15:51:18+00:00",
       "released": false,
       "handoff": null
     }
