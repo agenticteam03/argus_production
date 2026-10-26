@@ -15,8 +15,7 @@
     proposal's digest, a target outside the lab scope or on vm-095 (`check_action_scope`, shared with
     `freeze_proposal`), and any gateway but the fake one; `answer` fails closed without a verdict;
   - ACR-0019 §3.8 records the stricter phase 18 reading: a `doubt` or `disagree` stops the proposal before a request;
-  - 13 guards without a failing test: the reviewer's `tests/test_phase18_guards.py` is accepted, to be pushed on the
-    new head. Eight new tests here cover the new checks; removing each check makes its tests fail.
+  - 13 guards without a failing test: the reviewer's `tests/test_phase18_guards.py` is in (pushed by `juanbetancurm`). Eight new tests here cover the new checks; removing each check makes its tests fail.
   - not changed yet: a database trigger requiring the verdict for an approval, the judge model id taken from the
     caller, and a verdict row on a failure before the model call (phase 19 items); the test state below now says the judge
     comparison is a harness and 18 cases, not a run.
@@ -30,4 +29,7 @@
 
 ### Next step
 
-After #322 merges, merge `main` here, add `015_remediation.sql` to `tests/skills/test_db_migration.py`'s list and rerun the migration checker; then the re-review. Phase 19 still requires ACR-0018's off-host audit exit proof and a separate approval route/gateway review; phase 20 releases the first action pair in its own PR.
+#322 is merged: `main` is merged here (an import conflict in `postgres_store.py` resolved), `015_remediation.sql` is in
+`tests/skills/test_db_migration.py`'s list and the migration checker passes. Re-review, then merge; the deploy applies
+015 after 014. Phase 19 still requires ACR-0018's off-host audit exit proof and a separate approval route/gateway
+review; phase 20 releases the first action pair in its own PR.

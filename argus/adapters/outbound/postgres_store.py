@@ -7,6 +7,7 @@ after a Postgres restart.
 from __future__ import annotations
 
 import json
+import uuid
 from datetime import datetime, timedelta
 from typing import Any
 
@@ -394,6 +395,34 @@ class PostgresStore:
         self._q("INSERT INTO link_event (owner, dependency, state, latency_ms, reason, at) VALUES (%s, %s, %s, %s, %s, %s)",
                 (owner, dependency, state, latency_ms, reason, at))
 
+    def link_probe_cursors(self, owner: str) -> dict[str, dict[str, Any]]:
+        """The last sampled state and timestamp processed for each dependency of an owner (T-0046, migration 014)."""
+        rows = self._q("SELECT dependency,state,at FROM link_probe_cursor WHERE owner = %s", (owner,))
+        return {dependency: {"state": state, "at": at} for dependency, state, at in rows}
+
+    def record_link_probe(self, owner: str, dependency: str, state: str, latency_ms: float | None,
+                          reason: str | None, at: datetime) -> bool:
+        """Advance one link cursor; commit its transition row and chained audit atomically when state changed."""
+        with self.pool.connection() as c, c.transaction():
+            row = c.execute("SELECT state,at FROM link_probe_cursor WHERE owner=%s AND dependency=%s FOR UPDATE",
+                            (owner, dependency)).fetchone()
+            if row and at <= row[1]:
+                return False
+            previous = row[0] if row else None
+            changed = previous != state
+            if changed:
+                c.execute("INSERT INTO link_event (owner,dependency,state,latency_ms,reason,at) "
+                          "VALUES (%s,%s,%s,%s,%s,%s)", (owner, dependency, state, latency_ms, reason, at))
+                append_chained(c, AuditRecord(
+                    audit_id=f"aud_{uuid.uuid4().hex[:16]}", incident_id=None, at=at,
+                    category="incident", event="link.changed", actor="scheduler",
+                    detail={"owner": owner, "dependency": dependency, "from": previous, "to": state,
+                            "latency_ms": latency_ms, "reason": reason}))
+            c.execute("INSERT INTO link_probe_cursor (owner,dependency,state,at) VALUES (%s,%s,%s,%s) "
+                      "ON CONFLICT (owner,dependency) DO UPDATE SET state=EXCLUDED.state, at=EXCLUDED.at",
+                      (owner, dependency, state, at))
+            return changed
+
     # --- hypotheses (ACR-0024 §3.5, T-0047 H2; migration 012) --------------------------------------------------------
     def add_hypotheses(self, incident_id: str, step: int, rows: list[dict[str, Any]], at: datetime) -> None:
         """One decision step's hypotheses with their score and rank; insert-only, in one transaction."""
@@ -709,6 +738,16 @@ CHECKS_SQL: list[tuple[str, str, bool]] = [
     ("link event is insert-only (UPDATE refused)", "UPDATE link_event SET state = 'broken' WHERE owner = 'dbcheck'",
      False),
     ("link event is insert-only (DELETE refused)", "DELETE FROM link_event WHERE owner = 'dbcheck'", False),
+    ("insert link probe cursor (T-0046, migration 014)", "INSERT INTO link_probe_cursor (owner,dependency,state,at) "
+                                                           "VALUES ('dbcheck','dbcheck','ok',now())", True),
+    ("advance link probe cursor (migration 014)", "UPDATE link_probe_cursor SET state='broken', at=at + interval '1 second' "
+                                                    "WHERE owner='dbcheck' AND dependency='dbcheck'", True),
+    ("link probe cursor identity is fixed", "UPDATE link_probe_cursor SET owner='changed' "
+                                             "WHERE owner='dbcheck' AND dependency='dbcheck'", False),
+    ("link probe cursor cannot move backwards", "UPDATE link_probe_cursor SET at=at - interval '1 second' "
+                                                  "WHERE owner='dbcheck' AND dependency='dbcheck'", False),
+    ("link probe cursor is not deleted", "DELETE FROM link_probe_cursor WHERE owner='dbcheck' "
+                                         "AND dependency='dbcheck'", False),
     ("insert session (ACR-0018, migration 010)", "INSERT INTO auth_session (jti, principal, access, created_at, "
                                                 "expires_at) VALUES (md5('dbcheck'), 'dbcheck', 'read', now(), now())", True),
     ("a session may be revoked (its revocation columns)", "UPDATE auth_session SET revoked_at = now(), "

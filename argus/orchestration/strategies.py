@@ -81,6 +81,7 @@ def is_invalid(decision: Any) -> bool:
 
 # --- §21.2 "Baseline": the deterministic workflow every model strategy is measured against (T-0025) -----------------
 _KV = re.compile(r"(\w+)=([^\s;]+)")
+_LINK_LINE = re.compile(r"(?m)^- (?P<owner>[^ ]+) -> (?P<dependency>[^:]+): (?P<state>ok|slow|broken|unknown)\b")
 
 
 def _fields(text: str) -> dict[str, str]:
@@ -160,16 +161,20 @@ class BaselineStrategy:
             return [ReadCall(name="container.status", arguments={"target": ts}),
                     ReadCall(name="container.logs", arguments={"target": ts, "tail": 30})]
         if cls == "health_check_failed":
+            peers = [x for x in view.scope if x.kind == "container" and x != t]
             return [ReadCall(name="container.health", arguments={"target": ts}),
-                    ReadCall(name="container.status", arguments={"target": ts})]
+                    *[ReadCall(name="container.status", arguments={"target": str(x)}) for x in [t, *peers]],
+                    *self._link_state_read(view)]
         if cls == "dependency_unavailable":
             others = [x for x in view.scope if x.kind == "container" and x != t]
-            return [ReadCall(name="container.status", arguments={"target": str(x)}) for x in [t, *others]]
+            calls = [ReadCall(name="container.status", arguments={"target": str(x)}) for x in [t, *others]]
+            return [*calls, *self._link_state_read(view)]
         if cls == "postgresql_connection_exhaustion":
             return [ReadCall(name="database.health", arguments={"target": ts})]
         if cls == "nginx_upstream_failure":
             others = [x for x in view.scope if x.kind == "container" and x != t]
-            return [ReadCall(name="container.status", arguments={"target": str(x)}) for x in [t, *others]]
+            calls = [ReadCall(name="container.status", arguments={"target": str(x)}) for x in [t, *others]]
+            return [*calls, *self._link_state_read(view)]
         if cls == "cpu_saturation":
             return [ReadCall(name="container.status", arguments={"target": ts}),
                     ReadCall(name="container.resources", arguments={"target": ts})]
@@ -204,6 +209,24 @@ class BaselineStrategy:
         return {_about(e.model_text): _fields(e.model_text) for e in ok
                 if e.capability == capability and _about(e.model_text)}
 
+    @staticmethod
+    def _link_state_read(view) -> list[ReadCall]:
+        """The deterministic dependency/gateway baselines must explicitly consume offered Level 2 evidence."""
+        if any(spec.name == "network.link_states" for spec in view.offered_specs):
+            return [ReadCall(name="read_link_states", arguments={"target": str(view.incident.target), "minutes": 30})]
+        return []
+
+    @staticmethod
+    def _link_state(view, owner: TargetRef, dependency: TargetRef) -> tuple[str, str] | None:
+        """Read one link state from the bounded text produced by Argus's own `network.link_states` capability."""
+        for evidence in view.evidence:
+            if evidence.status != "ok" or evidence.capability != "network.link_states":
+                continue
+            for match in _LINK_LINE.finditer(evidence.model_text):
+                if match.group("owner") == owner.name and match.group("dependency") == dependency.name:
+                    return match.group("state"), match.group(0).lstrip("- ")
+        return None
+
     def _restart(self, view, ok):
         t = str(view.incident.target)
         st = self._texts(ok, "container.status").get(t)
@@ -225,6 +248,11 @@ class BaselineStrategy:
         h = self._texts(ok, "container.health").get(t)
         if not h or h.get("health") != "unhealthy":
             return None
+        for dep in sorted(x for x in view.scope if x.kind == "container" and str(x) != t):
+            link = self._link_state(view, view.incident.target, dep)
+            if link and link[0] == "broken":
+                return (f"its health check is failing while the recorded link from {t} to {dep} is broken ({link[1]}): "
+                        f"the dependency path is the cause to investigate", str(dep))
         streak = h.get("failing_streak", "unknown")
         return (f"its own health check is failing ({streak} consecutive failures) while the container keeps "
                 f"running: the service inside is unhealthy", t)
@@ -237,6 +265,11 @@ class BaselineStrategy:
             if dep != t and st.get("state") not in ("running", None):
                 return (f"its dependency {dep} is {st['state']}: {t} is a victim; the root cause is {dep}, "
                         f"and restarting {t} would not help", dep)
+        for dep in sorted(x for x in view.scope if x.kind == "container" and str(x) != t):
+            link = self._link_state(view, view.incident.target, dep)
+            if link and link[0] == "broken":
+                return (f"the recorded probe shows the declared link from {t} to {dep} is broken ({link[1]}): "
+                        f"the failure is reachability to the dependency, not proof that {dep} is stopped", str(dep))
         for dep, st in sorted(status.items()):
             if dep == t or not mine or "networks" not in st or "networks" not in mine:
                 continue
@@ -261,6 +294,14 @@ class BaselineStrategy:
         if state not in ("running", None):
             return (f"the proxy {t} answers 502/504 because its upstream {up} is {state}: the root cause is {up}; "
                     f"restarting the proxy would not help (RB-015 H1)", up)
+        upstream = next((x for x in view.scope if str(x) == up), None)
+        link = self._link_state(view, view.incident.target, upstream) if upstream else None
+        if link and link[0] == "broken":
+            return (f"the proxy {t} answers 502/504 and its recorded link to upstream {up} is broken ({link[1]}): "
+                    f"the root cause is loss of reachability to {up}, not a proxy failure", up)
+        if link and link[0] == "slow":
+            return (f"the proxy {t} answers 502/504 and its recorded link to upstream {up} is slow ({link[1]}): "
+                    f"the upstream path is slow, so restarting the proxy would not help", up)
         return (f"the proxy {t} answers 502/504 while its upstream {up} is running: {up} does not answer within the "
                 f"proxy's timeout (slow or saturated upstream, RB-015 H3); the root cause is {up}, not the proxy", up)
 
