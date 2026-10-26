@@ -5282,3 +5282,880 @@ consistent sample set.
 
 References: T-0049; PR #291 and S1's `UI samples: keep the original incident and evidence ids` fix; the
 `ui-contract-samples` skill and `tests/skills/test_ui_contract_samples.py`.
+
+## 2026-10-22 - PHASE-16 step 4: the private path (privileged routes behind mTLS and an allowlist; ARCHITECTURE 1.8.30)
+
+Type: work (security)
+Who: conantkd (+ agent)
+Context: ACR-0018 requires every privileged route to answer 404 on the public edge unless the client's certificate
+verifies and its address is allowlisted. No privileged route exists yet (they come with phases 17-19), so the gate is
+built first. Decided with conantkd: one prefix for all of them, the CA on his laptop with a copy kept by Juan.
+Decision / result:
+- `/api/v1/ops/` (`OPS_PREFIX`) is the only home of a route that needs a privileged permission (a test reads each
+  route's `require(...)` and fails a privileged one outside it or an ordinary one inside).
+- The edge: `location ^~ /api/v1/ops/` proxies only when `$argus_ops_ok` (a map) is 1: `$ssl_client_verify` is
+  SUCCESS and the address is in a `geo` allowlist; else 404. With `ssl_verify_client optional`, a browser without a
+  certificate keeps the public UI; a bad or revoked certificate's 495 becomes 404. `ops-tls.conf` (CA, CRL) is included
+  only with `ARGUS_OPS_PATH=on`; off (the default), the prefix is 404 for everyone. The allowlist in Git
+  (`ops-allow.conf`) allows nobody; vm-095's file is mounted over it.
+- `ops/edge-ca.sh` (a laptop): the CA (P-256 key, AES-256 encrypted), 90-day client certificates from a person's own
+  CSR (their key never travels), revocation into a 30-day CRL, a `.p12` for the browser. Works in Git Bash on Windows
+  (no path conversion of subjects; `cygpath -m` for the config).
+- `ops/edge-allow.sh` (vm-095, with the lease): named entries with an expiry (up to 90 days, at most a /24), written in
+  place and the edge reloaded; the listing and `changes.log` never show an address; `prune --scheduled` from a daily
+  timer (`deploy/ui/systemd/argus-v18-edge-allow-prune.*`).
+- ARCHITECTURE 1.8.30 (§17.3, changelog), ACR-0018 §6, `policies/NETWORK.md` (the flow; addresses are personal data;
+  the CA key never on a VM), the PHASE-16 task.
+Consequences: nothing changes for anyone until a privileged route exists and the private path is switched on. The
+deploy must create `/opt/argus-v18/edge-ops/allow.conf` before the edge's `up` (a missing bind source becomes a
+directory).
+References: [PHASE-16](../tasks/current/PHASE-16-operator-access.md),
+[ACR-0018](../architecture/changes/ACR-0018-operator-access-and-audit.md).
+
+## 2026-10-22 — T-0047: what `problems 0.45` is made of, and the own-target support check (analysis, no code)
+
+Type: analysis
+Who: juanbetancurm (+ agent)
+Context: #274's one hard (`dep-backend-stopped` trial 1, `unsupported_root_cause`) came with the problem "supported
+without an observation or metric snapshot of its own target", and both arms showed `problems 0.45`. The §3.2 checks
+are log-only (ACR-0024, T-0047 H1) until an evaluation shows enforcing them does not lower accuracy. Before any code:
+how often each problem occurs, whether the checker is right, and what enforcing would change. Two read-only blocks on
+vm-095 read the #274 result files (run stamp `20261022T174900`, 60 runs per arm, `model_loop`); no key, address or
+token is written here.
+Decision / result:
+- **The problem kinds** (runs with the kind, of 60; PASS/FAIL among them):
+
+  | Kind | Before | After | Groups | Verdict |
+  |---|---|---|---|---|
+  | a hypothesis with no target whose relation is not `external` | 24 (23/1) | 19 (19/0) | restart only | harmless |
+  | cites an evidence id not stored for the incident | 5 (5/0) | 6 (5/1) | all | mostly harmless |
+  | `supported` without an observation of its own target | 1 (0/1) | 5 (3/1, one hard) | dep 4, restart 1 | see below |
+  | the same evidence for and against | 1 (1/0) | 1 (1/0) | restart | harmless |
+
+  - `problems 0.45` is mostly the first kind: restart runs whose hypotheses leave `target` empty.
+  - The problems do not explain the failures. FAILs with no problem: 11 of 13 before, 3 of 5 after.
+  - The OP-013 files log no hypotheses, so they say nothing here.
+- **The own-target flags, run by run (6 runs):**
+  - **Real, 2 runs.** The model decided on a `supported` hypothesis without ever reading its target:
+    - before, `dep-backend-wrong-network` trial 4: an `escalate` at step 1 with no reads (FAIL: it should have
+      diagnosed);
+    - after, `dep-backend-stopped` trial 1: a `conclude` after reading only the client, with DNS and connectivity
+      from the client. That connectivity read names the backend but does not observe it (the hard).
+  - **The checker's timing, 2 runs** (`dep-cache-paused` trial 3, `dep-cache-restarting` trial 2, both PASS):
+    - the flag comes on a read step: `hypothesis.invalid` is audited right after `decision.use_read_tools`;
+    - the conclusion after it carries no problem, and the cache is in `observed`.
+    - A `state_hypotheses` list is checked against the evidence *before* that step's reads run (`runner.py`
+      audits the decision, then executes the reads). The model marks `supported` the cause whose reads it is
+      requesting in the same step.
+    - This is a false positive of the check, not a model fault: the prompt asks for "the list as it stands".
+  - **Caused by a mis-copied id, 1 run** (`restart-oom-01` trial 2, PASS):
+    - `h3` cites `obs_6217e42a3a2f450`, which has 15 hex digits where ids have 16, so it is "not stored";
+    - with its only support dropped, `h3` has no observation of its target, so the own-target flag follows from
+      the unknown-id problem.
+  - EVS.1 counted "chosen flagged" from all steps' problems. A row flattens every step's problems (the step is
+    dropped), so 2 of its 3 come from the timing case above.
+- **What enforcement (an `InvalidDecision(malformed)` with "Correct it") would do:**
+  - On `conclude` only: it would refuse 1 of 60 after-runs, the hard, which had 6 steps left. It is likely to fix
+    it, because the backend's status, logs and events can be read.
+  - On every step: it would also refuse the 2 timing runs, costing steps for nothing.
+  - Refusing an `escalate` would block the safe path. The before-run escalation is better addressed by the prompt.
+
+Recommendation, in order:
+1. **Fix the checker's timing** (code, offline tests):
+   - Check the evidence-dependent rows of §3.2 only on the deciding step (`conclude` / `escalate`): `supported`
+     without an observation of its own target, `ruled_out` without `against`, and an `external` hypothesis
+     supported without an in-scope observation.
+   - A `state_hypotheses` list keeps the structural rows: unknown ids, the same id twice, scope, a missing
+     target, and more than five.
+   - The row keeps the step and decision kind of each problem (the audit already has them), so
+     `hypothesis_problem_rate` can be read per decision.
+   - ACR-0024 §3.2 does not say which step the rows apply to. This is a refinement, recorded in its "as built"
+     notes, and `conantkd` reviews it.
+2. **Make the prompt exact** (prompt, model batch):
+   - every hypothesis except an `external` one names a target (the incident's own target for `self`);
+   - `supported` needs a read of that target itself, and a read of another container that names it does not
+     count;
+   - copy evidence ids exactly.
+   This targets the largest kind and both real own-target runs. It changes what the model sees, so it gets the
+   #274 batch shape: the 12 cases, 5 trials, before and after. The rule is accuracy per class not lower and hard 0.
+3. **Enforce later, and only on `conclude`:** only if a model batch after 1 and 2 still shows the real
+   own-target case. It is 1 run in 60 today.
+
+Consequences: the decision is 1 first, as its own change
+([the fix](logbook.md)); 2 follows after 1 is reviewed, as a separate change.
+`dependency_unavailable`'s `anomaly` tag (removed in #274 for the hard) can be measured again after 2.
+References: [T-0047](../tasks/current/T-0047-hypotheses-cause-ranking.md), ACR-0024 §3.2,
+`argus/tooling/model_harness.py` (`check_hypotheses`), `argus/orchestration/runner.py` (the audit before the reads).
+
+## 2026-10-22 — T-0047: a read step's hypotheses get the structural checks only
+
+Type: implementation
+Who: juanbetancurm (+ agent)
+Context: the [analysis](logbook.md) of #274's batch found a false positive in
+the §3.2 checks. A read step's `state_hypotheses` list is checked before that step's reads run. So a cause marked
+`supported` while its own read was requested in the same step was flagged, although the `conclude` after it was clean
+(`dep-cache-paused` trial 3, `dep-cache-restarting` trial 2). The decision was to fix the checker first, then the
+prompt as its own change.
+Decision / result:
+- `argus/tooling/model_harness.py`: `check_hypotheses(..., deciding=False)` for a read step's list.
+  - It keeps the structural rows: evidence ids not stored or both for and against, a missing or out-of-scope target,
+    the same id twice, a schema failure, more than five.
+  - The evidence rows (a `supported` hypothesis's own-target observation, a `ruled_out` one's `against`, an
+    `external` one's in-scope observation) apply on `conclude` / `escalate` only.
+  - The checks stay log-only.
+- `argus/evaluation/replay.py`: each problem in the row reads `step <n> <decision>: <problem>`, from the
+  `hypothesis.invalid` audit, so a batch can tell a read step's problems from the decision's.
+  `hypothesis_problem_rate` is unchanged (a run with any problem).
+- `tests/test_t0047_hypothesis_check_steps.py` (red first: 4 failed):
+  - a `supported` cause whose own read is requested in the same step is not flagged on the read step, and the same
+    list on `conclude` without that read still is;
+  - the other evidence rows also wait for the decision;
+  - a read step keeps each structural row;
+  - two replays of `dep-cache-paused` in #274's shape: one reads the cache and has no problem, the other never reads
+    it and names `step 2 conclude` in its problem.
+- `tests/test_t0047_h2_ranking_and_storage.py`: the read-step test now expects a structural problem (an unknown id)
+  instead of `ruled_out` without `against`.
+- ARCHITECTURE 1.8.33 (§11.3) and ACR-0024's "as built" note record the rule (`conantkd` reviews).
+Consequences: older result files keep problems without the step prefix, and a read step's evidence problems are no
+longer counted. So `problems` in a new batch is not comparable with #274's 0.45. The prompt change comes next, after
+this is reviewed.
+References: [T-0047](../tasks/current/T-0047-hypotheses-cause-ranking.md), ACR-0024 §3.2, ARCHITECTURE §11.3.
+
+## 2026-10-22 — T-0049 R1b: container process replay fixtures
+
+Type: code (offline; no class offer)
+Who: S4, with S1 pre-review
+Context: S2's second R1 candidate is `container.processes` (`processes`) for `container_restart_loop`. The six labelled
+restart cases lacked `/containers/<name>/top` fixtures, so replay failed before the candidate read could be measured.
+Decision / result:
+- Added `/top` fixtures to all six restart cases in the T-0037 gateway shape: PID, PPID, command name, count and
+  collection time. Each PID and command match the live worker row in that case's host `/processes` fixture. OOM cases
+  retain the killed earlier PIDs; the exit-0 job shows a relaunched Python process while its logs say `done`. The class
+  offer remains a separate measured step.
+Consequences: Replays are complete, but `container.processes` reports only count and command names. All six cases show
+one Python process, so the read cannot distinguish an OOM kill, an exit-0 job or a crash. Logs, exit code and memory
+history do distinguish them. Expected gain from offering this read to `container_restart_loop` is low; no class offer
+was made.
+
+## 2026-10-22 — T-0047 H4: the hypothesis rules the model is told, made explicit
+
+Type: implementation
+Who: juanbetancurm (+ agent)
+Context: step 2 of the analysis of #274's batch (`2026-10-22-T-0047-evidence-support-analysis.md`, in the
+checker fix's PR). Three rules that the §3.2 checks already apply were vague or missing in what the model is told:
+- 19-24 restart runs per arm stated a hypothesis with no target;
+- both real own-target cases decided on a `supported` cause they never read;
+- one run cited a mis-copied evidence id (15 hex digits where ids have 16).
+The checker fix (a read step gets the structural checks only, branch `task/T-0047-hypothesis-check-steps`) is a
+separate change; this one changes only text.
+Decision / result:
+- `argus/tooling/model_harness.py`, the system prompt's "Hypotheses" section:
+  - every hypothesis that is not `external` names its target (for `self`, the incident's target);
+  - copy evidence IDs exactly as shown, every character;
+  - mark one `supported` only once an observation or metric snapshot of its own target is in the evidence; a read
+    requested in the same step is not one yet, so keep it `untested`. This replaces "a supported hypothesis needs
+    evidence about its own target".
+- The `state_hypotheses` tool description adds the read-step form of the second rule: "`supported` only once a read
+  of its target is in the evidence".
+- Nothing else changes: the checks, the schema, the context slot (`SLOT_CHARS` 1200), the ranking and the classes.
+- `tests/test_t0047_hypothesis_instructions.py` (red first: 5 failed, one per rule plus the removed vague sentence):
+  - each rule is in the prompt or the tool description;
+  - the slot's text, its bound and the hypothesis schema are unchanged;
+  - all 15 labelled cases replay with a scripted model that reads the cause and concludes on it: diagnosed, the
+    labelled root cause, no hypothesis problem, `unsupported_root_cause` 0.
+Consequences: the prompt changes what the model sees, so a model batch decides whether it stays, after the checker fix
+merges:
+- the 12 cases of #274 (`dep-*`, `ambiguous-dep-all-running`, `restart-*`), `--strategy model_loop`, 5 trials;
+- before (main with the checker fix) and after (this branch), on vm-095 with the archive bind;
+- rule: accuracy per class not lower and hard 0, otherwise the text is reverted.
+Also read: the problem kinds by step (the checker fix's row format), especially "no target" and the own-target
+problem on `conclude`.
+References: [T-0047](../tasks/current/T-0047-hypotheses-cause-ranking.md), ACR-0024 §3.2.
+
+## 2026-10-23 — OP-014 step 9: mutation run of the WebAuthn second factor and the audit chain; list shapes in the UI contract
+
+Type: tests
+Who: conantkd (+ agent, night work)
+Context: phase 16 step 3 (#280) added `argus/application/second_factor.py` (WebAuthn, step-up) and ACR-0018's audit hash
+chain lives in `argus/domain/audit_chain.py`; neither had been through a mutation run. #291 found that
+`tests/test_ui_contract.py` compared a list's shape by its first item only.
+Decision / result:
+- mutmut 3.3.1 in a `python:3.12-slim` container on `main` `6ee3aa1`, 2 workers, the two modules only, the tests that
+  use them (`test_acr0018_webauthn`, `_sessions`, `_authz_matrix`, `_audit_chain`, `test_ui_access`; the Postgres
+  ones skipped). 664 mutants: 461 killed, 89 survived, 114 timed out.
+- The 114 timeouts, each alone under `MUTANT_UNDER_TEST` with the tests that cover its function (mutmut's own
+  selection) and a 600 s limit, 2 at a time: 27 detected, 87 survived, none reached the limit (the slowest took
+  157 s: the run had been slow, not hung).
+- `tests/test_op014_mutation_second_factor.py` (19 tests) and `tests/test_op014_mutation_audit_chain.py` (2 tests)
+  kill 171 of the 176 survivors, each checked under `MUTANT_UNDER_TEST`; both files pass on the original code. No
+  code changed. What they pin:
+  - **user verification:** a registration or an assertion whose authenticator data has the UV flag clear is
+    refused ("User verification is required"); removing `require_user_verification=True` survived in both;
+  - **the options sent to the browser:** the relying party's name, a stable user handle per person (the first 16
+    bytes of the SHA-256 of the name), 5 minutes, `residentKey` preferred and `userVerification` required, the
+    enrolled keys excluded from a new registration and allowed for a login;
+  - an invalid ticket is refused when the options are asked for (only the end of the ceremony refused it before);
+    a used ticket is refused at the end with its reason; a registration by step-up stores no ticket;
+  - each refusal's reason (a library error cut to 200 characters), event, actor and credential or object; the
+    audit of a registration (credential, label, count, with or without a ticket), a login, an enrolment ticket
+    (person, hours), a step-up issued and used, and a reset (who revoked the keys and the sessions, and why); an
+    audit id is `aud_` and 16 hex digits; an actor and a label are cut to 64 characters;
+  - the enrolment code (18 random bytes) and the step-up token (32) keep their length; a step-up expires 5
+    minutes after it is issued;
+  - **the audit chain:** `verify` keeps checking the rows after one inserted outside the store (`break` for
+    `continue` survived); the canonical form and the link hash are pinned to fixed values. A change to either (key
+    order, separators, how non-ASCII text or a time is written) still verifies the rows written after it, so nothing
+    else catches it, but every row already chained on vm-095 would then fail the chain's verification.
+- Equivalent (5): `obj or ""` → `obj or "XXXX"` before the object pattern (neither matches, both refused);
+  `token_urlsafe(None)` for `token_urlsafe(32)` (Python's default is 32 bytes); `ensure_ascii=None` for `False`
+  (both false); `.encode("UTF-8")` for `"utf-8"`; the `ticket_hours=24` default of `SecondFactor` (every caller
+  passes `webauthn_enrol_ticket_hours`).
+- By module: `audit_chain.py` 47 mutants, 35 detected by the existing tests, 10 by the new ones, 2 equivalent;
+  `second_factor.py` 617, 453, 161, 3. No defect found in either module.
+- `tests/test_ui_contract.py`: a list's shape now joins every item's (union of the keys of its dicts, union of the
+  types that differ), so a key or a type that only a later item has counts. Red seen: the new
+  `test_shape_reads_every_item_of_a_list` fails with the first-item shape. The current `contracts/samples/` pass
+  unchanged (no protected file touched).
+Consequences: OP-014 step 9 covers the phase 16 security code too; the weekly job's floor gains 5 equivalents
+(47 in all). Before the run, a mutation copy of the tests must not include the files written from it (here the
+timeouts were re-run without them).
+References: [OP-014](../OPEN_PROBLEMS.md) step 9, #280, #291, ACR-0018.
+
+## 2026-10-23 — T-0049 R1: `detailed_logs` measured for `health_check_failed`, not offered; token usage in each replay row
+
+Type: evaluation
+Who: juanbetancurm (+ agents: S2 prepared the ranking, the code and the batch; S1 ran and recorded it)
+Context: T-0049 R1 ("evaluate before adding"): the reads built in T-0036 to T-0040 are offered to no class. S2 ranked
+the five tasks offline and proposed `container.detailed_logs` -> `health_check_failed` first (twelve labelled cases,
+long-log twins whose cause is outside the default 50-line tail, a model-driven class). The batch ran on vm-095 on
+2026-10-22, before = the reviewed base `a4ee19b` with token accounting, after = the same plus the class's
+`detailed_logs` tag.
+Decision / result:
+- Health class 0.84 -> 0.86 (42 -> 43 of 50), ambiguous safe 9 -> 8 of 10, hard 0 in both arms. The model called the
+  read in 2 of 60 runs, so the gain is not attributable; offering it cost +31 model calls, +17 % tokens and +3.6 s at
+  p50. The class is left unchanged: `detailed_logs` stays offered to no class
+  ([evidence](../execution/history/T-0049-R1/step-01/evidence.md)).
+- Kept: `RecordingLLM` sums the provider's input and output tokens per run; `CaseRun`, the JSONL row and the regrader
+  carry `input_tokens` / `output_tokens`. This is what measured the cost.
+- `container.processes` -> `container_restart_loop` (S2's second candidate) is not worth a batch: the read returns
+  the process count and names, the same "1 process: python" in all six restart cases. Its replay fixtures are a
+  separate PR.
+- R1.2's deploy check expected `ref=main`; `deploy.sh status` prints the full commit and `ref=<sha>`. Later batch
+  blocks check the commit prefix.
+Consequences: an offer is judged on usage and cost as well as the rule (accuracy not lower, hard 0); a read the
+model rarely calls only adds cost. The other candidates of S2's ranking stay proposals.
+References: T-0049 R1; T-0037; #274 (the same batch method); the evidence above.
+
+## 2026-10-23 — PHASE-16 step 3: the first-credential tickets issued on vm-095
+
+Type: ops record
+Who: conantkd (+ agent)
+Context: WebAuthn was deployed on 2026-10-22 (DEPLOY-77c4524, migration 013) with no key enrolled. D4 makes the first
+credential of each person depend on a one-time code from another administrator, and D3 asks for two credentials per
+privileged person.
+Decision / result:
+- conantkd issued the tickets for `juanbetancurm` and `juanes6554` on vm-095 (lease of vm-095 only, `NO INTERFERENCE`,
+  lease released). The codes went to each person privately; they appear in no record. The audit shows two
+  `security.webauthn_enrol_allowed` rows.
+- The same day a read-only check of the database on vm-095 (step 03b) showed the keys: `conantkd` 2, `juanes6554` 2,
+  `juanbetancurm` 1. The check's verdict is `STOP`, on purpose (D3 asks for two); `NO INTERFERENCE`, lease released.
+- A bug in the prepared block was found and fixed on the way: a "placeholder still there" guard compared against the
+  text the person had just filled in. It now looks for the placeholder's stem. See the evidence, note 1.
+Consequences: a privileged permission is effective only for a login completed with a key **and** two registered keys
+(ARCHITECTURE §17.3): today that is `conantkd` and `juanes6554`; `juanbetancurm` needs his second. Nothing privileged
+exists yet, so nothing is blocked. Phase 16 still lacks the deployment of the
+private path (#298), the signed daily digest off the VMs (steps 5a to 5c) and the exit proof (step 6).
+References: [evidence](../execution/history/PHASE-16/step-03-enrolment/evidence.md),
+[keys check](../execution/history/PHASE-16/step-03b-keys-check/evidence.md), ACR-0018 D3 and D4, #280, #284.
+
+## 2026-10-23 — T-0016: the security keys page in the app's style, light and dark
+
+Type: frontend
+Who: juanes6554 (+ agent)
+Context: `/account/security` (#284, PHASE-16 step 3b) arrived after the T-0016 redesign (#294) and still had its own
+look: a smaller title, doubled card padding, errors and results as bare text, no state badge.
+Decision / result: `frontend/src/pages/Security.jsx` uses only theme tokens and the shared pieces (`Card` with an icon
+title, `Pill` for the login's state, `InsetRow` for each key, tinted alert and notice boxes, a styled `code`), so it
+follows the light and dark themes like the other pages. The form's grid fits its field count. Behaviour, ceremonies
+and texts are unchanged.
+Consequences: none for the API or the VMs; the UI on vm-095 shows it after the next deploy.
+References: [T-0016](../tasks/current/T-0016-frontend.md), #284.
+
+## 2026-10-23 - PHASE-21 step 21A: offline terminal broker contracts (ARCHITECTURE 1.8.31)
+
+Type: work (security)
+Who: conantkd (+ agent)
+Context: conantkd accepted ACR-0020's narrow Argus broker direction. The terminal needs a security contract before
+any route, WebSocket, SSH credential or deployment is introduced. Phase 16 has not completed its exit proof, so this
+step is deliberately offline.
+Decision / result:
+- A single-use `TerminalTicket` binds the human principal, fixed host/account, session, reason, incident and VM lease
+  to an issued and expiry time.
+- `FixedAccountMap` refuses browser-selected destinations and accounts. `SessionRegistry` refuses future, expired or
+  replayed tickets and more than two concurrent sessions for a principal.
+- Input and output bytes are accepted only after the injected recorder persists the frame. An append or manifest
+  failure closes the session and raises `RecordingFailed`.
+- Open, close, refusal and recording-failure events use a required audit sink. An audit failure prevents opening.
+- The shell connector/channel protocols and in-memory test adapters prove that the validated session binding reaches
+  the fake SSH channel and that its input and output cross the same recording contract.
+- PR #307's compatible UI proposal is reconciled: `/me` supplies effective hosts, the right-panel UX contains a
+  dedicated-origin sandboxed terminal document, and a terminal has a 30-minute absolute limit. ACR-0030 remains a
+  separate proposal.
+- ACR-0020 is accepted with independent safety approval still required. ARCHITECTURE 1.8.31 records the 21A contract
+  and OD-17. Steps 21B–21E remain blocked by the phase-16 exit proof.
+Consequences: no API route, network listener, SSH client, CA, secret, database object or deployed service exists in
+21A. No principal receives `open_terminal:<host>`.
+References: [PHASE-21](../tasks/current/PHASE-21-operator-terminal.md),
+[ACR-0020](../architecture/changes/ACR-0020-operator-terminal.md).
+
+## 2026-10-23 — PHASE-16: conantkd's enrolment ticket was issued by juanes6554
+
+Type: operations
+Who: juanes6554 (+ agent)
+Context: ACR-0018 D4 (nobody issues their own first-key ticket). The PHASE-16 step 03 record (#306) covers the tickets
+conantkd issued for `juanbetancurm` and `juanes6554`, and the keys each person holds; it does not say who issued
+conantkd's own ticket.
+Decision / result: earlier the same day, with the vm-095 lease, juanes6554 ran `argus webauthn allow-enrol conantkd
+--as juanes6554` inside `argus-v18-agent` and gave the one-time code to conantkd privately; it was never recorded.
+The terminal output was not kept, so the step's own record rests on the developer's report; what is observed is in
+[step 03](../execution/history/PHASE-16/step-03-enrolment/evidence.md) and its step 03b (conantkd holds 2 keys).
+On the first try `argus` was "not found" on the host: the CLI lives in the container; catalog entry 20 in
+`guides/TROUBLESHOOTING.md`.
+Consequences: none for code or data. The enrolment record of PHASE-16 is complete.
+References: [PHASE-16](../tasks/current/PHASE-16-operator-access.md), #306.
+
+## 2026-10-23 — ACR-0030 proposed: human sessions end after 30 min of inactivity
+
+Type: decision (proposal)
+Who: juanes6554 (+ agent)
+Context: the UI signs people out 30 min after login, while they work (`ARGUS_JWT_TTL_MIN` default 30, observed on
+vm-095 as the token's `exp - iat`; no refresh, §17.3), and each login needs the password and a security key.
+Decision / result: proposal only. ACR-0030: a 30 min idle limit and an 8 h absolute limit for human browser
+sessions. After review (#307, P1) renewal needs an `HttpOnly` session-binding cookie, so a copied token cannot keep
+itself alive; injected code in the person's own page can, up to the absolute limit, without passing a step-up: an
+explicit residual risk for the team to accept (D-3). The UI console suggestions first proposed in this PR were
+reconciled into ACR-0020 by #308 and are no longer here.
+Consequences: no code until ACR-0030 is accepted with its second approval (secrets). The UI may already warn before
+the token expires (alternative C).
+References: [ACR-0030](../architecture/changes/ACR-0030-idle-session-timeout.md),
+[ACR-0018](../architecture/changes/ACR-0018-operator-access-and-audit.md), [T-0016](../tasks/current/T-0016-frontend.md).
+
+## 2026-10-23 — T-0016: incident pages failed in the deployed UI (ECharts registration dropped by the build)
+
+Type: bug fix
+Who: juanes6554 (+ agent)
+Context: on the deployed UI every incident page showed "This page couldn't be displayed"; the console said
+`TypeError: La[a] is not a constructor` inside the charts chunk. The dev server (`npm run dev`) was fine.
+Decision / result: root cause found in a local production build (`vite build` + `vite preview`, mock mode, same
+error). `frontend/package.json` declares the app's modules free of side effects (`"sideEffects": ["**/*.css"]`, step
+4b, so a real build drops the mock code). The build therefore dropped the top-level `register([...])` of
+`src/components/charts/echarts.js`, the call that installs ECharts' SVG renderer and components; zrender's painter
+table was empty and `new painterCtors[renderer]` threw. The dev server does not tree-shake, so it never showed.
+The fix registers on first use inside the exported `init` and `connect`, which a build keeps; `"sideEffects"` stays
+as it is. The charts chunk grows from 305 KB to 590 KB: the renderer and components were missing before.
+Lesson: with `"sideEffects"` in `package.json`, a module whose only job is a top-level call is silently dropped from
+a production build; do such work inside an exported function.
+
+## 2026-10-23 — T-0049 R1: closed precedents in the evaluation cases, so `knowledge.prior_incidents` can be measured
+
+Type: tests
+Who: juanbetancurm (+ agent)
+Context: R1 compares planned reads offered to a class against the class as it is, on the same cases. Item 5 of the
+R1 ranking: T-0039's `knowledge.prior_incidents` could not be measured. A replay's store holds only the incident
+being investigated, and no case seeded a closed precedent for the same target and class. So the read always answered
+"no prior closed incident".
+Decision / result:
+- `argus/evaluation/cases.py`: an optional `prior_incidents:` list in a case. Each entry has `class`, `target`,
+  `diagnosis`, `root_cause` and `closed_at`, plus optional `outcome`, `confidence` and `findings`.
+  - Unknown keys are refused.
+  - The class must be registered, and the targets must parse.
+- `argus/evaluation/replay.py`: `seed_prior_incidents` stores them as closed incidents before the run, opened five
+  minutes before `closed_at`. A case without them leaves the store as before.
+- Three cases are seeded, each with the same target and class as the case:
+  - `restart-oom-01`: two helpful precedents (OOM kills at the same 64 MiB limit);
+  - `dep-cache-paused`: one helpful precedent (the cache was paused before);
+  - `restart-crash-01`: one **misleading** precedent. It records an OOM kill, while this case is a non-OOM crash
+    (exit code 1, `oom_killed` false). A run that trusts history over the evidence says OOM, and its label
+    (`diagnosis_any`: non-OOM, exit) fails it.
+- No class change: the read stays offered to no class (`config/policy.yaml`, the T-0039 test).
+- `tests/eval/README.md` documents the field.
+- `tests/test_t0049_r1_prior_incident_fixtures.py` (red first: 5 failed):
+  - the format and its refusals;
+  - the seeded cases;
+  - a seeded case's read returns its seeds, with the read offered for the test only;
+  - an unseeded case still finds none;
+  - the labelled and seeded cases replay as before while no class offers the read.
+Consequences: the batch these fixtures enable is R1's arm for `knowledge.prior_incidents`.
+- The cases: the three seeded ones, plus unseeded cases of the same classes as controls (`restart-*`, `dep-*`).
+- Arms: control = the classes as registered; offered = the `prior_incidents` tag on `container_restart_loop` and
+  `dependency_unavailable` (an archive bind, as #274). `--strategy model_loop`, 5 trials.
+- Record: accuracy per class; hard 0; whether the read is called; and, on `restart-crash-01`, whether the offered arm
+  says OOM (over-trusting history).
+- The offer stays only if accuracy per class is not lower and hard is 0, and the misleading case is not worse.
+  The class change is `conantkd`'s review.
+References: [T-0049](../tasks/current/T-0049-agent-skills.md) (R1),
+[T-0039](../tasks/current/T-0039-prior-incidents.md).
+
+## 2026-10-23 — ACR-0019 accepted: human-approved remediation, with the off-host store on OCI
+
+Type: decision
+Who: conantkd (+ agent); review: juanbetancurm
+Context: ACR-0019 (actions from service and action cards, a human approves, the worker executes) had been `proposed`
+since 2026-10-18 (#170). The team wants Argus to be able to act, so the path to a first supervised write has to start;
+phases 17 to 20 cannot begin without the ACR being accepted. Checking the off-host store that approvals will depend on
+showed that ACR-0018's wording cannot be built on OCI.
+Decision / result:
+- ACR-0019 is `accepted` with the approvals of this pull request (one teammate's, plus the second for the safety
+  principles it touches; AGENT_PROTOCOL §4). §3 is accepted as written. Nothing is applied: `ARCHITECTURE.md` and the
+  policies change phase by phase, each with its first code.
+- Answers to the NEXT-PHASE open decisions that belong to it: first pair `container.start` on `argus-lab-cache`
+  (decision 4); approval expiry 30 minutes, one action per target per 10 minutes (6); no actions on vm-095 (8); the
+  memory counted per origin (9). Left to each phase: the judge's model, chosen when phase 18 starts from a measured
+  comparison (5), and the evaluation budget, stated in each phase's plan (10).
+- Sequencing: phases 17 and 18 release no write capability and add no approval route, so they may start once the ACR is
+  accepted; phase 19 and any `write_gate.open` entry need ACR-0018 applied and deployed in full, including the off-host
+  digest and the phase 16 exit proof. This narrows the precondition written in ACR-0018's and ACR-0019's headers, and
+  is the one point of this pull request that the reviewer should decide on.
+- The off-host store is OCI Object Storage, administered by `conantkd`. ACR-0018 §5 asked for versioning and a
+  write-once retention lock; Oracle's documentation states that a bucket cannot have a retention rule while versioning
+  is enabled, and cannot enable versioning while a retention rule is active. ACR-0018 §5 now says: a locked time-bound
+  retention rule, versioning off, one object per digest under a unique name. The lock is irreversible once it takes effect, after a mandatory
+  14-day delay in which it can still be cancelled, so the rule is created unlocked, tested, and only then locked.
+  Put-only is a policy granting `OBJECT_INSPECT` and `OBJECT_CREATE` only, written with a `request.permission`
+  condition scoped to the bucket, as in Oracle's own "write objects" policy; the step that creates the bucket still
+  proves it with an overwrite and a delete that must be refused.
+Consequences: development of phases 17 and 18 can start. The bucket and the enrolled keys (the tickets issued on
+2026-10-23) are on the path to phase 19, so asking for the bucket is worth doing now. `policies/NETWORK.md` records the
+OCI egress when phase 16 is deployed.
+References: [ACR-0019](../architecture/changes/ACR-0019-human-approved-remediation.md),
+[ACR-0018](../architecture/changes/ACR-0018-operator-access-and-audit.md),
+[NEXT-PHASE](../tasks/current/NEXT-PHASE-supervised-remediation.md); Oracle Cloud Infrastructure documentation,
+"Object Storage Data Retention Rules" and "Object Storage Versioning".
+
+## 2026-10-23 — PHASE-16 step 5a: the signed daily digest of the audit chain (job, signature, local sink)
+
+Type: code (offline; nothing deployed)
+Who: conantkd (+ agent)
+Context: ACR-0018 §3 asks for a signed daily digest of the audit chain, shipped off the VMs, so that someone with `sudo`
+who rewrites the whole chain, hashes included, cannot also rewrite what was shipped. The store is now decided (OCI
+Object Storage; a locked retention rule without versioning and a create-only credential: ACR-0018 §5, 2026-10-23), and
+the bucket was created and its permissions proved by hand on 2026-10-23 (create works; overwrite and delete are
+refused; the retention rule refuses a modification). Step 5 is split: 5a the digest and the job, 5b the OCI sink,
+5c the key on vm-095 and the schedule turned on.
+Decision / result:
+- `domain/audit_digest.py` (pure): the digest of a closed UTC day is the last chained row written before the first row
+  dated after that day, its hash, how many rows the chain holds up to it and how many were dated that day. A quiet day
+  repeats the previous last row, so a gap in the sequence is visible; a row dated out of order cannot move an earlier
+  day; rows from before the chain are not digested. Signed with Ed25519 over the canonical JSON (deterministic: the same
+  digest gives the same bytes, so putting it again is recognised). `check_against_chain` compares a shipped digest with
+  the chain as it stands (a different hash, a missing row, a wrong row count).
+- `infrastructure/audit_digest.py` (`AuditDigestJob`): verifies the whole chain first and signs nothing if it is broken
+  (a digest of a rewritten chain would vouch for it). Then, for each closed day, puts the object once under
+  `audit-digest/<year>/<day>.json`. Every outcome is a `security.audit_digest_*` audit event (`shipped`, `failed` with
+  the error class only, `conflict`, `skipped`, `unconfigured`); a failure stops at that day and the next run catches up;
+  a different object under the same name is reported and never overwritten.
+- `adapters/outbound/digest_sinks.py`: `LocalDirSink` creates exclusively and says `off_host = False`, so the events and
+  the log say these digests do not protect the chain. The sink comes from `ARGUS_AUDIT_DIGEST_SINK` (`dir:<path>`); the
+  OCI sink is 5b.
+- `audit_digest` in `deploy/scheduler/schedules.yaml`, **off**; enabled without the key or the sink it records
+  `security.audit_digest_unconfigured` and ships nothing. The key is the secret `audit_digest_ed25519_key` (`wiring`'s
+  Ed25519 loader now takes the secret's name).
+- ARCHITECTURE keeps the digest at 1.8.32 and current main at 1.8.33; ACR-0018 §6 and `policies/SECURITY.md` record the built step.
+Consequences: nothing changes on the VMs. Next, 5b: the OCI sink (a new dependency and the credential's mount in a
+compose file, both reviewed); 5c: generate the key on vm-095, copy the create-only credential without printing it, turn
+the schedule on, and a command to check shipped digests against the chain. The alert on `security.audit_digest_failed`,
+`_conflict` and `security.audit_chain_broken` waits for the team's alert route.
+References: [ACR-0018](../architecture/changes/ACR-0018-operator-access-and-audit.md) §3, §5, §6;
+[PHASE-16](../tasks/current/PHASE-16-operator-access.md).
+
+## 2026-10-23 — PHASE-16 step 5b: the OCI Object Storage sink of the audit digests
+
+Type: code (offline; nothing deployed)
+Who: conantkd (+ agent)
+Context: step 5a built the signed daily digest with a local sink. The store is OCI Object Storage; its bucket, policy
+(`OBJECT_CREATE` and `OBJECT_INSPECT` only) and retention rule were created and proved by hand on 2026-10-23 (create
+works; overwrite and delete are refused; the retention rule refuses a modification). This step adds the sink that talks
+to it.
+Decision / result:
+- `OciObjectSink` creates a digest once with `If-None-Match: *`, a `Content-MD5` check and the digest's SHA-256 as the
+  object's metadata (`opc-meta-sha256`). The credential cannot read a body, so when the service says no (a precondition,
+  or a retention rule on an existing object: the status is not the same in both) the sink does a HEAD: an object that is
+  there is compared by that metadata (`exists_same` or `exists_different`); anything else is the refusal. It does not rely
+  on one status code, because the SDK documentation does not give the one for a failed precondition.
+- `DigestSinkError` carries only an HTTP status and the service's error code. The service's message holds request ids and
+  the names of the namespace and bucket, so the job's `security.audit_digest_failed` event records the class and that
+  short reason, never the message.
+- `ARGUS_AUDIT_DIGEST_SINK=oci:<namespace>/<bucket>`; the credential is `oci_digest/config` (a profile `[DEFAULT]`) and
+  `oci_digest/key.pem` under the secrets folder. The config's `key_file` is the path on the person's laptop; the key
+  beside the config wins. Found by a test: `oci.config.from_file` checks that path before it can be replaced, so the
+  profile is read directly.
+- Dependency `oci==2.189.0`, the version the CLI used for the by-hand proof (`pip check` clean). The `oci` import is lazy:
+  nothing else loads it.
+- An opt-in test (`ARGUS_TEST_OCI_CONFIG`, `ARGUS_TEST_OCI_BUCKET`) runs create, same bytes and different bytes against a
+  real bucket; each run leaves one small object under `selftest/`.
+- **Left for 5c, on purpose:** the compose mounts of the digest key and the credential (a protected path; a bind mount of
+  a file that does not exist yet would break the scheduler's start on the next deploy), the key and the credential on
+  vm-095, the egress line in `policies/NETWORK.md`, the schedule turned on, and a command to check shipped digests.
+PR #311 was synchronized with the current #303 head `b8533b8` by a merge commit. The protected-path conflicts in `ARCHITECTURE.md` and ACR-0018 were resolved manually. The current architecture version is 1.8.34 for step 5b; version 1.8.32 (step 5a) and 1.8.33 (ACR-0024) are preserved. The prior approval was on `fa96e38`; a fresh review is required after this conflict resolution. The updated head is awaiting GitHub CI.
+
+Consequences: the digest can reach the bucket as soon as 5c puts the key and the credential on vm-095. The lock of the
+retention rule waits until the job has run for a while; it is irreversible after its 14-day delay.
+References: [ACR-0018](../architecture/changes/ACR-0018-operator-access-and-audit.md) §5, §6;
+[PHASE-16](../tasks/current/PHASE-16-operator-access.md); step 5a.
+
+## 2026-10-23 — T-0050: Cards, closed catalogue, risk table and suggestions (Phase 17)
+
+Type: task
+Who: conantkd (+ agent)
+Context: Phase 17 of NEXT-PHASE (Cards, catalogue and suggestions) moves remediation candidates to reviewed,
+data-grounded definitions (service cards, action cards, closed catalogue, risk table, runbooks). The write gate
+stays strictly closed; no write capability is released. Candidate evaluation and suggestions are read-only.
+Decision / result:
+- Precondition interpreter without `eval` (`argus/actions/preconditions.py`): evaluates expression ASTs over
+  observation state using safe recursive AST evaluation. Supports comparisons (`==`, `!=`, `<`, `<=`, `>`, `>=`),
+  membership (`in`, `not in`), and boolean logic (`and`, `or`, `not`). Disallows dynamic code primitives (`eval`, `exec`,
+  `compile`), private dunder attributes, function calls, and statement mutations. Missing attributes resolve safely
+  without raising unhandled exceptions.
+- Risk table and level elevation (`config/risk.yaml`, `argus/actions/risk.py`): maps `(action, target_kind) -> RiskColor`
+  (`green`, `amber`, `red`, `forbidden`). The model never rates risk. The color can only go up: `criticality: high`
+  raises one level, judge `disagree` or `doubt` raises one level. Database restart is strictly `forbidden` and cannot be lowered.
+- Closed catalogue & cards (`config/actions/*.yaml`, `argus/actions/catalog.py`, `argus/actions/cards.py`):
+  closed catalogue of typed actions organized by intent (`container.start`, `container.restart`, `container.stop`, etc.)
+  with canonical and model names. Actions in `NEVER_OFFERED_ACTIONS` cannot be registered. Service cards declared in
+  `config/inventory.yaml` and loaded onto `TargetInfo.service_card()`. Initial action cards for Docker lab targets
+  (`container.start.yaml`, `container.restart.yaml`, `container.stop.yaml`).
+- Action suggestions & basis computation (`argus/actions/suggestions.py`): basis (`runbook`, `memory`, `reference`,
+  `operator`) is computed strictly by code from cited grounds; model-only ideas downgrade to suggestions. Suggestions
+  are read-only text hints (`is_executable=False`).
+- SC-03 exit proof verified: on `argus-lab-cache` (the root cause), `container.start` passes preconditions and service
+  card checks (`green` risk, `runbook` basis). On `argus-lab-api` (the victim), restarting the victim instead of the cause
+  is strictly forbidden (RB-002, RB-003).
+- Review corrections on local commit `e5cd3d7`: moved `ServiceCard` to the domain layer to satisfy the import boundary;
+  require exact catalogue/card names, verified card sources and a non-forbidden resolved risk; preserve unknown through
+  negated preconditions and reject object-property access. Inventory and action-card loaders reject incomplete or
+  unreviewed entries. RB-003 v1.0.1 declares a guarded cache-start action. The incident read route and evaluation
+  replay derive `next_actions` from a recalled runbook and a recent, timestamped status of the root cause. SC-03 now
+  has an expected action and a forbidden victim-restart trap in its evaluation label.
+
+Consequences:
+- Candidate actions remain read-only suggestions; the write gate stays closed.
+- An absent, stale or untimestamped observation yields no candidate. The current runbook action is limited to a
+  stopped cache, while other catalogue entries remain unavailable until their cards and runbook grounds are reviewed.
+
+References: [T-0050](../tasks/current/T-0050-cards-and-catalogue.md),
+[ACR-0019](../architecture/changes/ACR-0019-human-approved-remediation.md), RB-003 v1.0.1.
+
+## 2026-10-23 — S6 OP-013 peer label audit
+
+Type: evaluation audit
+Who: juanbetancurm (+ Codex)
+Context: S6 provides S4 a supplemental, fixture-based check of four OP-013 labels
+deferred in PR #266. conantkd owns the label review; this audit does not replace it or
+make the OP-013 class re-decision.
+Decision / result:
+- Recorded provisional fixture/runbook verdicts before reading OP-013 Results so far:
+  wrong upstream port supported; header-too-big supported with ownership ambiguity;
+  backend-flap escalation supported; nginx-errors-no-trace uncertain.
+- Flagged the no-trace mismatch: the case description says proxy probes fail, but replay
+  returns HTTP 200 from the network fixture wildcard. The header case also lacks the
+  accepted response-header contract needed to settle upstream-versus-proxy ownership.
+- Read the task's aggregate model-results summary only after recording those judgments.
+  No label, class strategy, task status, or model JSONL was edited or regraded.
+- The evidence report is
+  [step 03](../execution/history/OP-013/step-03-peer-label-audit/evidence.md).
+Consequences: conantkd's label review remains a dependency for any class change. Codex_3's
+TASK-17 peer review passed with notes; Codex_4 owns final validation and PR text preparation.
+
+## 2026-10-23 — PHASE-16 step 5c: the secrets on vm-095, the scheduler's mounts and the command that checks the digests
+
+Type: code + ops record (the VM got two files; nothing is deployed)
+Who: conantkd (+ agent)
+Context: steps 5a (#303) and 5b (#311) built the signed daily digest and its OCI sink. The job needs two secrets on vm-095 and
+the scheduler needs to be given them, and a person needs a way to prove the digests match the chain.
+Decision / result:
+- **The secrets are on vm-095** (evidence: `execution/history/PHASE-16/step-05c-prep`): the Ed25519 audit digest key,
+  generated there and never printed (its public half and `key_id` `52fe6eb06f4dd3b7` are recorded), and the create-only OCI
+  credential (`config` and `key.pem`), copied from the laptop without being printed; the key matches the fingerprint in the
+  config. They are in **`/opt/argus-v18/secrets/digest/`**, not in `secrets/agent/` as the first drafts of
+  `policies/SECURITY.md` said: the worker mounts all of `secrets/agent/` and neither secret is the worker's.
+- **`compose.core.yml`:** the scheduler mounts the key file and the `oci_digest` folder read-only from there, and no other
+  service mounts the folder (a test per service). `ARGUS_AUDIT_DIGEST_SINK` comes from `hosts.env` and is empty by default.
+  The scheduler's `mem_limit` goes from 160m to 256m: measured, importing the OCI SDK adds about 19 MB to its start (74 to
+  93 MB), and the job reads the whole chain into memory, as the daily chain check already does.
+- **`argus audit check-digests <files or folders> --public-key <pem>`** reads the digests (downloaded from the bucket by someone
+  whose credential can read them: the shipping credential cannot) and reports a signature that does not verify, a row the
+  chain no longer holds, a changed hash, a wrong row count, a digest twice for a day and a gap in the days. A file that is not
+  a digest is named; finding nothing to check is a problem, not a pass.
+- **`policies/NETWORK.md`** names OCI Object Storage as the scheduler's configured destination; **`policies/SECURITY.md`** now
+  says where the two secrets live. `audit_digest` stays **`enabled: false`**.
+- **Review correction (2026-10-24):** verify the supplied audit chain as well as the signed digests, using the same
+  implementation proposed in #317 (`deb42c5`). An edited row body with its stored hash unchanged now produces a generic
+  audit-chain problem; the command exits unsuccessfully and never prints `DIGESTS OK`. Added function and CLI regressions.
+- **Review correction (2026-10-25):** when given a folder, `check-digests` now checks the series through the prior UTC
+  day by default; `--through-day` provides a reproducible cutoff. Deleting the latest digest is a failure in both the
+  function and CLI. A single file remains a spot check. The audit chain may predate digest activation, so its first
+  row does not define the expected first digest day. `policies/NETWORK.md`, ACR-0018 and the architecture changelog
+  now state that OCI is the configured destination while the shared bridge does not enforce outbound filtering; the
+  phase-16 task tracks enforcement. The historical preparation blocks now take `ARGUS_REPO_ROOT` instead of a
+  developer-specific checkout path. Integrated current `main` at `01dfe0b`.
+- Integrated `main` at `ada9fec9`; preserved its published architecture versions and assigned step 5c the free version
+  **1.8.35**. This resolves the parallel branches' version collision without changing their accepted architecture content.
+- The first attempt to generate the key from the agent's session was refused by the permission classifier (a remote write), so
+  conantkd ran the blocks; two bugs of the prepared blocks showed up and were fixed (the VM's `install -o` and, earlier,
+  `brain.py start` hanging on the GitHub verification of `main`: `BRAIN_NO_GH=1` skips it).
+Consequences: after #302, #303 and #311 merge and this one, the deploy needs both leases and a block: the repository to
+`main`, `ARGUS_AUDIT_DIGEST_SINK=oci:<namespace>/<bucket>` in `hosts.env`, the scheduler recreated, one manual run of the job
+checked in the bucket and with `check-digests`, and only then `audit_digest: enabled: true`. Until the schedule is on, nothing
+leaves vm-095.
+References: [evidence](../execution/history/PHASE-16/step-05c-prep/evidence.md),
+[ACR-0018](../architecture/changes/ACR-0018-operator-access-and-audit.md) §5, §6; steps 5a and 5b.
+
+## 2026-10-24 — T-0047 H4 paired evaluation report
+
+Type: implementation
+Who: juanbetancurm (+ Codex)
+Context: H4's before/after model evaluation needs the same cases and trials summarized in a repeatable offline report.
+Decision / result:
+- Added `python -m argus.evaluation.compare` for two JSONL result files. It makes no model or network calls.
+- It validates row shape, duplicate keys, `(case, trial)` coverage and matching model/strategy metadata.
+- It re-grades each row with the current case label and groups class accuracy by the expected class label, not the
+  model's predicted class.
+- It sums hard failures, hypothesis problem kinds and model calls. Unrecognized H1 messages appear in `unclassified`
+  with their original text counted separately.
+- Each token total is unknown if any row lacks that token field; missing counts are reported. The p50 uses the same
+  upper-middle order statistic as the existing evaluation summary.
+Consequences: the tool reports measurements only; it does not choose whether H4's instruction change passes.
+
+## 2026-10-24 — MAIN-GUARD-PR303: prepare retrospective final-head review
+
+Type: review recovery (no runtime or VM change)
+Who: conantkd (+ Codex); teammate approval pending
+Context: main-guard on main ada9fec reports that PR #303 merged without a valid review of its final protected-path
+changes. PR #300 has corrected its original findings, but its integration remains blocked by that failure.
+Decision / result:
+- Prepared one retrospective record for #303, following REVIEW_PROTOCOL's follow-up-PR recovery procedure and the
+  existing retrospective records. It is proposed only and must not reach main without a teammate's review.
+- Recorded the approved head 7b6902a, manual resolution b8533b8, automatic merge d76f742 and merge commit d41b9ea.
+- Specified the exact remaining review and the order for recovering main and then merging #300. No enforcement
+  code, protection list, architecture, runtime configuration or VM state changes.
+Consequences: The recovery PR requires a teammate's review of final #303 content; the author cannot provide it.
+References: [task](../tasks/current/MAIN-GUARD-PR303-review-recovery.md),
+[PR #303](https://github.com/agenticteam03/argus_production/pull/303),
+[main-guard log](https://github.com/agenticteam03/argus_production/actions/runs/40115433517/job/120935621714).
+
+## 2026-10-24 — T-0050: enforce the vm-095 action prohibition
+
+Type: safety correction
+Who: S5 (Codex)
+Context: PR #316's candidate policy accepted the vm-095 lab inventory entry when its target name, service card,
+runbook action, and fresh observation otherwise passed. ACR-0019 decision 8 prohibits all actions on vm-095.
+Decision / result:
+- Added an explicit host-level deny before target-name, inventory, evidence, and runbook candidate evaluation.
+- Added a regression that supplies a vm-095 `argus-lab-cache` target with lab scope, a service card allowing
+  `container.start`, recalled RB-003, and a fresh exited observation. The test was red first: it got a
+  `container.start` candidate for vm-095.
+- Added a vm-166 cache-start positive control; it still returns `container.start` under the same valid evidence.
+- Did not change cards, inventory, risk values, runbooks, or architecture.
+
+Consequences:
+- `ActionPolicy.next_actions` returns no candidates for any target on vm-095, regardless of target name or
+  inventory metadata. Other host and candidate checks retain their existing behavior.
+
+## 2026-10-24 — T-0046: replay link probe history and offer it to diagnosis
+
+Type: implementation
+Who: conantkd (+ agent)
+Context: T-0046 L5 had two verified gaps before L6: the scheduler stored its tick time instead of the exporter sample time,
+and a probe that broke and recovered between 60-second ticks was never stored. Restart recovery also had no durable
+source-sample cursor. `network.link_states` was registered but no incident class received it.
+Decision / result:
+- Accepted ACR-0031 for bounded four-hour range replay with exporter source timestamps, durable per-link cursors and
+  atomic transition/audit/cursor writes. The cursor is in Argus Postgres on vm-095; Prometheus on vm-166 remains the
+  existing sample source.
+- Added migration 014, both stores, `MetricsPort.dependency_probe_history`, the range adapter and cursor-aware scheduler.
+  An unreadable host does not advance its cursor; after the four-hour bound an omitted gap is explicitly rebased to
+  `unknown`.
+- Offered `network.link_states` only to `dependency_unavailable`, `health_check_failed` and
+  `nginx_upstream_failure`. Baselines now read and use its evidence. The evaluation replay gained internal fixtures for
+  link history and the latest probe; five cases cover SC-03, SC-07, a health failure from a dependency, and SC-08 broken
+  and slow upstream links. The offer is measured with the deterministic baseline only: each of the five cases fails
+  without it and passes with it. In SC-03, SC-07 and the health case the read changes the root cause; in the SC-08 cases
+  it changes the mechanism (broken or slow link), not the root cause. The `model_loop` arm (`health_check_failed`) is
+  not measured: a model batch needs the replay's `now` pinned first.
+- Updated the task, ACR-0031 and architecture 1.8.36 in one task branch; [PR #322](https://github.com/agenticteam03/argus_production/pull/322) is open for `juanbetancurm`'s review. Version 1.8.35 is PR #314, merged first; `main` (`fcdb9d3`) is merged in.
+- Review of #322 (`juanbetancurm`, changes requested on `5657763`), addressed on 2026-10-25:
+  - a silent exporter no longer widens each tick's Prometheus window toward four hours: a link already `unknown` is
+    read back at most the staleness limit (90 s), also after a long scheduler gap (second review, on `c60dc2b`). Trade-off: when the exporter returns during a long scheduler
+    gap, an `unknown` link's samples older than 90 s before the next tick are not replayed; the link is current on that tick;
+  - new tests for both staleness boundaries, a silent exporter (60 s ticks, and gaps of 30 and 60 minutes) and a SQLite probe older than the cursor; each fails
+    when its code is removed;
+  - the SC-08 labels now require the mechanism (`broken`; `upstream path is slow`), and a control test runs the five
+    cases without the offer and expects each to fail;
+  - the two evaluation arms are stored with their comparison ([evidence](../execution/history/T-0046-l6/step-02/evidence.md));
+  - stale comments in `link_transitions.py`, `catalog.py` and `schedules.yaml` updated.
+- Before deployment, a read-only state probe ran on both VMs under both leases; [evidence](../execution/history/T-0046-l6/step-01/evidence.md) records deployed commits, healthy lab baseline and `NO INTERFERENCE`. No application deploy or migration was run because PR #322 is not merged.
+
+## 2026-10-25 — T-0047 H4I gate: revert the hypothesis instruction
+
+Type: evaluation decision
+Who: juanbetancurm (+ agent)
+Context: H4I compared the 12 cases from #274, five trials per case, with the same configured model and
+`model_loop` strategy. The before arm used main after #309; the after arm added #310's hypothesis instruction.
+The accepted gate required accuracy not to fall in any class and zero hard failures in the after arm.
+
+Decision / result:
+
+| Metric | Before (#309) | After (+#310) |
+|---|---:|---:|
+| container_restart_loop accuracy | 29/30 (96.7%) | 27/30 (90.0%) |
+| dependency_unavailable accuracy | 5/25 (20.0%) | 16/25 (64.0%) |
+| hard failures | 1 (unsupported_root_cause) | 1 (unsupported_root_cause) |
+| hypothesis problems | 23 | 13 |
+| input / output tokens | 737,015 / 61,055 | 842,336 / 72,387 |
+| model calls | 152 | 170 |
+
+The gate failed: restart-loop accuracy fell by two runs, and the after arm had one hard failure. The hard failure
+was in `dep-backend-stopped`, trial 1; the before arm also had a hard failure, in `dep-backend-wrong-network`,
+trial 4. The gate requires zero after-arm hard failures, so the earlier failure does not waive that condition.
+
+The developer decided to REVERT #310's instruction change. The dependency class improved by 44 percentage points
+and hypothesis problems fell by ten, but the restart-loop result also declined. The class-specific gain suggests a
+future dependency-only instruction experiment may be useful after the missing support-evidence problem is fixed.
+The current batch does not establish that a global prompt instruction is safe across classes. The architecture
+version is unchanged.
+
+References: T-0047 (`../tasks/current/T-0047-hypotheses-cause-ranking.md`); H4I gate evidence was collected and
+compared with `argus.evaluation.compare`.
+
+## 2026-10-25 — T-0049 R1: docker disk replay fixtures
+
+Type: code (offline; no class offer)
+Who: juanbetancurm (+ agent)
+Context: R1 offers a read to a class only after a measured batch. `docker.disk_usage` calls `/docker/df`, but the
+eight labelled `disk-*` cases had no such fixture, so replay failed before the read could be measured.
+Decision / result:
+- Added a `/docker/df` fixture to all eight disk cases in the real executor shape: images, containers and volumes
+  counts and bytes, build cache bytes and collection time. Labels are unchanged and no class was edited.
+- Host-wide totals exclude the lab-fill bind mount. The stopped-container count is 1 only in the two stopped cases
+  and 0 in the other six, as each case's container status says.
+- Added `tests/test_t0049_docker_disk_replay.py`: every case replays through the real `docker.disk_usage` and returns
+  exactly the executor fields with non-negative integer counts and a valid collection time.
+Consequences: Replays are complete, but disk use is host-wide and carries no per-container ownership. It tells apart
+a stopped container (stopped count) and nothing else; it cannot tell a growing fill from a full, idle one, a
+read-only mount, a missing log, or another writer on the root volume. Logs, mounts and file-system reads do that.
+The lab-fill bind mount being excluded from the totals is an assumption, not a recorded observation. The fixtures are
+only proven to parse through the real read (the replay test calls it directly); no baseline run consumes them yet,
+because `docker_disk` is offered to no class. Expected gain from offering this read to the disk class is low; no class
+offer was made.
+
+## 2026-10-25 — T-0047 evidence ids per hypothesis and ranking-weight sensitivity report
+
+Type: offline evaluation utility and result-row format
+Who: juanbetancurm (+ agent)
+Context: T-0047 H4, branch task/T-0047-evidence-ids from origin/main 106190b. Continues the sensitivity report drafted
+on 2026-10-22 from 44fe921. This does not change config/ranking.yaml, ranking behavior, or tool offers.
+
+Method and result:
+- The evaluation JSONL writer stored each final hypothesis's target, class, status and rank, but not the evidence it
+  cited, so a batch's result file could not be re-ranked. Each hypothesis row now also carries `support` and `against`
+  (evidence ids only), and each row carries `evidence`: {evidence_id, kind, target} per stored evidence record. No
+  evidence text or values are recorded.
+- The regrader reads the new fields and still reads old rows that lack them (empty lists).
+- Add a read-only analyzer, `argus.evaluation.weights_sensitivity`, that calls application.ranking.rank unchanged for
+  the current weights, each of the six score weights halved and doubled one at a time, and untested_penalty set to 0
+  and 1. `peer_finding` is inert today (rank() cites no peer finding by id), so its two sets always equal `current`.
+  max_target_records is held constant because it is a cap, not a weight. It reads files or stdin.
+- For each JSONL result file it reports top-1 and top-3 expected-cause accuracy, ruled-out recall, ranking_disagrees
+  counts, and per-class coverage. Stored ranks are ignored. A row without the inputs is counted as not scorable.
+- Rows written before this change (the retained H5B and R1 files) are not scorable; no score is inferred from them.
+  A new batch is needed for sensitivity numbers, and is a separate decision.
+- The token fields (#301) and compare.py (#319) are unchanged.
+
+## 2026-10-25 — T-0049 S5: paired skill evaluation harness
+
+Type: evaluation
+Who: juanbetancurm (+ agent: Codex_1 prepared the offline harness and validation fixes)
+Context: T-0049 S5 prepares a paired with-skill/without-skill evaluation for five P0/P1 skills across 15 frozen task cards. The harness validates blinded result records and reports descriptive comparisons. It does not run task sessions or make keep/remove decisions.
+
+Decision / result:
+- The score-2 validator now follows the rubric: an incomplete task can score 2 without a recorded correction; a major or critical correction also remains compatible. The schema's task-success consistency rule still makes scores 0–2 unsuccessful and scores 3–4 successful.
+- The neighboring score rules were checked: score 4 allows no corrections; score 3 allows none or minor corrections; score 1 has no correction-severity restriction in the rubric; score 0 requires a recorded safety violation and critical correction. No other mismatch was found.
+- No model calls or VM actions were made. No skill files were changed. The 15 cards and paired run plan remain prepared only; a real run awaits the agreed cost and developer approval.
+
+References: T-0049 S5; PR #332; `../../../_team/texts/TASK-13-run-plan.md`.
+
+## 2026-10-25 — T-0049 dependency evaluation cases
+
+Type: offline evaluation fixtures
+Who: juanbetancurm (+ agent)
+Context: The dependency_unavailable evaluation set had five cases, too few to support the next H4 gate. This task adds six
+cases while leaving class offers, production behavior and existing labels unchanged.
+Decision / result:
+- Added three diagnosed cases: an OOM-killed cache, a stopped database and a database isolated from the client network.
+- Added three escalation cases: a DNS-vantage failure, cache authentication failure and intermittent backend timeouts.
+- Added status, stats, health, events, connectivity and network-probe fixtures for the affected containers.
+- The OOM case records exit 137, the OOM flag, memory at the limit, and `oom`/`die` events.
+- Tests cover the six case IDs, targets, labels, dependency states, network evidence and OOM evidence. The baseline replay
+  is covered by the shared D-003 evaluation test.
+Consequences: The fixture set now has three diagnosed and three ambiguous cases for `dependency_unavailable`. The cases
+are offline fixtures; no class strategy or model behavior was changed. The OOM expected-hypothesis label also includes the
+free-text `memory_exhaustion` cause.
+
+## 2026-10-25 — T-0051 Phase 18 supervised actions against a fake gateway
+
+| Field | Value |
+|---|---|
+| Type | implementation checkpoint |
+| Who | conantkd + Codex |
+| Context | ACR-0019 and the Phase 18 row of NEXT-PHASE; Phase 17 #316 and vm-095 guard #318 are still open |
+| Decision / result | Build the offline action path on the same incident LangGraph, persist frozen proposals, independent judge verdicts, approvals, notification outbox, resume intent, action ledger, holds and outcomes; keep production write gate empty and add no approval route or real gateway. |
+| Consequences | Retargeted to `main` after #316/#318 merged (main `7f8c14b` merged in). The migration is now `015_remediation.sql`: #322 takes 014 and merges first (agreed order: #314, #322, #323). It is applied by its deploy order only after review. No VM mutation was done. |
+| References | [Task](../tasks/current/PHASE-18-supervised-actions.md), [ACR-0019](../architecture/changes/ACR-0019-human-approved-remediation.md), [Phase 17 #316](https://github.com/agenticteam03/argus_production/pull/316), [vm-095 guard #318](https://github.com/agenticteam03/argus_production/pull/318) |
+
+- Review of #323 (`juanbetancurm`, changes requested on `2dd55ed`), addressed on 2026-10-26:
+  - base and order: retargeted to `main`, `main` merged in, the diff is phase 18 only; migration renumbered to 015;
+  - the executor now refuses, before any claim or dispatch, an approval without a stored `agree` verdict bound to the
+    proposal's digest, a target outside the lab scope or on vm-095 (`check_action_scope`, shared with
+    `freeze_proposal`), and any gateway but the fake one; `answer` fails closed without a verdict;
+  - ACR-0019 §3.8 records the stricter phase 18 reading: a `doubt` or `disagree` stops the proposal before a request;
+  - 13 guards without a failing test: the reviewer's `tests/test_phase18_guards.py` is in (pushed by `juanbetancurm`). Eight new tests here cover the new checks; removing each check makes its tests fail.
+  - not changed yet: a database trigger requiring the verdict for an approval, the judge model id taken from the
+    caller, and a verdict row on a failure before the model call (phase 19 items); the test state below now says the judge
+    comparison is a harness and 18 cases, not a run.
+
+## 2026-10-26 - DEPLOY-01db0d7 on vm-095: phase 17 suggestions, the vm-095 denial, the digest wiring (off)
+
+Type: deploy
+Who: conantkd (+ agent)
+Context: main moved from `c8d8594` (on vm-095) through #300-#333; run by conantkd's agent over ssh with conantkd's
+permission, both leases. The vm-095 lease of `juanbetancurm` (T-0047-H4W2) had expired at 00:59Z; conantkd took it
+over at 01:00Z for a first plan (DEPLOY-7f8c14b) that never ran, and claimed both leases again for this one.
+Decision / result:
+- vm-095 runs `main` `01db0d7`:
+  - a backup verified (22 tables, 33493 rows); no migration;
+  - agent, worker and scheduler rebuilt, `restarts=0`, no error lines; the UI untouched;
+  - phase 17 live with `vm-095` denied; the scheduler holds the digest key and the OCI credential (three files),
+    256 MB, and the worker sees none of them; `audit_digest` stays off and no sink is set in `hosts.env`;
+  - 56/56 database checks, the audit chain verified, `/me` 401, NO INTERFERENCE on both VMs.
+- The prepared D.2 treated `secrets/digest/oci_digest` as a file; it is a folder (`config`, `key.pem`). The block
+  stopped before any change; the check was corrected and D.2 re-run.
+Consequences: #322 (migration 014) needs its own short deploy after it merges. Step 5 of phase 16 continues with
+`ARGUS_AUDIT_DIGEST_SINK`, a first checked run and the schedule turned on.
+References: [evidence](../execution/history/DEPLOY-01db0d7/step-01/evidence.md), #314, #316, #318.
+
+## 2026-10-26 - DEPLOY-16028c7 on vm-095: migrations 014 and 015, T-0046 L6 and phase 18 (offline)
+
+Type: deploy
+Who: conantkd (+ agent)
+Context: #322 and #323 merged after DEPLOY-01db0d7; run by conantkd's agent over ssh with conantkd's permission, both
+leases.
+Decision / result:
+- vm-095 runs `main` `16028c7`:
+  - a backup verified (22 tables, 33508 rows), then migrations 014 (`link_probe_cursor`) and 015 (phase 18's eight
+    tables), schema 001-015;
+  - agent, worker and scheduler rebuilt, `restarts=0`, no error lines; the UI untouched;
+  - the scheduler writes the new cursors (4 after its first tick); 89/89 database checks; the audit chain verified;
+    phase 17 live with vm-095 denied; `audit_digest` off; NO INTERFERENCE on both VMs.
+- Phase 18 is deployed as tables and offline code only: no route, gateway or wiring; `write_gate.open` stays empty.
+Consequences: T-0046's live SC-03/SC-07 check can run on this version.
+References: [evidence](../execution/history/DEPLOY-16028c7/step-01/evidence.md), #322, #323.

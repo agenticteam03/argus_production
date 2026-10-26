@@ -1,5 +1,87 @@
 # Next step
 
+Live SC-03/SC-07 on this version (T-0046), then release the leases with a handoff.
+
+After #322 merges: both leases, a backup, migration 014 and the agent, worker and scheduler rebuilt.
+
+#322 is merged: `main` is merged here (an import conflict in `postgres_store.py` resolved), `015_remediation.sql` is in
+`tests/skills/test_db_migration.py`'s list and the migration checker passes. Re-review, then merge; the deploy applies
+015 after 014. Phase 19 still requires ACR-0018's off-host audit exit proof and a separate approval route/gateway
+review; phase 20 releases the first action pair in its own PR.
+
+Claude_1 prepares the developer-run update block for PR #333. Conantkd reviews the updated PR head. No VM action or model
+call is needed.
+
+Conantkd re-reviews PR #332. If accepted, the developer runs the guarded commit block. The real paired study remains gated on the cost agreement and explicit run approval.
+
+Run the next H4 batch with this writer, then run the analyzer on its result file (offline, read-only).
+
+Commit, push the branch and open the PR; conantkd reviews. A later measured batch decides whether the disk class is
+offered `docker.disk_usage`.
+
+#310's instruction change is reverted. Any later dependency-scoped prompt requires a separate measured change and
+the accepted per-class gate.
+
+Merge order agreed on 2026-10-25: #314 first (architecture 1.8.35, merged), then #322 (1.8.36, migration 014), then #323,
+which renumbers its `014_remediation.sql` to 015 with `tests/skills/test_db_migration.py` and the `db check` lists.
+Wait for `juanbetancurm`'s re-review on PR #322 (class registry, ACR and architecture are protected); CI was green on
+`26aeb79`. Do not approve or merge this PR as its author. After merge, the integration owner acquires both leases,
+applies migration 014 and deploys on vm-095, checks SC-03/SC-07, and records sanitized output before releasing the leases.
+
+S4 prepares the developer-run commit, push, and PR block. The paired review is clear and the corrected full offline
+suite has passed; no further full-suite run is needed for this documentation correction.
+
+A teammate reviews this recovery PR and PR #303's final protected-path changes. After approval and merge, require
+main-guard to pass before resuming #300's update, exact-head checks, new approval and merge. Preserve both branches.
+
+S4 completed the pre-review with no findings. The PR draft records the unrelated full-suite timeout for S4's decision.
+
+Dependencies #302, #303 and #311 are merged. Publish the 2026-10-25 review corrections on #314, obtain exact-head CI
+and a fresh teammate review before merging; retain the source branch. Enforce the scheduler's outbound destination in a
+follow-up before claiming OCI-only egress. A later deploy needs both leases and its own block.
+
+The final offline suite passed and Codex_4 prepared the commit and PR texts. Claude_1 will
+prepare the developer-run commit/push/PR block. conantkd decides whether either noted label
+question warrants a later label review or class decision.
+
+Publish the validated alignment and require exact-head CI plus teammate approval of the updated
+protected-path changes. No approval is currently recorded on #316; this alignment cannot authorize self-merge.
+After review, merge with a merge commit and retain the source
+branch. Then proceed to Phase 18 offline simulation machinery (§14 tables, proposals with grounds/predictions/
+alternatives against a fake gateway, judge integration), preserving the closed write gate.
+
+A teammate reviews the updated #311 head (it touches protected architecture and policy paths). After #303 merges, retarget #311 to `main` and confirm the checks and approval remain valid; then proceed to 5c.
+
+Request a fresh teammate review of the updated, protected architecture paths and wait for CI to pass. After review and merge, retain the task branch and continue with step 5b, the OCI sink.
+
+A teammate reviews and approves. Then phases 17 and 18 start: the service and action cards for the cache, the
+interpreter of preconditions, `suggest_action`, and the §14 machinery against a fake gateway, with `write_gate.open`
+empty. In parallel, `conantkd` creates the OCI bucket (unlocked first) and the enrolment tickets are used.
+
+T-0049 R1: review of the prior-incident fixtures; then the batch above, with the other R1 arms.
+
+After the merge, deploy the UI on vm-095 (lease, `code.bash`) and check an incident page on the public UI.
+
+Team review of ACR-0030 (D-1 to D-3) with the second approval for secrets; then its backend and UI parts, tests
+first.
+
+`juanbetancurm` registers his second key and the check (step 03b, KY.1) is repeated until it passes. Then deploy #298
+(the private path), and the digest's OCI sink (step 5b).
+
+conantkd reviews. Then the hypothesis-instruction batch (T-0047 H4) reuses these blocks with the corrected deploy check.
+
+T-0047 H4: review of the hypothesis instructions; after the checker fix merges, the model batch above decides whether
+they stay.
+
+R1BF.1 commits this correction and merges current `origin/main` into the existing branch with a merge commit. After the
+focused checks pass, the developer-run block pushes the branch and comments on #300 for conantkd's re-review.
+
+T-0047: `conantkd` reviews the read-step check fix; then the prompt change (a target for every non-external
+hypothesis, `supported` needs a read of that target, ids copied exactly), with a model batch.
+
+T-0047 evidence support: the checker fix ([its entry](journal/logbook.md)), then the
+prompt with a model batch.
+
 **Now (2026-10-23, roll-up, `conantkd`; night work by the agent).**
 - **On the VMs:** **vm-095 runs `main` `77c4524`** (DEPLOY-77c4524, #288): phase 16 step 3, WebAuthn second factor and
   step-up (#280, #284), migration **013** (schema 001-013), the relying party set, the Bearer redaction fix (#278);

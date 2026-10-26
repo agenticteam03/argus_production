@@ -2,6 +2,242 @@
 
 **Last updated:** 2026-10-12 (roll-up) · **Commit:** `main` after #96 (`817d88f`)
 
+No code change. On the VM: 89/89 database checks, `AUDIT CHAIN OK: 273 rows chained`, health 200, NO INTERFERENCE.
+
+No code change. On the VM: 56/56 database checks, `AUDIT CHAIN OK: 265 rows chained`, health 200, NO INTERFERENCE.
+
+- RED: `tests/test_phase18_remediation.py` initially failed on the missing remediation module and SQLite methods; both were then implemented.
+- GREEN: 21 focused phase-18 and graph tests passed on commit `666a990`. Ruff, Brain lint/audit, the migration checker and the judge-evaluation dry run also passed. Exact-head CI `test` and `frontend` checks passed; `main-guard` was skipped for this stacked PR.
+- Full offline suite completed locally with 23 environment-bound failures: Windows resolved `bash` to WSL without `/bin/bash`, Git Bash subprocesses were denied by the sandbox, and placing pytest's temp root inside the checkout made deploy tests detect the parent repository. The exact-head CI test passed. PostgreSQL migration test was not run locally because Docker Desktop is unavailable and `ARGUS_TEST_PG_OWNER_DSN` is unset.
+- Judge model comparison: only the harness (`ops/phase18_judge_eval.py`) and its 18 labelled cases exist; no run, live metric or winner is claimed (no API credential in this checkout). The task holds a provisional choice from the public catalog and prices.
+
+- Full offline suite on the PR head: 1919 passed, 74 skipped, 1 deselected; exit 0.
+- After merging `origin/main` at `7f8c14b`, the focused TASK-19, T-0047 and evaluation tests passed: 117 passed.
+- Ruff, Brain lint/audit and `git diff --check` are clean. Brain `split_entry` validation is run for this entry.
+
+- RED: `test_score_two_with_incomplete_task_and_no_recorded_corrections_is_valid` failed on the exact PR head with `score 2 requires a major correction`.
+- GREEN: focused paired-evaluation tests passed after the validator change: 19 passed.
+- Full offline suite (with the protocol exclusion): 1,997 passed, 74 skipped, 1 deselected in 1,085.68 seconds. Ruff, Brain lint/audit, `split_entry`, and `git diff --check` passed.
+
+- RED: with replay.py and regrade.py from main, test_a_replay_keeps_the_final_ranked_list and the two regrade tests
+  (new fields, old rows) failed on the missing fields.
+- GREEN: the focused tests pass. They cover the 15 isolated variants, a rank flip, label-based ruled-out recall,
+  per-class metrics, legacy rows, stdin input, the regrader with new and old rows, and a round trip of a row in the
+  CLI shape through a JSONL file into the analyzer.
+- Full offline suite on `299290f`: 1923 passed, 71 skipped, 1 deselected; the reviewer's independent run on the same
+  head also exited 0.
+
+- Red first: with the fixtures reverted, the replay test failed with `/docker/df: not found`.
+- With the fixtures, the replay test (it globs every `disk-*` case) passes on the branch at current main (`106190b`).
+- The replay, T-0037 and evaluation tests passed together (122); Ruff, Brain lint/audit and `split_entry` were clean.
+
+The temporary restored-text assertions failed twice against the exact #310 source and passed twice after the revert.
+Focused T-0047 tests: 108 passed. Ruff, Brain lint/audit and `git diff --check` passed. The full offline suite is
+pending review clearance.
+
+Red seen before the implementation: the three new cursor/history regressions failed for the expected reasons (missed
+intermediate transitions, restart replay and missing cursor persistence). The focused L6 suite passes **11 tests**.
+The full local pytest suite completed with 15 failures in Bash-backed tests: Windows selected its WSL launcher, which
+reports `execvpe(/bin/bash) failed: No such file or directory`. CI's first run found a serialization-format assertion
+in the new Postgres test (`Z` versus `+00:00`); commit `26aeb79` normalizes UTC to `Z`. On that commit, GitHub CI's
+`test` job (including the Postgres runtime test) and frontend job both pass; `main-guard` is skipped by workflow rules.
+Brain lint, audit, diff check and migration checker pass. The Postgres test remains skipped only in local Windows runs
+because Docker is not running.
+Review fixes: `tests/test_t0046_l6_sample_history.py` 10 passed and `tests/test_t0046_l6_eval.py` 2 passed; removing
+either staleness block, the window bound for an `unknown` link (both silent-exporter tests) or the SQLite `at <= cursor` guard makes its new test fail.
+Paired one-trial baseline evaluation on the same branch and 66 cases (stored in `execution/history/T-0046-l6/step-02/`):
+control without the offer 57/66, treatment 62/66; the four hard checks are 0 in both; no class is lower;
+`dependency_unavailable` 4/7 → 6/7, `health_check_failed` 10/11 → 11/11, `nginx_upstream_failure` 5/7 → 7/7. The
+earlier "60/66 before" had no stored file and predates the tighter SC-08 labels; this run replaces it. Four unrelated
+cases fail in both arms. The model arm is not measured. VM deployment remains pending.
+
+- Red seen: `tests/test_action_incident.py::test_vm095_actions_are_denied_even_for_fully_valid_lab_candidate`
+  failed because the policy returned `container.start` for `vm-095/container:argus-lab-cache`.
+- Green: the focused action and write-gate tests passed (75 passed); Ruff, Brain lint/audit, and `git diff --check`
+  are clean. The first focused run hit a local pytest temp-directory permission error; rerunning with a worktree-local
+  `--basetemp` passed.
+- The first full offline suite attempt used pytest's default temp root and finished with 937 passed, 71 skipped,
+  1 deselected, and 979 errors in 816.74s. A representative setup traceback was pytest `tmp_path` failing with
+  `PermissionError: [WinError 5]` while scanning the global user temp root.
+- The corrected full offline suite used a dedicated basetemp directly under the workspace root, outside every
+  worktree. It finished with 1,915 passed, 72 skipped, and 1 deselected in 1,188.18s, with no errors. This confirms
+  the first run's setup errors came from access to the global temp root.
+
+- OBSERVED RED: current main-guard reports MAIN RULE BROKEN for #303's missing final-head teammate review.
+- The b8533b8 remerge diff is nonempty; d76f742 has an empty remerge diff.
+- This is a records-only recovery; runtime behavior is unchanged. Journal/status, Brain lint/audit and whitespace
+  checks passed. The Brain policy suite passed: 109 passed in 161.93 seconds. No new full-suite or runtime RED/GREEN
+  claim is made for this record.
+- Separately for #300, its original 130 focused regressions passed. After repairing the local Python environment
+  and moving pytest temporaries outside the worktree, the six files containing the earlier local failures passed:
+  64 passed, 2 skipped. This does not constitute a new full-suite pass.
+
+- Red seen: the expected per-class report failed against an empty summary placeholder.
+- Green: 26 synthetic paired-report tests passed; Ruff, Brain lint/audit and `git diff --check` are clean.
+- Full offline suite (corrected workspace basetemp): 1 failed, 1,905 passed, 74 skipped, 1 deselected in 1,347.55 s.
+  The sole failure is an unrelated timeout in
+  `tests/skills/test_pr_review.py::test_a_later_changes_request_or_dismissal_cannot_leave_an_old_approval_active`.
+- The first full-suite attempt used an in-worktree basetemp and caused seven `tests/test_deploy.py` clone-discovery
+  failures; the corrected run moved basetemp outside all repositories, and those tests passed.
+
+Red seen: `tests/test_phase16_step5c_check.py` failed against the 5b tree (no `check_digest_files`, no digest mounts, no
+sink variable, the old memory limit). Green: that file (the series checked as a whole: clean, a single file, an edited digest,
+another key, a missing day, a rewritten chain, a file that is not a digest, nothing to check; the compose file: only the
+scheduler mounts the digest folder, read-only, never `secrets/agent/`, the sink variable, the memory limit) and the updated
+`tests/test_compose_split.py`.
+
+Review-fix RED observed on the original #314 head `5f7ed1c`: both added regressions failed. The function returned `[]`
+for the edited body, and the CLI printed `DIGESTS OK` without raising `SystemExit`. GREEN after the fix: 65 passed,
+2 skipped across the digest, OCI sink, audit-chain and compose modules. Brain lint/audit, Ruff and the architecture
+version-line helper passed. Full offline suite: 1906 passed, 73 skipped, 16 failed. The failed shell simulations selected
+the Windows WSL launcher, whose `/bin/bash` is missing (the allowlist prune then also lacked its expected output file).
+All 16 failed cases passed when repeated with Git Bash first on PATH (24.67 seconds). No repository change was needed
+for those environment failures; no clean single full-suite run is claimed. Docker Desktop is unavailable locally;
+the relevant opt-in tests were skipped. Fresh exact-head CI remains required after publication.
+
+Independent full-suite recheck on 2026-10-24: **1922 passed, 73 skipped**, exit 0 (1219.36 seconds), with Git Bash
+first on PATH, temporary repositories outside the worktree and execution outside the Windows sandbox. OCI 2.189.0
+was installed as declared by this branch; the dependency check passed. One pytest cache-write warning did not affect
+the result. The tested runtime, tests, architecture, policies and compose files are byte-identical to published head
+`737707e`; only task/journal prose differed between the isolated worktrees. This supersedes the earlier environment
+failures and the lack of a single successful full-suite run. No runtime change is made by this evidence update.
+
+Review correction on 2026-10-25: two missing-tail regressions failed on the prior implementation. After the fix,
+`tests/test_phase16_step5c_check.py` passed (18 tests); Ruff, Brain lint and Brain audit were clean. The full offline
+suite finished with exit 0 on the corrected tree, with Git Bash first on PATH. Exact-head CI is required after push.
+
+- Brain split_entry accepted the journal heading, fields, and both optional sections.
+- Brain lint: lint: clean (exit 0); Brain audit: audit: clean (exit 0).
+- Ruff is not applicable to these Markdown-only changes.
+- git diff --check: clean (exit 0, no output).
+- All authored audit, journal, commit, and PR text lines are at most 120 characters.
+- TASK-17 peer review: PASS WITH NOTES; the no-trace and header-ownership decisions remain with conantkd.
+- Full offline suite: 1,912 passed, 74 skipped, 1 deselected in 1929.72s (0:32:09); exit 0.
+
+- Alignment on 2026-10-24: merged `origin/main` at `106190b` (including #300 and the #320 main-guard recovery) into
+  the #316 head `84c2ed9` in an isolated checkout. Git's automatic merge succeeded without conflicts; both the action
+  policy wiring and main's audit-digest wiring are retained. Already-merged ACR-0018/ACR-0019 changes no longer appear
+  as changes unique to #316. The staged code tree was checked against `git merge-tree` and matches Git's automatic
+  result; additional edits only update this journal and the task status. Ruff, Brain lint/audit, journal/status validation
+  and staged whitespace checks passed. Full local pytest passed: **1979 passed, 73 skipped in 1146.94 seconds**, using
+  the repaired repository virtual environment, Git Bash first on PATH and default pytest temporary directories outside
+  the checkout. Main and the source ref were refreshed after the suite and had not moved. No new runtime behavior or
+  tests were introduced by the alignment. Exact-head GitHub checks are required after publication.
+- RED seen:
+  - `tests/test_action_preconditions.py`: `ModuleNotFoundError: No module named 'argus.actions'`
+  - `tests/test_action_risk.py`: `ModuleNotFoundError: No module named 'argus.actions.risk'`
+  - `tests/test_action_cards.py`: `ModuleNotFoundError: No module named 'argus.actions.cards'`
+  - `tests/test_action_suggestions.py`: `ModuleNotFoundError: No module named 'argus.actions.suggestions'`
+- GREEN:
+  - `tests/test_action_preconditions.py`: 34 passed
+  - `tests/test_action_risk.py`: 6 passed
+  - `tests/test_action_cards.py`: 6 passed
+  - `tests/test_action_suggestions.py`: 3 passed
+  - `tests/test_write_gate_standing.py`: 10 passed (write gate remains strictly closed)
+  - `tests/test_e2e2_evidence_gaps.py`: 12 passed
+  - Total focused suite: 49 passed. Ruff clean, `brain.py lint` clean.
+- Review corrections: regression tests were red for a missing-field negation, object-property access, an ungrounded
+  candidate and the domain import boundary. The final selected suite passed **138 tests** (action modules, write-gate
+  standing, evidence gaps, import boundaries, all baseline case labels and UI contract). Ruff passed on changed code;
+  `brain.py lint` passed.
+- C5 incident integration verification: focused action, incident, evaluation, write-gate and UI-contract suite passed
+  **177 tests**; Ruff, `git diff --check` and `brain.py lint` passed. Evidence is archived at
+  [`execution/history/T-0050/step-05/`](../execution/history/T-0050/step-05). The local test run used the installed
+  Python 3.12 runtime because the repository virtual environment points to a removed interpreter. A full suite run
+  completed with **1,934 passed, 10 failed, 7 errors, 7 skipped**. All 17 failures/errors were subprocess tests whose
+  uv-managed interpreter lacked dependencies available only in `.venv/Lib/site-packages` (`pywintypes`, `yaml`).
+- Final line-by-line review caught and fixed 8 issues: viewer-visible candidates, weak lab target identity, incorrect
+  `status` keys in action guards (the observation field is `state`), incomplete action-card validation, incomplete
+  inventory catalogue validation, incomplete service-card parsing, and arbitrary Python comparison methods reachable
+  from precondition context. Focused regressions passed.
+- `brain.py lint` is clean. `brain.py audit` reports an unrelated Windows-profile-path finding in
+  `.review-pr297/review.txt`; that untracked review artifact was left untouched.
+- After updating from the latest `origin/main` (`c8d8594`), `tests/test_evaluation.py`,
+  `tests/test_t0049_r1_prior_incident_fixtures.py` and `tests/test_t0047_hypothesis_check_steps.py` passed **116 tests**;
+  Ruff and `brain.py lint` are clean. The merge had one conflict in `argus/evaluation/replay.py`, resolved by retaining
+  both T-0049 prior-incident seeding and Phase 17 `next_actions`. Per REVIEW_PROTOCOL, this manual conflict resolution
+  requires a fresh review before merge.
+- PR #316 is ready for review at head `be3043b`; the aligned merge commit is `13a54ae`. GitHub `test` and `frontend`
+  checks passed; `main-guard` was skipped. `brain/execution/current/code.bash` contains unrelated edits and is excluded
+  from this task commit.
+
+Red seen: the new tests failed to import `DigestSinkError` on the 5a tree. Green: `tests/test_phase16_step5b_oci_sink.py`
+(the sink against a fake client: created once, the same digest, another object, a retention refusal, a refusal with
+nothing behind it, a failing HEAD, a transport error; the job's event; the setting; the key beside the config) and
+`tests/test_phase16_step5_digest.py` pass. **Against the real bucket:** the opt-in test passed on conantkd's laptop
+(2026-10-23, `1 passed`): a new name was created, the same bytes were recognised (`exists_same`) and other bytes under
+the same name were recognised (`exists_different`), through the create-and-inspect credential. It left one object under
+`selftest/`, kept by the retention rule until the rule is removed.
+
+- After merging the current #303 head, the updated #311 head is pending GitHub `test` and `frontend` checks; no local tests were rerun after the conflict resolution.
+
+Red seen: `tests/test_phase16_step5_digest.py` failed to import `argus.domain.audit_digest` before the code existed.
+Green: 21 passed (the digest of a day, quiet days, out-of-order rows, rows before the chain, signing and tampering, the
+check against a rewritten chain, the job: once per day, catch-up, a broken chain, a failing sink, a conflicting object,
+no key or no sink, the local sink and its path rules, the schedule section, the scheduler loop, the key loader, the
+sink setting).
+
+- Main alignment on 2026-10-24: merged `origin/main` at `c8d8594`. The manual `ARCHITECTURE.md` resolution uses the version-line reconciler: it keeps the digest row at 1.8.32, ACR-0024 at 1.8.33, and preserves the complete version history. The only header normalization was the parenthesis formatting on the shared 1.8.31 entry. ACR-0018 now states that OCI uses a locked retention rule without versioning, and its `Not yet` list no longer names `policies/SECURITY.md`, which this step updates.
+- Post-merge focused tests: **136 passed** (`test_phase16_step5_digest`, evaluation, T-0049 prior incidents, T-0047 hypothesis checks). Ruff, `git diff --check`, Brain lint/audit, and the version-line helper passed.
+- GitHub CI for the updated head is pending after push; the previous head's test and frontend checks were green.
+
+Documentation only. `brain.py lint` and `brain.py audit` clean.
+
+T-0049 R1 prior-incident fixtures: `tests/test_t0049_r1_prior_incident_fixtures.py` 5 passed (red seen: 5 failed);
+`tests/test_t0039_prior_incidents.py` and `tests/test_evaluation.py` pass with it. Full offline suite, with Git Bash
+first on PATH: **1862 passed, 34 skipped, 1 deselected** (the known detached-CI Brain test), exit 0.
+That ran on `8b40610`; on main `201cc7c` the fixture, T-0039 and evaluation tests: 110 passed.
+
+Frontend: `src/build.test.js` now also requires ECharts' `registerPainter` in a real-mode build: red seen
+(`expected ... to contain 'registerPainter'`), green after the fix. Vitest 298 passed (46 files); ESLint clean on the
+changed files. Browser: the production build (`vite preview`) shows an incident's Metrics tab with 3 SVG charts and
+no console error from the new chunk.
+
+Red: the focused suite failed collection with `ModuleNotFoundError: services.terminal_broker` before the core existed.
+Green: `tests/test_acr0020_terminal_broker.py` — 12 passed; Ruff, Brain lint, Brain audit and `git diff --check` —
+clean. The four existing import-boundary cases also pass. The repository-wide suite is left to CI because its Docker
+and Postgres services are part of that required run.
+
+Frontend: Vitest 298 passed (the two new Security tests seen red first), ESLint 0 errors on the changed files.
+
+Documentation only. `brain.py lint` and `brain.py audit` clean.
+
+- RED then GREEN (S2): `test_a_model_run_records_provider_token_usage` failed until `RecordingLLM` recorded usage;
+  `test_the_command_line_runs_the_model_and_writes_one_json_line_per_run` asserts the two new row fields.
+- The offer's tests (`test_t0049_r1_offers.py`, the `test_t0037` offer assertion) were removed with the offer.
+- Full offline suite on `8b40610` plus this change, Git Bash first on `PATH`: 1858 passed, 34 skipped, 1
+  deselected. Ruff, Brain lint and audit, `git diff --check`: clean.
+
+`tests/test_op014_mutation_second_factor.py` 19 passed, `tests/test_op014_mutation_audit_chain.py` 2 passed,
+`tests/test_ui_contract.py` 4 passed (Docker `python:3.12-slim`); each of the 171 survivors fails the new tests.
+
+T-0047 H4 hypothesis instructions: `tests/test_t0047_hypothesis_instructions.py` 7 passed (red seen: 5 failed); the
+T-0047 H1, H2 and H4 test files and the two earlier prompt-rule test files pass with it. Full offline suite, with
+Git Bash first on PATH, on `b22c669` plus this change: **1843 passed, 1 failed, 34 skipped, 1 deselected**. The
+failure is `test_acr0011_ui_edge.py::test_what_passes_and_what_is_refused[GET-/api/v1/me-200]` (502 on the fake
+API's first request); it fails the same way on `main` `8b40610` without this change, and this change touches neither
+the edge nor the API.
+
+- Red first: the six replay assertions failed because `/containers/argus-lab-worker/top` was missing and the fixture
+  executor raised `ExecutorError: not_found`.
+- On the branch before the latest main update, the R1b, T-0037 and evaluation tests passed; Ruff and Brain lint/audit
+  were clean. The full offline suite passed once after S1's rule-7 pre-review.
+- Brain's `split_entry` accepted the corrected heading and extracted the Test state and Next step sections.
+- R1BF.1 reruns the focused R1b, T-0037 and evaluation tests, Ruff, Brain lint/audit, `split_entry` and diff-check after
+  merging current main. The full suite is not repeated for this journal-only correction.
+
+T-0047 hypothesis check steps: `tests/test_t0047_hypothesis_check_steps.py` 13 passed (red seen: 4 failed); the
+T-0047 H1, H2 and H4 test files pass with it (54 passed). Full offline suite, with Git Bash first on PATH, on
+`b22c669` plus this change: **1849 passed, 34 skipped, 1 deselected** (the known detached-CI Brain test), exit 0.
+
+No code changed; analysis of the #274 result files only.
+
+`tests/test_phase16_private_path.py` 20 passed on Windows with Docker: the real Nginx in public mode with the private
+path on; no certificate, an unlisted address, a revoked or a foreign certificate → 404; a valid certificate from an
+allowed address reaches the API; the public UI unchanged. On Linux, the scripts and static checks pass (the Docker
+cases skip there). `tests/test_acr0011_ui_edge.py` 34 passed with Docker. `nginx -t` passes in loopback, public-off
+and public-on modes. Shellcheck is clean.
+
 - RED: both new focused tests failed before implementation. The ID regression kept `inc_77b419ffd2c4` instead of the
   shared `inc_7e49840f50fa`; the missing-position test showed the script returned success without restoring files.
 - GREEN: all 15 tests in `tests/skills/test_ui_contract_samples.py` passed. Ruff and `git diff --check` passed.
