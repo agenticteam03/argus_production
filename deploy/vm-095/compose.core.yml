@@ -6,6 +6,8 @@
 # Rollback (single process, as before T-0014): ARGUS_AGENT_CMD=serve for argus-v18-agent, and stop argus-v18-worker
 # and argus-v18-scheduler (`serve` takes back every running run at start, so never run it next to a live worker).
 # Network argus-v18-core uses an explicit subnet chosen from ranges unused on both VMs (discovery 2026-10-01).
+# Network argus-v18-sched (ACR-0018 §18, phase 16) is internal: no route out. The scheduler is on it alone with what it
+# reads (Postgres, the tunnel, vm-095's Prometheus and Alertmanager) and argus-v18-egress, its only way out (OCI).
 name: argus-v18-core
 services:
   argus-v18-tunnel:
@@ -15,7 +17,7 @@ services:
     command: ["argus-v18-tunnel@${ARGUS_VM166_PRIVATE_IP:?set it in /opt/argus-v18/hosts.env and pass --env-file}"]
     volumes:
       - /opt/argus-v18/secrets/tunnel:/secrets:ro
-    networks: [argus-v18-core]          # reachable ONLY by Argus containers; no host port published
+    networks: [argus-v18-core, argus-v18-sched]   # reachable ONLY by Argus containers; no host port published
     mem_limit: 32m
     memswap_limit: 32m
     cpus: 0.2
@@ -32,7 +34,7 @@ services:
     volumes:
       - argus-v18-pgdata:/var/lib/postgresql/data
       - /opt/argus-v18/secrets/postgres/owner_password:/run/secrets/pg_owner_password:ro
-    networks: [argus-v18-core]          # no host port
+    networks: [argus-v18-core, argus-v18-sched]   # no host port
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U argus_owner -d argus"]
       interval: 10s
@@ -131,19 +133,39 @@ services:
       ARGUS_SCHEDULES: /app/schedules/schedules.yaml
       ARGUS_SCHEDULE_MIN_INTERVAL_S: "300"
       ARGUS_AUDIT_DIGEST_SINK: ${ARGUS_AUDIT_DIGEST_SINK:-}   # oci:<namespace>/<bucket> in hosts.env; unset = no sink
-    networks: [argus-v18-core]          # Postgres, and the digest's one outbound destination (OCI Object Storage, https)
+      HTTPS_PROXY: http://argus-v18-egress:8888        # ACR-0018 §18: the OCI sink's only way out (policies/NETWORK.md)
+      NO_PROXY: argus-v18-postgres,argus-v18-tunnel,argus-v18-prometheus,argus-v18-alertmanager,localhost
+    networks: [argus-v18-sched]         # internal: no route out; https leaves only through argus-v18-egress
     depends_on:
       argus-v18-postgres: {condition: service_healthy}
+      argus-v18-egress: {condition: service_started}
     mem_limit: 256m                     # was 160m: the OCI SDK adds ~19 MB at start, and the digest reads the whole chain
     memswap_limit: 256m
     cpus: 0.2
     pids_limit: 50
+    restart: unless-stopped
+  argus-v18-egress:                     # ACR-0018 §18: CONNECT :443 to OCI Object Storage and the Telegram API only
+    build: ./egress
+    image: argus-v18-egress:1
+    container_name: argus-v18-egress
+    networks: [argus-v18-sched, argus-v18-core]   # in from the internal network, out through the core bridge
+    read_only: true
+    tmpfs: [/run/tinyproxy, /var/log/tinyproxy]
+    mem_limit: 32m
+    memswap_limit: 32m
+    cpus: 0.1
+    pids_limit: 30
     restart: unless-stopped
 networks:
   argus-v18-core:
     name: argus-v18-core
     ipam:
       config: [{subnet: 172.30.0.0/24}]
+  argus-v18-sched:
+    name: argus-v18-sched
+    internal: true
+    ipam:
+      config: [{subnet: 172.30.4.0/24}]
 volumes:
   argus-v18-agent-data:
     name: argus-v18-agent-data

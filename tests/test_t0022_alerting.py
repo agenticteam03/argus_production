@@ -203,7 +203,8 @@ def test_the_monitoring_stack_has_argus_owned_exporters_and_alertmanager():
     loop = yaml.safe_load((MON / "compose.loopback.yml").read_text(encoding="utf-8"))["services"]
     assert loop["argus-v18-alertmanager"]["ports"] == ["127.0.0.1:18091:9093"]   # vm-166: loopback, tunnel only
     join = yaml.safe_load((MON / "compose.core-join.yml").read_text(encoding="utf-8"))["services"]
-    assert join["argus-v18-alertmanager"]["networks"] == ["argus-v18-mon", "argus-v18-core"]  # vm-095 scheduler
+    assert join["argus-v18-alertmanager"]["networks"] == ["argus-v18-mon", "argus-v18-core",   # vm-095 scheduler
+                                                          "argus-v18-sched"]                   # ACR-0018 §18
 
 
 def test_alertmanager_sends_nothing_off_the_host():

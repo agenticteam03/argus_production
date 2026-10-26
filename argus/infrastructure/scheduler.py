@@ -16,6 +16,9 @@ ACR-0018 (`audit_chain` in the same file): at startup and every `every_s` second
 records the result as a `security` audit event (`security.audit_chain_verified` or `security.audit_chain_broken`).
 ACR-0018 step 5 (`audit_digest` in the same file, off until the audit digest key and the store exist): every `every_s`
 seconds `AuditDigestJob` (`infrastructure/audit_digest.py`) signs and ships the digest of each closed day.
+ACR-0018 §18 (`security_alerts` in the same file, off by default): every `every_s` seconds `SecurityAlerts`
+(`infrastructure/security_alerts.py`) posts the new security events to the home host's Alertmanager, which routes them
+to the team.
 """
 from __future__ import annotations
 
@@ -41,6 +44,8 @@ AUDIT_CHAIN_FIELDS = {"enabled", "every_s"}
 AUDIT_CHAIN_MIN_EVERY_S = 3600          # the whole chain is read: at most hourly
 AUDIT_DIGEST_FIELDS = {"enabled", "every_s"}
 AUDIT_DIGEST_MIN_EVERY_S = 3600         # it reads the whole chain too
+SECURITY_ALERTS_FIELDS = {"enabled", "every_s", "host"}
+SECURITY_ALERTS_MIN_EVERY_S = 30
 
 
 @dataclass(frozen=True)
@@ -129,6 +134,25 @@ class AuditChainCheck:
         return f"{event}: {chained} chained, {before} before, {len(problems)} problem(s)"
 
 
+def load_security_alerts(text: str, inventory) -> tuple[int, str] | None:
+    """`security_alerts` (ACR-0018 §18): (seconds between two passes, the Alertmanager URL of `host`); None = off."""
+    item = (yaml.safe_load(text) or {}).get("security_alerts")
+    if not item:
+        return None
+    extra = set(item) - SECURITY_ALERTS_FIELDS
+    if extra:
+        raise ValueError(f"security_alerts: unknown field {sorted(extra)}")
+    every = int(item.get("every_s", 60))
+    if every < SECURITY_ALERTS_MIN_EVERY_S:
+        raise ValueError(f"security_alerts: every_s {every} is below the minimum of {SECURITY_ALERTS_MIN_EVERY_S}")
+    if not item.get("enabled", False):
+        return None
+    info = inventory.host(str(item.get("host", "")))
+    if info is None or not info.alertmanager:
+        raise ValueError(f"security_alerts: host {item.get('host')!r} is not an inventory host with an alertmanager")
+    return every, info.alertmanager
+
+
 @dataclass(frozen=True)
 class Schedule:
     id: str
@@ -172,13 +196,14 @@ def load_schedules(text: str, inventory, min_interval_s: int) -> list[Schedule]:
 class Scheduler:
     def __init__(self, store, schedules: list[Schedule], reconcile=None, reconcile_every_s: int = 60,
                  chain_check=None, chain_every_s: int = 86400, links=None, digest_job=None,
-                 digest_every_s: int = 86400):
+                 digest_every_s: int = 86400, alerts_job=None, alerts_every_s: int = 60):
         self.store = store
         self.schedules = schedules
         self.reconcile, self.reconcile_every_s = reconcile, reconcile_every_s   # ReconcileFiringAlerts or None
         self.chain_check, self.chain_every_s = chain_check, chain_every_s       # AuditChainCheck or None (ACR-0018)
         self.links = links                     # LinkTransitions or None (T-0046 L3): on the reconcile tick
         self.digest_job, self.digest_every_s = digest_job, digest_every_s       # AuditDigestJob or None (ACR-0018)
+        self.alerts_job, self.alerts_every_s = alerts_job, alerts_every_s       # SecurityAlerts or None (ACR-0018 §18)
         self._last: dict[str, datetime] = {}
 
     def tick(self, now: datetime) -> list[tuple[str, str]]:
@@ -213,7 +238,7 @@ class Scheduler:
         return "duplicate" if duplicate else "submitted"
 
     def run_forever(self, stop: threading.Event, every_s: float = 15.0) -> None:
-        next_reconcile = next_chain = next_digest = time.monotonic()
+        next_reconcile = next_chain = next_digest = next_alerts = time.monotonic()
         while not stop.is_set():
             if self.chain_check is not None and time.monotonic() >= next_chain:
                 next_chain = time.monotonic() + self.chain_every_s
@@ -227,6 +252,12 @@ class Scheduler:
                     log.info("audit digest: %s", self.digest_job.run_once())
                 except Exception:              # the next run starts from the first day not shipped
                     log.exception("audit digest failed")
+            if self.alerts_job is not None and time.monotonic() >= next_alerts:
+                next_alerts = time.monotonic() + self.alerts_every_s
+                try:                           # after the chain check and the digest: their events alert this pass
+                    log.info("security alerts: %s", self.alerts_job.run_once())
+                except Exception:              # Alertmanager down: the next pass sends the same rows again
+                    log.exception("security alerts failed")
             try:
                 self.tick(utcnow())
             except Exception:                  # a database hiccup must not kill the scheduler; next tick retries

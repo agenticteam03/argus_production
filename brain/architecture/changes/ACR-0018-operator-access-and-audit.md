@@ -78,6 +78,11 @@ An approval or a terminal session is only as trustworthy as the identity behind 
 
 **§18** — a line: "Security events (refused privileged requests, failed step-ups, revoked sessions) raise an alert
 through the Argus-owned Alertmanager to the team's route."
+- **Phase 16 reading (2026-10-26, conantkd):** the team's route is a Telegram group. The scheduler posts each new
+  alerting audit row (`security_alerts` in `schedules.yaml`) to vm-095's Alertmanager with `argus_security="true"`;
+  that Alertmanager sends them to the group through `argus-v18-egress`, a forward proxy that tunnels https to OCI
+  Object Storage and the Telegram Bot API only. The scheduler sits on an internal network with that proxy as its only
+  way out (the step 5 follow-up). An alert names the event, the actor and the time, never the row's detail.
 
 **§25 OD-10** — "answering approvals stays in Swagger/CLI in this release" becomes "approvals are answered in the UI
 over the private path with step-up (ACR-0018, ACR-0019)".
@@ -224,5 +229,12 @@ Applied in steps (phase 16). Each step writes into `ARCHITECTURE.md` only what i
       egress allowlist yet (tracked in the phase-16 task). `audit_digest` stays `enabled: false` until a
       first run has been checked after the deploy; `tests/test_phase16_step5c_check.py`
 
-**Not yet** (step 5c on): separation of duties; the deploy of step 5c, a first checked run and the schedule turned on; security alerts (§18), which wait for the team's alert route (no receiver exists: Argus only reads its
-Alertmanager), including the alert on `security.audit_chain_broken`.
+- [x] step 5d (2026-10-26): deployed, the OCI sink set, a first checked run (5/5) and `audit_digest` on.
+- [x] step 6 (2026-10-26): the tamper drill on vm-095 (`execution/history/PHASE-16/step-06-exit-drill`).
+- [x] security alerts and egress (1.8.37): `infrastructure/security_alerts.py` and `security_alerts` in
+      `schedules.yaml`; vm-095's `alertmanager-vm-095.yml` routes `argus_security="true"` to the team's Telegram group;
+      the scheduler on the internal `argus-v18-sched` network with `argus-v18-egress` (`deploy/vm-095/egress/`) as its
+      only way out; `tests/test_phase16_security_alerts.py`. **Prepared, not deployed** until the bot token and the
+      chat id are on vm-095.
+
+**Not yet:** separation of duties (it waits for ACR-0019's routes).

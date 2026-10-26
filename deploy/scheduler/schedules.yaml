@@ -50,3 +50,12 @@ audit_chain:
 audit_digest:
   enabled: true
   every_s: 86400
+
+# ACR-0018 §18 (phase 16): the security events (a broken chain, a digest not shipped, a locked login, a revoked session
+# used again, refused requests, a key reset, a tool the model made up) are posted every every_s seconds (minimum 30) to
+# `host`'s Alertmanager with argus_security="true"; it routes them to the team (alertmanager-vm-095.yml). Argus's own
+# intake skips them. `enabled: false` turns it off.
+security_alerts:
+  enabled: true
+  every_s: 60
+  host: vm-095

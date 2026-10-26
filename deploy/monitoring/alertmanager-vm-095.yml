@@ -1,0 +1,27 @@
+# vm-095's Argus-owned Alertmanager (T-0022, ACR-0018 §18). Host alerts as alertmanager.yml: pulled by the scheduler,
+# sent nowhere. Argus's own security events (argus_security="true", posted by the scheduler) go to the team's
+# Telegram group through argus-v18-egress; the bot token and the chat id are files on vm-095, never in Git.
+route:
+  receiver: argus-pull
+  group_by: [alertname, argus_host, container]
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 4h
+  routes:
+    - matchers: ['argus_security="true"']
+      receiver: team-telegram
+      group_by: [event]
+      group_wait: 10s
+      group_interval: 1m
+      repeat_interval: 24h
+receivers:
+  - name: argus-pull
+  - name: team-telegram
+    telegram_configs:
+      - bot_token_file: /etc/alertmanager/secrets/telegram_bot_token
+        chat_id_file: /etc/alertmanager/secrets/telegram_chat_id
+        send_resolved: false
+        parse_mode: ''
+        message: '{{ range .Alerts }}Argus security: {{ .Annotations.summary }}{{ "\n" }}{{ end }}'
+        http_config:
+          proxy_url: http://argus-v18-egress:8888
