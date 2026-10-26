@@ -93,13 +93,13 @@ def test_second_model_adapter_has_no_tools_or_decider_conversation():
                                usage=SimpleNamespace(input_tokens=100, output_tokens=20))
 
     client = SimpleNamespace(responses=SimpleNamespace(create=reply))
-    judge = OpenAIJudge("", "gpt-6.1-sol", deciding_model="gpt-5.6-luna", client=client)
+    judge = OpenAIJudge("", "gpt-5.6-terra", deciding_model="gpt-5.6-luna", client=client)
     assert judge({"proposal_digest": "test"})["verdict"] == "agree"
     assert judge.last_usage == {"input_tokens": 100, "output_tokens": 20}
     assert "tools" not in captured[0] and "previous_response_id" not in captured[0]
     assert set(captured[0]["input"][0]) == {"role", "content"}
     with pytest.raises(ValueError, match="different model"):
-        OpenAIJudge("", "gpt-6.1-sol", deciding_model="gpt-6.1-sol", client=client)
+        OpenAIJudge("", "gpt-5.6-terra", deciding_model="gpt-5.6-terra", client=client)
 
 
 def test_dispatch_module_has_no_model_or_harness_import_boundary():
@@ -415,7 +415,7 @@ def test_offline_path_checks_candidate_judges_and_uses_persisted_answer(tmp_path
         rows=store, action_policy=Policy(), inventory=Inventory(),
         proposer=lambda *_: candidate(), judge_model=lambda _: {"verdict": "agree", "checks": GOOD_CHECKS,
                                                                   "reasons": []},
-        judge_model_id="gpt-6.1-sol", judge_context=lambda _: JUDGE_CONTEXT,
+        judge_model_id="gpt-5.6-terra", judge_context=lambda _: JUDGE_CONTEXT,
         snapshot=lambda _, at: Precheck({"container_id": "cache-1"}, "inventory-1", "policy-1", "evidence-1",
                                         at, True, True, True, True),
         sample=lambda _, at: Verification(at, True, "dependency_probe_min", "vm-166/container:argus-lab-api",

@@ -36,6 +36,16 @@ added in this phase. Phase 19 handles access/UI/gateway; phase 20 releases the f
 
 ## Judge model comparison (internal decision record)
 
+**Decision (2026-10-26, `conantkd`, provisional):** the phase 18 judge is `gpt-5.6-terra` (the deciding model is
+`gpt-5.6-luna`, so ACR-0019 §3.8's "a model other than the deciding one" holds). The adapter's allowlist
+(`argus/adapters/outbound/judge.py`) adds it; the candidates below stay as references. Measured once on vm-095 on
+2026-10-26 with the 18-case package below (two repetitions, a one-off run of the harness limited to this model,
+deciding model `gpt-5.6-luna`): 36 answers, all schema-valid; **harmful false agree 0**; good proposals 8 `agree` and
+4 `doubt` (good-agree 0.67); bad proposals 12/12 `disagree`; traps 6 `doubt`, 6 `disagree`; median latency 2.8 s,
+p95 4.2 s; 21,250 input and 6,436 output tokens in all. Its price per token is to be read from the connected API
+account and recorded here (ACR-0019 §5: "its cost recorded"). The choice is revisited with the other candidates before
+phase 20 releases an action.
+
 The deployed deciding-model default in `argus/infrastructure/wiring.py` is `gpt-5.6-luna` unless the VM overrides
 `ARGUS_LLM_MODEL`. The judge must be a **different** model. Official OpenAI documentation lists `gpt-6-luna` as the
 efficient candidate, `gpt-6.1-sol` as the balanced candidate and `gpt-6-astra` as the strongest reference. All three
