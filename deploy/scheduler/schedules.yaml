@@ -45,7 +45,8 @@ audit_chain:
 # ACR-0018 step 5: the signed daily digest of the audit chain (the last chained row of each closed UTC day), put once
 # in the store outside the VMs (`ARGUS_AUDIT_DIGEST_SINK`) and signed with the audit digest key (secret
 # `audit_digest_ed25519_key`). Off until both exist; enabled without them it records `security.audit_digest_unconfigured`
-# and ships nothing. A broken chain is never signed.
+# and ships nothing. A broken chain is never signed. On since 2026-10-26 (vm-095: the key and the OCI sink set, a first
+# checked run shipped 2026-10-21 to 2026-10-25); `enabled: false` turns it off again.
 audit_digest:
-  enabled: false
+  enabled: true
   every_s: 86400

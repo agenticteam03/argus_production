@@ -244,12 +244,13 @@ def test_the_schedule_section_is_off_by_default_and_bounded():
         load_audit_digest("audit_digest:\n  enabled: true\n  bucket: x\n")
 
 
-def test_the_shipped_schedule_file_keeps_the_digest_off():
+def test_the_shipped_schedule_file_runs_the_digest_daily():
+    # On since step 5d (2026-10-26): the key and the OCI sink exist on vm-095 and a first checked run passed.
     from pathlib import Path
 
     from argus.infrastructure.scheduler import load_audit_digest
     text = (Path(__file__).resolve().parents[1] / "deploy" / "scheduler" / "schedules.yaml").read_text(encoding="utf-8")
-    assert load_audit_digest(text) is None and "audit_digest:" in text
+    assert load_audit_digest(text) == 86400
 
 
 def test_the_scheduler_loop_runs_the_digest_job():
