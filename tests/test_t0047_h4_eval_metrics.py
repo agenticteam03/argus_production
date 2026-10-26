@@ -10,6 +10,8 @@ import pytest
 import yaml
 
 from argus.adapters.outbound.llm import ScriptedLLM
+from argus.application.ranking import load_ranking
+from argus.evaluation.weights_sensitivity import rank_recorded_row
 from argus.tooling.model_harness import STATE_TOOL
 from test_core import ROOT
 
@@ -144,9 +146,34 @@ def test_a_replay_keeps_the_final_ranked_list(ev, tmp_path):
     assert run.outcome == "diagnosed" and run.root_cause_target == CACHE, run.invalid_decisions
     assert [(x["id"], x["status"], x["rank"], x["chosen"]) for x in run.hypotheses] == [
         ("h1", "supported", 1, True), ("h2", "ruled_out", 2, False)]
+    assert run.hypotheses[0]["support"] and run.hypotheses[0]["against"] == []
+    assert run.hypotheses[1]["support"] == [] and run.hypotheses[1]["against"]
+    assert run.evidence and all(set(item) == {"evidence_id", "kind", "target"} for item in run.evidence)
+    assert all("text" not in item and "values" not in item for item in run.evidence)
+    row = {"case": c.id, "hypotheses": run.hypotheses, "evidence": run.evidence}
+    assert rank_recorded_row(row, load_ranking(ROOT / "config")) == {
+        item["id"]: item["rank"] for item in run.hypotheses}
     assert run.ranking_disagrees is False and run.hypothesis_problems == []
     assert CACHE in run.observed and ev.unsupported_root_cause(run) == 0
     assert (ev.top_k(c, run, 1), ev.ruled_out_found(c, run)) == (True, (1, 1))
+
+
+def test_a_row_in_the_cli_shape_round_trips_into_the_sensitivity_analyzer(ev, tmp_path):
+    """The row the CLI writes (`asdict(run)` under the verdict keys) is what the analyzer reads back from the file."""
+    import json
+    from dataclasses import asdict
+
+    from argus.evaluation import weights_sensitivity as ws
+    c = next(x for x in ev.load_cases(CASES) if x.id == "dep-cache-stopped")
+    run = ev.run_case(c, workdir=tmp_path, llm=ScriptedLLM(_script), strategy="model_loop")
+    row = {"case": c.id, "category": c.category, "strategy": "model_loop", "model": "scripted", "verdict": "PASS",
+           "problems": [], "hard": {},
+           **{k: v for k, v in asdict(run).items() if k not in ("model_requests", "case_id")}}
+    path = tmp_path / "results.jsonl"
+    path.write_text(json.dumps(row, ensure_ascii=False) + "\n", encoding="utf-8")
+    summary = ws.analyze_rows(ws._read_rows(path), {c.id: c})
+    assert summary["not_scorable"] == 0 and summary["scorable"] == 1, summary
+    assert summary["sets"]["current"]["top1"]["correct"] == 1
 
 
 def test_a_target_named_by_an_observation_on_its_host_counts_as_observed():
