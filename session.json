@@ -1,39 +1,33 @@
 {
   "holder": "conantkd",
-  "session_id": "4a8fd0176e86",
-  "task": "DEPLOY-7f8c14b",
-  "branch": "task/DEPLOY-7f8c14b",
-  "base_commit": "7f8c14b3be244908b2299a8c8b594e7484bb85c3",
-  "started_at": "2026-10-26T01:17:40+00:00",
-  "expires_at": "2026-10-26T02:17:40+00:00",
+  "session_id": "15ed09dde784",
+  "task": "DEPLOY-01db0d7",
+  "branch": "task/DEPLOY-01db0d7",
+  "base_commit": "01db0d75167b5f22d97fdca4873b6fb90829db23",
+  "started_at": "2026-10-26T03:37:22+00:00",
+  "expires_at": "2026-10-26T04:37:22+00:00",
   "released": false,
   "handoff": null,
   "vms": {
     "vm-095": {
       "holder": "conantkd",
-      "session_id": "509cd4bc6fbd",
-      "task": "DEPLOY-7f8c14b",
-      "branch": "task/DEPLOY-7f8c14b",
-      "base_commit": "7f8c14b3be244908b2299a8c8b594e7484bb85c3",
-      "started_at": "2026-10-26T01:17:07+00:00",
-      "expires_at": "2026-10-26T02:17:07+00:00",
+      "session_id": "15ed09dde784",
+      "task": "DEPLOY-01db0d7",
+      "branch": "task/DEPLOY-01db0d7",
+      "base_commit": "01db0d75167b5f22d97fdca4873b6fb90829db23",
+      "started_at": "2026-10-26T03:37:22+00:00",
+      "expires_at": "2026-10-26T04:37:22+00:00",
       "released": false,
-      "handoff": null,
-      "took_over_from": {
-        "holder": "juanbetancurm",
-        "task": "T-0047-H4W2",
-        "branch": "task/T-0047-h4i-gate",
-        "expired_at": "2026-10-26T00:59:09+00:00"
-      }
+      "handoff": null
     },
     "vm-166": {
       "holder": "conantkd",
-      "session_id": "4a8fd0176e86",
-      "task": "DEPLOY-7f8c14b",
-      "branch": "task/DEPLOY-7f8c14b",
-      "base_commit": "7f8c14b3be244908b2299a8c8b594e7484bb85c3",
-      "started_at": "2026-10-26T01:17:40+00:00",
-      "expires_at": "2026-10-26T02:17:40+00:00",
+      "session_id": "15ed09dde784",
+      "task": "DEPLOY-01db0d7",
+      "branch": "task/DEPLOY-01db0d7",
+      "base_commit": "01db0d75167b5f22d97fdca4873b6fb90829db23",
+      "started_at": "2026-10-26T03:37:22+00:00",
+      "expires_at": "2026-10-26T04:37:22+00:00",
       "released": false,
       "handoff": null
     }
