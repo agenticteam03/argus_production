@@ -111,10 +111,12 @@ target should be on does not exist (a human creates networks).
   card's window (120 s, the same window as the SC-03 prediction). A pre-action sample never counts (§15.1). `slow` or
   `unknown` is not `ok`. The proposal's `prediction` names this link, so a recovery of the target alone does not
   satisfy it.
-- **Rollback:** the same action with the two names swapped (`connect_network` becomes the old `disconnect_network`
-  and the reverse). The swapped proposal passes the same preconditions, so the rollback is itself a proposal a human
-  approves; it is never run on its own. Reversible: yes, shown to the approver, with a note that connections made on
-  the wrong network are cut either way.
+- **Rollback:** none, and none is automated. A person restores the old state by hand (`docker network`), outside
+  Argus. The swapped action is **not** a valid proposal: its connect network (the old wrong one) is not declared for the
+  target and its disconnect network (the right one) is, so two of the card's preconditions fail by design, and an
+  action that reattaches a container to the wrong network on purpose is not one to automate. The approver sees
+  **Reversible: no**, with the note that connections on the wrong network are cut. If a swap is ever wanted it needs
+  its own action with its own preconditions and its own ACR.
 
 ### 3.5 The gateway: a release entry with the two names, and an exact body (§4.5, §13.3)
 
@@ -125,8 +127,9 @@ before the write, and an answer cut down to a status. What changes is inside the
   The gateway refuses a call whose two names are not exactly the entry's. The names come from the frozen proposal and
   were checked against live state at the precheck; the release pins them again, so a release can never allow "any
   network".
-- **The Docker calls** are `POST /networks/{id}/connect` and `POST /networks/{id}/disconnect`, with `{id}` the id of
-  the released network as inspected by the proxy, not a caller-chosen string. The gateway builds the body itself:
+- **The Docker calls** are `POST /networks/{id}/connect` and `POST /networks/{id}/disconnect`, with `{id}` the
+  **configured network name** from the release entry (the name Docker accepts in that position), never a
+  caller-chosen string and not an id looked up at run time. The gateway code does the same. The gateway builds the body itself:
   **exactly** `{"Container": "<container id>"}`, one key and the id of the target from the frozen identity, no
   `EndpointConfig`, aliases, `IPAMConfig` or `Force`. The worker never sends Docker's JSON.
 - **The proxy** accepts a body only on those two routes and only that exact shape (compared with the bytes it expects
@@ -139,7 +142,7 @@ before the write, and an answer cut down to a status. What changes is inside the
 
 | Target kind | Colour | Why |
 |---|---|---|
-| `stateless` | amber | reversible, but it cuts the connections on the wrong network |
+| `stateless` | amber | not reversible by Argus (a person restores it), and it cuts the connections on the wrong network |
 | `stateful` | red | a stateful service dropping peers can corrupt in-flight work |
 | `proxy` | red | a proxy is every client's path; a wrong move is an outage |
 | `database` | **forbidden** | never offered; a database's networks are changed by humans only |
@@ -176,7 +179,8 @@ The colour can only go up (§3.7). A red proposal needs the approver to type the
 
 ## 4. Consequences
 
-- **Code (later PRs, none in this one):** `argus/actions/catalog.py` (replace the two entries, add the route);
+- **Code (later PRs, none in this one):** `argus/actions/catalog.py` (replace the two entries, add the route `/containers/{name}/network-restore`, the one
+  route name in the catalogue, the worker's call and the gateway);
   `config/actions/network.restore.yaml`; `config/risk.yaml`; `argus/actions/gateway_client.py` (the two names added to
   the worker's one call); `services/action_gateway/` (the release entry with the two names, the gateway's two Docker
   calls, the journal's `step`, the proxy's exact body check); the service cards' `safe_actions` for the released
@@ -187,7 +191,7 @@ The colour can only go up (§3.7). A red proposal needs the approver to type the
   connect disconnects nothing; a lost answer after the connect leaves `received` and the journal answers by id; a
   connect without its disconnect is `indeterminate` and escalates, with no retry; the proxy refuses any body but the
   exact one on the two routes and any body at all elsewhere; the journal refuses a repeated `(action_id, step)`; a
-  database target is forbidden; the verify reads the link, not the target; the rollback is the swapped proposal; the
+  database target is forbidden; the verify reads the link, not the target; the approver card shows `reversible: no`; the
   standing write-gate test with the pair unreleased.
 - **Other architecture sections affected:** §4.5, §12.2, §13.3, §14.4, §14.8 (the example: one dispatch, two
   gateway steps), §15.1 and the changelog; ACR-0019 §3.3's list (the two names become one).
@@ -207,8 +211,19 @@ Proposed. Decisions taken by the manager on 2026-10-27, written here for the rev
    the journal and the half-state report belong to the gateway (section 3.2). No `connected` / `disconnected` state.
 2. **The first and only release for the demo** is `network.restore` on `vm-166/container:argus-lab-api`, with the
    exact names `connect_network: argus-lab-app` and `disconnect_network: argus-lab-iso` (the names are set in the
-   release PR, with two reviewers). SC-07's backend can follow. A rollback is the swapped action, a new proposal a
-   human approves, and needs its own release entry with the names swapped.
+   release PR, with two reviewers). SC-07's backend can follow. There is no automatic rollback and no release entry
+   with the names swapped: a person restores the old state by hand, and the card shows `reversible: no` (section 3.4).
+3. **The dependent of the release target.** Section 3.4 verifies the link from the declared dependent to the target,
+   and `config/inventory.yaml` today has no target with `depends_on: [argus-lab-api]` (only `argus-lab-client`
+   depends on `argus-lab-backend`). Task S2-5 adds it: `argus-lab-client` declares `depends_on: [argus-lab-api]`.
+   The `argus-lab-api` pair is not released until S2-5 has merged; without a dependent there is no link to read, the
+   prediction cannot name one and `useful_when` never fires. (If S2-5 chooses another dependent, this entry is
+   updated with it; the alternative is to release the first pair on a target that already has one, such as
+   `argus-lab-backend`, whose dependent `argus-lab-client` exists today.)
+4. **Where the networks come from.** `argus-lab-iso` exists only while the `sc07` profile is up and AGENT_PROTOCOL
+   section 7 reserves it for SC-07, and moving the API off `argus-lab-app` also fails its `/health` (it needs the cache
+   by name). The release PR cannot name those networks until S2's injection design is settled; it waits for that
+   design. Until then the names in decision 2 are the proposal, not a release.
 
 ## 6. Applied
 
