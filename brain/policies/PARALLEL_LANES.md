@@ -29,6 +29,12 @@ Three developers, but most work runs in a single line. Seen in the week of 2026-
   scenarios are investigated by vm-095's agent, so changing it under someone else's batch would invalidate that batch.
 - A VM-local change on vm-166 (lab, target services, monitoring) needs only vm-166's lease. A run that changes
   nothing (the §21.2 evaluation's one-off container, a read-only check) needs only the lease of the VM it runs on.
+- **Rule (ACR-0019 §3.11, decided 2026-10-26 by `conantkd`): approve an action only on a VM whose lease you hold.**
+  Argus's worker executes an approved action itself and never claims a lease, so the lease guards it only through the
+  approver: before answering `approved` on an action for `vm-166/...`, hold vm-166's lease (claimed with `brain.py
+  start --vm vm-166`, or the lease you already hold for a scenario run). Denying needs no lease. Release a host's
+  hold only while you hold that VM's lease, or when you placed it; placing a hold needs no lease. This is the team's
+  process, not code: Argus does not read the leases.
 
 ### 2. Task PRs write only their own Brain files; one roll-up updates the summaries
 

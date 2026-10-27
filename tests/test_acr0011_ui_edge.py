@@ -98,10 +98,13 @@ class H(BaseHTTPRequestHandler):
         self.end_headers(); self.wfile.write(b)
     def _echo(self):
         auth = self.headers.get("Authorization", "")
-        if self.path.startswith("/api/v1/me") and auth != "Bearer good":
+        if self.path.startswith("/api/v1/me") and auth not in ("Bearer good", "Bearer ops"):
             return self._send(401, {"detail": "no"})
+        if self.path.startswith("/api/v1/me") and auth == "Bearer ops" and self.headers.get("X-Argus-Ops") != "1":
+            return self._send(401, {"detail": "an ops token off the private path"})   # as the API (ACR-0032)
         self._send(200, {"path": self.path, "method": self.command, "edge": self.headers.get("X-Argus-Edge"),
-                         "real_ip": self.headers.get("X-Real-IP"), "xff": self.headers.get("X-Forwarded-For")})
+                         "real_ip": self.headers.get("X-Real-IP"), "xff": self.headers.get("X-Forwarded-For"),
+                         "ops": self.headers.get("X-Argus-Ops")})
     do_GET = do_POST = do_DELETE = do_PUT = _echo
     def log_message(self, *a): pass
 HTTPServer(("0.0.0.0", 8000), H).serve_forever()
@@ -209,6 +212,7 @@ def test_nginx_accepts_the_configuration(edge):
     ("GET", "/api/v1/investigations", 403), ("DELETE", "/api/v1/incidents/inc_1", 403),
     ("POST", "/api/v1/me", 403), ("GET", "/api/v1/auth/token", 403), ("GET", "/docs", 404),
     ("GET", "/openapi.json", 404), ("GET", "/api/v1/approvals", 404), ("GET", "/metrics", 200),
+    ("POST", "/api/v1/ops/auth/token", 404),                    # ACR-0032: the loopback server has no private path
 ])
 def test_what_passes_and_what_is_refused(edge, method, path, code):
     base, _, _, _ = edge

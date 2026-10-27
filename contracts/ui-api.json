@@ -56,6 +56,65 @@
         "title": "ApprovalAnswerIn",
         "type": "object"
       },
+      "Body_ops_token_api_v1_ops_auth_token_post": {
+        "properties": {
+          "client_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client Id"
+          },
+          "client_secret": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "format": "password",
+            "title": "Client Secret"
+          },
+          "grant_type": {
+            "anyOf": [
+              {
+                "pattern": "^password$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Grant Type"
+          },
+          "password": {
+            "format": "password",
+            "title": "Password",
+            "type": "string"
+          },
+          "scope": {
+            "default": "",
+            "title": "Scope",
+            "type": "string"
+          },
+          "username": {
+            "title": "Username",
+            "type": "string"
+          }
+        },
+        "required": [
+          "username",
+          "password"
+        ],
+        "title": "Body_ops_token_api_v1_ops_auth_token_post",
+        "type": "object"
+      },
       "Body_token_api_v1_auth_token_post": {
         "properties": {
           "client_id": {
@@ -1039,6 +1098,31 @@
         ]
       }
     },
+    "/api/v1/ops/approvals": {
+      "get": {
+        "description": "The approvals waiting for a person, in this principal's scope; one that no longer verifies is left out\n(opening it by id shows why).",
+        "operationId": "pending_approvals_api_v1_ops_approvals_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Pending Approvals",
+        "tags": [
+          "ops"
+        ]
+      }
+    },
     "/api/v1/ops/approvals/{approval_id}": {
       "get": {
         "operationId": "inspect_approval_api_v1_ops_approvals__approval_id__get",
@@ -1134,6 +1218,46 @@
           }
         ],
         "summary": "Answer Approval",
+        "tags": [
+          "ops"
+        ]
+      }
+    },
+    "/api/v1/ops/auth/token": {
+      "post": {
+        "description": "ACR-0032: the private browser login. Only through the private path (else 404, as if absent); a full\n`ops` token for a human approver with two WebAuthn credentials; the limiter, lockout and audit of the\npublic login; 15 minutes idle, one hour at most.",
+        "operationId": "ops_token_api_v1_ops_auth_token_post",
+        "requestBody": {
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_ops_token_api_v1_ops_auth_token_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Ops Token",
         "tags": [
           "ops"
         ]

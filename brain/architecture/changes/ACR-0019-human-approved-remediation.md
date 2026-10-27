@@ -207,6 +207,10 @@ The worker that runs the investigation also dispatches the approved action (as �
 
 - the action card's preconditions, re-evaluated on fresh reads;
 - no hold, including the automatic hold while another developer holds the host's lease;
+  - **Phase 19 reading (2026-10-26, `conantkd`):** the lease is honoured by process, not code: an approver answers
+    `approved` only while holding the target host's lease (`policies/PARALLEL_LANES.md` §1). Argus does not read the
+    leases; the precheck's `host_lease_clear` is set by the caller that knows the lease, and holds (§3.10) still
+    stop everyone;
 - the target identity is unchanged;
 - the class is still detected;
 - the service and action cards are unchanged (`inventory_version`, `policy_version`).

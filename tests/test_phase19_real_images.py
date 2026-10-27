@@ -119,6 +119,17 @@ def test_the_gateway_and_socket_proxy_on_real_images(tmp_path):
         assert _get(port, f"/actions/{first}") == (200, {"status": "confirmed"})
         assert _post(port, path, second, body) == (200, {"status": "confirmed"})            # Docker's 304
 
+        # The worker's client (argus/actions/gateway_client.py) against the real gateway: the frozen proposal's route.
+        from datetime import datetime, timezone
+        from argus.actions.gateway_client import HttpActionGateway
+        from argus.actions.remediation import freeze_proposal
+        from test_phase18_remediation import candidate
+        client = HttpActionGateway(f"http://127.0.0.1:{port}", token)
+        proposal = freeze_proposal(candidate(target=f"vm-166/container:{target}", root_cause=f"vm-166/container:{target}",
+                                             target_identity=identity), at=datetime.now(timezone.utc))
+        third = "act_" + "3" * 32
+        assert client.dispatch(third, proposal) == "confirmed" and client.status(third) == "confirmed"
+
         # The proxy refuses any Docker path that is not released, even from the gateway's own socket.
         probe = ("from services.action_gateway.unix_transport import UnixRequester as U;"
                  "r=U('/run/argus-v18/action-proxy.sock');"

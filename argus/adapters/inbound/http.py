@@ -7,6 +7,7 @@ from urllib.parse import quote
 import hmac
 import logging
 import math
+import socket
 import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor, wait
@@ -42,6 +43,14 @@ PRIVILEGED_PERMISSIONS = frozenset({"propose_action", "approve_action", "place_h
 # ACR-0018 step 4: every route that needs a privileged permission lives under this prefix, the only one the public
 # edge passes on the private path (a client certificate of the team's CA and an allowlisted address; else 404).
 OPS_PREFIX = "/api/v1/ops/"
+# ACR-0032: the private browser login, the one route under the prefix that needs no privileged permission (the edge's
+# certificate and allowlist protect it); its `ops` token is full but works only on the private path, until 15 minutes
+# without a request or one hour after the login.
+OPS_LOGIN = "/api/v1/ops/auth/token"
+OPS_SESSION = timedelta(hours=1)                 # ACR-0032: an ops session's absolute end
+OPS_IDLE = timedelta(minutes=15)                 # ...and its end after this long without a request
+PENDING_LIST_LIMIT, PENDING_SCAN_PAGE = 50, 100  # the pending list's length; approvals read per store page
+FULL_ACCESS = frozenset({"full", "ops"})
 ROLE_PERMISSIONS: dict[str, frozenset[str]] = {
     "viewer": frozenset({"view"}),
     "operator": frozenset({"view", "view_evidence", "investigate"}),
@@ -198,6 +207,20 @@ def verify_token(app_ctx, token: str) -> dict:
         return jwt.decode(token, key.public_key(), algorithms=["EdDSA"], audience="argus-api")
     return jwt.decode(token, app_ctx.jwt_key, algorithms=["HS256"], audience="argus-api")
 
+def private_path(request: Request, settings) -> bool:
+    """ACR-0032: the edge says private path, and the request really comes from the edge. The name is resolved on
+    every call (Docker's DNS; the UI container's address changes when it is recreated); unresolvable: never."""
+    if request.headers.get(settings.ops_header) != "1" or request.client is None:
+        return False
+    peer = request.client.host
+    if peer == settings.ops_peer:
+        return True
+    try:
+        return peer in {a[4][0] for a in socket.getaddrinfo(settings.ops_peer, None)}
+    except OSError:
+        return False
+
+
 def _principal_dep(app_ctx):
     def dep(request: Request, token: Annotated[str, Depends(oauth2)]) -> Principal:
         try:
@@ -227,6 +250,22 @@ def _principal_dep(app_ctx):
         # ACR-0001: a read-only token only narrows what the role allows; tokens without the claim are full
         access = claims.get("access", "full")
         request.state.access = access
+        if access == "ops" and not private_path(request, app_ctx.settings):
+            # ACR-0032: a private-login token is used off the private path (stolen, or a public tab): refused, audited
+            app_ctx.store.append(AuditRecord(
+                audit_id=f"aud_{uuid.uuid4().hex[:16]}", incident_id=None, at=utcnow(), category="security",
+                event="security.session_refused", actor=row["id"],
+                detail={"reason": "off private path", "session": session["jti"][:8], "path": request.url.path}))
+            raise HTTPException(status.HTTP_401_UNAUTHORIZED, "this token works only on the private path",
+                                headers={"WWW-Authenticate": "Bearer"})
+        if access == "ops" and not app_ctx.store.touch_session(session["jti"], utcnow(), OPS_IDLE):
+            # ACR-0032: 15 minutes without a request end an ops session (the hour is the token's own expiry)
+            app_ctx.store.append(AuditRecord(
+                audit_id=f"aud_{uuid.uuid4().hex[:16]}", incident_id=None, at=utcnow(), category="security",
+                event="security.session_refused", actor=row["id"],
+                detail={"reason": "idle", "session": session["jti"][:8], "path": request.url.path}))
+            raise HTTPException(status.HTTP_401_UNAUTHORIZED, "session ended after 15 minutes without use; log in again",
+                                headers={"WWW-Authenticate": "Bearer"})
         if (request.method, request.url.path) in ANY_TOKEN_WRITES | SECOND_FACTOR_WRITES:
             pass                                    # ACR-0018: ending one's own session, one's second factor
         elif access == "read" and request.method not in READ_METHODS:
@@ -272,7 +311,7 @@ def build_api(app_ctx) -> FastAPI:
 
     def granted(request: Request, p: Principal) -> frozenset[str]:
         perms = role_permissions(p)
-        if getattr(request.state, "access", "full") != "full":
+        if getattr(request.state, "access", "full") not in FULL_ACCESS:
             perms = perms - PRIVILEGED_PERMISSIONS
         if not perms & PRIVILEGED_PERMISSIONS:
             return perms
@@ -366,10 +405,12 @@ def build_api(app_ctx) -> FastAPI:
             actions.append("view_traces")                   # ACR-0013 C: only when the Langfuse UI link is configured
         if "view_evidence" in granted_now:
             actions.append("view_evidence")
-            if "investigate" in granted_now and access in ("full", "investigate"):   # ACR-0012: an investigate token
+            if "investigate" in granted_now and access in ("full", "ops", "investigate"):   # ACR-0012: an investigate token
                 actions.append("start_investigation")                                  # may start one
         if second.configured:
             actions.append("manage_second_factor")          # ACR-0018 step 3: enrol a key, complete the login
+        # Phase 19: a granted privileged permission is also an action, so the UI shows its control (ACR-0001)
+        actions += sorted(granted_now & {"approve_action", "place_hold"})
         # ACR-0018: what the role grants; the token's access may narrow it (a read token starts nothing); a privileged
         # permission is listed only once the second factor holds
         return {"user": p.id, "role": p.role, "access": access, "actions": actions, "permissions": sorted(granted_now),
@@ -665,6 +706,39 @@ def build_api(app_ctx) -> FastAPI:
 
     # Phase 19 draft: mounted only by explicit composition. Production does not supply action_rows.
     if action_rows is not None:
+        from argus.application.second_factor import CREDENTIALS_FOR_PRIVILEGE
+
+        @api.post(OPS_LOGIN, tags=["ops"])
+        def ops_token(request: Request, form: Annotated[OAuth2PasswordRequestForm, Depends()]):
+            """ACR-0032: the private browser login. Only through the private path (else 404, as if absent); a full
+            `ops` token for a human approver with two WebAuthn credentials; the limiter, lockout and audit of the
+            public login; 15 minutes idle, one hour at most."""
+            if not private_path(request, s):
+                raise HTTPException(status.HTTP_404_NOT_FOUND, "Not Found")
+            _, address = origin(request)
+            where = {"client": address, "via": "ops"}
+            wait = limiter.retry_after(form.username, address)
+            if wait:
+                audit_access("access.login_locked", form.username, where)
+                raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, "too many failed logins; try again later",
+                                    headers={"Retry-After": str(wait)})
+            row = app_ctx.store.get_principal(form.username)
+            ok = row is not None and not row["disabled"] and hasher.verify(form.password, row["password_hash"])
+            eligible = (ok and row["kind"] == "human" and bool(ACTION_ROLE_PERMISSIONS.get(row["role"]))
+                        and len(second.credentials(row["id"])) >= CREDENTIALS_FOR_PRIVILEGE)
+            if not eligible:                                # one answer for a wrong password and a non-approver
+                limiter.failed(form.username, address)
+                audit_access("access.ops_login_failed", form.username, {**where, "password_ok": ok})
+                raise HTTPException(status.HTTP_401_UNAUTHORIZED, "bad credentials")
+            limiter.succeeded(form.username)
+            now = utcnow()
+            expires, jti = now + OPS_SESSION, uuid.uuid4().hex
+            app_ctx.store.add_session(jti, row["id"], "ops", now, expires)
+            audit_access("access.login", row["id"], {**where, "access": "ops", "session": jti[:8]})
+            claims = {"sub": row["id"], "kind": row["kind"], "role": row["role"], "scopes": row["scopes"],
+                      "access": "ops", "iat": now, "exp": expires, "jti": jti, "aud": "argus-api"}
+            return {"access_token": sign_token(app_ctx, claims), "token_type": "bearer", "access": "ops"}
+
         from argus.application.approval_view import ApprovalViewRefused, approval_view, answerable_approval
         from argus.application.holds import (hold_audit, hold_release_step_up_object, hold_step_up_object,
                                              validate_hold_target)
@@ -673,6 +747,35 @@ def build_api(app_ctx) -> FastAPI:
             info = app_ctx.inventory.target(TargetRef.parse(target))
             if info is None or info.scope not in p.scopes:
                 raise HTTPException(403, "target is outside this principal's scope")
+
+        @api.get("/api/v1/ops/approvals", tags=["ops"])
+        def pending_approvals(p: Annotated[Principal, Depends(require("approve_action"))]):
+            """The approvals waiting for a person, in this principal's scope; one that no longer verifies is left out
+            (opening it by id shows why)."""
+            if p.kind != "human":
+                raise HTTPException(403, "a human principal is required")
+            out, now, after = [], utcnow(), None
+            while len(out) < PENDING_LIST_LIMIT:            # filter first, then fill the page (#347 review)
+                page = action_rows.list_pending_approvals(now, limit=PENDING_SCAN_PAGE, after=after)
+                for approval_id in page:
+                    try:
+                        view = approval_view(action_rows, approval_id)
+                    except ApprovalViewRefused:
+                        continue
+                    info = app_ctx.inventory.target(TargetRef.parse(view["proposal"]["input"]["target"]))
+                    if view["state"] != "pending" or info is None or info.scope not in p.scopes:
+                        continue
+                    data = view["proposal"]["input"]
+                    out.append({"id": view["id"], "incident_id": data["incident_id"],
+                                "capability": data["capability"], "target": data["target"],
+                                "risk": view["judge"]["risk"], "verdict": view["judge"]["verdict"],
+                                "expires_at": view["expires_at"]})
+                    if len(out) == PENDING_LIST_LIMIT:
+                        break
+                if len(page) < PENDING_SCAN_PAGE:
+                    break
+                after = page[-1]
+            return out
 
         @api.get("/api/v1/ops/approvals/{approval_id}", tags=["ops"])
         def inspect_approval(approval_id: str, p: Annotated[Principal, Depends(require("approve_action"))]):

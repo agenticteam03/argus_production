@@ -8,6 +8,10 @@ import { clearSession, loadSession, saveSession } from "./sessionStore.js";
 
 const BAD_CREDENTIALS = "Incorrect username or password. Please try again.";
 
+// Build the user from /me: Argus decides permissions; the UI never does (ACR-0001).
+const userFrom = (me) => ({ name: me.user, role: me.role, access: me.access, actions: me.actions ?? [],
+  secondFactor: me.second_factor ?? undefined });
+
 export const httpAuthAdapter = {
   async signIn({ username, password }) {
     const res = await fetch("/api/v1/auth/token", {
@@ -23,9 +27,7 @@ export const httpAuthAdapter = {
     const { access_token: token } = await res.json();
     setToken(token);
     try {
-      // Build the user from /me: Argus decides permissions; the UI never does (ACR-0001).
-      const me = await (await apiFetch("/api/v1/me")).json();
-      const user = { name: me.user, role: me.role, access: me.access, actions: me.actions ?? [] };
+      const user = userFrom(await (await apiFetch("/api/v1/me")).json());
       saveSession({ user, token });
       return { user };
     } catch (err) {
@@ -33,6 +35,43 @@ export const httpAuthAdapter = {
       clearSession();
       throw err.status === 401 ? httpError(401, BAD_CREDENTIALS) : err;
     }
+  },
+
+  // ACR-0032: the private login, only reachable on the private path. Its `ops` token replaces the public one in
+  // memory and is never stored: the public session is ended on the server and its stored copy forgotten, so a reload
+  // or the session's end (15 minutes idle, one hour at most) return to the public login.
+  async signInPrivate({ username, password }) {
+    const res = await fetch("/api/v1/ops/auth/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({ username, password }),
+    });
+    if (res.status === 401) throw httpError(401, BAD_CREDENTIALS);
+    if (res.status === 404) throw httpError(404, "The private login is reachable only on the private path.");
+    if (!res.ok) throw httpError(res.status, "Could not log in privately. Please try again.");
+    const { access_token: token } = await res.json();
+    if (getToken()) {
+      try {
+        await apiFetch("/api/v1/auth/logout", { method: "POST" });     // ACR-0018: the public token ends now
+      } catch {
+        // replaced below anyway
+      }
+    }
+    clearSession();
+    setToken(token);
+    try {
+      return { user: userFrom(await (await apiFetch("/api/v1/me")).json()) };
+    } catch (err) {
+      clearToken();
+      throw err.status === 401 ? httpError(401, BAD_CREDENTIALS) : err;
+    }
+  },
+
+  // Re-read /me (after the security key completes the session). A private session is never stored.
+  async refresh() {
+    const user = userFrom(await (await apiFetch("/api/v1/me")).json());
+    if (user.access !== "ops") saveSession({ user, token: getToken() });
+    return { user };
   },
 
   async signOut() {

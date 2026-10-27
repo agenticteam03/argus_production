@@ -98,6 +98,14 @@ export const mockArgusAdapter = {
     return found;
   },
 
+  async listApprovals() {
+    record("/api/v1/ops/approvals");
+    if (import.meta.env.VITE_ARGUS_PHASE19_DEMO !== "1") return [];
+    const a = demoApproval();
+    return [{ id: a.id, incident_id: a.proposal.input.incident_id, capability: a.proposal.input.capability,
+      target: a.proposal.input.target, risk: a.judge.risk, verdict: a.judge.verdict, expires_at: a.expires_at }];
+  },
+
   async getApproval(id) {
     record(`/api/v1/ops/approvals/${id}`);
     if (import.meta.env.VITE_ARGUS_PHASE19_DEMO === "1" && id === DEMO_APPROVAL_ID) return demoApproval();

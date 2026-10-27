@@ -28,6 +28,10 @@ export const httpArgusAdapter = {
     return getJson(`/api/v1/evidence/${encodeURIComponent(id)}`);
   },
 
+  async listApprovals() {
+    return getJson("/api/v1/ops/approvals");
+  },
+
   async getApproval(id) {
     return getJson(`/api/v1/ops/approvals/${encodeURIComponent(id)}`);
   },
