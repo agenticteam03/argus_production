@@ -1,0 +1,32 @@
+# Action card: network.restore (ACR-0035; lab containers on vm-166 only)
+# One worker call; the gateway makes the two Docker calls itself, connect_network first, then disconnect_network.
+name: network.restore
+model_name: restore_network
+executor: action-gateway
+route: /containers/{name}/network-restore
+parameters:
+  connect_network: {type: str, enum_from: declared_networks}
+  disconnect_network: {type: str, pattern: '^[A-Za-z0-9][A-Za-z0-9_.-]*$'}
+identity_fields: [container_id]
+preconditions:
+  - 'state == "running"'
+  - 'connect_network in declared_networks and connect_network not in networks'
+  - 'disconnect_network in networks and disconnect_network not in declared_networks'
+  - 'connect_network not in ["bridge", "host", "none"]'
+  - 'disconnect_network not in ["bridge", "host", "none"]'
+  - 'connect_network != disconnect_network'
+useful_when:
+  - "A declared dependency link is broken and the target is on a network it does not declare (SC-07)"
+not_useful_when:
+  - "The target is stopped or crash-looping: start or restart is the card for that"
+  - "The link is broken for another reason while the target is on its declared network"
+  - "The declared network does not exist: a person creates networks"
+  - "Database target"
+verify:
+  signal: link_ok
+  expected: 1
+  window_sec: 120
+rollback: network.restore
+sources:
+  - RB-003
+  - RB-009
