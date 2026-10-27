@@ -5,13 +5,30 @@ wiring constructs it while the policy's write gate is empty.
 """
 from __future__ import annotations
 
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Protocol
+from typing import TYPE_CHECKING, Protocol
 from uuid import uuid4
 
 from argus.actions.remediation import (FakeActionGateway, FrozenProposal, RemediationRefused, agreed_verdict,
                                        check_action_scope, verify_frozen_proposal)
+
+if TYPE_CHECKING:
+    from argus.actions.cards import ActionCard
+
+
+def _holds(actual: str | None, op: str, expected: object) -> bool:
+    """One check's comparison; a number is compared as a number, anything else as text."""
+    if actual is None:
+        return False
+    if op == "==":
+        return str(actual) == str(expected)
+    try:
+        left, right = float(actual), float(expected)
+    except (TypeError, ValueError):
+        return False
+    return {">": left > right, ">=": left >= right, "<": left < right, "<=": left <= right}[op]
 
 
 class ActionRows(Protocol):
@@ -61,10 +78,10 @@ class ActionExecutor:
     """Claims before dispatch and reconciles by ID, without a blind retry."""
 
     def __init__(self, rows: ActionRows, gateway: JournaledGateway, *, gate_open: frozenset[tuple[str, str]],
-                 daily_host_cap: int):
+                 daily_host_cap: int, cards: Mapping[str, ActionCard] | None = None):
         if not isinstance(gateway, FakeActionGateway):
             raise ValueError("Phase 18 dispatches only to the fake gateway")
-        self.rows, self.gateway = rows, gateway
+        self.rows, self.gateway, self.cards = rows, gateway, cards or {}
         self.gate_open, self.daily_host_cap = gate_open, daily_host_cap
 
     def _frozen(self, approval_id: str, at: datetime) -> FrozenProposal:
@@ -151,7 +168,36 @@ class ActionExecutor:
                                                        "reconciled": True})
         return self.rows.get_action(action_id)
 
-    def verify(self, action_id: str, sample: Verification, *, at: datetime, origin: str = "drill") -> str | None:
+    def _verify_checks(self, action_id: str, proposal: FrozenProposal, samples: Sequence[Verification],
+                       completed: datetime, at: datetime, origin: str, role: str | None,
+                       card: ActionCard) -> str | None:
+        """Several checks (the card's `verify`): all must hold on a sample inside the window, one line per check.
+
+        The window is the shorter of the card's and the approved prediction's, so a card never extends the deadline
+        the approver saw. The latest in-window sample of each signal counts."""
+        prediction = proposal.input.prediction
+        window = min(card.verify_window(role), prediction.within_seconds)
+        if any(s.sampled_at <= completed or s.sampled_at > at for s in samples):
+            raise RemediationRefused("verification sample predates action completion")
+        lines, met = [], True
+        for check in card.verify_checks(role):
+            inside = [s for s in samples if s.signal == check["signal"] and s.target == prediction.target
+                      and (s.sampled_at - completed).total_seconds() <= window]
+            latest = max(inside, key=lambda s: s.sampled_at, default=None)
+            ok = bool(latest and latest.detector_cleared and _holds(latest.actual, check["op"], check["expected"]))
+            met = met and ok
+            lines.append({"signal": check["signal"], "op": check["op"], "expected": check["expected"],
+                          "actual": latest.actual if latest else None, "ok": ok,
+                          "sampled_at": latest.sampled_at.isoformat() if latest else None})
+        if not met and (at - completed).total_seconds() < window:
+            return None  # keep waiting for newer samples until the reviewed deadline
+        outcome = "recovered_verified" if met else "action_failed"
+        self.rows.add_action_outcome(action_id, proposal.input.incident_id, origin, outcome,
+                                     {"prediction_met": met, "target": prediction.target, "checks": lines}, at)
+        return outcome
+
+    def verify(self, action_id: str, sample: Verification | Sequence[Verification], *, at: datetime,
+               origin: str = "drill", role: str | None = None) -> str | None:
         existing = self.rows.get_action_outcome(action_id)
         if existing:
             return existing["outcome"]
@@ -164,6 +210,14 @@ class ActionExecutor:
         completed = action["result_at"]
         if isinstance(completed, str):
             completed = datetime.fromisoformat(completed)
+        card = self.cards.get(proposal.input.capability)
+        if card is not None and len(card.verify_checks(role)) > 1:
+            samples = [sample] if isinstance(sample, Verification) else list(sample)
+            return self._verify_checks(action_id, proposal, samples, completed, at, origin, role, card)
+        if not isinstance(sample, Verification):
+            (sample,) = sample if len(sample) == 1 else (None,)
+            if sample is None:
+                raise RemediationRefused("several samples need a card with several checks")
         if sample.sampled_at <= completed or sample.sampled_at > at:
             raise RemediationRefused("verification sample predates action completion")
         in_window = (sample.sampled_at - completed).total_seconds() <= prediction.within_seconds

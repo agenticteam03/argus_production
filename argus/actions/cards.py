@@ -18,6 +18,31 @@ _ACTION_CARD_FIELDS = frozenset({
     "name", "model_name", "executor", "route", "parameters", "identity_fields", "preconditions",
     "useful_when", "not_useful_when", "verify", "rollback", "sources",
 })
+_OPTIONAL_CARD_FIELDS = frozenset({"verify_by_role"})
+_CHECK_OPS = frozenset({"==", ">", ">=", "<", "<="})
+
+
+def _check_verify(file_name: str, label: str, verify: Any) -> None:
+    """`verify` is one check (`signal`, `expected`) or `checks: [{signal, expected, op?}, ...]`, all in `window_sec`."""
+    if not isinstance(verify, dict):
+        raise ValueError(f"{file_name}: {label} must be a mapping")
+    window = verify.get("window_sec")
+    if not isinstance(window, int) or isinstance(window, bool) or window <= 0:
+        raise ValueError(f"{file_name}: {label} needs a positive window_sec")
+    if "checks" not in verify:
+        if not isinstance(verify.get("signal"), str) or not verify["signal"] or "expected" not in verify:
+            raise ValueError(f"{file_name}: {label} needs a signal, expected value and positive window_sec")
+        return
+    if "signal" in verify or "expected" in verify:
+        raise ValueError(f"{file_name}: {label} gives either checks or one signal, not both")
+    checks = verify["checks"]
+    if not isinstance(checks, list) or not checks:
+        raise ValueError(f"{file_name}: {label} checks must be a non-empty list")
+    for check in checks:
+        if (not isinstance(check, dict) or check.keys() - {"signal", "expected", "op"}
+                or not isinstance(check.get("signal"), str) or not check["signal"] or "expected" not in check
+                or check.get("op", "==") not in _CHECK_OPS):
+            raise ValueError(f"{file_name}: {label} has an invalid check")
 
 
 @dataclass(frozen=True)
@@ -34,6 +59,19 @@ class ActionCard:
     rollback: str
     sources: list[str]
     identity_fields: list[str] = field(default_factory=list)
+    verify_by_role: dict[str, dict[str, Any]] = field(default_factory=dict)
+
+    def _verify_for(self, role: str | None) -> dict[str, Any]:
+        return self.verify_by_role.get(role or "", self.verify)
+
+    def verify_checks(self, role: str | None = None) -> list[dict[str, Any]]:
+        """The checks that must all hold, one `{signal, op, expected}` each; a single-signal card gives one."""
+        verify = self._verify_for(role)
+        checks = verify.get("checks") or [{"signal": verify["signal"], "expected": verify["expected"]}]
+        return [{"signal": c["signal"], "op": c.get("op", "=="), "expected": c["expected"]} for c in checks]
+
+    def verify_window(self, role: str | None = None) -> int:
+        return int(self._verify_for(role)["window_sec"])
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> ActionCard:
@@ -50,6 +88,7 @@ class ActionCard:
             rollback=str(data.get("rollback", "")),
             sources=list(data.get("sources", [])),
             identity_fields=list(data.get("identity_fields", [])),
+            verify_by_role={str(k): dict(v) for k, v in dict(data.get("verify_by_role", {})).items()},
         )
 
     def check_preconditions(self, context: dict[str, Any]) -> bool:
@@ -73,7 +112,7 @@ def load_action_cards(directory: Path | str) -> dict[str, ActionCard]:
         if not isinstance(raw, dict):
             raise ValueError(f"{yaml_path.name}: action card must be a mapping")
         missing = _ACTION_CARD_FIELDS - raw.keys()
-        extra = raw.keys() - _ACTION_CARD_FIELDS
+        extra = raw.keys() - _ACTION_CARD_FIELDS - _OPTIONAL_CARD_FIELDS
         if missing or extra:
             detail = []
             if missing:
@@ -91,11 +130,12 @@ def load_action_cards(directory: Path | str) -> dict[str, ActionCard]:
             raise ValueError(f"{yaml_path.name}: identity_fields, preconditions and sources must not be empty")
         if not isinstance(raw["parameters"], dict):
             raise ValueError(f"{yaml_path.name}: parameters must be a mapping")
-        verify = raw["verify"]
-        if (not isinstance(verify, dict) or not isinstance(verify.get("signal"), str) or not verify["signal"]
-                or "expected" not in verify or not isinstance(verify.get("window_sec"), int)
-                or isinstance(verify.get("window_sec"), bool) or verify["window_sec"] <= 0):
-            raise ValueError(f"{yaml_path.name}: verify needs a signal, expected value and positive window_sec")
+        _check_verify(yaml_path.name, "verify", raw["verify"])
+        by_role = raw.get("verify_by_role", {})
+        if not isinstance(by_role, dict) or not all(isinstance(role, str) and role for role in by_role):
+            raise ValueError(f"{yaml_path.name}: verify_by_role must map a role to a verify block")
+        for role, role_verify in by_role.items():
+            _check_verify(yaml_path.name, f"verify_by_role.{role}", role_verify)
         card = ActionCard.from_dict(raw)
         spec = get_action_spec(card.name)
         if card.model_name != spec.model_name or card.route != ACTION_ROUTES.get(card.name):
