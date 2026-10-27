@@ -94,7 +94,12 @@ services:
       - /opt/argus-v18/app/config:/app/config:ro
       # the only container with the executor tokens; in mcp mode only its tools process (argus-tools) can read them
       - /opt/argus-v18/secrets/agent:/run/argus-secrets:ro
+      # ACR-0034: the installed reference corpus (`argus corpus import`), read-only here; empty = no corpus
+      - /opt/argus-v18/corpus:/corpus:ro
     environment:
+      ARGUS_CORPUS_DIR: /corpus
+      ARGUS_CORPUS_RETRIEVAL: ${ARGUS_CORPUS_RETRIEVAL:-keyword}   # hybrid: Weaviate ranks, keyword search the fallback
+      ARGUS_WEAVIATE_URL: http://argus-v18-weaviate:8080   # read only when hybrid; unreachable = keyword fallback
       ARGUS_RUNNER: ${ARGUS_RUNNER:-langgraph}
       ARGUS_DB_BACKEND: ${ARGUS_DB_BACKEND:-postgres}
       ARGUS_TOOL_CATALOGUE: ${ARGUS_TOOL_CATALOGUE:-mcp}   # T-0021 (OD-3, ACR-0002): mcp on vm-095; rollback: direct
@@ -156,6 +161,31 @@ services:
     cpus: 0.1
     pids_limit: 30
     restart: unless-stopped
+  argus-v18-weaviate:                   # ACR-0034 (design of ACR-0015): ranks reference passages; derived from the bundle
+    image: semitechnologies/weaviate:1.38.18
+    container_name: argus-v18-weaviate
+    command: ["--host", "0.0.0.0", "--port", "8080", "--scheme", "http"]
+    environment:
+      CLUSTER_HOSTNAME: node1
+      PERSISTENCE_DATA_PATH: /var/lib/weaviate
+      PERSISTENCE_LSM_ACCESS_STRATEGY: pread      # segments read with pread, not mmap: less page-cache churn (LF-3)
+      DEFAULT_VECTORIZER_MODULE: none             # Argus supplies the vectors; no model runs here
+      ENABLE_MODULES: ""
+      ENABLE_API_BASED_MODULES: "false"           # 1.38 enables ~40 API modules (text2vec-openai, generative-*) otherwise
+      AUTHENTICATION_ANONYMOUS_ACCESS_ENABLED: "true"   # argus-v18-core only, no host port: the worker is the one client
+      QUERY_DEFAULTS_LIMIT: "20"
+      LIMIT_RESOURCES: "true"
+      GOMEMLIMIT: 400MiB
+      GOMAXPROCS: "1"
+      DISABLE_TELEMETRY: "true"
+      LOG_LEVEL: warning
+    volumes: [argus-v18-weaviate-data:/var/lib/weaviate]
+    networks: [argus-v18-core]          # no host port; the worker reaches it, nothing else needs to
+    mem_limit: 512m                     # trial 2026-10-15 (#155): 44 MiB idle, 210 MiB peak with 6,510 objects
+    memswap_limit: 512m
+    cpus: 0.5
+    pids_limit: 256
+    restart: unless-stopped
 networks:
   argus-v18-core:
     name: argus-v18-core
@@ -169,5 +199,7 @@ networks:
 volumes:
   argus-v18-agent-data:
     name: argus-v18-agent-data
+  argus-v18-weaviate-data:
+    name: argus-v18-weaviate-data
   argus-v18-pgdata:
     name: argus-v18-pgdata

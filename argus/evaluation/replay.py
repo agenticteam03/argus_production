@@ -209,7 +209,7 @@ def run_case(case: Case, workdir: Path, llm: Any | None = None, settings: Settin
     secrets.mkdir(exist_ok=True)
     (secrets / "jwt_signing_key").write_text(os.urandom(24).hex(), encoding="utf-8")
     s = dataclasses.replace(base, secrets_dir=secrets, db_path=str(db), db_backend="sqlite",
-                            tool_catalogue="direct")
+                            tool_catalogue="direct", corpus_dir="", corpus_retrieval="keyword")   # ACR-0034: no corpus
     reg = ExecutorRegistry()
     lines, class_signals = load_anomaly_inputs(base.config_dir, set(read_signals(base.config_dir)))   # T-0047 H5
     for kind in EXECUTORS:

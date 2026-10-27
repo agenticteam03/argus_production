@@ -1,0 +1,115 @@
+# ACR-0034: the base reference corpus's allowlist (layer 1, origin). `argus corpus build` downloads ONLY these
+# archives, over HTTPS, from the hosts listed per source (a redirect to any other host is refused), at the pinned ref
+# (a tag or a commit; a moving branch is refused). It reads the matching regular files inside the archive without
+# extracting it and never runs anything from it. Changing a ref or adding a source is a reviewed change.
+# Fields: archive_url (must contain the ref), hosts, ref, licence, formats, include/exclude (globs on the archive's
+# member paths), url_base + url_style (where a passage's citation points: `file` = url_base + the file's path),
+# strip_prefix (removed from the path before url_base), size caps, max_passages (a bound per source).
+version: 1
+sources:
+  - name: man-pages
+    description: Linux man-pages (commands, system calls, files, administration), the kernel.org project
+    archive_url: https://mirrors.edge.kernel.org/pub/linux/docs/man-pages/man-pages-6.20.tar.gz
+    hosts: [mirrors.edge.kernel.org]
+    ref: man-pages-6.20
+    licence: various permissive (man-pages "verbatim" and BSD-style; per page)
+    formats: [roff]
+    include: ["*/man1/*.1", "*/man5/*.5", "*/man7/*.7", "*/man8/*.8"]
+    url_base: https://git.kernel.org/pub/scm/docs/man-pages/man-pages.git/tree/
+    url_style: file
+    max_archive_bytes: 30000000
+    max_member_bytes: 400000
+    max_passages: 4000
+  - name: linux-admin-guide
+    description: the Linux kernel's administrator guide (OOM, cgroup v2, sysctl, sysrq, kernel parameters)
+    archive_url: https://github.com/torvalds/linux/archive/refs/tags/v6.19.tar.gz
+    hosts: [github.com, codeload.github.com]
+    ref: v6.19
+    licence: GPL-2.0
+    formats: [rst]
+    include: ["*/Documentation/admin-guide/*.rst"]
+    exclude: ["*/Documentation/admin-guide/kernel-parameters.rst"]
+    url_base: https://github.com/torvalds/linux/blob/v6.19/
+    url_style: file
+    max_archive_bytes: 400000000
+    max_member_bytes: 400000
+    max_passages: 3000
+  - name: systemd
+    description: systemd's manual pages (units, systemctl, journalctl, resource control)
+    archive_url: https://github.com/systemd/systemd/archive/refs/tags/v257.tar.gz
+    hosts: [github.com, codeload.github.com]
+    ref: v257
+    licence: LGPL-2.1-or-later
+    formats: [docbook]
+    include: ["*/man/*.xml"]
+    url_base: https://github.com/systemd/systemd/blob/v257/
+    url_style: file
+    max_archive_bytes: 60000000
+    max_member_bytes: 400000
+    max_passages: 4000
+  - name: docker-docs
+    description: Docker's documentation (Engine, containers, networking, storage, Compose, the CLI reference)
+    archive_url: https://github.com/docker/docs/archive/171f597d4e166d42879d7d620a8a29e3b1a17a80.tar.gz
+    hosts: [github.com, codeload.github.com]
+    ref: 171f597d4e166d42879d7d620a8a29e3b1a17a80
+    licence: Apache-2.0
+    formats: [markdown]
+    include: ["*/content/manuals/engine/*.md", "*/content/manuals/compose/*.md", "*/content/reference/cli/docker/*.md"]
+    url_base: https://github.com/docker/docs/blob/171f597d4e166d42879d7d620a8a29e3b1a17a80/
+    url_style: file
+    max_archive_bytes: 600000000
+    max_member_bytes: 300000
+    max_passages: 4000
+  - name: moby-api
+    description: the Docker Engine API reference (OpenAPI), one passage per operation
+    archive_url: https://github.com/moby/moby/archive/refs/tags/v28.5.2.tar.gz
+    hosts: [github.com, codeload.github.com]
+    ref: v28.5.2
+    licence: Apache-2.0
+    formats: [openapi]
+    include: ["*/api/swagger.yaml"]
+    url_base: https://github.com/moby/moby/blob/v28.5.2/
+    url_style: file
+    max_archive_bytes: 80000000
+    max_member_bytes: 2000000
+    max_passages: 1000
+  - name: podman
+    description: Podman's command reference
+    archive_url: https://github.com/containers/podman/archive/refs/tags/v5.8.9.tar.gz
+    hosts: [github.com, codeload.github.com]
+    ref: v5.8.9
+    licence: Apache-2.0
+    formats: [markdown]
+    include: ["*/docs/source/markdown/*.md", "*/docs/source/markdown/*.md.in"]
+    url_base: https://github.com/containers/podman/blob/v5.8.9/
+    url_style: file
+    max_archive_bytes: 80000000
+    max_member_bytes: 300000
+    max_passages: 3000
+  - name: postgresql
+    description: PostgreSQL 16's documentation (the lab runs postgres:16); the project's official GitHub mirror
+    archive_url: https://github.com/postgres/postgres/archive/refs/tags/REL_16_15.tar.gz
+    hosts: [github.com, codeload.github.com]
+    ref: REL_16_15
+    licence: PostgreSQL
+    formats: [docbook]
+    include: ["*/doc/src/sgml/*.sgml"]
+    exclude: ["*/doc/src/sgml/release-*.sgml"]
+    url_base: https://github.com/postgres/postgres/blob/REL_16_15/
+    url_style: file
+    max_archive_bytes: 80000000
+    max_member_bytes: 600000
+    max_passages: 4000
+  - name: nginx
+    description: nginx's documentation (the lab runs nginx 1.27), from the nginx.org site's sources
+    archive_url: https://github.com/nginx/nginx.org/archive/159f0a30769786ac6802f09cfd3302a39e31fc70.tar.gz
+    hosts: [github.com, codeload.github.com]
+    ref: 159f0a30769786ac6802f09cfd3302a39e31fc70
+    licence: BSD-2-Clause
+    formats: [docbook]
+    include: ["*/xml/en/docs/*.xml"]
+    url_base: https://github.com/nginx/nginx.org/blob/159f0a30769786ac6802f09cfd3302a39e31fc70/
+    url_style: file
+    max_archive_bytes: 60000000
+    max_member_bytes: 400000
+    max_passages: 3000

@@ -92,9 +92,16 @@ class KnowledgeClient:
 
     FALLBACK_QUERY = "diagnostic workflow decision tree evidence interpretation"
 
-    def __init__(self, knowledge, memory=None, inventory=None, metrics=None):
+    def __init__(self, knowledge, memory=None, inventory=None, metrics=None, reference=None):
         self.knowledge, self.memory = knowledge, memory
         self.inventory, self.metrics = inventory, metrics     # T-0046 L4: `network.link_states`
+        self._reference = reference                           # T-0056 (ACR-0034): the installed reference corpus
+
+    def reference(self, query: str, k: int) -> list[dict]:
+        """ACR-0034: passages of the installed reference corpus (keyword, or hybrid with keyword fallback)."""
+        if self._reference is None:
+            raise ExecutorError("unreachable", "no reference corpus installed in this process")
+        return self._reference.search(query, k)
 
     def link_history(self, ref: str, start, end) -> list[dict]:
         """T-0046 L4: the recorded transitions of the links `ref` owns or is the dependency of (`link_event`)."""

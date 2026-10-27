@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import dataclasses
 import getpass
 import logging
 import os
@@ -274,6 +275,47 @@ def session(args) -> None:
     print(f"{ended} open session(s) of {args.name} ended")
 
 
+def corpus(args) -> None:
+    """ACR-0034: build a reference bundle offline, install it (hashes verified), index it in Weaviate, search it."""
+    from pathlib import Path
+
+    from argus.corpus import bundle, sources
+    from argus.corpus.retrieval import HybridReference, ReferenceCorpus
+    s = Settings()
+    if args.action == "build":
+        srcs = sources.load(args.sources)
+        if args.only:
+            srcs = [x for x in srcs if x.name in set(args.only.split(","))]
+        m = bundle.build(srcs, Path(args.out), log=print)
+        print(f"bundle {args.out}: {sum(x['passages'] for x in m['sources'])} passage(s), "
+              f"{sum(x['quarantined'] for x in m['sources'])} quarantined, passages sha256 {m['passages_sha256'][:16]}")
+        return
+    if args.action == "import":
+        dest = args.dest or s.corpus_dir
+        if not dest:
+            raise SystemExit("corpus import needs --dest or ARGUS_CORPUS_DIR")
+        try:
+            m = bundle.install(Path(args.bundle), Path(dest))
+        except bundle.BundleRefused as e:
+            raise SystemExit(f"REFUSED: {e}") from e
+        print(f"verified and installed in {dest}: {sum(x['passages'] for x in m['sources'])} passage(s) from "
+              f"{len(m['sources'])} source(s), built {m['built_at']}")
+        return
+    directory = args.dir or s.corpus_dir
+    if not directory:
+        raise SystemExit("needs --dir or ARGUS_CORPUS_DIR")
+    if args.action == "index":
+        from argus.infrastructure.wiring import make_reference
+        ref = make_reference(dataclasses.replace(s, corpus_dir=directory), hybrid=True)
+        if not isinstance(ref, HybridReference):
+            raise SystemExit("no hybrid path: needs an installed bundle and the model key")
+        print(f"indexed {ref.index(log_line=lambda line: None)} passage(s) in {s.weaviate_url}")
+        return
+    corpus_ = ReferenceCorpus(directory)
+    for hit in corpus_.search(args.query, args.k):
+        print(f"{hit['id']}  {hit['source']}@{hit['ref'][:12]}  {hit['score']}  {hit['title'][:70]}\n    {hit['url']}")
+
+
 def hold_inventory(s: Settings):
     from argus.adapters.outbound.config_adapters import YamlInventory
     return YamlInventory((s.config_dir / "inventory.yaml").read_text(encoding="utf-8"))
@@ -412,6 +454,21 @@ def build_parser() -> argparse.ArgumentParser:
     dp.add_argument("--commit", required=True)
     dp.add_argument("--ref", required=True)
     dp.add_argument("--as", dest="who", required=True, help="who deployed (audited)")
+    co = sub.add_parser("corpus", help="ACR-0034: the reference corpus: build (offline), import, index, search")
+    cs = co.add_subparsers(dest="action", required=True)
+    cb = cs.add_parser("build", help="download the allowlisted sources, sanitise, scan, write a bundle")
+    cb.add_argument("--sources", default="config/corpus/sources.yaml")
+    cb.add_argument("--out", required=True)
+    cb.add_argument("--only", default="", help="comma-separated source names (default: all)")
+    ci = cs.add_parser("import", help="verify a bundle's hashes and install it with its keyword index")
+    ci.add_argument("bundle")
+    ci.add_argument("--dest", default="")
+    cx = cs.add_parser("index", help="(re)build the hybrid index in Weaviate from the installed bundle")
+    cx.add_argument("--dir", default="")
+    cq = cs.add_parser("search", help="keyword search of the installed corpus (debug)")
+    cq.add_argument("query")
+    cq.add_argument("--dir", default="")
+    cq.add_argument("--k", type=int, default=3)
     from argus.adapters.inbound.cli.main import add_parsers
     add_parsers(sub)
     return p
@@ -446,6 +503,8 @@ def main() -> None:
         hold(a)
     elif a.cmd == "audit":
         audit(a)
+    elif a.cmd == "corpus":
+        corpus(a)
     else:
         from argus.adapters.inbound.cli.main import run
         raise SystemExit(run(a))

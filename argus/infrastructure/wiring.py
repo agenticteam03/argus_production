@@ -1,6 +1,7 @@
 """Settings and the composition root — the ONLY place that assembles concrete adapters (v1.8 §2.3 rule 14)."""
 from __future__ import annotations
 
+import logging
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -41,6 +42,13 @@ class Settings:
     runbooks_dir: Path = field(default_factory=lambda: Path(os.getenv(
         "ARGUS_RUNBOOKS_DIR", str(Path(__file__).resolve().parents[1] / "runbooks"))))   # argus/runbooks (D-002)
     runbooks_commit: str | None = field(default_factory=lambda: os.getenv("ARGUS_RUNBOOKS_COMMIT") or None)
+    # ACR-0034: the installed reference corpus (`argus corpus import`); empty or not installed = no corpus. `keyword`
+    # (SQLite FTS5) or `hybrid` (a local Weaviate ranks, the keyword search is the fallback); vectors from the model
+    # provider's embeddings with the worker's own model key
+    corpus_dir: str = field(default_factory=lambda: os.getenv("ARGUS_CORPUS_DIR", ""))
+    corpus_retrieval: str = field(default_factory=lambda: os.getenv("ARGUS_CORPUS_RETRIEVAL", "keyword"))
+    weaviate_url: str = field(default_factory=lambda: os.getenv("ARGUS_WEAVIATE_URL", "http://argus-v18-weaviate:8080"))
+    embedding_model: str = field(default_factory=lambda: os.getenv("ARGUS_EMBEDDING_MODEL", "text-embedding-3-small"))
     db_path: str = field(default_factory=lambda: os.getenv("ARGUS_DB", "argus.db"))
     db_backend: str = field(default_factory=lambda: os.getenv("ARGUS_DB_BACKEND", "sqlite"))   # sqlite | postgres
     pg_host: str = field(default_factory=lambda: os.getenv("ARGUS_PG_HOST", "argus-v18-postgres"))
@@ -328,6 +336,26 @@ def make_metrics(s: Settings, inventory: YamlInventory) -> PrometheusMetrics:
     return PrometheusMetrics(inventory, signals, s.metrics_max_staleness_s)
 
 
+def make_reference(s: Settings, hybrid: bool | None = None):
+    """ACR-0034: the reference corpus the worker reads, or None. A missing bundle, a hybrid setting without a model key
+    or any error building the hybrid path leaves the keyword search (logged): the corpus never blocks a start."""
+    if not s.corpus_dir or not (Path(s.corpus_dir) / "reference.db").is_file():
+        return None
+    from argus.corpus.retrieval import HybridReference, OpenAIEmbeddings, ReferenceCorpus, WeaviateIndex
+    corpus = ReferenceCorpus(s.corpus_dir)
+    if not (s.corpus_retrieval == "hybrid" if hybrid is None else hybrid):
+        return corpus
+    key = s.secret("openai_api_key") or os.getenv("OPENAI_API_KEY")
+    if not key:
+        logging.getLogger("argus.corpus").warning("ARGUS_CORPUS_RETRIEVAL=hybrid without a model key: keyword search")
+        return corpus
+    try:
+        return HybridReference(corpus, OpenAIEmbeddings(key, s.embedding_model), WeaviateIndex(s.weaviate_url))
+    except Exception as e:                               # noqa: BLE001 (fail-open: the keyword search still answers)
+        logging.getLogger("argus.corpus").warning("hybrid reference search unavailable: %s", type(e).__name__)
+        return corpus
+
+
 def make_llm(s: Settings):
     """The configured model (key from the secret file or OPENAI_API_KEY), or None when no key exists. Also used by
     the evaluation (T-0025 step 3) to give the replay harness the same model the worker uses."""
@@ -404,8 +432,10 @@ def build(settings: Settings | None = None, llm=None, metrics=None, executors: E
     knowledge = TfidfRunbooks(str(s.runbooks_dir), s.runbooks_commit and f"commit {s.runbooks_commit}")
     store = store or make_store(s)
     if "argus_internal" not in executors.names():              # in-worker capabilities (knowledge.*)
+        reference = make_reference(s)                          # T-0056 (ACR-0034): None without a bundle
         executors.register("argus_internal", lambda url, tok: KnowledgeClient(knowledge, store,   # T-0039: memory
-                                                                              inventory, metrics))   # T-0046 L4
+                                                                              inventory, metrics,   # T-0046 L4
+                                                                              reference=reference))
     if s.tool_catalogue == "mcp":       # target-side reads in the tools process, started on the first call
         from argus.tooling.mcp.client import child_client
         from argus.tooling.providers import McpCatalogue
