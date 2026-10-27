@@ -385,7 +385,7 @@ def test_runbook_library_lives_in_the_repository(monkeypatch):
     lib = ROOT / "argus" / "runbooks"
     assert Settings().runbooks_dir.resolve() == lib.resolve()
     kb = TfidfRunbooks(str(lib))
-    assert len(kb.ids) == 21
+    assert len(kb.ids) == 22
     assert kb.library_version and kb.pinned_text            # index and conventions found next to the runbooks
     assert "/opt/argus-runbooks" not in (ROOT / "deploy" / "vm-095" / "compose.core.yml").read_text(encoding="utf-8")
     assert not (ROOT / "config" / "runbooks.lock").exists()

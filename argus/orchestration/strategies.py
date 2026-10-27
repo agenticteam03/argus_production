@@ -255,7 +255,7 @@ class BaselineStrategy:
         h = self._texts(ok, "container.health").get(t)
         if not h or h.get("health") != "unhealthy":
             return None
-        for dep in sorted(x for x in view.scope if x.kind == "container" and str(x) != t):
+        for dep in sorted((x for x in view.scope if x.kind == "container" and str(x) != t), key=str):
             link = self._link_state(view, view.incident.target, dep)
             if link and link[0] == "broken":
                 return (f"its health check is failing while the recorded link from {t} to {dep} is broken ({link[1]}): "
@@ -272,7 +272,7 @@ class BaselineStrategy:
             if dep != t and st.get("state") not in ("running", None):
                 return (f"its dependency {dep} is {st['state']}: {t} is a victim; the root cause is {dep}, "
                         f"and restarting {t} would not help", dep)
-        for dep in sorted(x for x in view.scope if x.kind == "container" and str(x) != t):
+        for dep in sorted((x for x in view.scope if x.kind == "container" and str(x) != t), key=str):
             link = self._link_state(view, view.incident.target, dep)
             if link and link[0] == "broken":
                 return (f"the recorded probe shows the declared link from {t} to {dep} is broken ({link[1]}): "

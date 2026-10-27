@@ -184,7 +184,7 @@ CLASSES: list[IncidentClassSpec] = [
     IncidentClassSpec(name="worker_stalled", family="stability", target_kinds={"container"},
                       required_signals={"jobs_processed_rate", "queue_depth", "worker_last_processed_age_s"},
                       runbook_ids=["RB-022"], branch_runbook_ids=["RB-003", "RB-004"], strategy="baseline",
-                      tool_tags={"worker", "dependency", "database", "container", "logs", "knowledge", "link_states"},
+                      tool_tags={"worker", "dependency", "database", "container", "logs", "knowledge"},
                       detector=worker_stalled),
 
 

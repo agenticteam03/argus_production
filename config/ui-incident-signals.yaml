@@ -36,9 +36,9 @@ classes:
     - {signal: http_gateway_error_ratio_5m, title: "Gateway errors", unit: "%", scale: 100, max: 100, fired: true, kind: network}
     - {signal: restarts_10m, title: "Restarts in 10 min", kind: restarts}
   worker_stalled:
-    - {signal: jobs_processed_rate, title: "Processed jobs per second", unit: "jobs/s", fired: true}
-    - {signal: queue_depth, title: "Jobs waiting", unit: "jobs", fired: true}
-    - {signal: worker_last_processed_age_s, title: "Seconds since last processed job", unit: "s", fired: true}
+    - {signal: jobs_processed_rate, title: "Processed jobs per second", unit: "jobs/s", fired: true, kind: health}
+    - {signal: queue_depth, title: "Jobs waiting", unit: "jobs", fired: true, kind: latency}
+    - {signal: worker_last_processed_age_s, title: "Seconds since last processed job", unit: "s", fired: true, kind: latency}
   cpu_saturation:
     - {signal: container_cpu_throttled_ratio_5m, title: "CPU periods throttled", unit: "%", scale: 100, max: 100, fired: true, kind: cpu}
     - {signal: container_cpu_quota_used_ratio_5m, title: "CPU quota used", unit: "%", scale: 100, max: 100, kind: cpu}

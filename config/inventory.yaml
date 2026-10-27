@@ -57,7 +57,6 @@ targets:
       never: [container.stop]
   - ref: vm-166/container:argus-lab-jobworker      # SC-10 (RB-022): Redis queue consumer
     profile: scenario
-    tcp_ports: [8080]
     depends_on: [vm-166/container:argus-lab-cache, vm-166/container:argus-lab-db]
     service:
       role: worker
