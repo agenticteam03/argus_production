@@ -46,6 +46,27 @@ export const httpArgusAdapter = {
     return res.json();
   },
 
+  // ACR-0034, the local tier (T-0057's routes, private path): the reference sources, staged or installed.
+  async listCorpusSources() {
+    return getJson("/api/v1/ops/corpus/sources");
+  },
+
+  async approveCorpusSource(name, { stepUpToken }) {
+    const res = await apiFetch(`/api/v1/ops/corpus/sources/${encodeURIComponent(name)}/approve`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ step_up_token: stepUpToken }),
+    });
+    return res.json();
+  },
+
+  async rejectCorpusSource(name, { reason, stepUpToken }) {
+    const res = await apiFetch(`/api/v1/ops/corpus/sources/${encodeURIComponent(name)}/reject`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ reason, step_up_token: stepUpToken }),
+    });
+    return res.json();
+  },
+
   async listEscalations() {
     return getJson("/api/v1/escalations");
   },

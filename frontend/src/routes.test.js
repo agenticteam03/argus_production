@@ -29,6 +29,14 @@ describe("routes", () => {
     vi.unstubAllEnvs();
   });
 
+  it("shows Reference sources only when /me lists manage_corpus (ACR-0034)", () => {
+    const sources = flat.find((r) => r.path === "/tools/reference-sources");
+    expect(sources).toBeDefined();
+    expect(canSee(sources, "approver", [])).toBe(false);
+    expect(canSee(sources, "viewer", ["approve_action"])).toBe(false);
+    expect(canSee(sources, "approver", ["manage_corpus"])).toBe(true);
+  });
+
   it("has no write screens in a read-only UI (approvals, simulator, scheduler)", () => {
     const paths = flat.map((r) => r.path);
     expect(paths).not.toContain("/approvals");

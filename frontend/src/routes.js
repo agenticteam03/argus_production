@@ -17,6 +17,9 @@ export const routes = [
     label: "Tools",
     children: [
       { path: "/tools/runbooks", label: "Runbooks", desc: "Browse remediation guides" },
+      // ACR-0034: shown only when /me lists manage_corpus (an administrator, on the private path, with a security key)
+      { path: "/tools/reference-sources", label: "Reference sources", desc: "Vendor documentation Argus may cite",
+        action: "manage_corpus" },
     ],
   },
 ];
