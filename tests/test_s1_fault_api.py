@@ -152,3 +152,105 @@ def test_valid_scripts_can_be_repeated_with_lab_container(tmp_path, script, args
 
     calls = (tmp_path / "docker.calls").read_text(encoding="utf-8").splitlines()
     assert sum(call.startswith(expected) for call in calls) == 2
+
+
+# --- TASK-67 (review of #364) ---------------------------------------------------------------------------------------
+def _run_script(bash, script, args, tmp_path, hostname, exec_fails=False, env_extra=None):
+    """Like `_run_with_shell_shims`, with `docker exec` optionally failing (a disabled or unreachable fault endpoint)."""
+    shims = ('hostname() { printf "%s\n" "$S1_TEST_HOST"; }; '
+             'docker() { printf "%s\n" "$*" >> docker.calls; '
+             '[ "$1" = exec ] && [ -n "${S1_EXEC_FAILS:-}" ] && return 1; return 0; }; '
+             'source "$1" "${@:2}"')
+    env = os.environ.copy()
+    env.pop("ARGUS_HOSTNAME", None)
+    env["S1_TEST_HOST"] = hostname
+    if exec_fails:
+        env["S1_EXEC_FAILS"] = "1"
+    env.update(env_extra or {})
+    return subprocess.run([bash, "-c", shims, "s1-test", str(script), *args], cwd=tmp_path, env=env,
+                          capture_output=True, text=True, check=False, timeout=5)
+
+
+DEMO = ROOT / "deploy" / "lab" / "demo"
+VERBS = ("exec", "stop", "start", "restart")
+
+
+def _docker_calls(tmp_path):
+    """The logged docker calls, one per call (the preflight's python source spans lines in the log)."""
+    lines = (tmp_path / "docker.calls").read_text(encoding="utf-8").splitlines()
+    return [line for line in lines if line.split(" ")[0] in VERBS]
+
+
+@pytest.mark.parametrize("script,args", [("s1-inject.sh", ["argus-lab-cache"]), ("s1-reset.sh", ["argus-lab-cache"])])
+def test_the_real_vm_hostname_is_accepted(tmp_path, script, args):
+    result = _run_script(_bash(), DEMO / script, args, tmp_path, "argus-vm166")
+    assert result.returncode == 0, result.stderr
+    assert (tmp_path / "docker.calls").exists()
+
+
+@pytest.mark.parametrize("script", ["s1-inject.sh", "s1-reset.sh"])
+def test_the_hostname_override_is_honoured_and_other_hosts_are_still_refused(tmp_path, script):
+    bash = _bash()
+    ok = _run_script(bash, DEMO / script, ["argus-lab-cache"], tmp_path, "some-laptop",
+                     env_extra={"ARGUS_HOSTNAME": "argus-vm166"})
+    assert ok.returncode == 0, ok.stderr
+    (tmp_path / "docker.calls").unlink()
+    for host in ("argus-vm095", "vm-095", "some-laptop"):
+        refused = _run_script(bash, DEMO / script, ["argus-lab-cache"], tmp_path, host)
+        assert refused.returncode != 0 and not (tmp_path / "docker.calls").exists(), host
+
+
+def test_a_disabled_fault_endpoint_leaves_the_lab_untouched(tmp_path):
+    result = _run_script(_bash(), DEMO / "s1-inject.sh", ["argus-lab-cache", "cpu", "30"], tmp_path, "argus-vm166",
+                         exec_fails=True)
+    assert result.returncode != 0
+    calls = _docker_calls(tmp_path)
+    assert calls and all(call.startswith("exec ") for call in calls), calls     # nothing was stopped
+
+
+def test_the_preflight_runs_before_the_stop_and_burns_nothing(tmp_path):
+    result = _run_script(_bash(), DEMO / "s1-inject.sh", ["argus-lab-cache", "cpu", "30"], tmp_path, "argus-vm166")
+    assert result.returncode == 0, result.stderr
+    calls = _docker_calls(tmp_path)
+    assert [c.split()[0] for c in calls] == ["exec", "stop", "exec"]
+    log = (tmp_path / "docker.calls").read_text(encoding="utf-8")
+    assert "fault/cpu?s=0" in log and calls[2].endswith(" 30")                             # the probe asks for no burn
+
+
+def test_reset_restarts_the_api_container(tmp_path):
+    result = _run_script(_bash(), DEMO / "s1-reset.sh", ["argus-lab-cache"], tmp_path, "argus-vm166")
+    assert result.returncode == 0, result.stderr
+    calls = _docker_calls(tmp_path)
+    assert "start argus-lab-cache" in calls and "restart argus-lab-api" in calls
+    assert calls.index("start argus-lab-cache") < calls.index("restart argus-lab-api")
+
+
+def test_the_probe_answers_400_when_enabled_and_404_when_disabled(monkeypatch):
+    for enabled, expected in (("1", 400), ("0", 404)):
+        module = _load_api(monkeypatch, enabled=enabled)
+        server = module.make_server(("127.0.0.1", 0))
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        try:
+            with pytest.raises(urllib.error.HTTPError) as error:
+                urllib.request.urlopen(f"http://127.0.0.1:{server.server_port}/fault/cpu?s=0", timeout=3)
+            assert error.value.code == expected
+        finally:
+            server.shutdown()
+            server.server_close()
+            thread.join(timeout=2)
+
+
+def test_burn_cpu_uses_a_wall_clock_deadline(monkeypatch):
+    module = _load_api(monkeypatch)
+    started = time.monotonic()
+    module.burn_cpu(0.3)
+    assert 0.25 <= time.monotonic() - started < 2.0     # not stretched by a CPU quota
+
+
+def test_a_second_fault_while_one_runs_is_refused(api_server):
+    with urllib.request.urlopen(api_server + "/fault/cpu?s=2", timeout=3) as response:
+        assert response.status == 202
+    with pytest.raises(urllib.error.HTTPError) as error:
+        urllib.request.urlopen(api_server + "/fault/cpu?s=2", timeout=3)
+    assert error.value.code == 409

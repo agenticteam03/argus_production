@@ -24,14 +24,29 @@ def cache_ok():
         return False
 
 
+_FAULT_LOCK = threading.Lock()      # one fault at a time: held while a burn runs
+
+
 def burn_cpu(seconds):
-    deadline = time.thread_time() + seconds
-    while time.thread_time() < deadline:
+    """Busy loop until a wall-clock deadline, so the lab's CPU quota cannot stretch it past `seconds`."""
+    deadline = time.monotonic() + seconds
+    while time.monotonic() < deadline:
         pass
 
 
+def _run_cpu_fault(seconds):
+    try:
+        burn_cpu(seconds)
+    finally:
+        _FAULT_LOCK.release()
+
+
 def start_cpu_fault(seconds):
-    threading.Thread(target=burn_cpu, args=(seconds,), daemon=True).start()
+    """Start a burn in a thread; False (nothing started) while another one is running."""
+    if not _FAULT_LOCK.acquire(blocking=False):
+        return False
+    threading.Thread(target=_run_cpu_fault, args=(seconds,), daemon=True).start()
+    return True
 
 
 def _fault_seconds(query):
@@ -69,7 +84,9 @@ class H(BaseHTTPRequestHandler):
             if seconds is None:
                 self._reply(400, b"s must be between 1 and 120\n")
                 return
-            start_cpu_fault(seconds)
+            if not start_cpu_fault(seconds):
+                self._reply(409, b"a cpu fault is already running\n")
+                return
             self._reply(202, b"cpu fault started\n")
             return
         self._reply(404, b"not found\n")
