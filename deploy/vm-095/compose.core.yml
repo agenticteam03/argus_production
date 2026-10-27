@@ -63,7 +63,12 @@ services:
       # before `up` (a missing bind source becomes a directory). Rollback: remove this line and recreate the agent.
       - /opt/argus-v18/secrets/agent/jwt_ed25519_key:/run/argus-secrets/jwt_ed25519_key:ro
       - /opt/argus-v18/secrets/agent/openai_api_key:/run/argus-secrets/openai_api_key:ro   # only for llm_configured
+      # ACR-0034 local tier: an administrator's approval installs a staged source (the worker reads /corpus read-only)
+      - /opt/argus-v18/corpus:/corpus
+      - /opt/argus-v18/corpus-staging:/corpus-staging
     environment:
+      ARGUS_CORPUS_DIR: /corpus
+      ARGUS_CORPUS_STAGING_DIR: /corpus-staging
       ARGUS_RUNNER: ${ARGUS_RUNNER:-langgraph}          # T-0013 (verified 2026-10-04); rollback: ARGUS_RUNNER=plain
       ARGUS_DB_BACKEND: ${ARGUS_DB_BACKEND:-postgres}   # rollback: ARGUS_DB_BACKEND=sqlite (the SQLite file is kept)
       ARGUS_LLM_MODEL: ${ARGUS_LLM_MODEL:-gpt-5.6-luna}
@@ -149,6 +154,28 @@ services:
     cpus: 0.2
     pids_limit: 50
     restart: unless-stopped
+  argus-v18-corpus:                     # ACR-0034 local tier: stages ONE allowlisted source; never installs (T-0057)
+    image: argus-v18-agent:1
+    container_name: argus-v18-corpus
+    profiles: [corpus]                  # off by default: `docker compose --profile corpus run --rm argus-v18-corpus
+                                        #   python -m argus corpus fetch --source <name>`
+    command: ["python", "-m", "argus", "corpus", "fetch", "--help"]
+    volumes:
+      - /opt/argus-v18/app/config:/app/config:ro                      # the allowlist (config/corpus/*.yaml)
+      - /opt/argus-v18/corpus-staging:/corpus-staging                 # its only writable path; no secret is mounted
+    environment:
+      ARGUS_CORPUS_STAGING_DIR: /corpus-staging
+      HTTPS_PROXY: http://argus-v18-egress:8888        # not in egress/filter yet: needs a per-client filter first
+    working_dir: /app
+    networks: [argus-v18-sched]         # internal: no route out; https leaves only through argus-v18-egress
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: 768m                     # a source's archive is read in memory (the Linux tree is ~250 MB)
+    memswap_limit: 768m
+    cpus: 0.5
+    pids_limit: 50
   argus-v18-egress:                     # ACR-0018 §18: CONNECT :443 to OCI Object Storage and the Telegram API only
     build: ./egress
     image: argus-v18-egress:1

@@ -201,6 +201,45 @@
         "title": "CeremonyIn",
         "type": "object"
       },
+      "CorpusApproveIn": {
+        "additionalProperties": false,
+        "properties": {
+          "step_up_token": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Step Up Token",
+            "type": "string"
+          }
+        },
+        "required": [
+          "step_up_token"
+        ],
+        "title": "CorpusApproveIn",
+        "type": "object"
+      },
+      "CorpusRejectIn": {
+        "additionalProperties": false,
+        "properties": {
+          "reason": {
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Reason",
+            "type": "string"
+          },
+          "step_up_token": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Step Up Token",
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason",
+          "step_up_token"
+        ],
+        "title": "CorpusRejectIn",
+        "type": "object"
+      },
       "EnrolIn": {
         "additionalProperties": false,
         "properties": {
@@ -1258,6 +1297,143 @@
           }
         },
         "summary": "Ops Token",
+        "tags": [
+          "ops"
+        ]
+      }
+    },
+    "/api/v1/ops/corpus/sources": {
+      "get": {
+        "description": "The installed reference sources and the staged ones waiting for an administrator.",
+        "operationId": "corpus_sources_api_v1_ops_corpus_sources_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Corpus Sources",
+        "tags": [
+          "ops"
+        ]
+      }
+    },
+    "/api/v1/ops/corpus/sources/{name}/approve": {
+      "post": {
+        "description": "Install a staged source: its hashes verified, its step-up bound to `corpus:<name>:<passages sha256>`.",
+        "operationId": "corpus_approve_api_v1_ops_corpus_sources__name__approve_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "title": "Name",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CorpusApproveIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Corpus Approve",
+        "tags": [
+          "ops"
+        ]
+      }
+    },
+    "/api/v1/ops/corpus/sources/{name}/reject": {
+      "post": {
+        "description": "Delete a staged source, with a reason; its own step-up.",
+        "operationId": "corpus_reject_api_v1_ops_corpus_sources__name__reject_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "title": "Name",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CorpusRejectIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Corpus Reject",
         "tags": [
           "ops"
         ]
