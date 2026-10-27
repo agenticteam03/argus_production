@@ -1,14 +1,15 @@
-"""Phase 18 opt-in LangGraph action branch, exercised with a fake gateway only."""
+"""The opt-in LangGraph action branch: the fake gateway (phase 18) or the reviewed HTTP client (phase 20)."""
 from __future__ import annotations
 
+import re
 from dataclasses import asdict
 from datetime import datetime, timezone
 from typing import Callable
 from uuid import uuid4
 
-from argus.actions.execution import ActionExecutor, Precheck, Verification
+from argus.actions.execution import REVIEWED_GATEWAYS, ActionExecutor, Precheck, Verification
 from argus.actions.risk import RiskColor
-from argus.actions.remediation import (FakeActionGateway, FrozenProposal, JudgeResult, ProposalInput, RemediationRefused,
+from argus.actions.remediation import (FrozenProposal, JudgeResult, ProposalInput, RemediationRefused,
                                        agreed_verdict, freeze_proposal, judge_proposal, verify_frozen_proposal)
 from argus.domain.model import EvidenceRecord, IncidentOutcome, TargetRef
 
@@ -16,8 +17,8 @@ from argus.domain.model import EvidenceRecord, IncidentOutcome, TargetRef
 class OfflineActionPath:
     """The graph keeps only row IDs; every continuation re-reads durable rows.
 
-    All callbacks are injected by a test or an offline evaluation. The production
-    wiring deliberately never constructs this class in Phase 18.
+    All callbacks are injected (phase 20: `argus.actions.live` for the precheck and
+    the verification). No production wiring constructs it while the write gate is empty.
     """
 
     def __init__(self, *, rows, action_policy, inventory, proposer: Callable,
@@ -26,8 +27,8 @@ class OfflineActionPath:
                  sample: Callable[[str, datetime], Verification | None], gateway,
                  gate_open: frozenset[tuple[str, str]], daily_host_cap: int,
                  clock: Callable[[], datetime] = lambda: datetime.now(timezone.utc)):
-        if not isinstance(gateway, FakeActionGateway):
-            raise ValueError("Phase 18 action path accepts only the fake gateway")
+        if not isinstance(gateway, REVIEWED_GATEWAYS):
+            raise ValueError("the action path accepts only the fake gateway or the reviewed HTTP client")
         called = getattr(judge_model, "model", None)       # an adapter knows the model it calls; the stored id is it
         if called is not None and called != judge_model_id:
             raise ValueError("judge_model_id must name the model the judge calls")
@@ -71,7 +72,13 @@ class OfflineActionPath:
             raise RemediationRefused("action arguments include unreviewed names")
         for name, value in proposal_input.arguments.items():
             bounds = card.parameters[name]
-            if not isinstance(value, int) or isinstance(value, bool) or not bounds["min"] <= value <= bounds["max"]:
+            if bounds.get("type") == "str":
+                declared = list(getattr(info, "networks", None) or [])
+                if (not isinstance(value, str) or not value
+                        or ("pattern" in bounds and not re.fullmatch(bounds["pattern"], value))
+                        or (bounds.get("enum_from") == "declared_networks" and value not in declared)):
+                    raise RemediationRefused("action argument is outside the reviewed bounds")
+            elif not isinstance(value, int) or isinstance(value, bool) or not bounds["min"] <= value <= bounds["max"]:
                 raise RemediationRefused("action argument is outside the reviewed bounds")
         proposal = freeze_proposal(proposal_input, at=self.clock())
         self.rows.add_action_proposal(proposal)
