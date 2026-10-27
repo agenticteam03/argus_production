@@ -129,7 +129,7 @@ def inspect(name: str) -> dict:
     d = djson(f"/containers/{urllib.parse.quote(name)}/json")
     mounted, other_binds = host_mounts(d.get("Mounts") or [], CONFIG.get("mounts", []))
     st, hc = d.get("State", {}), d.get("HostConfig", {})
-    return {"id": d.get("Id", "")[:12], "name": name, "state": st.get("Status"), "running": st.get("Running"),
+    return {"id": d.get("Id", "")[:12], "container_id": d.get("Id", ""), "name": name, "state": st.get("Status"), "running": st.get("Running"),
             "restarting": st.get("Restarting"),
             "restart_count": d.get("RestartCount"), "created_at_seconds": created_seconds(d.get("Created")),
             "oom_killed": st.get("OOMKilled"), "exit_code": st.get("ExitCode"),
