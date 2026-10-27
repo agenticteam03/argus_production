@@ -45,6 +45,7 @@ capabilities:
   analysis.trace_request_path: {max_per_incident: 1}   # T-0040, Level 3, combined: offered to no class yet
   network.link_states:     {max_per_incident: 2}   # T-0046 L4, Level 2, in-worker: offered to no class yet (tag `link_states`)
   knowledge.runbook:       {max_per_incident: 3}   # in-worker: reads the runbook library (branch runbooks)
+  knowledge.reference:     {max_per_incident: 3}   # T-0056 (ACR-0034), Level 3, in-worker: offered to no class yet
   database.health:         {max_per_incident: 3}   # T-0019, Level 3: db-probe; allowlisted databases only (inventory
                                                    # `database`), monitoring role, no rows, no SQL text
 

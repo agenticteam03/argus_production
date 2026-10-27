@@ -61,6 +61,20 @@ def compute_basis(grounds: list[str], verified_sources: Collection[str] = ()) ->
     return Basis.none
 
 
+def reference_grounds(evidence) -> set[str]:
+    """ACR-0034 layer 5: the `ref-*` passage ids `knowledge.reference` actually returned in this investigation. A
+    suggestion citing any other `ref-*` id gets no reference basis (`compute_basis` downgrades it)."""
+    out: set[str] = set()
+    for e in evidence:
+        if getattr(e, "capability", None) != "knowledge.reference" or getattr(e, "status", None) != "ok":
+            continue
+        values = e.values.get("values") if isinstance(e.values.get("values"), dict) else e.values
+        for p in (values or {}).get("passages") or []:
+            if isinstance(p, dict) and str(p.get("id", "")).startswith("ref-"):
+                out.add(str(p["id"]))
+    return out
+
+
 def suggest_action(
     target: TargetRef,
     text: str,
