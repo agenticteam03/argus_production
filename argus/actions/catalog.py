@@ -76,17 +76,11 @@ ACTION_CATALOGUE: dict[str, ActionSpec] = {
         intent="stop",
         description="Send an OS signal (e.g. SIGHUP, SIGTERM) to a container",
     ),
-    "container.network_connect": ActionSpec(
-        name="container.network_connect",
-        model_name="connect_container_network",
+    "network.restore": ActionSpec(
+        name="network.restore",
+        model_name="restore_network",
         intent="network",
-        description="Connect a container to an allowed network",
-    ),
-    "container.network_disconnect": ActionSpec(
-        name="container.network_disconnect",
-        model_name="disconnect_container_network",
-        intent="network",
-        description="Disconnect a container from a network",
+        description="Connect a lab container to its declared network, then leave the undeclared one (ACR-0035)",
     ),
     "deployment.rollback": ActionSpec(
         name="deployment.rollback",
@@ -113,6 +107,7 @@ ACTION_ROUTES = {
     "container.start": "/containers/{name}/start",
     "container.restart": "/containers/{name}/restart",
     "container.stop": "/containers/{name}/stop",
+    "network.restore": "/containers/{name}/network-restore",  # one worker call; the gateway does connect, then disconnect
 }
 
 
