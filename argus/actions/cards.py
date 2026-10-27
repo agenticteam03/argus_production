@@ -5,6 +5,7 @@ Action cards declare preconditions, routes, verify signals, rollbacks, and sourc
 """
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -99,6 +100,26 @@ class ActionCard:
         return True
 
 
+_STRING_SOURCES = frozenset({"declared_networks"})
+
+
+def _check_string_parameter(file_name: str, parameter: str, bounds: dict[str, Any]) -> None:
+    """A string parameter is never free text: it names a closed source (`enum_from`) or a regex (`pattern`)."""
+    extra = bounds.keys() - {"type", "enum_from", "pattern"}
+    source, pattern = bounds.get("enum_from"), bounds.get("pattern")
+    if extra or (source is None) == (pattern is None):
+        raise ValueError(f"{file_name}: {parameter} needs exactly one of enum_from or pattern")
+    if source is not None and source not in _STRING_SOURCES:
+        raise ValueError(f"{file_name}: {parameter} has an unknown enum_from")
+    if pattern is not None:
+        try:
+            if not isinstance(pattern, str) or not pattern:
+                raise re.error("empty")
+            re.compile(pattern)
+        except re.error as exc:
+            raise ValueError(f"{file_name}: {parameter} has an invalid pattern") from exc
+
+
 def load_action_cards(directory: Path | str) -> dict[str, ActionCard]:
     """Loads all .yaml action cards from a directory."""
     dir_path = Path(directory)
@@ -145,6 +166,9 @@ def load_action_cards(directory: Path | str) -> dict[str, ActionCard]:
         for expr in card.preconditions:
             evaluate_precondition(expr, {})  # parse every reviewed guard before the app starts
         for parameter, bounds in card.parameters.items():
+            if isinstance(bounds, dict) and bounds.get("type") == "str":
+                _check_string_parameter(yaml_path.name, parameter, bounds)
+                continue
             if (not isinstance(bounds, dict) or bounds.get("type") != "int"
                     or not isinstance(bounds.get("min"), int) or isinstance(bounds.get("min"), bool)
                     or not isinstance(bounds.get("max"), int) or isinstance(bounds.get("max"), bool)
