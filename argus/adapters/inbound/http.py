@@ -12,6 +12,7 @@ import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor, wait
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from threading import Lock, RLock
 from typing import Annotated, Literal
 
@@ -39,7 +40,8 @@ SECOND_FACTOR_WRITES = {("POST", f"/api/v1/auth/webauthn/{c}/{s}") for c in ("re
 # ACR-0018 §17.3: permissions are explicit and checked per route; a role is a bundle of them. Only the permissions of
 # what is built are listed; remaining privileged permissions come with their routes. ACR-0018: a privileged
 # permission counts only for a session completed with a WebAuthn credential, held by a person with two (D3).
-PRIVILEGED_PERMISSIONS = frozenset({"propose_action", "approve_action", "place_hold", "open_terminal", "admin"})
+PRIVILEGED_PERMISSIONS = frozenset({"propose_action", "approve_action", "place_hold", "open_terminal", "admin",
+                                    "manage_corpus"})
 # ACR-0018 step 4: every route that needs a privileged permission lives under this prefix, the only one the public
 # edge passes on the private path (a client certificate of the team's CA and an allowlisted address; else 404).
 OPS_PREFIX = "/api/v1/ops/"
@@ -58,6 +60,8 @@ ROLE_PERMISSIONS: dict[str, frozenset[str]] = {
 }
 # Phase 19: granted only while the action routes are mounted (`action_rows`); production wiring mounts none yet.
 ACTION_ROLE_PERMISSIONS: dict[str, frozenset[str]] = {"approver": frozenset({"approve_action", "place_hold"})}
+# ACR-0034 local tier: installing a staged reference source is an administrator's privileged act (step-up each time)
+CORPUS_ROLE_PERMISSIONS: dict[str, frozenset[str]] = {"admin": frozenset({"manage_corpus"})}
 
 
 def permissions_of(p: Principal) -> frozenset[str]:
@@ -112,6 +116,17 @@ class ApprovalAnswerIn(BaseModel):
         if self.decision == "denied" and not (self.reason or "").strip():
             raise ValueError("a denial needs a reason (ACR-0019 §3.12)")
         return self
+
+
+class CorpusApproveIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    step_up_token: str = Field(min_length=1, max_length=64)
+
+
+class CorpusRejectIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    reason: str = Field(min_length=1, max_length=500)
+    step_up_token: str = Field(min_length=1, max_length=64)
 
 
 class HoldReleaseIn(BaseModel):
@@ -304,7 +319,7 @@ def build_api(app_ctx) -> FastAPI:
     def role_permissions(p: Principal) -> frozenset[str]:
         """ACR-0018 §5: `approve_action` and `place_hold` belong to the approver role only, assigned per person with
         `argus user add --role approver`; an operator investigates but never approves."""
-        perms = permissions_of(p)
+        perms = permissions_of(p) | CORPUS_ROLE_PERMISSIONS.get(p.role, frozenset())
         if action_rows is not None:
             return perms | ACTION_ROLE_PERMISSIONS.get(p.role, frozenset())
         return perms
@@ -724,7 +739,8 @@ def build_api(app_ctx) -> FastAPI:
                                     headers={"Retry-After": str(wait)})
             row = app_ctx.store.get_principal(form.username)
             ok = row is not None and not row["disabled"] and hasher.verify(form.password, row["password_hash"])
-            eligible = (ok and row["kind"] == "human" and bool(ACTION_ROLE_PERMISSIONS.get(row["role"]))
+            eligible = (ok and row["kind"] == "human"
+                        and bool(ACTION_ROLE_PERMISSIONS.get(row["role"]) or CORPUS_ROLE_PERMISSIONS.get(row["role"]))
                         and len(second.credentials(row["id"])) >= CREDENTIALS_FOR_PRIVILEGE)
             if not eligible:                                # one answer for a wrong password and a non-approver
                 limiter.failed(form.username, address)
@@ -872,6 +888,61 @@ def build_api(app_ctx) -> FastAPI:
             if not action_rows.release_target_hold(hold_id, p.id, now, audit=audit):
                 raise HTTPException(409, "hold is not active")
             return {"id": hold_id, "released_at": now}
+
+    # ACR-0034 local tier: mounted only when a staging folder is configured (ARGUS_CORPUS_STAGING_DIR), like the
+    # phase 19 action routes; then staged reference sources are installed only by an administrator's approval
+    if s.corpus_staging_dir:
+        from argus.corpus import staging as corpus_staging
+
+        def corpus_dirs() -> tuple[Path | None, Path | None]:
+            return (Path(s.corpus_staging_dir) if s.corpus_staging_dir else None,
+                    Path(s.corpus_dir) if s.corpus_dir else None)
+
+        def corpus_audit(event: str, actor: str, **detail) -> None:
+            app_ctx.store.append(AuditRecord(audit_id=f"aud_{uuid.uuid4().hex[:16]}", incident_id=None, at=utcnow(),
+                                             category="decision", event=event, actor=actor[:64], detail=detail))
+
+        @api.get("/api/v1/ops/corpus/sources", tags=["ops"])
+        def corpus_sources(p: Annotated[Principal, Depends(require("manage_corpus"))]):
+            """The installed reference sources and the staged ones waiting for an administrator."""
+            return corpus_staging.list_sources(*corpus_dirs())
+
+        def corpus_decision(name: str, body, request: Request, p: Principal, approve: bool):
+            if p.kind != "human":
+                raise HTTPException(403, "a human principal is required")
+            staging_dir, corpus_dir = corpus_dirs()
+            if staging_dir is None or (approve and corpus_dir is None):
+                raise HTTPException(409, "no corpus staging folder configured")
+            try:
+                digest = corpus_staging.staged_sha256(staging_dir, name)
+            except corpus_staging.StagingRefused as exc:
+                raise HTTPException(409, str(exc)) from exc
+            try:
+                second.consume_step_up(body.step_up_token, p.id, request.state.jti, f"corpus:{name}:{digest}")
+            except SecondFactorRefused as exc:
+                raise HTTPException(403, str(exc)) from exc
+            try:
+                if approve:
+                    m = corpus_staging.approve(name, staging_dir, corpus_dir, digest)
+                    corpus_audit("corpus.source_approved", p.id, source=name, sha256=digest[:16])
+                    return {"name": name, "status": "installed", "sources": [x["name"] for x in m["sources"]]}
+                corpus_staging.reject(name, staging_dir)
+            except corpus_staging.StagingRefused as exc:
+                raise HTTPException(409, str(exc)) from exc
+            corpus_audit("corpus.source_rejected", p.id, source=name, sha256=digest[:16], reason=body.reason.strip())
+            return {"name": name, "status": "rejected"}
+
+        @api.post("/api/v1/ops/corpus/sources/{name}/approve", tags=["ops"])
+        def corpus_approve(name: str, body: CorpusApproveIn, request: Request,
+                           p: Annotated[Principal, Depends(require("manage_corpus"))]):
+            """Install a staged source: its hashes verified, its step-up bound to `corpus:<name>:<passages sha256>`."""
+            return corpus_decision(name, body, request, p, approve=True)
+
+        @api.post("/api/v1/ops/corpus/sources/{name}/reject", tags=["ops"])
+        def corpus_reject(name: str, body: CorpusRejectIn, request: Request,
+                          p: Annotated[Principal, Depends(require("manage_corpus"))]):
+            """Delete a staged source, with a reason; its own step-up."""
+            return corpus_decision(name, body, request, p, approve=False)
 
     @api.get("/healthz", tags=["ops"])
     def healthz():

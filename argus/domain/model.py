@@ -54,7 +54,7 @@ class Principal(BaseModel):
     model_config = ConfigDict(frozen=True)
     id: str
     kind: Literal["human", "service", "agent"]
-    role: Literal["viewer", "operator", "approver", "service", "peer_agent"]
+    role: Literal["viewer", "operator", "approver", "admin", "service", "peer_agent"]
     scopes: frozenset[str] = frozenset()
 
 

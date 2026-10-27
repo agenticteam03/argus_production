@@ -46,6 +46,8 @@ class Settings:
     # (SQLite FTS5) or `hybrid` (a local Weaviate ranks, the keyword search is the fallback); vectors from the model
     # provider's embeddings with the worker's own model key
     corpus_dir: str = field(default_factory=lambda: os.getenv("ARGUS_CORPUS_DIR", ""))
+    # ACR-0034 local tier: staged source bundles waiting for an administrator (`argus corpus fetch`); empty = none
+    corpus_staging_dir: str = field(default_factory=lambda: os.getenv("ARGUS_CORPUS_STAGING_DIR", ""))
     corpus_retrieval: str = field(default_factory=lambda: os.getenv("ARGUS_CORPUS_RETRIEVAL", "keyword"))
     weaviate_url: str = field(default_factory=lambda: os.getenv("ARGUS_WEAVIATE_URL", "http://argus-v18-weaviate:8080"))
     embedding_model: str = field(default_factory=lambda: os.getenv("ARGUS_EMBEDDING_MODEL", "text-embedding-3-small"))
