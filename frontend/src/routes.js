@@ -1,6 +1,6 @@
 // Single source of truth for the menu and the router. `roles` limits who sees/opens an item.
-// The private Actions entry follows /me's approve_action grant. The local preview flag exposes its
-// disabled demonstration; the public read/investigate token never grants approval.
+// Actions is an approver's entry (ACR-0032): the screen leads through the private login and the security key; the
+// decisions appear only when /me lists approve_action. The local preview flag shows its disabled demonstration.
 export const ROLES = { viewer: "Viewer", operator: "Operator", approver: "Approver" };
 export const ROLE_INFO = {
   viewer: "Read-only: browse incidents and their run timelines.",
@@ -11,7 +11,7 @@ export const ROLE_INFO = {
 export const routes = [
   { path: "/", label: "Dashboard" },
   { path: "/incidents", label: "Incidents" },
-  { path: "/actions", label: "Actions", roles: ["operator", "approver"], action: "approve_action", preview: true },
+  { path: "/actions", label: "Actions", roles: ["approver"], preview: true },
   { path: "/agent", label: "Agent" },
   {
     label: "Tools",
@@ -27,6 +27,5 @@ export const subRoutes = [{ path: "/incidents/:id", label: "Incident" }, { path:
 
 export const flat = routes.flatMap((r) => r.children ?? [r]);
 export const canSee = (item, role, actions = []) =>
-  (!item.roles || item.roles.includes(role))
-  && (!item.action || actions.includes(item.action)
-    || (item.preview && import.meta.env.VITE_ARGUS_PHASE19_DEMO === "1"));
+  ((!item.roles || item.roles.includes(role)) || (!!item.preview && import.meta.env.VITE_ARGUS_PHASE19_DEMO === "1"))
+  && (!item.action || actions.includes(item.action));

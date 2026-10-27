@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import hashlib
 import sqlite3
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import pytest
 from fastapi.testclient import TestClient
@@ -288,6 +288,8 @@ def test_a_host_hold_blocks_an_approval_on_that_host(make_app, monkeypatch):  # 
     response = client.post("/api/v1/ops/approvals/appr_host/answer", headers=auth, json={
         "decision": "approved", "proposal_digest": proposal.digest, "step_up_token": "two"})
     assert response.status_code == 409 and "hold" in response.json()["detail"]
+    listed = client.get("/api/v1/ops/holds", headers=auth, params={"target": "vm-166/container:argus-lab-cache"})
+    assert [h["target"] for h in listed.json()] == ["vm-166"]          # the UI sees the hold that refuses it
 
 
 def test_the_cli_places_and_releases_holds_with_an_audit_row(make_app, monkeypatch, capsys):  # noqa: F811
@@ -302,3 +304,60 @@ def test_the_cli_places_and_releases_holds_with_an_audit_row(make_app, monkeypat
     events = [r[1]["event"] for r in app.store.audit_chain() if r[1]["actor"] == "conantkd"]
     assert events == ["action.hold_placed", "action.hold_released"]
     assert hold_id in capsys.readouterr().out
+
+
+def test_the_pending_list_shows_answerable_approvals_in_scope(make_app, monkeypatch):  # noqa: F811
+    app = make_app()
+    seen = []
+    client, auth = _approver_client(app, monkeypatch, seen)
+    first = _pending(app, "appr_list_a", risk="amber")
+    _pending(app, "appr_list_b")
+    app.store.answer_action_approval("appr_list_b", app.store.get_action_approval("appr_list_b")["proposal_digest"],
+                                     "alice", "denied", datetime.now(timezone.utc))
+    listed = client.get("/api/v1/ops/approvals", headers=auth)
+    assert listed.status_code == 200, listed.text
+    assert listed.json() == [{
+        "id": "appr_list_a", "incident_id": first.input.incident_id, "capability": "container.start",
+        "target": first.input.target, "risk": "amber", "verdict": "agree",
+        "expires_at": first.expires_at.isoformat()}]
+    app.store.upsert_principal("bob", "human", "approver", ["other"], PasswordHash.recommended().hash(PASSWORD))
+    assert client.get("/api/v1/ops/approvals", headers=_login(client, "bob")).json() == []   # outside bob's scope
+
+
+def test_the_pending_list_is_filled_after_filtering_not_before(make_app, monkeypatch):  # noqa: F811
+    """#347 review: 50 older approvals that the caller may not see (here: they no longer verify) must not hide a later
+    one that the caller can answer."""
+    import argus.application.approval_view as views
+    hidden = {f"appr_hidden_{i:02d}" for i in range(55)}
+    real = views.approval_view
+
+    def view(rows, approval_id):                                        # the older 55 no longer verify
+        if approval_id in hidden:
+            raise views.ApprovalViewRefused("binding changed")
+        return real(rows, approval_id)
+    monkeypatch.setattr(views, "approval_view", view)                   # before build_api imports it
+    app = make_app()
+    client, auth = _approver_client(app, monkeypatch, [])
+    start = datetime.now(timezone.utc) - timedelta(minutes=5)
+    for i in range(55):
+        proposal = freeze_proposal(candidate(), at=start)
+        app.store.add_action_proposal(proposal)
+        app.store.add_judge_verdict(proposal.id, "test-judge", {
+            "verdict": "agree", "risk": "green", "reasons": [], "checks": {}, "proposal_digest": proposal.digest,
+        }, start)
+        app.store.add_action_approval(f"appr_hidden_{i:02d}", proposal.id, proposal.digest,
+                                      start + timedelta(seconds=i), proposal.expires_at)
+    _pending(app, "appr_visible")
+    assert [a["id"] for a in client.get("/api/v1/ops/approvals", headers=auth).json()] == ["appr_visible"]
+    now = datetime.now(timezone.utc)
+    first = app.store.list_pending_approvals(now, limit=10)
+    rest = app.store.list_pending_approvals(now, limit=100, after=first[-1])
+    assert len(first) == 10 and first[-1] not in rest and len(first) + len(rest) == 56      # keyset pages
+
+
+def test_the_store_lists_only_pending_unexpired_approvals(make_app):  # noqa: F811
+    app = make_app()
+    _pending(app, "appr_store_a")
+    now = datetime.now(timezone.utc)
+    assert app.store.list_pending_approvals(now) == ["appr_store_a"]
+    assert app.store.list_pending_approvals(now + timedelta(days=1)) == []

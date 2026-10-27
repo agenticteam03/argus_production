@@ -13,6 +13,9 @@ export function AuthProvider({ children }) {
     () => ({
       user: session?.user ?? null, // { name, role: "viewer" | "operator" | "approver", access, actions }
       login: async (credentials) => setSession(await auth.signIn(credentials)),
+      // ACR-0032: the private login on the Actions screen, and a fresh /me after the security key
+      loginPrivate: async (credentials) => setSession(await auth.signInPrivate(credentials)),
+      refresh: async () => setSession(await auth.refresh()),
       logout: async () => { await auth.signOut(); setSession(null); },
     }),
     [session]

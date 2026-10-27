@@ -18,11 +18,11 @@ describe("routes", () => {
     expect(canSee({ path: "/x", roles: ["approver"] }, "viewer")).toBe(false);
   });
 
-  it("shows private Actions only with the server action, except for the explicit local demo", () => {
+  it("shows Actions to an approver (it leads to the private login), others only in the explicit local demo", () => {
     const actions = routes.find((r) => r.path === "/actions");
     expect(actions).toBeDefined();
-    expect(canSee(actions, "approver", [])).toBe(false);
-    expect(canSee(actions, "approver", ["approve_action"])).toBe(true);
+    expect(canSee(actions, "approver", [])).toBe(true);
+    expect(canSee(actions, "operator", [])).toBe(false);
     expect(canSee(actions, "viewer", ["approve_action"])).toBe(false);
     vi.stubEnv("VITE_ARGUS_PHASE19_DEMO", "1");
     expect(canSee(actions, "operator", [])).toBe(true);

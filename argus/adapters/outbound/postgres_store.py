@@ -118,6 +118,16 @@ class PostgresStore:
         return {"id": approval_id, "proposal_id": proposal_id, "proposal_digest": digest, "state": state,
                 "actor": actor, "requested_at": requested, "expires_at": expires, "answered_at": answered}
 
+    def list_pending_approvals(self, at: datetime, limit: int = 50, after: str | None = None) -> list[str]:
+        """Phase 19: the approvals still waiting for a person, oldest first; `after` (an approval id) pages on."""
+        if after is None:
+            return [r[0] for r in self._q("SELECT approval_id FROM approval WHERE state='pending' AND expires_at>%s "
+                                          "ORDER BY requested_at, approval_id LIMIT %s", (at, limit))]
+        return [r[0] for r in self._q(
+            "SELECT approval_id FROM approval WHERE state='pending' AND expires_at>%s AND (requested_at, approval_id) > "
+            "(SELECT requested_at, approval_id FROM approval WHERE approval_id=%s) "
+            "ORDER BY requested_at, approval_id LIMIT %s", (at, after, limit))]
+
     def get_action_approval_for_proposal(self, proposal_id: str) -> dict[str, Any] | None:
         rows = self._q("SELECT approval_id FROM approval WHERE proposal_id=%s", (proposal_id,))
         return self.get_action_approval(rows[0][0]) if rows else None
@@ -242,8 +252,9 @@ class PostgresStore:
 
     def list_active_target_holds(self, target: str, at: datetime) -> list[dict[str, Any]]:
         rows = self._q("SELECT hold_id, target, reason, placed_by, placed_at, expires_at FROM target_hold "
-                       "WHERE target IN (%s, '*') AND released_at IS NULL AND "
-                       "(expires_at IS NULL OR expires_at>%s) ORDER BY placed_at, hold_id", (target, at))
+                       "WHERE target IN (%s, %s, '*') AND released_at IS NULL AND "
+                       "(expires_at IS NULL OR expires_at>%s) ORDER BY placed_at, hold_id",
+                       (target, target.split("/", 1)[0], at))
         return [dict(zip(("id", "target", "reason", "placed_by", "placed_at", "expires_at"), row)) for row in rows]
 
     def release_target_hold(self, hold_id: str, released_by: str, at: datetime,
@@ -477,12 +488,13 @@ class PostgresStore:
 
     def get_session(self, jti: str) -> dict[str, Any] | None:
         rows = self._q("SELECT jti, principal, access, created_at, expires_at, revoked_at, revoked_by, revoke_reason, "
-                       "second_factor_at FROM auth_session WHERE jti = %s", (jti,))
+                       "second_factor_at, last_seen_at FROM auth_session WHERE jti = %s", (jti,))
         if not rows:
             return None
         r = rows[0]
         return {"jti": r[0], "principal": r[1], "access": r[2], "created_at": r[3], "expires_at": r[4],
-                "revoked_at": r[5], "revoked_by": r[6], "revoke_reason": r[7], "second_factor_at": r[8]}
+                "revoked_at": r[5], "revoked_by": r[6], "revoke_reason": r[7], "second_factor_at": r[8],
+                "last_seen_at": r[9]}
 
     def revoke_session(self, jti: str, by: str, reason: str, at: datetime) -> bool:
         return bool(self._q("UPDATE auth_session SET revoked_at = %s, revoked_by = %s, revoke_reason = %s "
@@ -492,6 +504,10 @@ class PostgresStore:
         return len(self._q("UPDATE auth_session SET revoked_at = %s, revoked_by = %s, revoke_reason = %s "
                            "WHERE principal = %s AND revoked_at IS NULL AND expires_at > %s RETURNING jti",
                            (at, by, reason, principal, at)))
+
+    def touch_session(self, jti: str, at: datetime, idle: timedelta) -> bool:
+        return bool(self._q("UPDATE auth_session SET last_seen_at = %s WHERE jti = %s AND revoked_at IS NULL "
+                            "AND COALESCE(last_seen_at, created_at) > %s RETURNING jti", (at, jti, at - idle)))
 
     def set_session_second_factor(self, jti: str, at: datetime) -> bool:
         return bool(self._q("UPDATE auth_session SET second_factor_at = %s WHERE jti = %s AND revoked_at IS NULL "
@@ -787,6 +803,12 @@ CHECKS_SQL: list[tuple[str, str, bool]] = [
     ("a session's identity is fixed (UPDATE principal refused)", "UPDATE auth_session SET principal = 'x' "
                                                                  "WHERE jti = md5('dbcheck')", False),
     ("a session is never deleted (DELETE refused)", "DELETE FROM auth_session WHERE jti = md5('dbcheck')", False),
+    ("insert a private-path session (ACR-0032, migration 017)", "INSERT INTO auth_session (jti, principal, access, "
+     "created_at, expires_at) VALUES (md5('dbcheck-ops'), 'dbcheck', 'ops', now(), now())", True),
+    ("a session's last request may be set (migration 017)", "UPDATE auth_session SET last_seen_at = now() "
+     "WHERE jti = md5('dbcheck-ops')", True),
+    ("an unknown session access is refused (migration 017)", "INSERT INTO auth_session (jti, principal, access, "
+     "created_at, expires_at) VALUES (md5('dbcheck-root'), 'dbcheck', 'root', now(), now())", False),
     ("insert login failure (migration 010)", "INSERT INTO login_failure (key, at) VALUES ('u:dbcheck', now())", True),
     ("a login failure may be cleared (DELETE)", "DELETE FROM login_failure WHERE key = 'u:dbcheck'", True),
     ("a session's second factor may be set (migration 013)", "UPDATE auth_session SET second_factor_at = now() "

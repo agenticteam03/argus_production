@@ -74,12 +74,19 @@ token has been implemented. Acceptance and the required safety approval must pre
 - `SELF_MERGE_PROTECTED` reserved `services/action-gateway/`, but the code is the package `services/action_gateway/`:
   both are protected now.
 
+## Continued in T-0055 (#347, ACR-0032 accepted)
+
+The private login and its `ops` token bound to the private path, the edge's `X-Argus-Ops`, migration 017 and the
+pending approvals list: [journal](../../journal/entries/2026-10-26-T-0055-private-login.md). ACR-0032 was accepted
+on #325 (juanbetancurm, with the second approval) and #324 merged; #347 now targets `main`.
+
 ## Follow-ups after this PR (phase 19 is not done until they are)
 
-1. Resolve ACR-0032 (#325), then connect the private login and add a pending-approval list to the Actions tab.
+1. ~~Resolve ACR-0032 (#325), then connect the private login and add a pending-approval list~~ done in #347.
 2. The worker's gateway client and the token mount itself (the image-level isolation is proved); keep the released
    route map empty and deployment absent.
-3. Leases as holds (ACR-0019 §3.11): a source for the precheck's `host_lease_clear`.
+3. ~~Leases as holds~~ decided 2026-10-26: by process, not code (`policies/PARALLEL_LANES.md` §1: approve an action
+   only on a VM whose lease you hold; ACR-0019 §3.11's phase 19 reading).
 4. When the routes are mounted: `ARCHITECTURE.md` (§4.5, §14.3, the API) and ACR-0019 §6 "Applied", with a version
    bump; the deploy PR binds the gateway to an Argus port reachable only from the worker, with its firewall rule in
    the rollback block.

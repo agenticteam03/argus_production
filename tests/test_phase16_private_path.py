@@ -42,6 +42,13 @@ def test_the_edge_passes_the_prefix_only_on_the_private_path():
     block = re.search(r"location \^~ /api/v1/ops/ \{(.*?)\n\}", loc, re.S).group(1)
     assert "if ($argus_ops_ok != 1) { return 404; }" in block and "proxy.conf" in block
     assert loc.index("location ^~ /api/v1/ops/") < loc.index("location /api/ { return 404; }")
+
+
+def test_the_edge_tells_the_api_whether_a_request_came_through_the_private_path():
+    """ACR-0032: every proxied request carries X-Argus-Ops = $argus_ops_ok (1 only on the private path), replacing
+    any copy from the browser; the API refuses an `ops` token without 1."""
+    proxy = (NGINX_DIR / "proxy.conf").read_text(encoding="utf-8")
+    assert "proxy_set_header X-Argus-Ops $argus_ops_ok;" in proxy
     conf = (NGINX_DIR / "http.conf").read_text(encoding="utf-8")
     m = re.search(r'map "\$ssl_client_verify:\$argus_ops_addr" \$argus_ops_ok \{(.*?)\}', conf, re.S).group(1)
     assert [line.strip() for line in m.strip().splitlines()] == ["default 0;", '"SUCCESS:1" 1;']
@@ -85,6 +92,19 @@ def test_every_privileged_route_lives_under_the_prefix_and_nothing_else_does(mak
     for path, needed in perms.items():
         assert bool(needed & PRIVILEGED_PERMISSIONS) == path.startswith(OPS_PREFIX), path
     assert not set().union(*ROLE_PERMISSIONS.values()) & PRIVILEGED_PERMISSIONS   # none granted yet
+
+
+def test_with_the_action_routes_mounted_only_the_private_login_needs_no_privilege(make_app):  # noqa: F811
+    """Phase 19 mounts the approval and hold routes; ACR-0032's private login is the one documented exception."""
+    from argus.adapters.inbound.http import OPS_LOGIN
+    app = make_app()
+    app.action_rows = app.store
+    routes = [r for r in build_api(app).routes if hasattr(r, "dependant")]
+    perms = {r.path: _permissions(r.dependant) for r in routes}
+    ops = [p for p in perms if p.startswith(OPS_PREFIX)]
+    assert OPS_LOGIN in ops and len(ops) > 3
+    for path, needed in perms.items():
+        assert bool(needed & PRIVILEGED_PERMISSIONS) == (path.startswith(OPS_PREFIX) and path != OPS_LOGIN), path
 
 
 def test_the_allowlist_prune_runs_daily_without_a_lease():
@@ -227,9 +247,10 @@ def private_edge(tmp_path_factory):
     tag = uuid.uuid4().hex[:8]
     net, api, web = f"argus-ops-test-{tag}", "argus-v18-agent", f"argus-ops-web-{tag}"
     root = tmp_path_factory.mktemp("ops")
-    tls, ops, inc, conf, certs = (root / n for n in ("tls", "ops", "inc", "conf", "certs"))
-    for d in (tls, ops, inc, conf, certs):
+    tls, ops, inc, conf, certs, books = (root / n for n in ("tls", "ops", "inc", "conf", "certs", "runbooks"))
+    for d in (tls, ops, inc, conf, certs, books):
         d.mkdir()
+    (books / "RB-001-x.md").write_text("# RB-001", encoding="utf-8")
     ca_key, ca_cert = _key_cert("Argus test CA", ca=True, days=30)
     srv_key, srv_cert = _key_cert("argus.test")
     (tls / "privkey.pem").write_bytes(_pem(srv_key))
@@ -260,7 +281,7 @@ def private_edge(tmp_path_factory):
                                        .replace("${ARGUS_UI_DOMAIN}", "argus.test"), encoding="utf-8")
     allow = root / "allow.conf"
     allow.write_text("# nobody yet\n")
-    for d in (root, tls, ops, inc, conf):
+    for d in (root, tls, ops, inc, conf, books):
         d.chmod(0o755)
         for f in d.iterdir():
             if f.is_file():
@@ -273,18 +294,18 @@ def private_edge(tmp_path_factory):
     r = run("run", "-d", "--name", web, "--network", net, "-p", "127.0.0.1::8443",
             "-v", f"{NGINX_DIR}:/etc/nginx/argus:ro", "-v", f"{allow}:/etc/nginx/argus/ops-allow.conf:ro",
             "-v", f"{conf}:/etc/nginx/conf.d:ro", "-v", f"{tls}:/etc/argus-tls:ro", "-v", f"{ops}:/etc/argus-ops:ro",
-            "-v", f"{inc}:/etc/nginx/ops:ro", NGINX_IMAGE)
+            "-v", f"{inc}:/etc/nginx/ops:ro", "-v", f"{books}:/usr/share/nginx/runbooks:ro", NGINX_IMAGE)
     try:
         assert r.returncode == 0, r.stderr
         port = int(run("port", web, "8443").stdout.split(":")[-1].strip())
 
-        def get(path, who=None):
+        def get(path, who=None, headers=None):
             ctx = ssl.create_default_context()
             ctx.check_hostname, ctx.verify_mode = False, ssl.CERT_NONE
             if who:
                 ctx.load_cert_chain(certs / f"{who}.crt", certs / f"{who}.key")
             c = http.client.HTTPSConnection("127.0.0.1", port, context=ctx, timeout=20)
-            c.request("GET", path, headers={"Host": "argus.test"})
+            c.request("GET", path, headers={"Host": "argus.test", **(headers or {})})
             resp = c.getresponse()
             out = resp.status, resp.read().decode("utf-8", "replace")
             c.close()
@@ -328,6 +349,18 @@ def test_a_valid_certificate_from_an_allowed_address_reaches_the_api(private_edg
     set_allow(EVERYONE)
     code, body = get("/api/v1/ops/approvals", "alice")
     assert code == 200 and '"path": "/api/v1/ops/approvals"' in body
+    assert '"ops": "1"' in body                                         # ACR-0032: the API learns it is private
+
+
+def test_the_ops_header_is_0_off_the_private_path_and_a_browser_cannot_forge_it(private_edge):
+    get, set_allow, *_ = private_edge
+    set_allow(EVERYONE)
+    for who in (None, "alice"):                                        # public routes, with or without a certificate
+        code, body = get("/api/v1/escalations", who, headers={"X-Argus-Ops": "1"})
+        assert code == 200 and ('"ops": "1"' in body) == (who == "alice"), body
+    set_allow("198.51.100.7 1;  # someone else\n")
+    code, body = get("/api/v1/escalations", "alice", headers={"X-Argus-Ops": "1"})
+    assert code == 200 and '"ops": "0"' in body                        # a certificate from an address not allowed
 
 
 def test_a_valid_certificate_from_an_address_not_allowed_is_404(private_edge):
@@ -341,3 +374,28 @@ def test_a_revoked_or_foreign_certificate_is_404(private_edge, who):
     get, set_allow, *_ = private_edge
     set_allow(EVERYONE)
     assert get("/api/v1/ops/approvals", who)[0] == 404
+
+
+def test_the_private_login_is_404_at_the_edge_unless_on_the_private_path(private_edge):
+    """ACR-0032 §3: the login itself, not only the prefix: no certificate, a revoked or foreign one, an address not
+    allowed are 404; the allowed certificate reaches the API with X-Argus-Ops 1."""
+    from argus.adapters.inbound.http import OPS_LOGIN
+    get, set_allow, *_ = private_edge
+    set_allow(EVERYONE)
+    for who in (None, "mallory", "stranger"):
+        assert get(OPS_LOGIN, who, headers={"X-Argus-Ops": "1"})[0] == 404, who
+    code, body = get(OPS_LOGIN, "alice", headers={"X-Argus-Ops": "0"})
+    assert code == 200 and '"ops": "1"' in body
+    set_allow("198.51.100.7 1;  # someone else\n")
+    assert get(OPS_LOGIN, "alice")[0] == 404
+
+
+def test_the_runbooks_auth_check_uses_the_edges_ops_value_not_the_browsers(private_edge):
+    """#347 review: /_argus_auth is a separate proxied request; it must carry $argus_ops_ok too. A forged header from a
+    public browser must not make an `ops` token pass, and a real private request with one must."""
+    get, set_allow, *_ = private_edge
+    set_allow(EVERYONE)
+    ops = {"Authorization": "Bearer ops"}
+    assert get("/runbooks/RB-001-x.md", None, headers={**ops, "X-Argus-Ops": "1"})[0] == 401   # forged, public
+    code, body = get("/runbooks/RB-001-x.md", "alice", headers={**ops, "X-Argus-Ops": "0"})
+    assert code == 200 and "RB-001" in body                                                      # private path

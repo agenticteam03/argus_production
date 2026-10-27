@@ -105,6 +105,37 @@ def test_remediation_migration_015_freezes_proposal_and_answers_once(runtime_dsn
             c.execute("UPDATE judge_verdict SET verdict = 'doubt' WHERE proposal_id = %s", (proposal.id,))
 
 
+def test_phase19_pending_approvals_page_by_keyset(store):
+    """#347 review: the pending list pages on (requested_at, approval_id), so the route can filter before it fills."""
+    from argus.actions.remediation import Alternative, Prediction, ProposalInput, freeze_proposal
+    from argus.domain.model import utcnow
+
+    now = utcnow()
+    ids = []
+    for i in range(3):
+        inc = _incident(target="vm-166/container:argus-lab-cache")
+        store.create_incident(inc, None)
+        proposal = freeze_proposal(ProposalInput(
+            incident_id=inc.id, capability="container.start", target=str(inc.target),
+            target_identity={"container_id": f"cache-{i}"}, arguments={}, root_cause=str(inc.target),
+            rationale="Start the stopped cache", evidence_refs=["ev_cache"], grounds=["runbook:RB-003"],
+            prediction=Prediction(signal="dependency_probe_min", target=str(inc.target), expected="healthy",
+                                  within_seconds=120),
+            alternatives=[Alternative(action="wait", why_not="The dependency remains unavailable")],
+            preview="Start existing container", rollback="container.stop", inventory_version="inv-1",
+            policy_version="pol-1", evidence_version="ev-1"), at=now)
+        store.add_action_proposal(proposal)
+        store.add_judge_verdict(proposal.id, "gpt-5.6-terra", {"verdict": "agree", "checks": {}, "reasons": [],
+                                                               "proposal_digest": proposal.digest}, now)
+        ids.append(f"appr_page_{i}")
+        store.add_action_approval(ids[-1], proposal.id, proposal.digest, now + timedelta(seconds=i),
+                                  proposal.expires_at)
+    mine = [a for a in store.list_pending_approvals(now, limit=100) if a in ids]
+    assert mine == ids
+    assert [a for a in store.list_pending_approvals(now, limit=100, after=ids[0]) if a in ids] == ids[1:]
+    assert [a for a in store.list_pending_approvals(now, limit=100, after=ids[1]) if a in ids] == ids[2:]
+
+
 def test_phase19_hold_and_chained_audit_commit_together(store):
     import psycopg
     from argus.domain.model import AuditRecord, utcnow
@@ -114,6 +145,10 @@ def test_phase19_hold_and_chained_audit_commit_together(store):
                         category="decision", event="action.hold_placed", actor="operator", detail={"target": "*"})
     store.place_target_hold("hold_phase19", "*", "emergency", "operator", now, audit)
     assert store.list_active_target_holds("*", now)[0]["id"] == "hold_phase19"
+    store.place_target_hold("hold_phase19_host", "vm-166", "lease", "operator", now,
+                            audit.model_copy(update={"audit_id": "aud_phase19_host"}))
+    listed = store.list_active_target_holds("vm-166/container:argus-lab-cache", now)
+    assert [h["target"] for h in listed] == ["*", "vm-166"]          # a container's view shows its host's hold
     assert any(body["event"] == "action.hold_placed" for _, body, _, _ in store.audit_chain())
     with pytest.raises(psycopg.Error):
         store.place_target_hold("hold_phase19", "*", "duplicate", "operator", now,
@@ -126,6 +161,21 @@ def test_phase19_hold_and_chained_audit_commit_together(store):
     assert not store.release_target_hold("hold_phase19", "operator", now,
                                          audit=released.model_copy(update={"audit_id": "aud_phase19_again"}))
     assert not any(aid == "aud_phase19_again" for aid, _, _, _ in store.audit_chain())
+
+
+def test_an_ops_session_is_accepted_by_migration_017(store):
+    """ACR-0032: the private login's `ops` session; any other unknown access is still refused."""
+    import psycopg
+    from argus.domain.model import utcnow
+
+    now = utcnow()
+    store.add_session("a" * 32, "alice", "ops", now, now + timedelta(minutes=30))
+    assert store.get_session("a" * 32)["access"] == "ops"
+    assert store.touch_session("a" * 32, now + timedelta(minutes=14), timedelta(minutes=15))    # idle timeout
+    assert store.get_session("a" * 32)["last_seen_at"] == now + timedelta(minutes=14)
+    assert not store.touch_session("a" * 32, now + timedelta(minutes=30), timedelta(minutes=15))
+    with pytest.raises(psycopg.Error):
+        store.add_session("b" * 32, "alice", "root", now, now + timedelta(minutes=30))
 
 
 def test_incident_lifecycle_and_forward_only(store):

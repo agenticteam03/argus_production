@@ -81,7 +81,7 @@ def problems(root: Path, migration=WIDGET) -> list[str]:
                                        "010_session_login.sql", "011_audit_chain.sql",
                                        "012_incident_hypothesis.sql", "013_webauthn.sql",
                                        "014_link_probe_cursor.sql", "015_remediation.sql",
-                                       "016_approval_needs_agree.sql"])
+                                       "016_approval_needs_agree.sql", "017_ops_session.sql"])
 def test_the_committed_migrations_of_the_current_pattern_pass(migration):
     assert cm.check(ROOT, migration) == []
 

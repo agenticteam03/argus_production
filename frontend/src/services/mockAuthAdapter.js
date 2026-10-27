@@ -59,6 +59,14 @@ export const mockAuthAdapter = {
     return { user: session.user };
   },
 
+  async signInPrivate() {
+    throw new Error("The private login needs the real Argus API and the private path.");
+  },
+
+  async refresh() {
+    return loadSession();
+  },
+
   async signOut() {
     demoSession.role = null;
     clearSession();

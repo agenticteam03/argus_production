@@ -76,6 +76,12 @@ class Settings:
                                                            if o.strip()])
     # ACR-0011: the header the public edge (Nginx, argus-v18-ui) always sets; a login carrying it is read-only
     edge_header: str = field(default_factory=lambda: os.getenv("ARGUS_EDGE_HEADER", "X-Argus-Edge"))
+    # ACR-0032: the header the edge sets on every request: "1" only on the private path (a team certificate from an
+    # allowlisted address); it replaces any copy from the browser. An `ops` token is refused without it.
+    ops_header: str = field(default_factory=lambda: os.getenv("ARGUS_OPS_HEADER", "X-Argus-Ops"))
+    # ...believed only from the edge itself (its name on argus-v18-core, or an address): the API's other neighbours
+    # there (worker, tunnel, egress) reach it directly and could send the header too
+    ops_peer: str = field(default_factory=lambda: os.getenv("ARGUS_OPS_PEER", "argus-v18-ui"))
     # §17.3 / ACR-0011: failed logins per username and per client address within the window, then a lockout
     login_max_per_user: int = field(default_factory=lambda: int(os.getenv("ARGUS_LOGIN_MAX_PER_USER", "5")))
     login_max_per_address: int = field(default_factory=lambda: int(os.getenv("ARGUS_LOGIN_MAX_PER_ADDRESS", "20")))

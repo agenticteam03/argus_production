@@ -31,6 +31,7 @@ UI_ROUTES = [("post", "/api/v1/auth/token"), ("post", "/api/v1/auth/logout"), ("
              ("get", "/api/v1/topology"), ("get", "/api/v1/target-metrics"),
              ("get", "/api/v1/overview"),
              # Phase 19 private Actions screen: mounted only when action rows are explicitly supplied.
+             ("post", "/api/v1/ops/auth/token"), ("get", "/api/v1/ops/approvals"),
              ("get", "/api/v1/ops/approvals/{approval_id}"),
              ("post", "/api/v1/ops/approvals/{approval_id}/answer"),
              # ACR-0018 phase 16 step 3: the WebAuthn ceremonies and the caller's credentials

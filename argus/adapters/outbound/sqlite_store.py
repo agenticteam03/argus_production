@@ -242,7 +242,8 @@ def _session(r, ts) -> dict[str, Any]:
     """One auth_session row as a dict; `ts` turns a stored time into a datetime (SQLite stores text)."""
     return {"jti": r[0], "principal": r[1], "access": r[2], "created_at": ts(r[3]), "expires_at": ts(r[4]),
             "revoked_at": ts(r[5]) if r[5] is not None else None, "revoked_by": r[6], "revoke_reason": r[7],
-            "second_factor_at": ts(r[8]) if r[8] is not None else None}
+            "second_factor_at": ts(r[8]) if r[8] is not None else None,
+            "last_seen_at": ts(r[9]) if r[9] is not None else None}
 
 
 # T-0046 L4: link_event rows with the state of the row before them on the same link (time, then id), so a row that
@@ -265,8 +266,11 @@ class SqliteStore:
         self._db.execute("CREATE INDEX IF NOT EXISTS incident_parent ON incident(parent_id, opened_at)")
         if "resolved_at" not in {r[1] for r in self._db.execute("PRAGMA table_info(alert_occurrence)")}:
             self._db.execute("ALTER TABLE alert_occurrence ADD COLUMN resolved_at TEXT")     # T-0026 (migration 005)
-        if "second_factor_at" not in {r[1] for r in self._db.execute("PRAGMA table_info(auth_session)")}:
+        session_cols = {r[1] for r in self._db.execute("PRAGMA table_info(auth_session)")}
+        if "second_factor_at" not in session_cols:
             self._db.execute("ALTER TABLE auth_session ADD COLUMN second_factor_at TEXT")   # migration 013
+        if "last_seen_at" not in session_cols:
+            self._db.execute("ALTER TABLE auth_session ADD COLUMN last_seen_at TEXT")       # migration 017
         audit_cols = {r[1] for r in self._db.execute("PRAGMA table_info(audit)")}
         for col in ("prev_hash", "hash"):            # ACR-0018 (migration 011): the audit hash chain
             if col not in audit_cols:
@@ -328,6 +332,16 @@ class SqliteStore:
         proposal_id, digest, state, actor, requested, expires, answered = rows[0]
         return {"id": approval_id, "proposal_id": proposal_id, "proposal_digest": digest, "state": state,
                 "actor": actor, "requested_at": requested, "expires_at": expires, "answered_at": answered}
+
+    def list_pending_approvals(self, at: datetime, limit: int = 50, after: str | None = None) -> list[str]:
+        """Phase 19: the approvals still waiting for a person, oldest first; `after` (an approval id) pages on."""
+        if after is None:
+            return [r[0] for r in self._q("SELECT approval_id FROM approval WHERE state='pending' AND expires_at>? "
+                                          "ORDER BY requested_at, approval_id LIMIT ?", (_utc(at), limit))]
+        return [r[0] for r in self._q(
+            "SELECT approval_id FROM approval WHERE state='pending' AND expires_at>? AND (requested_at, approval_id) > "
+            "(SELECT requested_at, approval_id FROM approval WHERE approval_id=?) "
+            "ORDER BY requested_at, approval_id LIMIT ?", (_utc(at), after, limit))]
 
     def get_action_approval_for_proposal(self, proposal_id: str) -> dict[str, Any] | None:
         rows = self._q("SELECT approval_id FROM approval WHERE proposal_id=?", (proposal_id,))
@@ -480,8 +494,9 @@ class SqliteStore:
 
     def list_active_target_holds(self, target: str, at: datetime) -> list[dict[str, Any]]:
         rows = self._q("SELECT hold_id, target, reason, placed_by, placed_at, expires_at FROM target_hold "
-                       "WHERE target IN (?, '*') AND released_at IS NULL AND "
-                       "(expires_at IS NULL OR expires_at>?) ORDER BY placed_at, hold_id", (target, _utc(at)))
+                       "WHERE target IN (?, ?, '*') AND released_at IS NULL AND "
+                       "(expires_at IS NULL OR expires_at>?) ORDER BY placed_at, hold_id",
+                       (target, target.split("/", 1)[0], _utc(at)))
         return [dict(zip(("id", "target", "reason", "placed_by", "placed_at", "expires_at"), row)) for row in rows]
 
     def release_target_hold(self, hold_id: str, released_by: str, at: datetime,
@@ -759,7 +774,7 @@ class SqliteStore:
 
     def get_session(self, jti: str) -> dict[str, Any] | None:
         rows = self._q("SELECT jti,principal,access,created_at,expires_at,revoked_at,revoked_by,revoke_reason,"
-                       "second_factor_at FROM auth_session WHERE jti=?", (jti,))
+                       "second_factor_at,last_seen_at FROM auth_session WHERE jti=?", (jti,))
         return _session(rows[0], datetime.fromisoformat) if rows else None
 
     def revoke_session(self, jti: str, by: str, reason: str, at: datetime) -> bool:
@@ -774,6 +789,14 @@ class SqliteStore:
                                    "WHERE principal=? AND revoked_at IS NULL AND expires_at>?",
                                    (_utc(at), by, reason, principal, _utc(at)))
             return cur.rowcount
+
+    def touch_session(self, jti: str, at: datetime, idle: timedelta) -> bool:
+        """ACR-0032: a request on a live session that was used (or created) within `idle`; one UPDATE, so two requests
+        cannot both revive a session that has already expired."""
+        with self._lock:
+            cur = self._db.execute("UPDATE auth_session SET last_seen_at=? WHERE jti=? AND revoked_at IS NULL "
+                                   "AND COALESCE(last_seen_at, created_at)>?", (_utc(at), jti, _utc(at - idle)))
+            return cur.rowcount == 1
 
     def set_session_second_factor(self, jti: str, at: datetime) -> bool:
         with self._lock:
