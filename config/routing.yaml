@@ -4,4 +4,4 @@
 # A target is channel:<name> (a human channel) or peer:<name> (a peer agent, §23). Validated at startup.
 default: channel:operators
 by_family: {}
-by_alertname: {}
+by_alertname: {WorkerStalled: channel:operators}

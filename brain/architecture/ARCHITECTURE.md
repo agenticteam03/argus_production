@@ -88,6 +88,7 @@ class points to that cause.
 | Family | Class | Runbook(s) | Branch runbooks | Strategy |
 |---|---|---|---|---|
 | stability | `container_restart_loop` | RB-001 (OOM cause), RB-008 (non-OOM cause) | — | `model_loop` |
+| stability | `worker_stalled` | RB-022 | RB-003, RB-004 | `baseline` |
 | availability | `health_check_failed` | RB-002 | RB-003, RB-015 | `plan_then_reason` |
 | availability | `http_errors_latency` | RB-011 | RB-015, RB-016, RB-021 | `model_loop` |
 | availability | `nginx_upstream_failure` | RB-015 | RB-002, RB-003 | `plan_then_reason` |

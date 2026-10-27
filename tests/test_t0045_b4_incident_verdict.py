@@ -61,7 +61,8 @@ def test_class_severities():
     assert {c.name: c.severity for c in CLASSES} == {
         "container_restart_loop": "critical", "dependency_unavailable": "critical", "health_check_failed": "critical",
         "nginx_upstream_failure": "critical", "postgresql_connection_exhaustion": "critical",
-        "cpu_saturation": "critical", "disk_pressure": "critical", "monitoring_blind_spot": "warning"}
+        "cpu_saturation": "critical", "disk_pressure": "critical", "monitoring_blind_spot": "warning",
+        "worker_stalled": "critical"}
 
 
 # --- an SC-01-like incident (restart loop, OOM) -----------------------------------------------------------------------

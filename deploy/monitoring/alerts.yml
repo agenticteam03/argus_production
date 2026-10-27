@@ -26,6 +26,9 @@ groups:
         expr: max by (argus_host, owner) (avg_over_time(argus_http_probe_gateway_error[5m])) >= 0.5
         for: 2m
         annotations: {summary: "the proxy {{ $labels.owner }} answers 502/504: its upstream fails or is too slow"}
+      - alert: WorkerStalled               # SC-10 / RB-022: no completed work, large and growing Redis backlog
+        expr: (time() - argus_lab_last_processed_timestamp_seconds{job="argus-lab-jobworker"} > 180) and on(argus_host, container) (argus_lab_queue_depth{job="argus-lab-jobworker"} > 10) and on(argus_host, container) (deriv(argus_lab_queue_depth{job="argus-lab-jobworker"}[3m]) > 0)
+        annotations: {summary: "job worker {{ $labels.container }} has made no progress for 3 minutes while its queue grows"}
       - alert: ArgusScrapeTargetDown       # T-0027 / RB-014: an Argus scrape target down for two scrape intervals+ (the
         # monitoring blind spot class). The gate exporter's own outage also fires it; that incident ends undiagnosable.
         expr: up{job=~"argus-v18-.*"} == 0

@@ -15,6 +15,10 @@ scrape_configs:
     static_configs:
       - targets: ["argus-v18-db-probe:8700"]
         labels: {argus_host: vm-166}
+  - job_name: argus-lab-jobworker         # SC-10 / RB-022: queue progress and backlog
+    static_configs:
+      - targets: ["argus-lab-jobworker:8080"]
+        labels: {argus_host: vm-166, container: argus-lab-jobworker}
   - job_name: argus-v18-node-exporter      # T-0022: host CPU, memory, disk, load
     static_configs:
       - targets: ["argus-v18-node-exporter:9100"]
