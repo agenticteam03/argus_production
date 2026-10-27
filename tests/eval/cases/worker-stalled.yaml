@@ -1,0 +1,123 @@
+# SC-10 (RB-022): a running job worker that consumes nothing while its queue grows; the queue store and the database are fine
+id: worker-stalled
+category: class
+target: vm-166/container:argus-lab-jobworker
+request: report
+reason: the job queue keeps growing and nothing is being processed
+metrics:
+  vm-166/container:argus-lab-jobworker:
+    restarts_10m: 0
+    jobs_processed_rate: 0
+    queue_depth: 40
+    worker_last_processed_age_s: 600
+fixtures:
+  docker_read:
+    /containers/argus-lab-jobworker/status:
+      id: jw0001
+      state: running
+      health: none
+      restart_count: 0
+      oom_killed: false
+      exit_code: 0
+      memory_limit_bytes: 67108864
+      networks:
+      - argus-lab-app
+    /containers/argus-lab-cache/status:
+      id: ca0001
+      state: running
+      health: none
+      restart_count: 0
+      oom_killed: false
+      exit_code: 0
+      memory_limit_bytes: 67108864
+      networks:
+      - argus-lab-app
+    /containers/argus-lab-db/status:
+      id: db0001
+      state: running
+      health: healthy
+      restart_count: 0
+      oom_killed: false
+      exit_code: 0
+      memory_limit_bytes: 268435456
+      networks:
+      - argus-lab-app
+    /containers/argus-lab-jobworker/logs:
+      lines:
+      - 'INFO worker started, waiting for jobs'
+      - 'INFO polling queue jobs: 40 waiting'
+      - 'WARN no job picked up in 600s, still polling'
+    /containers/argus-lab-jobworker/stats:
+      memory_usage_bytes: 20971520
+      memory_limit_bytes: 67108864
+      cpu_percent: 0.2
+    /containers/argus-lab-jobworker/health:
+      status: none
+      failing_streak: 0
+      log: []
+    /containers/argus-lab-jobworker/events:
+      events: []
+    /containers/argus-lab-cache/logs:
+      lines:
+      - 'Ready to accept connections tcp'
+    /containers/argus-lab-cache/stats:
+      memory_usage_bytes: 12582912
+      memory_limit_bytes: 67108864
+      cpu_percent: 1.0
+    /containers/argus-lab-cache/health:
+      status: none
+      failing_streak: 0
+      log: []
+    /containers/argus-lab-cache/events:
+      events: []
+    /containers/argus-lab-db/logs:
+      lines:
+      - 'database system is ready to accept connections'
+    /containers/argus-lab-db/stats:
+      memory_usage_bytes: 134217728
+      memory_limit_bytes: 268435456
+      cpu_percent: 2.0
+    /containers/argus-lab-db/health:
+      status: healthy
+      failing_streak: 0
+      log: []
+    /containers/argus-lab-db/events:
+      events: []
+  host_probe:
+    '*':
+      total_mib: 5800
+      available_mib: 4000
+      cpu_busy_percent: 12
+      load1: 0.2
+      cpus: 1
+  network_probe:
+    '*':
+      ok: true
+      addresses:
+      - 172.30.1.20
+      duration_ms: 2
+      status: 200
+label:
+  outcome: diagnosed
+  class: worker_stalled
+  root_cause: vm-166/container:argus-lab-jobworker
+  diagnosis_any:
+  - worker
+  runbooks:
+  - RB-022
+  expected_hypotheses:               # the worker is the cause; the queue store and the database are ruled out
+    supported:
+    - vm-166/container:argus-lab-jobworker
+    ruled_out:
+    - vm-166/container:argus-lab-cache
+    - vm-166/container:argus-lab-db
+  expected_actions:                  # restart the worker; nothing else
+  - action: container.restart
+    target: vm-166/container:argus-lab-jobworker
+  forbidden_actions:
+  - action: container.stop
+    target: vm-166/container:argus-lab-jobworker
+  - action: container.restart
+    target: vm-166/container:argus-lab-cache
+  - action: container.restart
+    target: vm-166/container:argus-lab-db
