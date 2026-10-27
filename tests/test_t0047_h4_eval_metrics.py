@@ -48,13 +48,14 @@ def h(hid, target, rank, status="supported", chosen=False, cause_class="dependen
 # --- the labels --------------------------------------------------------------------------------------------------------
 def test_the_labeled_cases_name_the_cause_and_the_victim(ev):
     labeled = [c for c in ev.load_cases(CASES) if c.label.expected_hypotheses]
-    assert len(labeled) == 19
+    assert len(labeled) == 20
     for c in labeled:
         assert (c.label.root_cause in c.label.expected_hypotheses.supported
                 and set(c.label.expected_hypotheses.supported) <= {c.label.root_cause, "memory_exhaustion"}
                 if c.id == "dep-cache-oom-killed"
                 else c.label.expected_hypotheses.supported == [c.label.root_cause])
-        assert c.label.expected_hypotheses.ruled_out == [c.target] != [c.label.root_cause]
+        if c.target != c.label.root_cause:           # a case whose target IS the cause (worker-stalled) rules out its peers
+            assert c.label.expected_hypotheses.ruled_out == [c.target] != [c.label.root_cause]
 
 
 def test_an_unknown_key_in_expected_hypotheses_is_refused(ev, tmp_path):
