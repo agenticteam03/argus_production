@@ -2,6 +2,74 @@
 
 **Last updated:** 2026-10-12 (roll-up) · **Commit:** `main` after #96 (`817d88f`)
 
+Red first for every fix (approval view and holds 6 failing, gateway import of `NotSent`, frontend 6 failing, the
+protected-path case). Real images on a local Docker engine (29.8.0): both exit-proof tests pass; the gateway one failed
+first (the proxy's socket) and passed after the image fix.
+Then: phase 19 Python tests 33 passed; with phase 18, phase 16, UI contract and write-gate tests green; the UI
+contract regenerated with only `reason` added (15 samples kept byte for byte). Postgres: 21 passed against a
+throwaway `postgres:16-alpine` (the answer's and the release's audit rows in their transactions). Frontend: the approval, decision and adapter tests pass; three files fail only on this
+laptop's stale `node_modules` (no `elkjs`).
+
+No code change. On vm-095: 91/91 database checks, `AUDIT CHAIN OK: 327 rows chained`, `LAB BASELINE OK`.
+
+`tests/test_phase16_security_alerts.py` (the job, the intake skip, the schedule entry, the compose files, the proxy
+filter, the Telegram route) and the full suite pass locally.
+
+Documentation only; no code changed.
+
+On the VM: `91/91 database checks passed`; in the drill `AUDIT CHAIN BROKEN: 1 problem(s)` then `AUDIT CHAIN OK: 318
+rows chained`; vm-095 and vm-166 `NO INTERFERENCE`. CI green on `6e87828`.
+
+Red first: the four store refusals failed before the triggers. Phase 18, guards, graph, migration and Postgres tests:
+87 passed, 20 skipped (no local Docker; CI runs Postgres); the migration checker passes on 016; Ruff clean. Removing the
+stored `doubt` makes its test fail.
+
+Baseline evaluation 68/72, hard checks 0; vm-095 `ref=b6e64eb`, `LAB BASELINE OK`, scheduler errors 0.
+
+Phase 18, guards, graph and Postgres tests: 52 passed, 20 skipped (no local Docker); Ruff clean.
+
+On the VM: `shipped 5 digest(s), 0 conflict(s)`, `VERIFIED 5/5`, `AUDIT CHAIN OK: 311 rows chained`. Locally:
+`tests/test_phase16_step5_digest.py` passes with the schedule on.
+
+Live: SC-03 1/1 PASS, SC-07 1/1 PASS; link rows as described; `LAB BASELINE OK`.
+
+- The first UI integration made `ActionSuggestions.test.jsx` red on the missing component. After implementation,
+  the three component assertions passed. The complete frontend run passed (47 files, 301 tests); frontend lint
+  completed with no errors and 33 existing fast-refresh warnings; the production build passed. A Chromium acceptance
+  test passed against the built app and produced a local screenshot with a synthetic candidate. The relevant Python
+  UI-contract and action-incident tests passed (11) with an in-workspace pytest temporary directory; Brain lint and
+  audit passed. A first full Python run hit the sandbox's inaccessible default pytest temporary directory. The rerun
+  with an in-workspace directory completed with 30 failures in Linux shell-script tests (skill block, database backup,
+  deploy, Phase 16 private path and token rotation); representative failures show Windows selecting WSL `bash.exe`
+  or Git Bash paths that cannot create the test directory. Final-head Linux CI remains required. The cards use the existing `next_actions`
+  incident response, so no new API route or UI contract shape is introduced.
+- For local inspection, an opt-in mock incident (`VITE_ARGUS_PHASE19_DEMO=1`) shows a coherent stopped-cache
+  suggestion while the ordinary demo is unchanged. Its test was red before the fixture existed and green after;
+  the complete frontend suite now passes 303 tests in 48 files, lint has no errors, and the build passes. A local
+  Chromium visit to the running demo confirmed the incident and card render and produced a screenshot.
+- The Phase 19 Actions screen now renders a frozen approval and Approve / Deny controls. RED was observed for the
+  missing card, private HTTP adapter, action-gated route and decision helper. GREEN tests cover proposal presentation,
+  full-session gating, red target confirmation, exact request payload and WebAuthn step-up ordering; the local
+  Chromium preview shows both controls disabled under a mock read session. The two private API routes were added to
+  the UI contract and documented; the contract regeneration kept all 15 unchanged samples byte for byte.
+- RED: the new answer-route test returned 404 before its implementation.
+- GREEN: focused approval tests and existing authentication/write-gate tests passed locally. Full suite and
+  exact-head CI remain to be recorded after the draft push.
+- The first PR head `ab7091d` passed exact-head `test` and `frontend` CI. This continuation added holds and the
+  closed gateway core. RED was observed for the missing hold route, missing gateway behavior, and absent cross-scope
+  approval check; focused tests are green. The six Phase 16 allowlist-script failures on Windows are environmental:
+  `bash.exe` enters WSL without `/bin/bash`. Ruff passed. Exact-head `test` and `frontend` CI passed on `d117994`;
+  PostgreSQL ran as part of Linux CI. The later gateway listener/image scaffold needs its own final-head CI.
+- A further RED showed that a global hold placed after the approval request still allowed an answer. The answer
+  now refuses it before consuming step-up. The gateway's loopback HTTP contract also went red on its missing
+  handler and green with exact-path authentication and journal-status tests against a fake proxy.
+- The ACR-0019 journal contract exposed a single-row status update. RED showed no append-only event table; GREEN
+  now records separate `received` and terminal events, with triggers refusing update/delete.
+- The socket proxy's empty ACL and HTTP handler went RED then GREEN. A further RED showed raw Docker inspect fields
+  crossing the proxy; it now returns only `Id`. The Unix transport rechecks identity immediately before POST.
+  Closed image configuration refuses startup and no compose mounts an action token. Docker Desktop is unavailable
+  locally, so image-level and PostgreSQL tests await Linux CI or a throwaway Docker host.
+
 No code change. On the VM: 89/89 database checks, `AUDIT CHAIN OK: 273 rows chained`, health 200, NO INTERFERENCE.
 
 No code change. On the VM: 56/56 database checks, `AUDIT CHAIN OK: 265 rows chained`, health 200, NO INTERFERENCE.
