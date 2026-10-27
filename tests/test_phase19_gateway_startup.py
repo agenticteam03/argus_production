@@ -36,6 +36,9 @@ def test_closed_example_cannot_start_a_service_or_mount_a_token(monkeypatch):
     monkeypatch.setattr(run, "CONFIG", config)
     with pytest.raises(RuntimeError, match="empty release map"):
         run.main()
-    compose = "\n".join(path.read_text(encoding="utf-8") for path in (root / "deploy").rglob("compose*.yml"))
+    # Phase 20 (X-3): only compose.actions.yml defines the services, and nothing loads it
+    # (tests/test_phase20_action_services.py); every other compose file still names neither.
+    compose = "\n".join(path.read_text(encoding="utf-8") for path in (root / "deploy").rglob("compose*.yml")
+                        if path.name != "compose.actions.yml")
     assert "argus-v18-action-gateway" not in compose
     assert "action_token" not in compose
