@@ -71,3 +71,16 @@ class SecurityAlerts:
         r.raise_for_status()                    # not sent: the cursor stays, the next pass sends them again
         self._since = max(row.at for row in rows)
         return f"{len(rows)} security alert(s) sent"
+
+    def notify_approval_waiting(self, message: str, approval_id: str, expires_at: datetime) -> None:
+        """Send an approval notice through the existing Alertmanager security route."""
+        now = self.clock()
+        alert = {
+            "labels": {"alertname": "ArgusApprovalWaiting", "argus_security": "true",
+                       "approval_id": approval_id},
+            "annotations": {"summary": message},
+            "startsAt": now.isoformat(),
+            "endsAt": expires_at.isoformat(),
+        }
+        response = self.client.post(f"{self.url}/api/v2/alerts", json=[alert])
+        response.raise_for_status()

@@ -1,6 +1,7 @@
 """Phase 18 opt-in LangGraph action branch, exercised with a fake gateway only."""
 from __future__ import annotations
 
+import logging
 from dataclasses import asdict
 from datetime import datetime, timezone
 from typing import Callable
@@ -11,6 +12,8 @@ from argus.actions.risk import RiskColor
 from argus.actions.remediation import (FakeActionGateway, FrozenProposal, JudgeResult, ProposalInput, RemediationRefused,
                                        agreed_verdict, freeze_proposal, judge_proposal, verify_frozen_proposal)
 from argus.domain.model import EvidenceRecord, IncidentOutcome, TargetRef
+
+log = logging.getLogger(__name__)
 
 
 class OfflineActionPath:
@@ -25,7 +28,7 @@ class OfflineActionPath:
                  judge_context: Callable[[FrozenProposal], dict], snapshot: Callable[[FrozenProposal, datetime], Precheck],
                  sample: Callable[[str, datetime], Verification | None], gateway,
                  gate_open: frozenset[tuple[str, str]], daily_host_cap: int,
-                 clock: Callable[[], datetime] = lambda: datetime.now(timezone.utc)):
+                 clock: Callable[[], datetime] = lambda: datetime.now(timezone.utc), approval_notifier=None):
         if not isinstance(gateway, FakeActionGateway):
             raise ValueError("Phase 18 action path accepts only the fake gateway")
         called = getattr(judge_model, "model", None)       # an adapter knows the model it calls; the stored id is it
@@ -34,6 +37,7 @@ class OfflineActionPath:
         self.rows, self.action_policy, self.inventory = rows, action_policy, inventory
         self.proposer, self.judge_model, self.judge_model_id = proposer, judge_model, judge_model_id
         self.judge_context, self.snapshot, self.sample, self.clock = judge_context, snapshot, sample, clock
+        self.approval_notifier = approval_notifier
         self.executor = ActionExecutor(rows, gateway, gate_open=gate_open, daily_host_cap=daily_host_cap)
 
     def propose(self, incident, state: dict) -> str | None:
@@ -143,6 +147,17 @@ class OfflineActionPath:
             return None
         approval_id = f"appr_{uuid4().hex}"
         self.rows.add_action_approval(approval_id, proposal.id, proposal.digest, self.clock(), proposal.expires_at)
+        verdict = self.rows.get_judge_verdict(proposal.id)
+        message = (f"Approval waiting: incident={proposal.input.incident_id}; action={proposal.input.capability}; "
+                   f"target={proposal.input.target}; risk={verdict['risk']}; judge={verdict['verdict']}; "
+                   f"expires={proposal.expires_at.isoformat()}; open=/api/v1/ops/approvals/{approval_id}")
+        if self.approval_notifier is None:
+            log.info("approval notification sender is not configured", extra={"approval_id": approval_id})
+        else:
+            try:
+                self.approval_notifier(message, approval_id, proposal.expires_at)
+            except Exception:
+                log.exception("approval notification failed", extra={"approval_id": approval_id})
         return approval_id
 
     def answer(self, approval_id: str, *, digest: str, principal: str, principal_kind: str,
