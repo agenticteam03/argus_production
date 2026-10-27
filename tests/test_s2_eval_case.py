@@ -1,6 +1,7 @@
 """TASK-60 (scenario 2): the `link_ok` verify signal, the injection scripts and the dep-api-moved-network case."""
 from __future__ import annotations
 
+import os
 import shutil
 import subprocess
 from datetime import datetime, timezone
@@ -86,12 +87,55 @@ def test_reset_is_the_reverse():
 
 
 @pytest.mark.parametrize("script", [INJECT, RESET])
-def test_scripts_use_lab_names_only_and_refuse_vm_095(script):
+def test_scripts_use_lab_names_only(script):
     text = script.read_text(encoding="utf-8")
-    assert "vm-095" in text and "exit" in text            # the refusal
     assert "/opt/argus" not in text.replace("/opt/argus-lab", "")
     for forbidden in ("wg0", "labmvp", "reboot", "docker rm", "docker stop"):
         assert forbidden not in text
+
+
+def _run(script, tmp_path, host, override=None):
+    """Run a script with `hostname` and `docker` replaced by shell functions; returns (exit code, docker calls)."""
+    bash = shutil.which("bash")
+    if bash is None:
+        pytest.skip("bash is not available")
+    log = tmp_path / "docker.log"
+    log.write_text("", encoding="utf-8", newline="")
+    # shell functions win over any PATH lookup (Git's bash launcher reorders an inherited PATH), so a test can
+    # never reach the real docker: the script is sourced after both shims are defined
+    shims = ('hostname() { echo "$FAKE_HOST"; }; docker() { echo "$@" >> "$DOCKER_LOG"; }; '
+             '. "$SCRIPT"')
+    env = {**os.environ, "FAKE_HOST": host, "DOCKER_LOG": log.as_posix(), "SCRIPT": script.as_posix()}
+    env.pop("ARGUS_HOSTNAME", None)
+    if override:
+        env["ARGUS_HOSTNAME"] = override
+    done = subprocess.run([bash, "-c", shims], capture_output=True, env=env)
+    return done.returncode, log.read_text(encoding="utf-8").splitlines()
+
+
+@pytest.mark.parametrize("script", [INJECT, RESET])
+def test_the_real_vm095_name_is_refused(script, tmp_path):
+    code, calls = _run(script, tmp_path, "argus-vm095")
+    assert code == 2 and calls == []
+
+
+@pytest.mark.parametrize("script", [INJECT, RESET])
+@pytest.mark.parametrize("host", ["vm-095", "vm-166", "laptop", "argus-vm1660"])
+def test_any_other_host_is_refused(script, tmp_path, host):
+    code, calls = _run(script, tmp_path, host)
+    assert code == 2 and calls == []
+
+
+@pytest.mark.parametrize("script", [INJECT, RESET])
+def test_the_real_vm166_name_is_accepted(script, tmp_path):
+    code, calls = _run(script, tmp_path, "argus-vm166")
+    assert code == 0
+    assert any(c.startswith("network connect") for c in calls) and any(c.startswith("network disconnect") for c in calls)
+
+
+def test_the_override_replaces_the_host_name(tmp_path):
+    assert _run(INJECT, tmp_path, "argus-vm095", override="argus-vm166")[0] == 0
+    assert _run(INJECT, tmp_path, "argus-vm166", override="argus-vm095")[0] == 2
 
 
 # ---- the evaluation case -------------------------------------------------------------------------------------

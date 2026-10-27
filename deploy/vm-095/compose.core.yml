@@ -8,6 +8,7 @@
 # Network argus-v18-core uses an explicit subnet chosen from ranges unused on both VMs (discovery 2026-10-01).
 # Network argus-v18-sched (ACR-0018 §18, phase 16) is internal: no route out. The scheduler is on it alone with what it
 # reads (Postgres, the tunnel, vm-095's Prometheus and Alertmanager) and argus-v18-egress, its only way out (OCI).
+# Network argus-v18-action (phase 20, X-3) is internal: the tunnel and the worker only, for vm-166's action gateway.
 name: argus-v18-core
 services:
   argus-v18-tunnel:
@@ -17,7 +18,10 @@ services:
     command: ["argus-v18-tunnel@${ARGUS_VM166_PRIVATE_IP:?set it in /opt/argus-v18/hosts.env and pass --env-file}"]
     volumes:
       - /opt/argus-v18/secrets/tunnel:/secrets:ro
-    networks: [argus-v18-core, argus-v18-sched]   # reachable ONLY by Argus containers; no host port published
+    networks:                           # reachable ONLY by Argus containers; no host port published
+      argus-v18-core: {}
+      argus-v18-sched: {}
+      argus-v18-action: {ipv4_address: 172.30.5.2}   # phase 20: the gateway forward listens on this address alone
     mem_limit: 32m
     memswap_limit: 32m
     cpus: 0.2
@@ -116,7 +120,9 @@ services:
       # ACR-0016: Langfuse Cloud (EU) in hosts.env, e.g. https://cloud.langfuse.com/api/public/otel/v1/traces; unset = private stack
       ARGUS_TRACING_ENDPOINT: ${ARGUS_TRACING_ENDPOINT:-http://argus-v18-langfuse-web:3000/api/public/otel/v1/traces}
       ARGUS_SCHEDULE_MAX_QUEUED_AGE_S: "900"          # a scheduled check not started within 15 min is stale_skipped
-    networks: [argus-v18-core]          # no host port; reaches vm-095 executors directly and vm-166 through the tunnel
+    # no host port; reaches vm-095 executors directly and vm-166 through the tunnel; argus-v18-action: phase 20's
+    # gateway forward, which only the worker reaches
+    networks: [argus-v18-core, argus-v18-action]
     depends_on:
       argus-v18-tunnel: {condition: service_started}
       argus-v18-postgres: {condition: service_healthy}
@@ -224,6 +230,11 @@ networks:
     internal: true
     ipam:
       config: [{subnet: 172.30.4.0/24}]
+  argus-v18-action:                     # phase 20 (X-3): internal; the tunnel and the worker only
+    name: argus-v18-action
+    internal: true
+    ipam:
+      config: [{subnet: 172.30.5.0/24}]
 volumes:
   argus-v18-agent-data:
     name: argus-v18-agent-data

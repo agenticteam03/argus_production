@@ -7,7 +7,10 @@ ENTRYPOINT ["autossh", "-M", "0", "-N", \
   "-i", "/secrets/id_ed25519", \
   "-L", "0.0.0.0:18701:127.0.0.1:18701", "-L", "0.0.0.0:18702:127.0.0.1:18702", \
   "-L", "0.0.0.0:18703:127.0.0.1:18703", "-L", "0.0.0.0:18704:127.0.0.1:18704", \
-  "-L", "0.0.0.0:18090:127.0.0.1:18090", "-L", "0.0.0.0:18091:127.0.0.1:18091"]
+  "-L", "0.0.0.0:18090:127.0.0.1:18090", "-L", "0.0.0.0:18091:127.0.0.1:18091",   "-L", "172.30.5.2:18705:127.0.0.1:18705"]
 # T-0022: 18091 = vm-166's Argus-owned Alertmanager (needs permitopen="127.0.0.1:18091" on the tunnel account).
 # The destination (argus-v18-tunnel@<vm-166 private IP>) is the compose `command:`, read from the VM-local
 # /opt/argus-v18/hosts.env (never committed; template: deploy/hosts.env.example).
+# Phase 20 (X-3): 18705 = vm-166's action gateway, bound ONLY on the tunnel's argus-v18-action address (compose pins it),
+# so only the worker, the network's one other member, can reach it. vm-166's tunnel account refuses it until the first
+# release PR adds permitopen="127.0.0.1:18705" there.

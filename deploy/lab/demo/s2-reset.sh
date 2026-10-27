@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
 # Scenario 2 reset, run ON vm-166 by the developer: the lab api returns to its own network. Lab names only.
-# Refuses vm-095. The isolated network is left in place (the SC-07 profile owns its removal).
+# Refuses any host but argus-vm166. The isolated network is left in place (the SC-07 profile owns its removal).
 set -euo pipefail
 
-if [ "$(hostname)" = "vm-095" ]; then
-  echo "refused: this script never runs on vm-095" >&2
+# Runs only on argus-vm166 (ARGUS_HOSTNAME replaces the host name in tests); argus-vm095 and any other host are refused.
+HOST=${ARGUS_HOSTNAME:-$(hostname)}
+if [ "$HOST" != "argus-vm166" ]; then
+  echo "refused: this script runs only on argus-vm166, never on argus-vm095 or any other host" >&2
   exit 2
 fi
 

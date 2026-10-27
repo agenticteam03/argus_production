@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | in progress: step 1 (the candidate pair) in this PR; X-4, X-3, X-2 and the release PRs follow |
+| Status | in progress: step 1 (the candidate pair, #354), step 2 (execution through the gateway, #355) and step 3 (the gateway services, defined); X-2 and the release PRs follow |
 | Phase | 20 of [NEXT-PHASE](NEXT-PHASE-supervised-remediation.md); pieces X-1..X-7 of the demo's shared coordination file (PR #353) |
 | Architecture | [ACR-0019](../../architecture/changes/ACR-0019-human-approved-remediation.md), accepted; ACR-0031 applied (#347); no new ACR for this step |
 | Branch | `task/T-0053-phase20-candidate`, from `main` (replaces draft #326, 97 commits behind and in conflict) |
@@ -36,22 +36,79 @@ already cover the same behaviour (one send, refusal before the proxy, an ambiguo
 The candidate is not the active gateway configuration (`/etc/argus-v18/action-gateway.json` on the VM) and no compose
 service reads it.
 
+## STEP T-0053.2 — Execute through the gateway with a fresh precheck and a verification (X-4)
+
+- **Goal:** the frozen-row `ActionExecutor` dispatches through the reviewed `HttpActionGateway`, with a precheck read
+  from the target at execution time and a verification sampled after the action.
+- **Why:** phase 18's executor accepted only the fake gateway, and its precheck and verification were test callbacks.
+- **Where:** laptop. **Changes:** `argus/actions/live.py` (new: `LivePrecheck`, `LiveVerification`,
+  `status_from_observation`); `ActionExecutor` and `OfflineActionPath` accept exactly the fake gateway or the
+  reviewed client (`REVIEWED_GATEWAYS`), nothing else; `services/target/service.py` adds `container_id`, Docker's
+  full Id; `tests/test_phase20_live_execution.py`. Undo by reverting the PR. No VM change.
+- **Command:** `python -m pytest -q tests/test_phase20_live_execution.py`.
+- **Expected:** one action through the real gateway listener, never sent twice, verified `recovered_verified`; a
+  recreated target is a definite `failed` with no proxy call; any other gateway object is refused.
+- **If it fails:** compare the precheck's identity with the proxy's (`unix_transport.py`, the full Id).
+
+**Found on the way:** the gateway's proxy compares Docker's full container Id, but `container.status` reported only
+the first 12 characters, so a proposal built from it would have been refused as "target identity changed" on every
+real dispatch. The target now also reports `container_id` (full); `id` stays short for its existing readers. The target
+service must be redeployed on vm-166 before the first release (X-2/X-3).
+
+**Still open for the release PR:** the production wiring that builds the path (the proposer, the judge adapter, the
+`container.status` read through `InvokeCapability`, the signal sampler, the detector and the lease check) and the
+policy engine's startup refusal of a non-empty gate; both belong with opening the first pair.
+
+## STEP T-0053.3 — Define the gateway services and the worker's one path to them (X-3)
+
+- **Goal:** the action gateway and its socket proxy as vm-166 services, and a path from vm-095 that only the worker
+  can use; defined, not started.
+- **Why:** phase 19 proved the two containers on real images (`tests/test_phase19_real_images.py`) but deployed
+  nothing; the release PR needs a reviewed service definition to start.
+- **Where:** laptop. **Changes:** `deploy/target/compose.actions.yml` (new, vm-166 only); the tunnel forwards 18705
+  only on its address in the new internal network `argus-v18-action` (`deploy/vm-095/tunnel/Dockerfile`,
+  `deploy/vm-095/compose.core.yml`: the tunnel and the worker are its only members); `services/action_gateway/run.py`
+  replaces a stale proxy socket; `tests/test_phase20_action_services.py`; phase 19's compose guard
+  (`tests/test_phase19_gateway_startup.py`) skips the actions file alone. Undo by reverting the PR. No VM change.
+- **Command:** `python -m pytest -q tests/test_phase20_action_services.py tests/test_compose_split.py`.
+- **Expected:** the proxy alone mounts Docker's socket and has no network; the gateway holds the token and the journal,
+  listens on vm-166's loopback only; both read-only, all capabilities dropped, user 65532; no script, env file or
+  other compose file loads the actions file; the gateway's name resolves nowhere on vm-095, so the write-gate check
+  stays closed.
+- **If it fails:** compare the compose file with the real-image test's `docker run` flags.
+
+Why a separate file rather than a profile in `compose.target.yml`: the proxy needs the socket's group
+(`ARGUS_DOCKER_GID`, required), and compose interpolates a whole file even for an inactive profile, so a required
+variable there would break vm-095's target deploy, which uses the same file.
+
+**Found on the way:** the proxy refused to start when its socket path existed; the socket lives in a named volume, so
+any restart or reboot would have left it in a crash loop. It now removes a socket that nobody answers on, and still
+refuses a live socket or a path that is not a socket.
+
+**Deferred to the windows, on purpose:**
+- X-2 (the deploy window): rebuild and restart `argus-v18-tunnel` explicitly (the deploy hint for `deploy/vm-095/`
+  names only the agent, worker and scheduler), and recreate the worker so it joins `argus-v18-action`; redeploy the
+  target on vm-166 (`container_id`, X-4). The write-gate check stays CLOSED: no action container, mount or credential.
+- X-5 (the first release PR's window): the action token, created on the VM and never in the repo, at
+  `/opt/argus-v18/secrets/action/action_token` on vm-166 (owner 65532, 0400) and at
+  `/opt/argus-v18/secrets/agent/action_token` on vm-095 (the worker's folder, as the isolation proof places it); the
+  active `/etc/argus-v18/action-gateway.json` on vm-166; `permitopen="127.0.0.1:18705"` on vm-166's tunnel account;
+  the network alias `argus-v18-action-gateway` for the tunnel on `argus-v18-action`; the worker's gateway URL; the
+  services started; the write-gate check changed to expect exactly this; `ARCHITECTURE.md` and ACR-0019 §6.
+
 ## Still required (each its own PR)
 
-1. **X-4:** wire the frozen-row `ActionExecutor` to `HttpActionGateway` (today it accepts only the fake gateway) with
-   a fresh precheck, dispatch, reconciliation by ID and verification; the model and the tools child stay outside the
-   token and the dispatch path.
-2. **X-3:** the gateway and socket-proxy services in the lab, the action token on the VM only, credential isolation
-   checked on the real images.
-3. **X-2:** one deploy window on vm-095 (phase 19 and the corpus), with the leases.
-4. **X-5..X-7:** one release PR per pair, opening it in `config/policy.yaml`, the gateway configuration and the
+1. **X-2:** one deploy window on vm-095 (phase 19 and the corpus), with the leases.
+2. **X-5..X-7:** one release PR per pair, opening it in `config/policy.yaml`, the gateway configuration and the
    standing write-gate test, which keeps every unreleased pair closed. Before each: the hard checks
    (`unauthorized_actions`, `actions_on_forbidden_targets`, `action_without_valid_approval`, `harmful_actions`) at 0,
    and a lease-bound VM block with `nonint-check.sh` before and after and a rehearsed rollback that empties the gate
    and stops the gateway.
-5. Live proof: SC-03 on the real lab: a correct proposal, judge agreement, an authenticated approval, exactly one
+3. Live proof: SC-03 on the real lab: a correct proposal, judge agreement, an authenticated approval, exactly one
    dispatch, the prediction met and `recovered_verified`; evidence without secrets.
 
 ## Current result
 
 Step 1: red seen (`FileNotFoundError`, the candidate absent), then green.
+Step 2: red seen (`ModuleNotFoundError: argus.actions.live`), then green.
+Step 3: red seen (`FileNotFoundError`, `compose.actions.yml` absent), then green.
