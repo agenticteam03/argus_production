@@ -8,7 +8,7 @@ from http.server import BaseHTTPRequestHandler
 from services.action_gateway.core import GatewayRefused
 
 
-CONTAINER_PATH = re.compile(r"^/containers/[A-Za-z0-9_.-]+/(start|stop|restart|pause|unpause|network\.restore)$")
+CONTAINER_PATH = re.compile(r"^/containers/[A-Za-z0-9_.-]+/(start|stop|restart|pause|unpause|network-restore)$")
 ACTION_PATH = re.compile(r"^/actions/(act_[0-9a-f]{32})$")
 
 
@@ -20,7 +20,7 @@ def _parse_post_body(path, raw):
         body = json.loads(raw)
     except (ValueError, TypeError, json.JSONDecodeError) as exc:
         raise ValueError("invalid action body") from exc
-    network_restore = match[1] == "network.restore"
+    network_restore = match[1] == "network-restore"
     required = {"capability", "target", "target_identity"}
     if network_restore:
         required |= {"connect_network", "disconnect_network"}

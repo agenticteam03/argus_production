@@ -92,7 +92,7 @@ class GatewayProxyTransport:
 
     def _network_step(self, target, network, verb, action_id, expected_identity):
         match = re.fullmatch(r"[a-z0-9-]+/container:(argus-lab-[A-Za-z0-9_.-]+)", target)
-        if match is None or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]*", network):
+        if match is None or not re.fullmatch(r"argus-lab-[A-Za-z0-9_.-]+", network):
             raise ValueError("invalid network action target")
         if self._container_identity(match[1]) != expected_identity:
             raise NotSent("target identity changed before network action")

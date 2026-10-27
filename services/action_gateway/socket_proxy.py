@@ -23,8 +23,9 @@ class SocketProxyPolicy:
         self.network_paths = {}
         for (_, target), route in self.released.items():
             if isinstance(route, Mapping):
-                self.network_paths[f"/networks/{route['connect_network']}/connect"] = target
-                self.network_paths[f"/networks/{route['disconnect_network']}/disconnect"] = target
+                for path in (f"/networks/{route['connect_network']}/connect",
+                             f"/networks/{route['disconnect_network']}/disconnect"):
+                    self.network_paths.setdefault(path, set()).add(target)
 
     def forward(self, method, path, *, action_id=None, body=None):
         if not self.released:
@@ -59,15 +60,20 @@ class SocketProxyPolicy:
                     or not re.fullmatch(r"[0-9a-f]{64}", value["Container"])
                     or json.dumps(value, separators=(",", ":")).encode() != body):
                 raise ProxyRefused("network action body differs")
-            target_name = self.network_paths[path].split(":", 1)[1]
-            code, raw = self.docker_call("GET", f"/containers/{target_name}/json", None)
-            if code != 200:
-                raise ProxyRefused("target identity unavailable")
-            try:
-                current_id = json.loads(raw)["Id"]
-            except (ValueError, KeyError, TypeError) as exc:
-                raise ProxyRefused("target identity unavailable") from exc
-            if current_id != value["Container"]:
+            matches_target = False
+            for target in self.network_paths[path]:
+                target_name = target.split(":", 1)[1]
+                code, raw = self.docker_call("GET", f"/containers/{target_name}/json", None)
+                if code != 200:
+                    raise ProxyRefused("target identity unavailable")
+                try:
+                    current_id = json.loads(raw)["Id"]
+                except (ValueError, KeyError, TypeError) as exc:
+                    raise ProxyRefused("target identity unavailable") from exc
+                if current_id == value["Container"]:
+                    matches_target = True
+                    break
+            if not matches_target:
                 raise ProxyRefused("network body container identity differs")
             code, _ = self.docker_call(method, path, action_id, body)
             return code, b""

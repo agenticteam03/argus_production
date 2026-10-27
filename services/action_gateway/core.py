@@ -37,13 +37,14 @@ def validated_pairs(host, released):
         if capability == "network.restore":
             if not isinstance(route, Mapping) or set(route) != {"route", "connect_network", "disconnect_network"}:
                 raise GatewayRefused("network.restore needs its exact route and network pair")
-            if route["route"] != f"POST /containers/{name}/network.restore":
+            if route["route"] != f"POST /containers/{name}/network-restore":
                 raise GatewayRefused("network.restore route differs")
             for key in ("connect_network", "disconnect_network"):
                 network = route[key]
-                if (not isinstance(network, str) or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]*", network)
-                        or network.lower() in {"bridge", "host", "none"}):
-                    raise GatewayRefused("network.restore names must be exact non-default networks")
+                if not isinstance(network, str) or not re.fullmatch(r"argus-lab-[A-Za-z0-9_.-]+", network):
+                    raise GatewayRefused("network.restore names must be lab networks")
+            if route["connect_network"] == route["disconnect_network"]:
+                raise GatewayRefused("network.restore networks must differ")
             pairs[(capability, target)] = MappingProxyType(dict(route))
             continue
         verb = capability.removeprefix("container.")
