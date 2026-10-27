@@ -48,7 +48,7 @@ def h(hid, target, rank, status="supported", chosen=False, cause_class="dependen
 # --- the labels --------------------------------------------------------------------------------------------------------
 def test_the_labeled_cases_name_the_cause_and_the_victim(ev):
     labeled = [c for c in ev.load_cases(CASES) if c.label.expected_hypotheses]
-    assert len(labeled) == 18
+    assert len(labeled) == 19
     for c in labeled:
         assert (c.label.root_cause in c.label.expected_hypotheses.supported
                 and set(c.label.expected_hypotheses.supported) <= {c.label.root_cause, "memory_exhaustion"}
