@@ -37,6 +37,8 @@ class RedisList:
                 return value.decode()
             if prefix == b"*":
                 count = int(line)
+                if count < 0:
+                    return None
                 values = []
                 for _ in range(count):
                     stream.read(1)  # bulk-string marker
@@ -70,12 +72,16 @@ class WorkerState:
         return self.frozen or os.path.exists(self.freeze_file)
 
 
-def worker_loop(redis, state, stop_event, freeze_wait=0.1):
+def worker_loop(redis, state, stop_event, freeze_wait=0.1, error_wait=0.5):
     while not stop_event.is_set():
         if state.is_frozen():
             stop_event.wait(freeze_wait)
             continue
-        item = redis.blpop(QUEUE_KEY, timeout=1)
+        try:
+            item = redis.blpop(QUEUE_KEY, timeout=1)
+        except (OSError, RuntimeError):
+            stop_event.wait(error_wait)
+            continue
         if item is None:
             continue
         if state.is_frozen():
@@ -96,6 +102,9 @@ def make_handler(redis, state):
                 self.wfile.write(b"ok\n")
                 return
             if self.path in ("/fault/freeze", "/fault/unfreeze"):
+                if os.environ.get("FAULT_ENABLE") != "1":
+                    self.send_error(404)
+                    return
                 state.frozen = self.path == "/fault/freeze"
                 if not state.frozen:
                     try:
@@ -110,10 +119,14 @@ def make_handler(redis, state):
                 with state.lock:
                     processed = state.processed
                     last = state.last_processed
+                try:
+                    queue_depth = redis.llen(QUEUE_KEY)
+                except (OSError, RuntimeError):
+                    queue_depth = "NaN"
                 body = ("# TYPE argus_lab_jobs_processed_total counter\n"
                         f"argus_lab_jobs_processed_total {processed}\n"
                         "# TYPE argus_lab_queue_depth gauge\n"
-                        f"argus_lab_queue_depth {redis.llen(QUEUE_KEY)}\n"
+                        f"argus_lab_queue_depth {queue_depth}\n"
                         "# TYPE argus_lab_last_processed_timestamp_seconds gauge\n"
                         f"argus_lab_last_processed_timestamp_seconds {last}\n")
                 self.send_response(200)

@@ -16,6 +16,7 @@ services:
     image: python:3.12-alpine
     container_name: argus-lab-api
     profiles: [base-166]
+    environment: {FAULT_ENABLE: "${FAULT_ENABLE:-0}"}
     command: ["python", "-u", "/w/api.py"]
     volumes: ["./workloads:/w:ro"]
     networks: [argus-lab-app]
@@ -190,6 +191,7 @@ services:
     image: python:3.12-alpine
     container_name: argus-lab-jobworker
     profiles: [sc10]
+    environment: {FAULT_ENABLE: "${FAULT_ENABLE:-0}"}
     command: ["python", "-u", "/w/jobworker.py"]
     volumes: ["./workloads:/w:ro"]
     networks: [argus-lab-app]

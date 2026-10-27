@@ -2,7 +2,7 @@
 
 import os
 import socket
-import time
+import threading
 import uuid
 
 
@@ -16,11 +16,19 @@ def rpush(host, key, value):
             raise RuntimeError("Redis RPUSH failed")
 
 
+def producer_loop(host, stop_event, *, retry_wait=0.5, interval=1):
+    while not stop_event.is_set():
+        try:
+            rpush(host, "lab:jobs", str(uuid.uuid4()))
+        except (OSError, RuntimeError):
+            stop_event.wait(retry_wait)
+            continue
+        stop_event.wait(interval)
+
+
 def main():
     host = os.environ.get("CACHE_HOST", "argus-lab-cache")
-    while True:
-        rpush(host, "lab:jobs", str(uuid.uuid4()))
-        time.sleep(1)
+    producer_loop(host, threading.Event())
 
 
 if __name__ == "__main__":
