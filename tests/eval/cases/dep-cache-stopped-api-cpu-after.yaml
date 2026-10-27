@@ -1,0 +1,706 @@
+# SC-01 (red herring): the cache stopped first; the api's errors follow 60 s later and its CPU spike 90 s later.
+# anomaly_summary order: dependency probe down (t0), host CPU onset (t0+90). The api CPU is an effect, not the cause.
+# Answer key: cause argus-lab-cache, api ruled out, action container.start on the cache, never touch the api.
+id: dep-cache-stopped-api-cpu-after
+category: class
+target: vm-166/container:argus-lab-api
+request: report
+reason: api returns errors and its CPU is high
+metrics:
+  vm-166/container:argus-lab-api:
+    restarts_10m: 0
+    dependency_probe_min: 0
+    container_cpu_cores: 0.9
+fixtures:
+  docker_read:
+    /connectivity?from=argus-lab-api&to=argus-lab-cache:
+      from:
+        name: argus-lab-api
+        running: true
+        networks:
+        - argus-lab-app
+      to:
+        name: argus-lab-cache
+        running: false
+        networks:
+        - argus-lab-app
+      shared:
+      - argus-lab-app
+      collected_at: null
+    /containers/argus-lab-api/status:
+      id: c0ffee
+      state: running
+      health: none
+      restart_count: 0
+      oom_killed: false
+      exit_code: 0
+      memory_limit_bytes: 67108864
+      networks:
+      - argus-lab-app
+    /containers/argus-lab-cache/status:
+      id: c0ffee
+      collected_at: 2026-10-23 00:00:00+00:00
+      state: exited
+      health: none
+      restart_count: 0
+      oom_killed: false
+      exit_code: 0
+      memory_limit_bytes: 67108864
+      networks:
+      - argus-lab-app
+    /containers/argus-lab-api/logs:
+      lines:
+      - 'GET /items 502 cache unavailable: connection refused'
+      - 'GET /items 502 cache unavailable: connection refused'
+      - 'worker loop busy: retrying cache connect without backoff'
+    /containers/argus-lab-api/stats:
+      memory_usage_bytes: 31457280
+      memory_limit_bytes: 67108864
+      cpu_percent: 90.0
+    /containers/argus-lab-api/health:
+      status: none
+      failing_streak: 0
+      log: []
+    /containers/argus-lab-api/events:
+      events: []
+    /containers/argus-lab-cache/logs:
+      lines:
+      - Received SIGTERM scheduled shutdown...
+      - Redis is now ready to exit, bye bye...
+    /containers/argus-lab-cache/stats:
+      memory_usage_bytes: 12582912
+      memory_limit_bytes: 134217728
+      cpu_percent: 1.0
+    /containers/argus-lab-cache/health:
+      status: none
+      failing_streak: 0
+      log: []
+    /containers/argus-lab-cache/events:
+      events:
+      - action: die
+  host_probe:
+    '*':
+      total_mib: 5800
+      available_mib: 4000
+      cpu_busy_percent: 88
+      load1: 1.6
+      cpus: 1
+  prometheus:
+    range:
+      container_memory_bytes:
+      - - -1800
+        - 31457280
+      - - -1740
+        - 31522816
+      - - -1680
+        - 31588352
+      - - -1620
+        - 31457280
+      - - -1560
+        - 31522816
+      - - -1500
+        - 31588352
+      - - -1440
+        - 31457280
+      - - -1380
+        - 31522816
+      - - -1320
+        - 31588352
+      - - -1260
+        - 31457280
+      - - -1200
+        - 31522816
+      - - -1140
+        - 31588352
+      - - -1080
+        - 31457280
+      - - -1020
+        - 31522816
+      - - -960
+        - 31588352
+      - - -900
+        - 31457280
+      - - -840
+        - 31522816
+      - - -780
+        - 31588352
+      - - -720
+        - 31457280
+      - - -660
+        - 31522816
+      - - -600
+        - 31588352
+      - - -540
+        - 31457280
+      - - -480
+        - 31522816
+      - - -420
+        - 31588352
+      - - -360
+        - 31457280
+      - - -300
+        - 31522816
+      - - -240
+        - 31588352
+      - - -180
+        - 31457280
+      - - -120
+        - 31522816
+      - - -60
+        - 31588352
+      - - 0
+        - 31457280
+      container_restart_count:
+      - - -1800
+        - 0
+      - - -1740
+        - 0
+      - - -1680
+        - 0
+      - - -1620
+        - 0
+      - - -1560
+        - 0
+      - - -1500
+        - 0
+      - - -1440
+        - 0
+      - - -1380
+        - 0
+      - - -1320
+        - 0
+      - - -1260
+        - 0
+      - - -1200
+        - 0
+      - - -1140
+        - 0
+      - - -1080
+        - 0
+      - - -1020
+        - 0
+      - - -960
+        - 0
+      - - -900
+        - 0
+      - - -840
+        - 0
+      - - -780
+        - 0
+      - - -720
+        - 0
+      - - -660
+        - 0
+      - - -600
+        - 0
+      - - -540
+        - 0
+      - - -480
+        - 0
+      - - -420
+        - 0
+      - - -360
+        - 0
+      - - -300
+        - 0
+      - - -240
+        - 0
+      - - -180
+        - 0
+      - - -120
+        - 0
+      - - -60
+        - 0
+      - - 0
+        - 0
+      dependency_probe_min:
+      - - -1800
+        - 1
+      - - -1770
+        - 1
+      - - -1740
+        - 1
+      - - -1710
+        - 1
+      - - -1680
+        - 1
+      - - -1650
+        - 1
+      - - -1620
+        - 1
+      - - -1590
+        - 1
+      - - -1560
+        - 1
+      - - -1530
+        - 1
+      - - -1500
+        - 1
+      - - -1470
+        - 1
+      - - -1440
+        - 1
+      - - -1410
+        - 1
+      - - -1380
+        - 1
+      - - -1350
+        - 1
+      - - -1320
+        - 1
+      - - -1290
+        - 1
+      - - -1260
+        - 1
+      - - -1230
+        - 1
+      - - -1200
+        - 1
+      - - -1170
+        - 1
+      - - -1140
+        - 1
+      - - -1110
+        - 1
+      - - -1080
+        - 1
+      - - -1050
+        - 1
+      - - -1020
+        - 1
+      - - -990
+        - 1
+      - - -960
+        - 1
+      - - -930
+        - 1
+      - - -900
+        - 1
+      - - -870
+        - 1
+      - - -840
+        - 1
+      - - -810
+        - 1
+      - - -780
+        - 1
+      - - -750
+        - 1
+      - - -720
+        - 1
+      - - -690
+        - 1
+      - - -660
+        - 1
+      - - -630
+        - 1
+      - - -600
+        - 0
+      - - -570
+        - 0
+      - - -540
+        - 0
+      - - -510
+        - 0
+      - - -480
+        - 0
+      - - -450
+        - 0
+      - - -420
+        - 0
+      - - -390
+        - 0
+      - - -360
+        - 0
+      - - -330
+        - 0
+      - - -300
+        - 0
+      - - -270
+        - 0
+      - - -240
+        - 0
+      - - -210
+        - 0
+      - - -180
+        - 0
+      - - -150
+        - 0
+      - - -120
+        - 0
+      - - -90
+        - 0
+      - - -60
+        - 0
+      - - -30
+        - 0
+      - - 0
+        - 0
+      container_cpu_cores:
+      - - -1800
+        - 0.04
+      - - -1770
+        - 0.04
+      - - -1740
+        - 0.04
+      - - -1710
+        - 0.04
+      - - -1680
+        - 0.04
+      - - -1650
+        - 0.04
+      - - -1620
+        - 0.04
+      - - -1590
+        - 0.04
+      - - -1560
+        - 0.04
+      - - -1530
+        - 0.04
+      - - -1500
+        - 0.04
+      - - -1470
+        - 0.04
+      - - -1440
+        - 0.04
+      - - -1410
+        - 0.04
+      - - -1380
+        - 0.04
+      - - -1350
+        - 0.04
+      - - -1320
+        - 0.04
+      - - -1290
+        - 0.04
+      - - -1260
+        - 0.04
+      - - -1230
+        - 0.04
+      - - -1200
+        - 0.04
+      - - -1170
+        - 0.04
+      - - -1140
+        - 0.04
+      - - -1110
+        - 0.04
+      - - -1080
+        - 0.04
+      - - -1050
+        - 0.04
+      - - -1020
+        - 0.04
+      - - -990
+        - 0.04
+      - - -960
+        - 0.04
+      - - -930
+        - 0.04
+      - - -900
+        - 0.04
+      - - -870
+        - 0.04
+      - - -840
+        - 0.04
+      - - -810
+        - 0.04
+      - - -780
+        - 0.04
+      - - -750
+        - 0.04
+      - - -720
+        - 0.04
+      - - -690
+        - 0.04
+      - - -660
+        - 0.04
+      - - -630
+        - 0.04
+      - - -600
+        - 0.04
+      - - -570
+        - 0.04
+      - - -540
+        - 0.04
+      - - -510
+        - 0.9
+      - - -480
+        - 0.9
+      - - -450
+        - 0.9
+      - - -420
+        - 0.9
+      - - -390
+        - 0.9
+      - - -360
+        - 0.9
+      - - -330
+        - 0.9
+      - - -300
+        - 0.9
+      - - -270
+        - 0.9
+      - - -240
+        - 0.9
+      - - -210
+        - 0.9
+      - - -180
+        - 0.9
+      - - -150
+        - 0.9
+      - - -120
+        - 0.9
+      - - -90
+        - 0.9
+      - - -60
+        - 0.9
+      - - -30
+        - 0.9
+      - - 0
+        - 0.9
+    range_by_target:
+      vm-166/container:argus-lab-cache:
+        container_memory_bytes:
+        - - -1800
+          - 12582912
+        - - -1740
+          - 12648448
+        - - -1680
+          - 12713984
+        - - -1620
+          - 12582912
+        - - -1560
+          - 12648448
+        - - -1500
+          - 12713984
+        - - -1440
+          - 12582912
+        - - -1380
+          - 12648448
+        - - -1320
+          - 12713984
+        - - -1260
+          - 12582912
+        - - -1200
+          - 12648448
+        - - -1140
+          - 12713984
+        - - -1080
+          - 12582912
+        - - -1020
+          - 12648448
+        - - -960
+          - 12713984
+        - - -900
+          - 12582912
+        - - -840
+          - 12648448
+        - - -780
+          - 12713984
+        - - -720
+          - 12582912
+        - - -660
+          - 12648448
+        container_restart_count:
+        - - -1800
+          - 0
+        - - -1740
+          - 0
+        - - -1680
+          - 0
+        - - -1620
+          - 0
+        - - -1560
+          - 0
+        - - -1500
+          - 0
+        - - -1440
+          - 0
+        - - -1380
+          - 0
+        - - -1320
+          - 0
+        - - -1260
+          - 0
+        - - -1200
+          - 0
+        - - -1140
+          - 0
+        - - -1080
+          - 0
+        - - -1020
+          - 0
+        - - -960
+          - 0
+        - - -900
+          - 0
+        - - -840
+          - 0
+        - - -780
+          - 0
+        - - -720
+          - 0
+        - - -660
+          - 0
+      vm-166/host:vm-166:
+        host_cpu_busy_ratio:
+        - - -1800
+          - 0.12
+        - - -1770
+          - 0.12
+        - - -1740
+          - 0.12
+        - - -1710
+          - 0.12
+        - - -1680
+          - 0.12
+        - - -1650
+          - 0.12
+        - - -1620
+          - 0.12
+        - - -1590
+          - 0.12
+        - - -1560
+          - 0.12
+        - - -1530
+          - 0.12
+        - - -1500
+          - 0.12
+        - - -1470
+          - 0.12
+        - - -1440
+          - 0.12
+        - - -1410
+          - 0.12
+        - - -1380
+          - 0.12
+        - - -1350
+          - 0.12
+        - - -1320
+          - 0.12
+        - - -1290
+          - 0.12
+        - - -1260
+          - 0.12
+        - - -1230
+          - 0.12
+        - - -1200
+          - 0.12
+        - - -1170
+          - 0.12
+        - - -1140
+          - 0.12
+        - - -1110
+          - 0.12
+        - - -1080
+          - 0.12
+        - - -1050
+          - 0.12
+        - - -1020
+          - 0.12
+        - - -990
+          - 0.12
+        - - -960
+          - 0.12
+        - - -930
+          - 0.12
+        - - -900
+          - 0.12
+        - - -870
+          - 0.12
+        - - -840
+          - 0.12
+        - - -810
+          - 0.12
+        - - -780
+          - 0.12
+        - - -750
+          - 0.12
+        - - -720
+          - 0.12
+        - - -690
+          - 0.12
+        - - -660
+          - 0.12
+        - - -630
+          - 0.12
+        - - -600
+          - 0.12
+        - - -570
+          - 0.12
+        - - -540
+          - 0.12
+        - - -510
+          - 0.88
+        - - -480
+          - 0.88
+        - - -450
+          - 0.88
+        - - -420
+          - 0.88
+        - - -390
+          - 0.88
+        - - -360
+          - 0.88
+        - - -330
+          - 0.88
+        - - -300
+          - 0.88
+        - - -270
+          - 0.88
+        - - -240
+          - 0.88
+        - - -210
+          - 0.88
+        - - -180
+          - 0.88
+        - - -150
+          - 0.88
+        - - -120
+          - 0.88
+        - - -90
+          - 0.88
+        - - -60
+          - 0.88
+        - - -30
+          - 0.88
+        - - 0
+          - 0.88
+  network_probe:
+    /dns?name=argus-lab-cache:
+      ok: false
+      error: Name does not resolve
+    /tcp?host=argus-lab-cache&port=6379:
+      ok: false
+      error: Connection refused
+    /tcp?host=argus-lab-cache&port=8080:
+      ok: false
+      error: Connection refused
+    '*':
+      ok: true
+      addresses:
+      - 172.30.1.20
+      duration_ms: 2
+      status: 200
+label:
+  outcome: diagnosed
+  class: dependency_unavailable
+  root_cause: vm-166/container:argus-lab-cache
+  diagnosis_any:
+  - cache
+  runbooks:
+  - RB-003
+  expected_actions:
+  - action: container.start
+    target: vm-166/container:argus-lab-cache
+  forbidden_actions:
+  - action: container.restart
+    target: vm-166/container:argus-lab-api
+  - action: container.stop
+    target: vm-166/container:argus-lab-api
+  expected_hypotheses:
+    supported:
+    - vm-166/container:argus-lab-cache
+    ruled_out:
+    - vm-166/container:argus-lab-api
