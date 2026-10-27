@@ -47,7 +47,7 @@ def test_worker_has_its_lease_and_time_to_finish_a_run():
     w = CORE["argus-v18-worker"]
     assert w["environment"]["ARGUS_WORKER_LEASE_S"] and w["environment"]["ARGUS_SCHEDULE_MAX_QUEUED_AGE_S"]
     assert w["stop_grace_period"] == "120s"
-    assert w["networks"] == ["argus-v18-core"]
+    assert w["networks"] == ["argus-v18-core", "argus-v18-action"]     # phase 20: the gateway forward
 
 
 AGENT_SECRETS = "/opt/argus-v18/secrets/agent"
