@@ -34,8 +34,10 @@ def test_the_candidate_is_the_single_reviewed_pair():
     assert _yaml("config/risk.yaml")["matrix"][PAIR[0]][service["kind"]] == "green"
 
 
-def test_the_candidate_stays_inert():
-    assert _yaml("config/policy.yaml")["write_gate"]["open"] == []
+def test_only_the_candidate_pair_is_released():
+    assert _yaml("config/policy.yaml")["write_gate"]["open"] == [
+        {"capability": "container.start", "target": TARGET}
+    ]
     for compose in ROOT.glob("deploy/**/compose*.yml"):
         assert CANDIDATE.name not in compose.read_text(encoding="utf-8"), compose
 

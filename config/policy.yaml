@@ -72,4 +72,6 @@ inspection:
   arbitrary_exec: false     # true refuses startup
 
 write_gate:
-  open: []          # write gate closed (v1.8 §13.3); a non-empty list refuses startup in this phase
+  open:
+    - capability: container.start
+      target: vm-166/container:argus-lab-cache
