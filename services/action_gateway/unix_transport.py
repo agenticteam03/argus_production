@@ -29,10 +29,10 @@ class UnixRequester:
     def __init__(self, socket_path):
         self.socket_path = socket_path
 
-    def __call__(self, method, path, headers=None):
+    def __call__(self, method, path, headers=None, body=None):
         conn = _UnixHTTP(self.socket_path)
         try:
-            conn.request(method, path, headers=headers or {})
+            conn.request(method, path, body=body, headers=headers or {})
             response = conn.getresponse()
             body = response.read(1_000_001)
             if len(body) > 1_000_000:
@@ -48,9 +48,11 @@ class DockerSocketClient:
     def __init__(self, socket_path):
         self.request = UnixRequester(socket_path)
 
-    def __call__(self, method, path, action_id):
+    def __call__(self, method, path, action_id, body=None):
         headers = {"X-Argus-Action-Id": action_id} if action_id else {}
-        return self.request(method, path, headers)
+        if body is None:
+            return self.request(method, path, headers)
+        return self.request(method, path, headers, body)
 
 
 class GatewayProxyTransport:
@@ -87,3 +89,29 @@ class GatewayProxyTransport:
         if 400 <= code < 500:
             return "failed"
         raise ConnectionError("ambiguous Docker proxy result")
+
+    def _network_step(self, target, network, verb, action_id, expected_identity):
+        match = re.fullmatch(r"[a-z0-9-]+/container:(argus-lab-[A-Za-z0-9_.-]+)", target)
+        if match is None or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]*", network):
+            raise ValueError("invalid network action target")
+        if self._container_identity(match[1]) != expected_identity:
+            raise NotSent("target identity changed before network action")
+        container_id = expected_identity.get("container_id")
+        if not isinstance(container_id, str) or not re.fullmatch(r"[0-9a-f]{64}", container_id):
+            raise ValueError("invalid frozen container identity")
+        path = f"/networks/{network}/{verb}"
+        body = json.dumps({"Container": container_id}, separators=(",", ":")).encode()
+        headers = {"X-Argus-Action-Id": action_id, "Content-Type": "application/json",
+                   "Content-Length": str(len(body))}
+        code, _ = self.request("POST", path, headers, body)
+        if 200 <= code < 300:
+            return "confirmed"
+        if 400 <= code < 500:
+            return "failed"
+        raise ConnectionError("ambiguous Docker network result")
+
+    def connect_network(self, target, network, action_id, expected_identity):
+        return self._network_step(target, network, "connect", action_id, expected_identity)
+
+    def disconnect_network(self, target, network, action_id, expected_identity):
+        return self._network_step(target, network, "disconnect", action_id, expected_identity)

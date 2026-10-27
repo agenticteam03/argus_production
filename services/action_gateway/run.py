@@ -29,14 +29,19 @@ def load_config(path):
         raise ValueError("invalid host or releases")
     pairs = {}
     for item in releases:
-        if not isinstance(item, dict) or set(item) != {"capability", "target", "route"}:
+        base_fields = {"capability", "target", "route"}
+        network_fields = base_fields | {"connect_network", "disconnect_network"}
+        if (not isinstance(item, dict) or set(item) not in (base_fields, network_fields)
+                or (item.get("capability") == "network.restore") != (set(item) == network_fields)):
             raise ValueError("release fields differ")
         if not all(isinstance(value, str) for value in item.values()):
             raise ValueError("release fields must be strings")
         key = (item["capability"], item["target"])
         if key in pairs:
             raise ValueError("duplicate released pair")
-        pairs[key] = item["route"]
+        pairs[key] = ({"route": item["route"], "connect_network": item["connect_network"],
+                       "disconnect_network": item["disconnect_network"]}
+                      if item["capability"] == "network.restore" else item["route"])
     return host, dict(validated_pairs(host, pairs))
 
 

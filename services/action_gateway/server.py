@@ -8,8 +8,30 @@ from http.server import BaseHTTPRequestHandler
 from services.action_gateway.core import GatewayRefused
 
 
-CONTAINER_PATH = re.compile(r"^/containers/[A-Za-z0-9_.-]+/(start|stop|restart|pause|unpause)$")
+CONTAINER_PATH = re.compile(r"^/containers/[A-Za-z0-9_.-]+/(start|stop|restart|pause|unpause|network\.restore)$")
 ACTION_PATH = re.compile(r"^/actions/(act_[0-9a-f]{32})$")
+
+
+def _parse_post_body(path, raw):
+    match = CONTAINER_PATH.fullmatch(path)
+    if match is None:
+        raise ValueError("invalid action path")
+    try:
+        body = json.loads(raw)
+    except (ValueError, TypeError, json.JSONDecodeError) as exc:
+        raise ValueError("invalid action body") from exc
+    network_restore = match[1] == "network.restore"
+    required = {"capability", "target", "target_identity"}
+    if network_restore:
+        required |= {"connect_network", "disconnect_network"}
+    if (not isinstance(body, dict) or set(body) != required
+            or not isinstance(body["capability"], str) or not isinstance(body["target"], str)
+            or not isinstance(body["target_identity"], dict)):
+        raise ValueError("invalid action body")
+    if network_restore and (not isinstance(body["connect_network"], str)
+                            or not isinstance(body["disconnect_network"], str)):
+        raise ValueError("invalid network names")
+    return body
 
 
 def make_handler(gateway):
@@ -58,17 +80,15 @@ def make_handler(gateway):
                 size = int(self.headers.get("Content-Length", ""))
                 if not 1 <= size <= 4096:
                     raise ValueError
-                body = json.loads(self.rfile.read(size))
-                if (not isinstance(body, dict) or set(body) != {"capability", "target", "target_identity"}
-                        or not isinstance(body["capability"], str) or not isinstance(body["target"], str)
-                        or not isinstance(body["target_identity"], dict)):
-                    raise ValueError
+                body = _parse_post_body(self.path, self.rfile.read(size))
             except (ValueError, TypeError, json.JSONDecodeError):
                 self._json(400, {"detail": "invalid action body"})
                 return
             try:
                 result = gateway.dispatch(token, action_id, body["capability"], body["target"],
-                                          "POST " + self.path, body["target_identity"])
+                                          "POST " + self.path, body["target_identity"],
+                                          connect_network=body.get("connect_network"),
+                                          disconnect_network=body.get("disconnect_network"))
             except GatewayRefused as exc:
                 code = 409 if str(exc) == "action id already accepted" else 403
                 self._json(code, {"detail": "refused"})
