@@ -112,6 +112,25 @@ export const mockArgusAdapter = {
     throw httpError(404, "Approval not found in this demo.");
   },
 
+  // ACR-0034, demo: one installed source and one staged; the preview never installs anything.
+  async listCorpusSources() {
+    record("/api/v1/ops/corpus/sources");
+    return [
+      { name: "nginx", ref: "159f0a3", licence: "BSD-2-Clause", status: "installed", passages: 845, quarantined: 0,
+        staged_at: "2026-10-27T06:10:00Z", installed_at: "2026-10-27T06:20:00Z", sha256: "a".repeat(64) },
+      { name: "redis", ref: "7.2.5", licence: "BSD-3-Clause", status: "staged", passages: 1204, quarantined: 2,
+        staged_at: "2026-10-27T07:00:00Z", installed_at: null, sha256: "b".repeat(64) },
+    ];
+  },
+
+  async approveCorpusSource() {
+    throw httpError(403, "The local preview cannot install a reference source.");
+  },
+
+  async rejectCorpusSource() {
+    throw httpError(403, "The local preview cannot reject a reference source.");
+  },
+
   async answerApproval() {
     throw httpError(403, "The local preview cannot answer an approval.");
   },

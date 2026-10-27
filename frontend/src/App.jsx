@@ -8,6 +8,7 @@ import Dashboard from "./pages/Dashboard.jsx";
 import IncidentDetail from "./pages/IncidentDetail.jsx";
 import Incidents from "./pages/Incidents.jsx";
 import Login from "./pages/Login.jsx";
+import ReferenceSources from "./pages/ReferenceSources.jsx";
 import Runbooks from "./pages/Runbooks.jsx";
 import Security from "./pages/Security.jsx";
 import { canSee, flat, subRoutes } from "./routes.js";
@@ -20,6 +21,7 @@ const Placeholder = ({ title }) => (
 );
 
 const pages = { "/agent": Agent, "/actions": Actions, "/incidents": Incidents, "/incidents/:id": IncidentDetail, "/tools/runbooks": Runbooks,
+  "/tools/reference-sources": ReferenceSources,
   "/account/security": Security };
 
 // Keyed on the path so an error on one page does not stick when the user navigates elsewhere.
