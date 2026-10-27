@@ -5,7 +5,10 @@ gets the database credential and nothing else (no executor tokens, no model key)
 """
 from __future__ import annotations
 
+import json
+import os
 from pathlib import Path
+import subprocess
 
 import yaml
 
@@ -48,6 +51,23 @@ def test_worker_has_its_lease_and_time_to_finish_a_run():
     assert w["environment"]["ARGUS_WORKER_LEASE_S"] and w["environment"]["ARGUS_SCHEDULE_MAX_QUEUED_AGE_S"]
     assert w["stop_grace_period"] == "120s"
     assert w["networks"] == ["argus-v18-core", "argus-v18-action"]     # phase 20: the gateway forward
+
+
+def test_monitoring_network_is_host_specific():
+    base_file = ROOT / "deploy/monitoring/compose.monitoring.yml"
+    override_file = ROOT / "deploy/monitoring/compose.loopback.yml"
+    service = "argus-v18-prometheus"
+
+    def render(host, *files):
+        env = {**os.environ, "ARGUS_HOST": host}
+        result = subprocess.run(["docker", "compose", *(arg for file in files for arg in ("-f", str(file))),
+                                 "config", "--format", "json"], check=True, capture_output=True, text=True, env=env)
+        return json.loads(result.stdout)
+
+    vm095 = render("vm-095", base_file)
+    vm166 = render("vm-166", base_file, override_file)
+    assert set(vm095["services"][service]["networks"]) == {"argus-v18-mon"}
+    assert set(vm166["services"][service]["networks"]) == {"argus-v18-mon", "argus-lab-app"}
 
 
 AGENT_SECRETS = "/opt/argus-v18/secrets/agent"

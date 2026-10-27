@@ -57,7 +57,7 @@ targets:
       never: [container.stop]
   - ref: vm-166/container:argus-lab-jobworker      # SC-10 (RB-022): Redis queue consumer
     profile: scenario
-    depends_on: [vm-166/container:argus-lab-cache, vm-166/container:argus-lab-db]
+    depends_on: [vm-166/container:argus-lab-cache]
     service:
       role: worker
       kind: stateless

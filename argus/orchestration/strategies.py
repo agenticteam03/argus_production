@@ -178,9 +178,6 @@ class BaselineStrategy:
         if cls == "worker_stalled":
             others = sorted((x for x in view.scope if x.kind == "container" and x != t), key=str)
             calls = [ReadCall(name="container.status", arguments={"target": str(x)}) for x in [t, *others]]
-            if any(spec.name == "database.health" for spec in view.offered_specs):
-                calls.extend(ReadCall(name="database.health", arguments={"target": str(x)})
-                             for x in others if x.name.endswith("-db"))
             return [*calls, *self._link_state_read(view)]
         if cls == "cpu_saturation":
             return [ReadCall(name="container.status", arguments={"target": ts}),

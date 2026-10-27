@@ -21,6 +21,10 @@ def test_worker_stalled_requires_no_processing_old_progress_and_backlog():
     assert not detect(0.2, 11, 240).matched
     assert not detect(0, 10, 240).matched
     assert not detect(0, 11, 179).matched
+    for values in ((float("nan"), 11, 240), (0, float("nan"), 240), (0, 11, float("nan"))):
+        result = detect(*values)
+        assert not result.matched
+        assert result.findings and "unknown, not healthy" in result.findings[0]
 
 
 def test_worker_stalled_incident_signal_list_validates_at_startup():
@@ -63,7 +67,7 @@ def test_worker_stalled_scrape_alert_and_inventory_contract():
 
     inventory = yaml.safe_load((ROOT / "config/inventory.yaml").read_text(encoding="utf-8"))
     worker = next(item for item in inventory["targets"] if item["ref"] == "vm-166/container:argus-lab-jobworker")
-    assert worker["depends_on"] == ["vm-166/container:argus-lab-cache", "vm-166/container:argus-lab-db"]
+    assert worker["depends_on"] == ["vm-166/container:argus-lab-cache"]
     assert worker["service"]["role"] == "worker" and worker["service"]["kind"] == "stateless"
     assert "container.restart" in worker["service"]["safe_actions"]
     assert "container.stop" in worker["service"]["never"]
@@ -71,7 +75,7 @@ def test_worker_stalled_scrape_alert_and_inventory_contract():
     assert ports["vm-166/container:argus-lab-cache"] == [6379]
     assert ports["vm-166/container:argus-lab-db"] == [5432]
     monitoring = yaml.safe_load((ROOT / "deploy/monitoring/compose.monitoring.yml").read_text(encoding="utf-8"))
-    assert set(monitoring["services"]["argus-v18-prometheus"]["networks"]) == {"argus-v18-mon", "argus-lab-app"}
+    assert set(monitoring["services"]["argus-v18-prometheus"]["networks"]) == {"argus-v18-mon"}
 
 
 def test_the_capability_catalogue_names_worker_stalled_as_an_incident_class():
