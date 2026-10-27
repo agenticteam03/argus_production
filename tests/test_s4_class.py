@@ -72,3 +72,14 @@ def test_worker_stalled_scrape_alert_and_inventory_contract():
     assert ports["vm-166/container:argus-lab-db"] == [5432]
     monitoring = yaml.safe_load((ROOT / "deploy/monitoring/compose.monitoring.yml").read_text(encoding="utf-8"))
     assert set(monitoring["services"]["argus-v18-prometheus"]["networks"]) == {"argus-v18-mon", "argus-lab-app"}
+
+
+def test_the_capability_catalogue_names_worker_stalled_as_an_incident_class():
+    """TASK-69: `AnomalyArgs.incident_class` must accept every registered class, `worker_stalled` included."""
+    from typing import get_args
+
+    from argus.capabilities.catalog import IncidentClassName
+    from argus.detectors.classes import CLASSES
+
+    assert "worker_stalled" in get_args(IncidentClassName)
+    assert set(get_args(IncidentClassName)) == {spec.name for spec in CLASSES}
