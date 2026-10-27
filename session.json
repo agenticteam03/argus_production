@@ -1,47 +1,35 @@
 {
   "holder": "conantkd",
-  "session_id": "3811578ccdcb",
-  "task": "DEPLOY-T-0055",
-  "branch": "main",
-  "base_commit": "2aacad263baff036b374b1bb5c87cb5e458ec454",
-  "started_at": "2026-10-27T05:55:36+00:00",
-  "expires_at": "2026-10-27T09:27:16+00:00",
-  "released": true,
-  "handoff": {
-    "note": "done: #347 and #349 merged without GitHub approval (redemption PR #350 for juanbetancurm); backup argus-20261027T073123Z.dump taken and bundle at /tmp/argus-corpus-base.tgz on vm-095; next: deploy d244aa1 on vm-095 (migration 017 before the images; the new image needs it), then index the corpus; environment: vm-095 still on 798b69a, nothing mutated",
-    "branch": "main",
-    "at": "2026-10-27T07:43:55+00:00"
-  },
+  "session_id": "a0224adadcb2",
+  "task": "DEPLOY-7f137da",
+  "branch": "task/T-0053-x3-action-services",
+  "base_commit": "c3d3aea77c529984ffd1053ec90ad17879bff4d5",
+  "started_at": "2026-10-27T16:56:34+00:00",
+  "expires_at": "2026-10-27T17:56:34+00:00",
+  "released": false,
+  "handoff": null,
   "vms": {
     "vm-095": {
       "holder": "conantkd",
-      "session_id": "3811578ccdcb",
-      "task": "DEPLOY-T-0055",
-      "branch": "main",
-      "base_commit": "2aacad263baff036b374b1bb5c87cb5e458ec454",
-      "started_at": "2026-10-27T05:55:36+00:00",
-      "expires_at": "2026-10-27T09:27:16+00:00",
-      "released": true,
-      "handoff": {
-        "note": "done: #347 and #349 merged without GitHub approval (redemption PR #350 for juanbetancurm); backup argus-20261027T073123Z.dump taken and bundle at /tmp/argus-corpus-base.tgz on vm-095; next: deploy d244aa1 on vm-095 (migration 017 before the images; the new image needs it), then index the corpus; environment: vm-095 still on 798b69a, nothing mutated",
-        "branch": "main",
-        "at": "2026-10-27T07:43:55+00:00"
-      }
+      "session_id": "a0224adadcb2",
+      "task": "DEPLOY-7f137da",
+      "branch": "task/T-0053-x3-action-services",
+      "base_commit": "c3d3aea77c529984ffd1053ec90ad17879bff4d5",
+      "started_at": "2026-10-27T16:56:34+00:00",
+      "expires_at": "2026-10-27T17:56:34+00:00",
+      "released": false,
+      "handoff": null
     },
     "vm-166": {
       "holder": "conantkd",
-      "session_id": "3811578ccdcb",
-      "task": "DEPLOY-T-0055",
-      "branch": "main",
-      "base_commit": "2aacad263baff036b374b1bb5c87cb5e458ec454",
-      "started_at": "2026-10-27T05:55:36+00:00",
-      "expires_at": "2026-10-27T09:27:16+00:00",
-      "released": true,
-      "handoff": {
-        "note": "done: #347 and #349 merged without GitHub approval (redemption PR #350 for juanbetancurm); backup argus-20261027T073123Z.dump taken and bundle at /tmp/argus-corpus-base.tgz on vm-095; next: deploy d244aa1 on vm-095 (migration 017 before the images; the new image needs it), then index the corpus; environment: vm-095 still on 798b69a, nothing mutated",
-        "branch": "main",
-        "at": "2026-10-27T07:43:55+00:00"
-      }
+      "session_id": "a0224adadcb2",
+      "task": "DEPLOY-7f137da",
+      "branch": "task/T-0053-x3-action-services",
+      "base_commit": "c3d3aea77c529984ffd1053ec90ad17879bff4d5",
+      "started_at": "2026-10-27T16:56:34+00:00",
+      "expires_at": "2026-10-27T17:56:34+00:00",
+      "released": false,
+      "handoff": null
     }
   }
 }
