@@ -26,8 +26,9 @@ What the code has today (`argus/actions/catalog.py`, `config/actions/`, `service
 - the catalogue also lists `container.network_connect` and `container.network_disconnect` (named in ACR-0019 §3.3),
   but they have no action card, no row in `ACTION_ROUTES`, no risk row and no gateway route. They cannot execute, and
   two separate actions would put two approvals, two ledger rows and a half-repaired state in the way of one repair;
-- the socket proxy forwards a POST only with an empty body (`Content-Length` other than `0` is answered 400), so
-  Docker's network routes, which need a JSON body naming the container, cannot pass.
+- the socket proxy forwards a POST only with an empty body (`Content-Length` other than `0` is answered 400), and
+  the gateway's worker-facing body carries no network names, so Docker's network calls, which need a JSON body naming
+  the container, cannot pass.
 
 So a wrong-network fault ends in "escalate to a human", who repairs it by hand with no link to the incident.
 
@@ -40,9 +41,10 @@ So a wrong-network fault ends in "escalate to a human", who repairs it by hand w
 - §4.5 and §13.3 say the gateway accepts exact `(route, target)` pairs, and the proxy has "path ACLs". A network
   route's path (`/networks/{id}/connect`) carries the network, not the container, and the container is in the body.
   The exact-route rule is therefore not enough: the body is the part that says what is touched. The architecture
-  has no rule for validating a body.
-- §14.8's contract (identity, dispatch, reconcile) has one dispatch per action. This action makes two Docker calls
-  and needs a reconcile that can tell "connected, not yet disconnected" from "nothing done".
+  has no rule for validating a body, nor for a release entry that names parameters.
+- §14.8's contract (identity, dispatch, reconcile) has one dispatch per action. This action ends in two Docker calls
+  and must stay inside that contract: the worker makes **one** call, and the two steps belong to the gateway, which
+  can order them, journal them and refuse to repeat one.
 
 ## 3. Smallest reasonable change
 
@@ -64,22 +66,26 @@ ONE action, `network.restore` (model name `restore_network`, intent `network`), 
 - Scope: lab containers `argus-lab-*` on `vm-166` only, the same target pattern as the other released actions. No
   action on `vm-095` (ACR-0019 §5, answer 4), none on Argus's own services, Prometheus, the gateways or the probes.
 
-### 3.2 Order, ledger and reconciliation (§14.4, §14.8)
+### 3.2 One worker call; the gateway does connect, then disconnect (§14.4, §14.8)
 
-One proposal, one approval, **two Docker calls**, always in this order: connect, then disconnect.
+One proposal, one approval, **one worker call**, like every other action. The worker's ledger keeps its existing
+states (`attempting`, then `confirmed`, `failed` or `indeterminate`): no new state and no migration.
 
-- The ledger gets two new intermediate states for this capability: `connected` (the connect call is confirmed, the
-  disconnect is not) and then `disconnected`, which is the terminal success state (it maps to `confirmed` for the
-  verification and the record). Each transition is written, with its audit row, before the next call is made.
-- A crash or an ambiguous answer between the calls is **reconciled, not repeated**: `reconcile(action_id, target,
-  attempted_at)` reads the gateway journal first (below), then the live state of the target's networks through the
-  read executors. "Connected to `connect_network`, still on `disconnect_network`" resumes at the second call;
-  "on `connect_network`, not on `disconnect_network`" is `disconnected`; anything else is `indeterminate` and
-  escalates (§14.4, never an automatic retry). A refused or failed connect leaves the ledger `failed` and nothing is
-  disconnected: the container always keeps a path.
-- The gateway journal records each call under the same `action_id` with a step (`connect`, `disconnect`); the
-  existing append-only tables get one `step` column. A repeated `(action_id, step)` is answered 409, as a repeated
-  action id is today.
+- The worker sends the gateway one request for `network.restore`: the capability, the target, the frozen identity
+  and the action id (the same fields as the other actions), plus the two network names from the frozen proposal.
+  The route is keyed by the container, like the others (`/containers/{name}/network-restore`).
+- The gateway checks the capability, the target, the identity **and the two names** against its release entry, which
+  names the exact `connect_network` and `disconnect_network`. Then it makes the two Docker calls itself, **connect
+  first, then disconnect**, each with the exact body it builds (§3.5). A failed connect disconnects nothing: the
+  container always keeps a path.
+- The gateway journal records two insert-only events under the same action id, `connect` and `disconnect`; a repeated
+  `(action_id, step)` is refused (409), as a repeated action id is today. Nothing is sent twice.
+- The answer to the worker: `confirmed` only after both calls succeeded; `failed` if the connect failed (nothing else
+  was done) or the gateway refused before any call; and if the answer is lost after the connect, the action stays
+  `received` (ambiguous) and the worker's reconcile asks the gateway journal by action id.
+- **A half state is never repaired automatically.** "Connected, not disconnected" (the connect confirmed, the
+  disconnect failed or its answer lost) is reported as `indeterminate` and escalates to a human, never an automatic
+  retry (§14.4). The container is then on both networks, never on none.
 
 ### 3.3 Preconditions from live state (the action card, ACR-0019 §3.4)
 
@@ -110,23 +116,24 @@ target should be on does not exist (a human creates networks).
   approves; it is never run on its own. Reversible: yes, shown to the approver, with a note that connections made on
   the wrong network are cut either way.
 
-### 3.5 The gateway: two exact routes and an exact body (§4.5, §13.3)
+### 3.5 The gateway: a release entry with the two names, and an exact body (§4.5, §13.3)
 
-Today the proxy refuses any POST with a body. The change is the smallest that lets Docker's network calls through
-and no more:
+The worker-facing side does not change shape: the same bearer token, `X-Argus-Action-Id`, journal and identity check
+before the write, and an answer cut down to a status. What changes is inside the gateway and its proxy:
 
-- New exact routes, per target: `POST /networks/{id}/connect` and `POST /networks/{id}/disconnect`, where `{id}` is
-  the network's identity as the inventory-bound read returns it (not a name the caller chooses at call time), and
-  the released pair names the network. A released entry becomes `(capability, target, network)` with the two routes.
-- The only body accepted on these two routes is **exactly** `{"Container": "<container id>"}`: one key, a string
-  value, the id of the target from the frozen identity, no `EndpointConfig`, no aliases, no `IPAMConfig`, no `Force`
-  on disconnect. The gateway builds the body itself from the frozen proposal; the worker never sends Docker's JSON.
-  The proxy compares the body with the expected bytes for that `(action, step)` and answers 403 on any difference.
-  The body limit is small (256 bytes). Every other route keeps today's rule: no body.
-- `validated_pairs` accepts the capability `network.restore` only for `argus-lab-*` on the lab host, and refuses a
-  network named `bridge`, `host` or `none`, or one whose inspect shows it is not a user-defined lab network.
-- Nothing else changes: bearer token, `X-Argus-Action-Id`, the journal, the identity check before the write, the
-  answer cut down to a status code.
+- **The release entry** becomes `(capability, target, connect_network, disconnect_network)` for `network.restore`.
+  The gateway refuses a call whose two names are not exactly the entry's. The names come from the frozen proposal and
+  were checked against live state at the precheck; the release pins them again, so a release can never allow "any
+  network".
+- **The Docker calls** are `POST /networks/{id}/connect` and `POST /networks/{id}/disconnect`, with `{id}` the id of
+  the released network as inspected by the proxy, not a caller-chosen string. The gateway builds the body itself:
+  **exactly** `{"Container": "<container id>"}`, one key and the id of the target from the frozen identity, no
+  `EndpointConfig`, aliases, `IPAMConfig` or `Force`. The worker never sends Docker's JSON.
+- **The proxy** accepts a body only on those two routes and only that exact shape (compared with the bytes it expects
+  for that `(action, step)`, at most 256 bytes); any other body, or any body on any other route, is refused (403),
+  as today.
+- `validated_pairs` accepts `network.restore` only for `argus-lab-*` on the lab host, and refuses a network named
+  `bridge`, `host` or `none`, or one whose inspect shows it is not a user-defined lab network.
 
 ### 3.6 Risk colour (`config/risk.yaml`, ACR-0019 §3.7)
 
@@ -141,9 +148,10 @@ The colour can only go up (§3.7). A red proposal needs the approver to type the
 
 ### 3.7 Safety principles touched
 
-- **Write gate:** a new capability and two new routes. Both are released per `(capability, target)` by a reviewed
-  edit to `write_gate.open`; the standing test (`tests/test_write_gate_standing.py`) covers them unreleased.
-- **Least privilege:** the proxy accepts a body for the first time. It does so for two paths and one exact shape.
+- **Write gate:** a new capability. It is released per `(capability, target, connect_network, disconnect_network)` by
+  a reviewed edit to `write_gate.open`; the standing test (`tests/test_write_gate_standing.py`) covers it unreleased.
+- **Least privilege:** the proxy accepts a body for the first time. It does so for two paths and one exact shape,
+  built by the gateway.
 - Model-out-of-the-path (ACR-0019 §3.9) is unchanged: the dispatch reads frozen rows only; the networks to connect and
   disconnect are in the frozen proposal and are checked against live state at the precheck.
 
@@ -161,45 +169,52 @@ The colour can only go up (§3.7). A red proposal needs the approver to type the
   Rejected here.
 - D: **keep two actions (connect and disconnect).** Each is simple, but a repair needs two approvals in an order
   nothing enforces, and a crash or a denial between them leaves the half-repaired state with no owner. Rejected.
+- E: **two worker calls under one proposal, with new ledger states (`connected`, `disconnected`).** Closer to the
+  worker owning the order, but it needs a two-step reconcile in the worker's execution path, new states and a
+  migration. Rejected: the gateway can keep the same safety (connect first, no repeat, never left with no network)
+  with the worker's ledger unchanged.
 
 ## 4. Consequences
 
 - **Code (later PRs, none in this one):** `argus/actions/catalog.py` (replace the two entries, add the route);
-  `config/actions/network.restore.yaml`; `config/risk.yaml`; `argus/actions/gateway_client.py` (two calls, bodyless
-  from the worker's side); `services/action_gateway/` (`validated_pairs`, the journal's `step`, the proxy's exact body
-  check); the ledger's `connected` and `disconnected` states and their reconcile; the service cards' `safe_actions`
-  for the lab's SC-07 containers.
+  `config/actions/network.restore.yaml`; `config/risk.yaml`; `argus/actions/gateway_client.py` (the two names added to
+  the worker's one call); `services/action_gateway/` (the release entry with the two names, the gateway's two Docker
+  calls, the journal's `step`, the proxy's exact body check); the service cards' `safe_actions` for the released
+  container. **No ledger state, no migration, no change to `argus/actions/execution.py`.**
 - **Tests before any release:** red first. Both parameters validated against the inventory; never `bridge`, `host`
   or `none`; a network the target is already on, or declared for it, refused for disconnect; the same name in both
-  refused; connect before disconnect, always; a crash between the calls reconciles to `disconnected` without a second
-  connect; a failed connect disconnects nothing; the proxy refuses any body but the exact one on the two routes and
-  any body at all elsewhere; the journal refuses a repeated `(action_id, step)`; a database target is forbidden; the
-  verify reads the link, not the target; the rollback is the swapped proposal; the standing write-gate test with the
-  pair unreleased.
-- **Other architecture sections affected:** §4.5, §12.2, §13.3, §14.4, §14.8 (a two-step example), §15.1 and the
-  changelog; ACR-0019 §3.3's list (the two names become one).
+  refused; a call whose names differ from the release entry refused; connect before disconnect, always; a failed
+  connect disconnects nothing; a lost answer after the connect leaves `received` and the journal answers by id; a
+  connect without its disconnect is `indeterminate` and escalates, with no retry; the proxy refuses any body but the
+  exact one on the two routes and any body at all elsewhere; the journal refuses a repeated `(action_id, step)`; a
+  database target is forbidden; the verify reads the link, not the target; the rollback is the swapped proposal; the
+  standing write-gate test with the pair unreleased.
+- **Other architecture sections affected:** §4.5, §12.2, §13.3, §14.4, §14.8 (the example: one dispatch, two
+  gateway steps), §15.1 and the changelog; ACR-0019 §3.3's list (the two names become one).
 - **Risk:** a wrong network chosen for a container on a lab host. Limited by: both names coming from the inventory,
   the live-state preconditions, the one-network floor, the amber and red colours with the judge, the exact body, lab
-  scope and the verify on the link. A crash mid-way leaves the container on both networks (a state a human can see),
-  never on none.
-- **How to reverse it:** remove the `network.restore` pair from `write_gate.open` (the action is then refused at
-  once); the proxy's body exception is only for released network routes, so an empty release map restores today's
-  bodyless rule. Removing the catalogue entry and its card is a code change.
+  scope and the verify on the link. A crash or lost answer mid-way leaves the container on both networks (a state a human sees,
+  reported `indeterminate`), never on none.
+- **How to reverse it:** remove the `network.restore` entry from `write_gate.open` (the action is then refused at
+  once); the proxy's body exception exists only for a released network entry, so an empty release map restores
+  today's bodyless rule. Removing the catalogue entry and its card is a code change.
 - **Safety principles touched:** yes, the write gate and least privilege (§3.7). Second approval required.
 
 ## 5. Decision
 
-Proposed. Open questions for the reviewer:
-1. Is `connected` / `disconnected` the right pair of ledger names, or should the ledger keep its three terminal states
-   and record the step in a column instead? (The text above keeps the card's names.)
-2. Should the first release be `vm-166/container:argus-lab-backend` only (SC-07), as ACR-0019 started with one pair?
-   This ACR assumes yes and leaves the pair to the release PR.
+Proposed. Decisions taken by the manager on 2026-10-27, written here for the reviewer:
+1. **The ledger keeps its existing states.** `network.restore` is one worker call; the connect-then-disconnect order,
+   the journal and the half-state report belong to the gateway (section 3.2). No `connected` / `disconnected` state.
+2. **The first and only release for the demo** is `network.restore` on `vm-166/container:argus-lab-api`, with the
+   exact names `connect_network: argus-lab-app` and `disconnect_network: argus-lab-iso` (the names are set in the
+   release PR, with two reviewers). SC-07's backend can follow. A rollback is the swapped action, a new proposal a
+   human approves, and needs its own release entry with the names swapped.
 
 ## 6. Applied
 
 - [ ] `ARCHITECTURE.md` updated (§4.5, §12.2, §13.3, §14.4, §14.8, §15.1, changelog), version bumped
 - [ ] ACR-0019 §3.3's catalogue list updated to the single action
-- [ ] the action card, the risk rows, the gateway routes and the ledger states, with their tests
+- [ ] the action card, the risk rows, the gateway release entry, calls and journal steps, with their tests
 - [ ] journal entry
 - [ ] the ACR, the architecture change and the first code that needs it are in the same pull request
 - [ ] a release PR for the first `(network.restore, target)` pair, two reviewers (ACR-0019 §3.13)
