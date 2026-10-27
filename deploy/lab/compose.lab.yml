@@ -185,6 +185,29 @@ services:
     volumes: ["./workloads:/w:ro"]
     networks: [argus-lab-app]
     restart: unless-stopped
+  argus-lab-jobworker:                   # SC-10 (vm-166): healthy worker whose queue processing can freeze
+    <<: *lim
+    image: python:3.12-alpine
+    container_name: argus-lab-jobworker
+    profiles: [sc10]
+    command: ["python", "-u", "/w/jobworker.py"]
+    volumes: ["./workloads:/w:ro"]
+    networks: [argus-lab-app]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8080/health', timeout=2).status == 200 else 1)"]
+      interval: 15s
+      timeout: 4s
+      retries: 2
+    restart: unless-stopped
+  argus-lab-jobproducer:                 # SC-10: adds one Redis list job per second
+    <<: *lim
+    image: python:3.12-alpine
+    container_name: argus-lab-jobproducer
+    profiles: [sc10]
+    command: ["python", "-u", "/w/jobproducer.py"]
+    volumes: ["./workloads:/w:ro"]
+    networks: [argus-lab-app]
+    restart: unless-stopped
 networks:
   argus-lab-app: {external: true, name: argus-lab-app}
   argus-lab-iso:                        # SC-07 only: created with the profile, removed by its `down`
