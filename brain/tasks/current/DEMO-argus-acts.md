@@ -40,6 +40,7 @@ State values: `ready` (not started), `building`, `PR #n`, `merged`, `blocked: <w
 | X-5 | Release PR, pair 1: `container.start` on the cache (both approve) | C | ready | |
 | X-6 | Release PR, pair 2: `container.restart` on the job worker (both approve) | C | ready | |
 | X-7 | Release PR, pair 3: `network.restore` on the API (both approve) | C | ready | |
+| X-8 | ARCHITECTURE.md update and version bump for `network.restore`, in the PR that implements it (AGENT_PROTOCOL section 4; ACR-0035 itself may merge as `proposed`) | C | ready | |
 | S1-1 | Ranking: a cause whose anomaly started after its dependency's is demoted; `analysis.anomaly_summary` offered to the dependency classes | J | ready | |
 | S1-2 | Lab API CPU-spike fault and injection scripts | J | ready | |
 | S1-3 | Evaluation case: cache first, API CPU after | J | ready | |
@@ -66,11 +67,12 @@ The action is `container.start` (the cache is stopped), not restart. The evaluat
 `queue_depth`, `worker_last_processed_age_s`. Incident class `worker_stalled`, runbook RB-022. Inventory: the job worker depends on the cache and the lab database; role worker, stateless,
 safe action `container.restart`, never `container.stop`. The evaluation case is `worker-stalled`.
 
-**Scenario 2.** Action `network.restore`; parameters `connect_network` and `disconnect_network` (strings). Both must be networks of the target in the inventory: connect a declared network the target is not
-on; disconnect a network it is on that is not declared for it; never the default bridge, `host` or `none`; vm-166 lab containers only. Expected network of the lab containers: `argus-lab-app`; the wrong one used in the
-demo: `argus-lab-iso`. Gateway routes: `POST /networks/{id}/connect` and `/disconnect` with the single body `{"Container": "<id>"}`; connect first, then disconnect; ledger events `connected` then
-`disconnected`. Verify check `link_ok` (the link recorder's latest state of the edge dependent to target). Risk row: stateless amber, stateful red, proxy red, database forbidden. Rollback: the same action with the
-networks swapped. Scripts: `s2-inject.sh`, `s2-reset.sh`. Evaluation case `dep-api-moved-network`.
+**Scenario 2.** Action `network.restore` (ACR-0035): ONE worker call; the gateway then does connect, then disconnect (no new ledger state, no migration). Parameters `connect_network` and `disconnect_network`
+(strings). Both must be lab networks (`argus-lab-[A-Za-z0-9_.-]+`): connect a declared network the target is not on; disconnect a network it is on that is not declared for it; never the default bridge, `host` or
+`none`; vm-166 lab containers only. Expected network of the lab containers: `argus-lab-app`; the wrong one used in the demo: `argus-lab-iso`. Worker route: `POST /containers/{name}/network-restore`; the gateway
+calls Docker's `POST /networks/{name}/connect` and `/disconnect` with the single body `{"Container": "<id>"}` (the configured network name, not the id). Verify check `link_ok` (the link recorder's latest state of
+the edge dependent to target). Risk row: stateless amber, stateful red, proxy red, database forbidden. Rollback: NONE automatic; a person restores the old state by hand, and the approver card shows
+`reversible: no` (ACR-0035 section 3.4). Scripts: `s2-inject.sh`, `s2-reset.sh`. Evaluation case `dep-api-moved-network`.
 
 **Verification** may list several checks, all of which must hold within the window; the single-check form keeps working. Used by `container.restart` for worker targets and by `network.restore`.
 
