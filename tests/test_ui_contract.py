@@ -30,6 +30,9 @@ UI_ROUTES = [("post", "/api/v1/auth/token"), ("post", "/api/v1/auth/logout"), ("
              ("get", "/api/v1/host-metrics"), ("get", "/api/v1/incidents/{incident_id}/metrics"),
              ("get", "/api/v1/topology"), ("get", "/api/v1/target-metrics"),
              ("get", "/api/v1/overview"),
+             # Phase 19 private Actions screen: mounted only when action rows are explicitly supplied.
+             ("get", "/api/v1/ops/approvals/{approval_id}"),
+             ("post", "/api/v1/ops/approvals/{approval_id}/answer"),
              # ACR-0018 phase 16 step 3: the WebAuthn ceremonies and the caller's credentials
              *[("post", f"/api/v1/auth/webauthn/{c}/{s}") for c in ("register", "login", "step-up")
                for s in ("options", "verify")], ("get", "/api/v1/auth/webauthn/credentials")]
@@ -164,7 +167,9 @@ def _write(path: Path, data) -> None:
 
 def test_the_api_matches_the_ui_contract(make_app):
     from argus.adapters.inbound.http import build_api
-    current = ui_schema(build_api(make_app()).openapi())
+    app = make_app()
+    app.action_rows = app.store  # explicit draft composition; production still omits the private routes
+    current = ui_schema(build_api(app).openapi())
     if UPDATE:
         _write(CONTRACT, current)
     assert CONTRACT.exists(), "contracts/ui-api.json is missing (see this file's docstring)"

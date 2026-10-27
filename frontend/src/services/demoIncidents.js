@@ -41,7 +41,23 @@ const run = (id, o = {}) => {
 };
 
 const ID = { A: "01K7Z3M5Q8R2T4V6W9X1Y0B7CD", B: "01K7Z2H4N7P1S3U5V8W0X2Y9AE", C: "01K7Z0G3M6N9P2R4T7V1W8X5BF", D: "01K7YXF2K5M8N1Q3S6U9V4W7CG",
-  E: "01K7YWE1J4K7M0P2R5T8U3V6DH", F: "01K7YTD0H3J6K9N1Q4S7T2U5EJ", G: "01K7YQC9G2H5J8M0P3R6S1T4FK", H: "01K7YNB8F1G4H7K9N2Q5R0S3GM" };
+  E: "01K7YWE1J4K7M0P2R5T8U3V6DH", F: "01K7YTD0H3J6K9N1Q4S7T2U5EJ", G: "01K7YQC9G2H5J8M0P3R6S1T4FK", H: "01K7YNB8F1G4H7K9N2Q5R0S3GM",
+  I: "01K7Z4A6B8C0D2E4F6G8H0J2KM" };
+
+// Opt-in local preview only. The public mock demo remains unchanged unless the developer enables this flag.
+export const PHASE19_PREVIEW_ID = ID.I;
+const phase19Preview = () => import.meta.env.VITE_ARGUS_PHASE19_DEMO === "1";
+const CACHE = "vm-166/container:argus-lab-cache";
+const PHASE19_PREVIEW = make({
+  id: ID.I, target: CACHE, reason: "Demo: API dependency unavailable", incident_class: "dependency_unavailable",
+  strategy: "runbook", outcome: "diagnosed", opened_at: ago(8), closed_at: ago(7), root_cause_target: CACHE,
+  diagnosis: "Demo: the cache container stopped, so the API dependency probe failed.",
+  findings: ["Demo container status: exited", "Demo API dependency probe: unavailable"],
+  evidence: [evidence(ID.I, 1, "observation", "container.status", CACHE, 8, "Demo: container exited before the API probe failed.")],
+  next_actions: [{ action: "container.start", target: CACHE,
+    text: "Demo candidate: start the stopped cache dependency", basis: "runbook", grounds: ["RB-003"],
+    evidence_refs: [evId(ID.I, 1)], risk_color: "green", is_executable: false }],
+});
 
 const A_RUNNING = make({
   id: ID.A, target: "lab-victim", reason: "Alert: container restarted 4 times in 10 minutes", trigger_id: "alert-7f3a",
@@ -88,6 +104,8 @@ const G = make({ id: ID.G, target: "lab-victim", trigger_kind: "manual", request
 const H = make({ id: ID.H, target: "host-t", trigger_kind: "manual", principal: "ana@argus.dev", reason: "Check memory on host-t", status: "queued", opened_at: ago(0, 10) });
 
 const EVENTS = { [ID.B]: events(ID.B, 14, run(ID.B, { cls: "oom_restart_loop", confidence: 0.91, cited: [evId(ID.B, 1)] })),
+  [ID.I]: events(ID.I, 8, run(ID.I, { target: CACHE, cls: "dependency_unavailable", passages: ["RB-003"], root: CACHE,
+    cited: [evId(ID.I, 1)] })),
   [ID.C]: events(ID.C, 55, run(ID.C, { target: "app-db", cls: "connection_timeout", passages: [] }).slice(0, 6)), [ID.D]: events(ID.D, 180, [["detect", "enter"], ["detect", "exit", { matched: false }], ["record", "enter"], ["record", "exit"]]),
   [ID.E]: events(ID.E, 300, run(ID.E, { cls: "health_check_failed", passages: ["RB-002"], root: "app-db", confidence: 0.72, proposal: true, outcome: "no_action_escalated", cited: [evId(ID.E, 1)] })),
   [ID.F]: events(ID.F, 600, run(ID.F, { target: "host-t", cls: "high_disk_usage", passages: ["RB-004"], outcome: "undiagnosable" })), [ID.G]: events(ID.G, 1500, [["detect", "enter"], ["record", "enter"], ["record", "exit"]]), [ID.H]: [] };
@@ -97,14 +115,15 @@ const ORDER = [ID.H, ID.A, ID.B, ID.C, ID.D, ID.E, ID.F, ID.G]; // newest first
 let liveStart = null; // starts when someone opens the running incident's timeline
 const liveCount = () => (liveStart === null ? 0 : Math.min(LIVE_EVENTS.length, Math.floor((Date.now() - liveStart) / 3000) + 1));
 
-export const demoIncident = (id) => (id === ID.A ? (liveCount() === LIVE_EVENTS.length ? A_FINAL : A_RUNNING) : STATIC[id] ?? null);
+export const demoIncident = (id) => (id === ID.I && phase19Preview() ? PHASE19_PREVIEW
+  : id === ID.A ? (liveCount() === LIVE_EVENTS.length ? A_FINAL : A_RUNNING) : STATIC[id] ?? null);
 export const demoEvents = (id) => {
   if (id !== ID.A) return EVENTS[id] ?? null;
   liveStart ??= Date.now();
   return LIVE_EVENTS.slice(0, liveCount());
 };
 export const demoList = () =>
-  ORDER.map((id) => demoIncident(id)).map((i) => ({
+  (phase19Preview() ? [ID.I, ...ORDER] : ORDER).map((id) => demoIncident(id)).map((i) => ({
     id: i.id, target: i.target, status: i.status, outcome: i.outcome, class: i.incident_class, strategy: i.strategy,
     opened_at: i.opened_at, root_cause_target: i.root_cause_target,
   }));
@@ -162,6 +181,7 @@ export function demoTargetMetrics(target, range = "15m") {
 
 const RANGE_MS = { "15m": 15 * 60000, "30m": 30 * 60000, "1h": 60 * 60000 };
 export function demoMetrics(id, range = "30m") {
+  if (id === ID.I && phase19Preview()) return null;
   const inc = demoIncident(id);
   if (!inc) return null;
   const span = RANGE_MS[range] ?? RANGE_MS["30m"];

@@ -1,6 +1,6 @@
 // Single source of truth for the menu and the router. `roles` limits who sees/opens an item.
-// In this release the UI only reads (ACR-0001): write screens (approvals, alert simulator, scheduler) are
-// not part of the menu until an ACR gives the UI the matching actions; menu items follow /me actions later.
+// The private Actions entry follows /me's approve_action grant. The local preview flag exposes its
+// disabled demonstration; the public read/investigate token never grants approval.
 export const ROLES = { viewer: "Viewer", operator: "Operator", approver: "Approver" };
 export const ROLE_INFO = {
   viewer: "Read-only: browse incidents and their run timelines.",
@@ -11,6 +11,7 @@ export const ROLE_INFO = {
 export const routes = [
   { path: "/", label: "Dashboard" },
   { path: "/incidents", label: "Incidents" },
+  { path: "/actions", label: "Actions", roles: ["operator", "approver"], action: "approve_action", preview: true },
   { path: "/agent", label: "Agent" },
   {
     label: "Tools",
@@ -25,4 +26,7 @@ export const routes = [
 export const subRoutes = [{ path: "/incidents/:id", label: "Incident" }, { path: "/account/security", label: "Security keys" }];
 
 export const flat = routes.flatMap((r) => r.children ?? [r]);
-export const canSee = (item, role) => !item.roles || item.roles.includes(role);
+export const canSee = (item, role, actions = []) =>
+  (!item.roles || item.roles.includes(role))
+  && (!item.action || actions.includes(item.action)
+    || (item.preview && import.meta.env.VITE_ARGUS_PHASE19_DEMO === "1"));

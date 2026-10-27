@@ -76,6 +76,23 @@ describe("httpArgusAdapter", () => {
     expect(raised).toEqual(escalations);
   });
 
+  it("reads a frozen approval and sends only its bound human decision", async () => {
+    const frozen = { id: "appr_1", proposal: { digest: "a".repeat(64) }, state: "pending" };
+    fetch.mockResolvedValueOnce(response(200, frozen)).mockResolvedValueOnce(response(200, { state: "approved" }));
+    expect(await httpArgusAdapter.getApproval("appr_1")).toEqual(frozen);
+    expect(await httpArgusAdapter.answerApproval("appr_1", {
+      decision: "approved", proposalDigest: frozen.proposal.digest, stepUpToken: "one-use",
+      confirmationTarget: "vm-166/container:argus-lab-cache", reason: null,
+    })).toEqual({ state: "approved" });
+    expect(fetch.mock.calls[0][0]).toBe("/api/v1/ops/approvals/appr_1");
+    expect(fetch.mock.calls[1][0]).toBe("/api/v1/ops/approvals/appr_1/answer");
+    expect(fetch.mock.calls[1][1]).toMatchObject({ method: "POST", headers: { Authorization: "Bearer jwt-123" } });
+    expect(JSON.parse(fetch.mock.calls[1][1].body)).toEqual({
+      decision: "approved", proposal_digest: frozen.proposal.digest, step_up_token: "one-use",
+      confirmation_target: "vm-166/container:argus-lab-cache", reason: null,
+    });
+  });
+
   it("builds the dashboard overview with live host metrics", async () => {
     fetch.mockResolvedValueOnce(response(200, incidents)).mockResolvedValueOnce(response(200, escalations))
       .mockResolvedValueOnce(response(200, hostMetrics));

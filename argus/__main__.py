@@ -274,6 +274,37 @@ def session(args) -> None:
     print(f"{ended} open session(s) of {args.name} ended")
 
 
+def hold_inventory(s: Settings):
+    from argus.adapters.outbound.config_adapters import YamlInventory
+    return YamlInventory((s.config_dir / "inventory.yaml").read_text(encoding="utf-8"))
+
+
+def hold(args) -> None:
+    """ACR-0019 §3.10: place, list or release a hold from vm-095 (audited). The only way to release the emergency stop
+    (`*`); the browser cannot."""
+    from argus.application.holds import hold_audit, validate_hold_target
+    s = Settings()
+    store, now = make_store(s), utcnow()
+    if args.action == "place":
+        validate_hold_target(args.target, hold_inventory(s))
+        hold_id = f"hold_{uuid.uuid4().hex}"
+        store.place_target_hold(hold_id, args.target, args.reason[:500], args.who[:64], now,
+                                hold_audit("action.hold_placed", args.who, now, hold_id=hold_id, target=args.target))
+        print(f"{hold_id} placed on {args.target}")
+    elif args.action == "list":
+        for h in store.list_active_target_holds(args.target, now):
+            print(f"{h['id']}  {h['target']}  by {h['placed_by']} at {h['placed_at']}: {h['reason']}")
+    else:
+        h = store.get_target_hold(args.target)
+        if h is None or h["released_at"] is not None:
+            raise SystemExit(f"{args.target}: no active hold")
+        audit = hold_audit("action.hold_released", args.who, now, hold_id=args.target, target=h["target"],
+                           reason=args.reason[:500])
+        if not store.release_target_hold(args.target, args.who[:64], now, audit=audit):
+            raise SystemExit(f"{args.target}: no active hold")
+        print(f"{args.target} released ({h['target']})")
+
+
 def webauthn(args) -> None:
     """ACR-0018 step 3 (D3, D4): another administrator lets a person enrol their first credential (a one-time code,
     shown once: give it to them, never paste it into a record) or resets every credential and session of theirs."""
@@ -366,6 +397,11 @@ def build_parser() -> argparse.ArgumentParser:
     se.add_argument("name")
     se.add_argument("--as", dest="who", required=True, help="who revokes (audited)")
     se.add_argument("--reason", default="revoked by an administrator")
+    ho = sub.add_parser("hold", help="ACR-0019: place, list or release a hold; `*` is the emergency stop")
+    ho.add_argument("action", choices=["place", "list", "release"])
+    ho.add_argument("target", help="place/list: a host, a host-qualified target or *; release: the hold id")
+    ho.add_argument("--as", dest="who", default="", help="who places or releases it (audited)")
+    ho.add_argument("--reason", default="")
     wa = sub.add_parser("webauthn", help="ACR-0018: a first-credential ticket for a person, or a reset of their keys")
     wa.add_argument("action", choices=["allow-enrol", "reset"])
     wa.add_argument("name")
@@ -404,6 +440,10 @@ def main() -> None:
         session(a)
     elif a.cmd == "webauthn":
         webauthn(a)
+    elif a.cmd == "hold":
+        if a.action != "list" and not (a.who and a.reason):
+            p.error("hold place/release needs --as and --reason")
+        hold(a)
     elif a.cmd == "audit":
         audit(a)
     else:

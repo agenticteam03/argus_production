@@ -1,7 +1,8 @@
 // Placeholder for the Argus API. Swap for an HTTP adapter with the same methods (services/index.js).
 // Every incident call is a GET and is recorded in `calls`, so tests can assert paths such as limit=30.
-import { demoEscalations, demoEvents, demoEvidence, demoIncident, demoList, demoMetrics, demoTargetMetrics, demoTopology } from "./demoIncidents.js";
+import { PHASE19_PREVIEW_ID, demoEscalations, demoEvents, demoEvidence, demoIncident, demoList, demoMetrics, demoTargetMetrics, demoTopology } from "./demoIncidents.js";
 import { demoSession } from "./demoSession.js";
+import { DEMO_APPROVAL_ID, demoApproval } from "./demoApproval.js";
 import { answerMetricQuestion, parseInvestigationRequest } from "./metricQuestion.js";
 
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -42,6 +43,7 @@ export const mockArgusAdapter = {
   async getTopology(incidentId) {
     record(incidentId ? `/api/v1/topology?incident_id=${incidentId}` : "/api/v1/topology");
     await wait(200);
+    if (incidentId === PHASE19_PREVIEW_ID && import.meta.env.VITE_ARGUS_PHASE19_DEMO === "1") return null;
     return demoTopology();
   },
 
@@ -94,6 +96,16 @@ export const mockArgusAdapter = {
     const found = demoEvidence(id);
     if (!found) throw httpError(404, "Evidence not found");
     return found;
+  },
+
+  async getApproval(id) {
+    record(`/api/v1/ops/approvals/${id}`);
+    if (import.meta.env.VITE_ARGUS_PHASE19_DEMO === "1" && id === DEMO_APPROVAL_ID) return demoApproval();
+    throw httpError(404, "Approval not found in this demo.");
+  },
+
+  async answerApproval() {
+    throw httpError(403, "The local preview cannot answer an approval.");
   },
 
   // ACR-0012, demo: the targets of the demo incidents; an operator or approver "starts" one (the newest demo

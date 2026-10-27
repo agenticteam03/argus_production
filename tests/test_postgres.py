@@ -76,7 +76,10 @@ def test_remediation_migration_015_freezes_proposal_and_answers_once(runtime_dsn
                                                            "proposal_digest": proposal.digest}, now)
     assert store.get_judge_verdict(proposal.id)["verdict"] == "agree"
     store.add_action_approval("appr_test14", proposal.id, proposal.digest, now, proposal.expires_at)
-    assert store.answer_action_approval("appr_test14", proposal.digest, "operator", "approved", now)
+    from argus.application.holds import hold_audit
+    answered = hold_audit("action.approval_answered", "operator", now, approval_id="appr_test14", decision="approved")
+    assert store.answer_action_approval("appr_test14", proposal.digest, "operator", "approved", now, audit=answered)
+    assert any(aid == answered.audit_id for aid, _, _, _ in store.audit_chain())     # phase 19: in the same commit
     assert not store.answer_action_approval("appr_test14", proposal.digest, "operator", "approved", now)
     assert store.get_resume_intent("appr_test14")["decision"] == "approved"
     store.add_target_hold("hold_test14", str(inc.target), "review", "operator", now)
@@ -100,6 +103,29 @@ def test_remediation_migration_015_freezes_proposal_and_answers_once(runtime_dsn
             c.execute("UPDATE approval SET state = 'pending' WHERE approval_id = 'appr_test14'")
         with pytest.raises(psycopg.Error):
             c.execute("UPDATE judge_verdict SET verdict = 'doubt' WHERE proposal_id = %s", (proposal.id,))
+
+
+def test_phase19_hold_and_chained_audit_commit_together(store):
+    import psycopg
+    from argus.domain.model import AuditRecord, utcnow
+
+    now = utcnow()
+    audit = AuditRecord(audit_id="aud_phase19_hold", incident_id=None, at=now,
+                        category="decision", event="action.hold_placed", actor="operator", detail={"target": "*"})
+    store.place_target_hold("hold_phase19", "*", "emergency", "operator", now, audit)
+    assert store.list_active_target_holds("*", now)[0]["id"] == "hold_phase19"
+    assert any(body["event"] == "action.hold_placed" for _, body, _, _ in store.audit_chain())
+    with pytest.raises(psycopg.Error):
+        store.place_target_hold("hold_phase19", "*", "duplicate", "operator", now,
+                                audit.model_copy(update={"audit_id": "aud_phase19_duplicate"}))
+    assert not any(aid == "aud_phase19_duplicate" for aid, _, _, _ in store.audit_chain())
+    released = audit.model_copy(update={"audit_id": "aud_phase19_release", "event": "action.hold_released"})
+    assert store.release_target_hold("hold_phase19", "operator", now, audit=released)
+    assert store.get_target_hold("hold_phase19")["released_at"] is not None
+    assert any(aid == "aud_phase19_release" for aid, _, _, _ in store.audit_chain())
+    assert not store.release_target_hold("hold_phase19", "operator", now,
+                                         audit=released.model_copy(update={"audit_id": "aud_phase19_again"}))
+    assert not any(aid == "aud_phase19_again" for aid, _, _, _ in store.audit_chain())
 
 
 def test_incident_lifecycle_and_forward_only(store):

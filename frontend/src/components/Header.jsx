@@ -26,7 +26,7 @@ export default function Header() {
     return () => document.removeEventListener("click", close);
   }, []);
 
-  const items = routes.filter((r) => (r.children ? r.children.some((c) => canSee(c, user.role)) : canSee(r, user.role)));
+  const items = routes.filter((r) => (r.children ? r.children.some((c) => canSee(c, user.role, user.actions)) : canSee(r, user.role, user.actions)));
 
   return (
     <header className="relative z-30 mx-auto mt-4 flex w-[calc(100%-2rem)] max-w-[1200px] flex-wrap items-center justify-between gap-2 rounded-2xl border border-line bg-card/80 p-2.5 backdrop-blur sm:w-[calc(100%-3rem)] sm:flex-nowrap lg:gap-3">
@@ -42,7 +42,7 @@ export default function Header() {
                 {r.label} <Chevron width="14" height="14" />
               </summary>
               <div className={`${menu} left-1/2 -translate-x-1/2`}>
-                {r.children.filter((c) => canSee(c, user.role)).map((c) => (
+                {r.children.filter((c) => canSee(c, user.role, user.actions)).map((c) => (
                   <Link key={c.path} to={c.path} onClick={closeMenu} className="block rounded-lg px-3 py-2 hover:bg-ink/5">
                     <span className="text-sm">{c.label}</span>
                     <span className="block text-xs text-muted">{c.desc}</span>

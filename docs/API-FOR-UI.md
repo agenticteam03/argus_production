@@ -20,7 +20,7 @@ on. Anything else can change without notice.
 
 ## Rules for every UI
 
-1. **Log in with `scope=read` or `scope=investigate`** (ACR-0012). A read token can only read; an investigate token
+1. **The public UI logs in with `scope=read` or `scope=investigate`** (ACR-0012). A read token can only read; an investigate token
    reads and may also call `POST /api/v1/investigations`, nothing else. The team's UI uses `investigate`. Argus
    refuses any other non-`GET` (403, audited as `access.read_only_refused` or `access.investigate_scope_refused`),
    whatever the user's role. A bug in a UI cannot approve or change anything; the most it can do is start an
@@ -38,6 +38,9 @@ on. Anything else can change without notice.
    below, each with its method; anything else is 404 there. A login through it **must** ask for `scope=read`
    or `scope=investigate` (otherwise 400; never a full token). Failed logins are limited per username and per
    address: a locked login gets 429 with `Retry-After`.
+   The Phase 19 Actions screen is a separate private workflow. Its draft routes are mounted only by an explicit
+   composition with action rows and are not reachable through the public edge. A real browser full-token login must
+   wait for acceptance and implementation of ACR-0031; the local mock preview cannot answer an approval.
 7. **Starting an investigation** (ACR-0012): `POST /api/v1/investigations` with `{"target", "request_kind": "check" |
    "report", "reason"}`, the target taken from `GET /api/v1/targets` (never free text). With an investigate token
    the API applies quotas: 10 an hour and 2 queued per account, 20 queued in all. Over one, 429 with `Retry-After`
@@ -93,6 +96,8 @@ on. Anything else can change without notice.
 | `POST /api/v1/auth/token` | anyone with a login | a bearer token; form fields `username`, `password`, `scope=read` | [`login.json`](../contracts/samples/login.json) |
 | `POST /api/v1/auth/logout` | any token (read and investigate included) | `{"ended": true}`; the token is refused from the next request on (ACR-0018). Call it on logout instead of only dropping the token | — |
 | `GET /api/v1/me` | any token | user, role, `access` (`read`/`investigate`/`full`), `actions`, and the role's `permissions` (ACR-0018: show controls by `actions`; `permissions` says what the role could do with a full token) | [`me.json`](../contracts/samples/me.json) |
+| `GET /api/v1/ops/approvals/{approval_id}` | private full-token human with `approve_action` and a WebAuthn-ready session; draft composition only | the frozen proposal, bound judge verdict, state, expiry and `reversible` (the rollback is a catalogue action); the UI opens one known approval ID | — |
+| `POST /api/v1/ops/approvals/{approval_id}/answer` | same private caller plus a fresh object-bound WebAuthn step-up | `decision` (`approved`/`denied`), exact `proposal_digest`, `step_up_token`, `confirmation_target` (the host-qualified target, for red-risk approval) and `reason` (required for `denied`); writes a chained audit row with the answer; returns the recorded state | — |
 | `GET /api/v1/incidents?limit=30` | any role | the latest incidents, newest first | [`incidents.json`](../contracts/samples/incidents.json) |
 | `GET /api/v1/incidents/{id}` | any role; `evidence` and `audit` only for operator/approver | one incident with its diagnosis and, derived from the stored record (never a model call), the verdict card's fields (ACR-0021): `severity` (`critical`, `warning`, `ok`, or `null` while unknown), `summary`, `cause` (`{target, kind, statement, confidence 0.9 / 0.6 / 0.3, confidence_label}` or `null`), `evidence_highlights[]` (up to 3 cited, `{evidence_id, text, stance}`; empty for a viewer), `not_checked[]`, `cause_path[]`, `duration_ms` (`null` while open), `next_actions[]` (`[]` for now), `hypotheses[]`: the explanations the model weighed at its final step, best first (ACR-0024, T-0047 H3): `{id, statement, cause_class, target, relation, status, rank, chosen, support: {score, for, against}}` (`for` / `against`: the cited evidence records; `target` `null` for an external cause), plus the cited `support_ids[]` and `against_ids[]` for operator/approver only; `[]` when the run stated none; and `ranking_disagrees` (`true` when the chosen explanation is not ranked first: the UI can say "the evidence favours <first>") | [`incident.json`](../contracts/samples/incident.json) |
 | `GET /api/v1/incidents/{id}/events?after=0` | any role | the run's timeline, one event per node phase; poll with `after=<last seq>` | [`events.json`](../contracts/samples/events.json) |

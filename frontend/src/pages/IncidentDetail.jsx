@@ -1,6 +1,7 @@
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import AnswerBlock from "../components/AnswerBlock.jsx";
+import ActionSuggestions from "../components/ActionSuggestions.jsx";
 import CopySummary from "../components/CopySummary.jsx";
 import DiagnoseForm from "../components/DiagnoseForm.jsx";
 import IncidentChat from "../components/IncidentChat.jsx";
@@ -168,13 +169,16 @@ export default function IncidentDetail() {
       <TabList tabs={tabs} value={tab} onChange={setTab} label="Incident information" />
 
       <TabPanel id="overview" value={tab}>
-        <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-4 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)]">
-          <WhyCard incident={inc} events={events} cited={cited} onJump={jumpToEvidence} />
-          <div className="space-y-4">
-            {showMini && <MiniMap topology={topology} incident={inc} onOpen={() => setTab("map")} />}
-            {showMetrics && <Suspense fallback={<Skeleton className="h-72" />}><MiniCharts metrics={metrics} onOpen={() => setTab("metrics")} /></Suspense>}
-            <IncidentChat key={inc.id} incident={inc} events={events} cited={cited} />
+        <div className="space-y-4">
+          <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-4 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)]">
+            <WhyCard incident={inc} events={events} cited={cited} onJump={jumpToEvidence} />
+            <div className="space-y-4">
+              {showMini && <MiniMap topology={topology} incident={inc} onOpen={() => setTab("map")} />}
+              {showMetrics && <Suspense fallback={<Skeleton className="h-72" />}><MiniCharts metrics={metrics} onOpen={() => setTab("metrics")} /></Suspense>}
+              <IncidentChat key={inc.id} incident={inc} events={events} cited={cited} />
+            </div>
           </div>
+          <ActionSuggestions items={inc.next_actions} />
         </div>
       </TabPanel>
       <TabPanel id="map" value={tab}>{showMap && <SystemMap topology={topology} incident={inc} title="System map around the incident" />}</TabPanel>

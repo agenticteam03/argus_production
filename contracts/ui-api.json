@@ -1,6 +1,61 @@
 {
   "components": {
     "schemas": {
+      "ApprovalAnswerIn": {
+        "additionalProperties": false,
+        "properties": {
+          "confirmation_target": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confirmation Target"
+          },
+          "decision": {
+            "enum": [
+              "approved",
+              "denied"
+            ],
+            "title": "Decision",
+            "type": "string"
+          },
+          "proposal_digest": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Proposal Digest",
+            "type": "string"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "step_up_token": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Step Up Token",
+            "type": "string"
+          }
+        },
+        "required": [
+          "decision",
+          "proposal_digest",
+          "step_up_token"
+        ],
+        "title": "ApprovalAnswerIn",
+        "type": "object"
+      },
       "Body_token_api_v1_auth_token_post": {
         "properties": {
           "client_id": {
@@ -981,6 +1036,106 @@
         "summary": "Me",
         "tags": [
           "auth"
+        ]
+      }
+    },
+    "/api/v1/ops/approvals/{approval_id}": {
+      "get": {
+        "operationId": "inspect_approval_api_v1_ops_approvals__approval_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "approval_id",
+            "required": true,
+            "schema": {
+              "title": "Approval Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Inspect Approval",
+        "tags": [
+          "ops"
+        ]
+      }
+    },
+    "/api/v1/ops/approvals/{approval_id}/answer": {
+      "post": {
+        "operationId": "answer_approval_api_v1_ops_approvals__approval_id__answer_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "approval_id",
+            "required": true,
+            "schema": {
+              "title": "Approval Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApprovalAnswerIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Answer Approval",
+        "tags": [
+          "ops"
         ]
       }
     },

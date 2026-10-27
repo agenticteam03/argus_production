@@ -3,6 +3,7 @@ import ErrorBoundary from "./components/ErrorBoundary.jsx";
 import Header from "./components/Header.jsx";
 import { AuthProvider, useAuth } from "./context/AuthContext.jsx";
 import Agent from "./pages/Agent.jsx";
+import Actions from "./pages/Actions.jsx";
 import Dashboard from "./pages/Dashboard.jsx";
 import IncidentDetail from "./pages/IncidentDetail.jsx";
 import Incidents from "./pages/Incidents.jsx";
@@ -18,7 +19,7 @@ const Placeholder = ({ title }) => (
   </div>
 );
 
-const pages = { "/agent": Agent, "/incidents": Incidents, "/incidents/:id": IncidentDetail, "/tools/runbooks": Runbooks,
+const pages = { "/agent": Agent, "/actions": Actions, "/incidents": Incidents, "/incidents/:id": IncidentDetail, "/tools/runbooks": Runbooks,
   "/account/security": Security };
 
 // Keyed on the path so an error on one page does not stick when the user navigates elsewhere.
@@ -41,7 +42,7 @@ function AppRoutes() {
     <Routes>
       <Route element={<Shell />}>
         <Route index element={<Dashboard />} />
-        {[...flat, ...subRoutes].filter((r) => r.path !== "/" && canSee(r, user.role)).map((r) => {
+        {[...flat, ...subRoutes].filter((r) => r.path !== "/" && canSee(r, user.role, user.actions)).map((r) => {
           const Page = pages[r.path];
           return <Route key={r.path} path={r.path} element={Page ? <Page /> : <Placeholder title={r.label} />} />;
         })}

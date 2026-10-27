@@ -653,7 +653,7 @@ SELF_MERGE_PROTECTED = (
     # gateway service are reserved names; the first PR that builds either one keeps them.
     "config/actions/", "config/risk.yaml", "config/ranking.yaml",   # action cards, risk colours, ACR-0024's weights
     "argus/capabilities/write_contract.py", "argus/actions/",      # the write contract (§14.8), the dispatch module
-    "services/action-gateway/",                                    # the action gateway (§4.5)
+    "services/action-gateway/", "services/action_gateway/",        # the action gateway (§4.5); built as a package
 )
 SELF_MERGE_PROTECTED_GLOBS = ("deploy/*/compose*.yml",)      # mounts, secrets, ports of every deployed stack
 FILES_PAGE = 100
