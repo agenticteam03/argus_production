@@ -1,6 +1,7 @@
 """Phase 18 opt-in LangGraph action branch, exercised with a fake gateway only."""
 from __future__ import annotations
 
+import re
 from dataclasses import asdict
 from datetime import datetime, timezone
 from typing import Callable
@@ -71,7 +72,13 @@ class OfflineActionPath:
             raise RemediationRefused("action arguments include unreviewed names")
         for name, value in proposal_input.arguments.items():
             bounds = card.parameters[name]
-            if not isinstance(value, int) or isinstance(value, bool) or not bounds["min"] <= value <= bounds["max"]:
+            if bounds.get("type") == "str":
+                declared = list(getattr(info, "networks", None) or [])
+                if (not isinstance(value, str) or not value
+                        or ("pattern" in bounds and not re.fullmatch(bounds["pattern"], value))
+                        or (bounds.get("enum_from") == "declared_networks" and value not in declared)):
+                    raise RemediationRefused("action argument is outside the reviewed bounds")
+            elif not isinstance(value, int) or isinstance(value, bool) or not bounds["min"] <= value <= bounds["max"]:
                 raise RemediationRefused("action argument is outside the reviewed bounds")
         proposal = freeze_proposal(proposal_input, at=self.clock())
         self.rows.add_action_proposal(proposal)
