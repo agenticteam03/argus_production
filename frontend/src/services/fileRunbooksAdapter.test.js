@@ -4,9 +4,9 @@ import { fileRunbooksAdapter } from "./fileRunbooksAdapter.js";
 
 // PR #24 review item 9: read the real library instead of the two demo copies.
 describe("fileRunbooksAdapter", () => {
-  it("reads the whole real library (21 runbooks) and every card parses", async () => {
+  it("reads the whole real library (22 runbooks) and every card parses", async () => {
     const list = await fileRunbooksAdapter.listRunbooks();
-    expect(list).toHaveLength(21);
+    expect(list).toHaveLength(22);
 
     const parsed = list.map(parseRunbook);
     for (const rb of parsed) {
