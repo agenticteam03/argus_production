@@ -208,14 +208,15 @@ services:
       AUTHENTICATION_ANONYMOUS_ACCESS_ENABLED: "true"   # argus-v18-core only, no host port: the worker is the one client
       QUERY_DEFAULTS_LIMIT: "20"
       LIMIT_RESOURCES: "true"
-      GOMEMLIMIT: 400MiB
+      GOMEMLIMIT: 640MiB                          # ~85 % of mem_limit (DEPLOY-7f137da: 425 MiB idle at 400)
       GOMAXPROCS: "1"
       DISABLE_TELEMETRY: "true"
       LOG_LEVEL: warning
     volumes: [argus-v18-weaviate-data:/var/lib/weaviate]
     networks: [argus-v18-core]          # no host port; the worker reaches it, nothing else needs to
-    mem_limit: 512m                     # trial 2026-10-15 (#155): 44 MiB idle, 210 MiB peak with 6,510 objects
-    memswap_limit: 512m
+    # trial 2026-10-15 (#155): 210 MiB peak with 6,510 objects; DEPLOY-7f137da: 425 MiB idle with 20,251 after the index
+    mem_limit: 768m
+    memswap_limit: 768m
     cpus: 0.5
     pids_limit: 256
     restart: unless-stopped

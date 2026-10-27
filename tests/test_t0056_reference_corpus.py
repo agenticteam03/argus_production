@@ -331,8 +331,9 @@ def test_weaviate_runs_on_the_core_network_only_without_modules_or_a_host_port()
     compose = yaml.safe_load((ROOT / "deploy" / "vm-095" / "compose.core.yml").read_text(encoding="utf-8"))
     w = compose["services"]["argus-v18-weaviate"]
     assert w["image"].startswith("semitechnologies/weaviate:1.38.") and "ports" not in w
-    assert w["networks"] == ["argus-v18-core"] and w["mem_limit"] == "512m"
+    assert w["networks"] == ["argus-v18-core"] and w["mem_limit"] == w["memswap_limit"] == "768m"
     env = w["environment"]
+    assert env["GOMEMLIMIT"] == "640MiB"        # below mem_limit: Go collects before the kernel kills (DEPLOY-7f137da)
     assert env["ENABLE_API_BASED_MODULES"] == "false" and env["DEFAULT_VECTORIZER_MODULE"] == "none"
     assert env["ENABLE_MODULES"] == ""
     worker = compose["services"]["argus-v18-worker"]
