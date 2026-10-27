@@ -10,10 +10,16 @@ side, however many are cited, so a hypothesis cannot climb by citing every alert
 of the incident counts for nothing (the harness reports it, §11.3). Ties: more distinct supporting records that no
 other hypothesis cites, then the order given. The ranking never changes the conclusion: `ranking_disagrees` only
 says that the chosen hypothesis is not ranked first.
+
+Onset order (TASK-50): when hypothesis A's target depends on hypothesis B's target and B's anomaly began earlier than A's
+(`analysis.anomaly_summary` onsets, the inventory's `depends_on`), A's anomaly came after its dependency's, so A's
+**own-target** records stop supporting A as a cause, A gets one record against and B one supporting record, each worth
+`onset_order`. Unknown onsets or an undeclared dependency change nothing: unknown is not earlier.
 """
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 
 import yaml
@@ -21,7 +27,7 @@ import yaml
 OWN = ("observation", "metric_snapshot")          # what can show a target's own state
 KEYS = {"weights", "untested_penalty", "max_target_records"}
 WEIGHT_KEYS = {"own_observation", "own_metric_snapshot", "other_observation", "alert", "peer_finding",
-               "reported_symptom"}
+               "reported_symptom", "onset_order"}
 
 
 @dataclass(frozen=True)
@@ -32,6 +38,7 @@ class Weights:
     alert: float = 1.0
     peer_finding: float = 1.0                     # no peer finding is cited by an evidence id yet (§23)
     reported_symptom: float = 0.5
+    onset_order: float = 1.0                      # the record an earlier dependency onset adds (for it) or against its dependent
     untested_penalty: float = 0.5
     max_target_records: int = 3
 
@@ -70,8 +77,39 @@ class Ranked:
     counted_against: int                          # records that scored against it ("contradicted by M")
 
 
-def _side(ids: list[str], target: str | None, evidence: dict, w: Weights) -> tuple[float, int]:
-    """The weight of one side (for or against) of one hypothesis, and how many records counted."""
+def first_onsets(onsets: list[dict]) -> dict[str, datetime]:
+    """The earliest onset per target from `analysis.anomaly_summary`'s `values["onsets"]` ({target, signal, at});
+    a missing or unreadable time is skipped (unknown, not early)."""
+    first: dict[str, datetime] = {}
+    for o in onsets or []:
+        try:
+            at = datetime.fromisoformat(str(o["at"]).replace("Z", "+00:00"))
+            target = o["target"]
+        except (KeyError, TypeError, ValueError):
+            continue
+        if target not in first or at < first[target]:
+            first[target] = at
+    return first
+
+
+def _onset_roles(hypotheses: list, onsets: dict, depends_on: dict) -> tuple[set[str], set[str]]:
+    """(ids that started after a dependency that is also a hypothesis target, ids of those dependencies)."""
+    after, before = set(), set()
+    for a in hypotheses:
+        for b in hypotheses:
+            if a.target is None or b.target is None or a.target == b.target:
+                continue
+            if b.target in (depends_on.get(a.target) or ()):
+                ta, tb = onsets.get(a.target), onsets.get(b.target)
+                if ta is not None and tb is not None and tb < ta:
+                    after.add(a.id)
+                    before.add(b.id)
+    return after, before
+
+
+def _side(ids: list[str], target: str | None, evidence: dict, w: Weights, skip_own: bool = False) -> tuple[float, int]:
+    """The weight of one side (for or against) of one hypothesis, and how many records counted. `skip_own`: the
+    hypothesis's own-target records do not count (its anomaly began after its dependency's)."""
     own: list[float] = []
     generic: dict[str, float] = {}
     for i in dict.fromkeys(ids):                  # a record cited twice is one record
@@ -80,6 +118,8 @@ def _side(ids: list[str], target: str | None, evidence: dict, w: Weights) -> tup
             continue
         kind, about = getattr(e, "kind", None), getattr(e, "target", None)
         if kind in OWN and target is not None and about == target:
+            if skip_own:
+                continue
             own.append(w.own_observation if kind == "observation" else w.own_metric_snapshot)
         elif kind in OWN:
             generic["other_observation"] = w.other_observation
@@ -91,9 +131,13 @@ def _side(ids: list[str], target: str | None, evidence: dict, w: Weights) -> tup
     return sum(own) + sum(generic.values()), len(own) + len(generic)
 
 
-def rank(hypotheses: list, evidence: list, weights: Weights | None = None) -> list[Ranked]:
-    """The hypotheses ranked (same order as given), each with its score; `evidence` is the incident's EvidenceRefs."""
+def rank(hypotheses: list, evidence: list, weights: Weights | None = None, *,
+         onsets: dict[str, datetime] | None = None, depends_on: dict[str, list[str]] | None = None) -> list[Ranked]:
+    """The hypotheses ranked (same order as given), each with its score; `evidence` is the incident's EvidenceRefs.
+    `onsets` (target -> first anomaly time, see `first_onsets`) and `depends_on` (target -> its dependencies) switch on
+    the onset-order rule; without them the ranking is as before."""
     w = weights or Weights()
+    after, before = _onset_roles(hypotheses, onsets or {}, depends_on or {})
     by_id = {e.evidence_id: e for e in evidence}
     cited_by: dict[str, set[str]] = {}
     for h in hypotheses:
@@ -101,8 +145,12 @@ def rank(hypotheses: list, evidence: list, weights: Weights | None = None) -> li
             cited_by.setdefault(i, set()).add(h.id)
     rows = []
     for order, h in enumerate(hypotheses):
-        plus, n_for = _side(h.support, h.target, by_id, w)
+        plus, n_for = _side(h.support, h.target, by_id, w, skip_own=h.id in after)
         minus, n_against = _side(h.against, h.target, by_id, w)
+        if h.id in before:
+            plus, n_for = plus + w.onset_order, n_for + 1
+        if h.id in after:
+            minus, n_against = minus + w.onset_order, n_against + 1
         score = round(plus - minus - (w.untested_penalty if h.status == "untested" else 0.0), 3)
         unique = sum(1 for i in set(h.support) if i in by_id and cited_by.get(i) == {h.id})
         rows.append((h.id, score, unique, order, n_for, n_against))
