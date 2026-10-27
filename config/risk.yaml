@@ -40,3 +40,9 @@ matrix:
     stateful: amber
     proxy: green
     database: amber
+
+  network.restore:
+    stateless: amber
+    stateful: red
+    proxy: red
+    database: forbidden

@@ -1,4 +1,4 @@
-"""Frozen-row action execution, usable only with an injected fake gateway in Phase 18.
+"""Frozen-row action execution, with the fake gateway (phase 18) or the reviewed HTTP client (phase 20).
 
 The dispatcher has no model, prompt, or harness dependency.  No production
 wiring constructs it while the policy's write gate is empty.
@@ -10,8 +10,12 @@ from datetime import datetime
 from typing import Protocol
 from uuid import uuid4
 
+from argus.actions.gateway_client import HttpActionGateway
 from argus.actions.remediation import (FakeActionGateway, FrozenProposal, RemediationRefused, agreed_verdict,
                                        check_action_scope, verify_frozen_proposal)
+
+
+REVIEWED_GATEWAYS = (FakeActionGateway, HttpActionGateway)
 
 
 class ActionRows(Protocol):
@@ -62,8 +66,8 @@ class ActionExecutor:
 
     def __init__(self, rows: ActionRows, gateway: JournaledGateway, *, gate_open: frozenset[tuple[str, str]],
                  daily_host_cap: int):
-        if not isinstance(gateway, FakeActionGateway):
-            raise ValueError("Phase 18 dispatches only to the fake gateway")
+        if not isinstance(gateway, REVIEWED_GATEWAYS):
+            raise ValueError("dispatch goes only to the fake gateway or the reviewed HTTP client")
         self.rows, self.gateway = rows, gateway
         self.gate_open, self.daily_host_cap = gate_open, daily_host_cap
 
