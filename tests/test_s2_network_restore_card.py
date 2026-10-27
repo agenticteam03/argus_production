@@ -54,7 +54,7 @@ def test_card_loads_with_string_parameters(cards):
     assert card.executor == "action-gateway" and card.identity_fields == ["container_id"]
     assert card.parameters["connect_network"]["type"] == "str"
     assert card.parameters["disconnect_network"]["type"] == "str"
-    assert card.rollback == "network.restore"
+    assert card.rollback == "none"          # ACR-0035: no automatic rollback (TASK-64)
     assert card.verify["signal"] == "link_ok"
     assert set(card.sources) == {"RB-003", "RB-009"}
 
@@ -159,3 +159,96 @@ def test_suggestions_respect_service_card_and_database_forbidden(cards):
 def test_unreleased_pair_stays_refused():
     policy = yaml.safe_load((ROOT / "config/policy.yaml").read_text(encoding="utf-8"))
     assert policy["write_gate"]["open"] == []
+
+
+# --- TASK-65: the REAL propose() with this card (review of #362, findings 1 and 2) --------------------------------------
+API_NAME = "vm-166/container:argus-lab-api"
+
+
+def _real_propose(cards, arguments, declared=("argus-lab-app",)):
+    from types import SimpleNamespace
+
+    from datetime import datetime, timezone
+
+    from argus.actions.remediation import Alternative, FakeActionGateway, Prediction, ProposalInput
+    from argus.orchestration.action_path import OfflineActionPath
+
+    class Rows:
+        stored = None
+
+        def latest_action_proposal_for_incident(self, _):
+            return None
+
+        def list_evidence(self, _):
+            return []
+
+        def add_action_proposal(self, proposal):
+            self.stored = proposal
+
+    class Incident:
+        id, root_cause_target = "inc_sc07", API_NAME
+
+        def model_copy(self, **_):
+            return self
+
+    class Policy:
+        def __init__(self):
+            self.cards = cards
+
+        def next_actions(self, *a, **k):
+            return [{"action": "network.restore", "target": API_NAME, "grounds": ["RB-003"],
+                     "evidence_refs": ["ev1"]}]
+
+    class Inventory:
+        def target(self, _):
+            return SimpleNamespace(networks=list(declared), service_card=lambda: SimpleNamespace(
+                safe_actions=["network.restore"], never=[], kind="stateless", criticality="low"))
+
+    raw = ProposalInput(
+        incident_id="inc_sc07", capability="network.restore", target=API_NAME,
+        target_identity={"container_id": "api-1"}, arguments=arguments, root_cause=API_NAME,
+        rationale="The API is on the wrong network.", evidence_refs=["ev1"], grounds=["runbook:RB-003"],
+        prediction=Prediction(signal="link_ok", target=API_NAME, expected="1", within_seconds=120),
+        alternatives=[Alternative(action="wait", why_not="The link stays broken.")],
+        preview="Restore the API's network", rollback="none",
+        inventory_version="i1", policy_version="p1", evidence_version="e1")
+    rows = Rows()
+    path = OfflineActionPath(rows=rows, action_policy=Policy(), inventory=Inventory(), proposer=lambda *_: raw,
+                             judge_model=None, judge_model_id="none", judge_context=None, snapshot=None, sample=None,
+                             gateway=FakeActionGateway(),
+                             gate_open=frozenset(), daily_host_cap=1,
+                             clock=lambda: datetime(2026, 10, 27, tzinfo=timezone.utc))
+    return path.propose(Incident(), {"passages": [{"runbook_id": "RB-003"}]}), rows
+
+
+GOOD_ARGS = {"connect_network": "argus-lab-app", "disconnect_network": "argus-lab-iso"}
+
+
+def test_the_real_propose_accepts_valid_network_arguments(cards):
+    proposal_id, rows = _real_propose(cards, GOOD_ARGS)
+    assert proposal_id and rows.stored.input.arguments == GOOD_ARGS
+
+
+@pytest.mark.parametrize("args", [
+    {"connect_network": "argus-lab-other", "disconnect_network": "argus-lab-iso"},      # not a declared network
+    {"connect_network": "argus-lab-app", "disconnect_network": "-bad name"},            # fails the pattern
+    {"connect_network": "argus-lab-app", "disconnect_network": "argus-lab-iso\n"},      # fullmatch, not match
+    {"connect_network": 7, "disconnect_network": "argus-lab-iso"},                      # not a string
+    {"connect_network": "argus-lab-app", "disconnect_network": True},
+])
+def test_the_real_propose_refuses_bad_string_arguments(cards, args):
+    from argus.actions.remediation import RemediationRefused
+    with pytest.raises(RemediationRefused, match="reviewed"):
+        _real_propose(cards, args)
+
+
+def test_an_int_argument_is_still_bounded(cards):
+    from argus.actions.remediation import RemediationRefused
+    with pytest.raises(RemediationRefused):
+        _real_propose({"network.restore": cards["container.restart"]}, {"timeout": 999})
+
+
+def test_there_is_no_automatic_rollback_so_the_approver_sees_reversible_no(cards):
+    from argus.application.approval_view import _reversible
+    assert cards["network.restore"].rollback == "none"
+    assert _reversible("none") is False
