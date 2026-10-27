@@ -81,6 +81,7 @@ targets:
   - ref: vm-166/container:argus-lab-api           # SC-03 victim of its dependency
     depends_on: [vm-166/container:argus-lab-cache]
     http_endpoints: ["http://argus-lab-api:8080/health"]
+    networks: [argus-lab-app]                     # ACR-0035: its declared network (network.restore)
     service:
       role: api
       kind: stateless
@@ -91,6 +92,7 @@ targets:
       never: [container.stop]
   - ref: vm-166/container:argus-lab-cache
     tcp_ports: [6379]
+    networks: [argus-lab-app]                     # ACR-0035: its declared network (network.restore)
     service:
       role: cache
       kind: stateless
