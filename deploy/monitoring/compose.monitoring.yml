@@ -1,5 +1,5 @@
-# One Argus-owned Prometheus PER target host (v1.8 §3.1). Scrapes only Argus's own exporters (argus-exporter,
-# node-exporter, cAdvisor, and, where a database is declared, the db-probe) on argus-v18-mon. T-0022 (ACR-0003):
+# One Argus-owned Prometheus PER target host (v1.8 §3.1). Scrapes Argus's own exporters on argus-v18-mon; vm-166 also
+# joins argus-lab-app to scrape the SC-10 worker. T-0022 (ACR-0003):
 # Argus-owned Alertmanager, node-exporter and cAdvisor; the image tags are those already present on vm-166.
 name: argus-v18-monitoring
 services:
@@ -13,7 +13,7 @@ services:
       - ./alerts.yml:/etc/prometheus/alerts.yml:ro
       - /opt/argus-v18/secrets/prometheus:/etc/prometheus/secrets:ro    # scrape credentials (owner nobody, 400)
       - argus-v18-prometheus:/prometheus
-    networks: [argus-v18-mon]
+    networks: [argus-v18-mon, argus-lab-app]   # SC-10: scrape the isolated lab worker on its app network
     mem_limit: 256m
     memswap_limit: 256m
     cpus: 0.3
@@ -66,3 +66,4 @@ volumes:
   argus-v18-alertmanager: {name: argus-v18-alertmanager}
 networks:
   argus-v18-mon: {external: true, name: argus-v18-mon}
+  argus-lab-app: {external: true, name: argus-lab-app}

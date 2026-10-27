@@ -55,6 +55,18 @@ targets:
       data: ephemeral
       safe_actions: [container.start, container.restart, container.update_resources]
       never: [container.stop]
+  - ref: vm-166/container:argus-lab-jobworker      # SC-10 (RB-022): Redis queue consumer
+    profile: scenario
+    tcp_ports: [8080]
+    depends_on: [vm-166/container:argus-lab-cache, vm-166/container:argus-lab-db]
+    service:
+      role: worker
+      kind: stateless
+      owner: platform
+      criticality: low
+      data: ephemeral
+      safe_actions: [container.restart]
+      never: [container.stop]
   - ref: vm-166/container:argus-lab-nginx         # SC-08 (T-0029): a reverse proxy in front of a slow upstream
     profile: scenario
     depends_on: [vm-166/container:argus-lab-slow]

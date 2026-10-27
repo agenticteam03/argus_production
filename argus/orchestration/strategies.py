@@ -175,6 +175,13 @@ class BaselineStrategy:
             others = [x for x in view.scope if x.kind == "container" and x != t]
             calls = [ReadCall(name="container.status", arguments={"target": str(x)}) for x in [t, *others]]
             return [*calls, *self._link_state_read(view)]
+        if cls == "worker_stalled":
+            others = sorted((x for x in view.scope if x.kind == "container" and x != t), key=str)
+            calls = [ReadCall(name="container.status", arguments={"target": str(x)}) for x in [t, *others]]
+            if any(spec.name == "database.health" for spec in view.offered_specs):
+                calls.extend(ReadCall(name="database.health", arguments={"target": str(x)})
+                             for x in others if x.name.endswith("-db"))
+            return [*calls, *self._link_state_read(view)]
         if cls == "cpu_saturation":
             return [ReadCall(name="container.status", arguments={"target": ts}),
                     ReadCall(name="container.resources", arguments={"target": ts})]
@@ -193,7 +200,7 @@ class BaselineStrategy:
         ok = [e for e in view.evidence if e.status == "ok"]
         rules = {"container_restart_loop": self._restart, "health_check_failed": self._health,
                  "dependency_unavailable": self._dependency, "postgresql_connection_exhaustion": self._database,
-                 "nginx_upstream_failure": self._gateway,
+                 "nginx_upstream_failure": self._gateway, "worker_stalled": self._worker_stalled,
                  "cpu_saturation": self._cpu, "disk_pressure": self._disk}
         rule = rules.get(view.incident_class.name if view.incident_class else "")
         found = rule(view, ok) if rule else None
@@ -304,6 +311,26 @@ class BaselineStrategy:
                     f"the upstream path is slow, so restarting the proxy would not help", up)
         return (f"the proxy {t} answers 502/504 while its upstream {up} is running: {up} does not answer within the "
                 f"proxy's timeout (slow or saturated upstream, RB-015 H3); the root cause is {up}, not the proxy", up)
+
+    def _worker_stalled(self, view, ok):
+        """Attribute a stalled queue to a dependency only when its status or recorded link is direct evidence."""
+        target = view.incident.target
+        t = str(target)
+        status = self._texts(ok, "container.status")
+        worker = status.get(t)
+        if not worker or worker.get("state") != "running":
+            return None                         # a contradictory/stopped worker needs a different incident path
+        for dependency in sorted((x for x in view.scope if x.kind == "container" and x != target), key=str):
+            ref = str(dependency)
+            dep_status = status.get(ref)
+            if dep_status and dep_status.get("state") not in ("running", None):
+                return (f"the stalled worker's dependency {ref} is {dep_status['state']}; investigate that dependency "
+                        "before restarting the worker", ref)
+            link = self._link_state(view, target, dependency)
+            if link and link[0] == "broken":
+                return (f"the recorded worker dependency link to {ref} is broken ({link[1]}); investigate the "
+                        "dependency path before restarting the worker", ref)
+        return None                             # healthy process/peers alone cannot identify why jobs are not consumed
 
     @staticmethod
     def _confirm(view) -> list[ReadCall]:
