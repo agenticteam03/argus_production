@@ -6159,3 +6159,201 @@ Decision / result:
 - Phase 18 is deployed as tables and offline code only: no route, gateway or wiring; `write_gate.open` stays empty.
 Consequences: T-0046's live SC-03/SC-07 check can run on this version.
 References: [evidence](../execution/history/DEPLOY-16028c7/step-01/evidence.md), #322, #323.
+
+## 2026-10-25 — T-0052 Phase 19 approval draft
+
+| Field | Value |
+|---|---|
+| Type | implementation checkpoint |
+| Who | conantkd + Codex |
+| Context | Phase 18 PR #323 remains in review; Phase 16 deployment is assumed for planning at the user's direction |
+| Decision / result | Start a draft PR for the private approval contract. Keep routes opt-in and the production write gate closed. |
+| Consequences | The draft is explicitly not ready for review, approval, merge or deployment. |
+| References | [Task](../tasks/current/PHASE-19-approval-ui-gateway.md), [ACR-0019](../architecture/changes/ACR-0019-human-approved-remediation.md), [proposed ACR-0032 draft PR #325](https://github.com/agenticteam03/argus_production/pull/325) |
+
+## 2026-10-26 - T-0046 L6: SC-03 and SC-07 live on main 16028c7
+
+Type: verification
+Who: conantkd (+ agent)
+Context: #322 (probe history replay, `network.link_states` offered to three classes) deployed in DEPLOY-16028c7; its
+next step was a live SC-03/SC-07 check. Both leases.
+Decision / result:
+- SC-03 and SC-07 PASS once each (baseline, no model call); both incidents read `network.link_states`; SC-07's
+  diagnosis cites the recorded broken link `client -> backend`.
+- The scheduler kept a 15 s `api -> cache` `broken`/`ok` transition between two ticks at its source times, and marked
+  `client -> backend` `unknown` exactly 90 s after its last sample.
+Consequences: T-0046 L6's live check is done. The model arm (`health_check_failed`) stays unmeasured until the replay's
+`now` is pinned (ACR-0031).
+References: [evidence](../execution/history/T-0046-l6/step-03/evidence.md), #322, DEPLOY-16028c7.
+
+## 2026-10-26 - PHASE-16 step 5d: the audit digest's first checked run; the daily job on
+
+Type: implementation (deploy step)
+Who: conantkd (+ agent)
+Context: ACR-0018 step 5. 5a-5c were merged and deployed (DEPLOY-01db0d7) with the job off and no sink set.
+Decision / result:
+- The OCI sink set in vm-095's `hosts.env` (a copy kept beside it); the scheduler recreated.
+- A first run by hand shipped five signed digests (2026-10-21 to 2026-10-25); the audit chain stayed verified.
+- Checked without reading the bucket: each object's stored SHA-256 equals the chain's signed digest rebuilt on vm-095,
+  every signature verifies and the series has no gap (5/5). The service credential lists the objects and cannot read
+  them, as designed.
+- `audit_digest: enabled: true` in `schedules.yaml`; the test that kept the shipped file off now expects the daily run.
+Consequences: the daily job ships each closed day from now on. Still open in step 5: an outbound allowlist for the
+scheduler (OCI-only egress is not yet enforced) and the team's alert receiver.
+References: [evidence](../execution/history/PHASE-16/step-05d-first-run/evidence.md), ACR-0018 §5, #303, #311, #314.
+
+## 2026-10-26 - T-0051: the phase 18 judge model set to gpt-5.6-terra (provisional)
+
+Type: decision
+Who: conantkd (+ agent)
+Context: ACR-0019 §5 leaves the judge's model to phase 18: a model other than the deciding one (`gpt-5.6-luna`), from a
+measured comparison, its cost recorded.
+Decision / result:
+- `gpt-5.6-terra` is the provisional judge, a team decision; the adapter's allowlist adds it, and the phase 18 tests
+  use it.
+- Measured once on vm-095 (18 labelled cases, two repetitions, the harness limited to this model): all 36 answers
+  schema-valid, harmful false agree 0, good-agree 0.67 (4 `doubt`), bad 12/12 `disagree`, traps all `doubt` or
+  `disagree`; 21,250 input and 6,436 output tokens.
+Consequences: its per-token price is to be recorded from the API account; the other candidates are compared before
+phase 20 releases an action. `ops/phase18_judge_eval.py` (protected) keeps its reference candidates.
+References: [task](../tasks/current/PHASE-18-supervised-actions.md), ACR-0019 §3.8 and §5.
+
+## 2026-10-26 - Night session close: digest schedule applied, phase checks, handoff
+
+Type: handoff
+Who: conantkd (+ agent)
+Context: the night of 2026-10-25/26 (UTC 01:00-09:20) deployed main twice (DEPLOY-01db0d7, DEPLOY-16028c7), ran
+SC-03/SC-07 live, turned the audit digest on and set the phase 18 judge; this entry closes it.
+Decision / result:
+- #338 applied on vm-095 (`b6e64eb`): the daily audit digest runs; all closed days through 2026-10-25 are in OCI.
+- Phase 17's exit proof holds live; phase 16's public 404 holds live (no privileged route exists yet).
+- The baseline evaluation on main shows no regression (68/72, hard checks 0).
+- The incidents that looked stuck were manual checks: no fault.
+- Status rows refreshed: phase 16 in progress (step 6 left), phase 17 done, phase 18 done offline, T-0046 model arm
+  left.
+- `main-guard` is red only for #323 (merged on a verbal approval); #339 records it and waits for `juanbetancurm`.
+Consequences: merge #339 before any other PR. Both leases released at the end of the session.
+References: [evidence](../execution/history/NIGHT-2026-10-26/evidence.md), #334-#340.
+
+## 2026-10-26 - T-0051: phase 18 review notes closed before phase 19 (migration 016)
+
+Type: implementation
+Who: conantkd (+ agent)
+Context: `juanbetancurm`'s #323 review left three notes for phase 19: the database does not itself require the judge's
+`agree` for an approval; a failure before the model call writes no verdict row; the stored judge model id is a
+caller string.
+Decision / result:
+- Migration 016 (`approval_needs_agree`): no approval row is created, and none moves to `approved`, unless a stored
+  `agree` verdict binds the proposal's digest and does not forbid the action; the same triggers in SQLite; two
+  `argus db check` rows (91 in all).
+- `OfflineActionPath.judge`: a review that cannot start (an unreadable context, no service card) stores a `doubt`
+  verdict with risk `red` and re-raises; a forbidden cell still leaves no verdict, as the guard tests require.
+- `OfflineActionPath` refuses a `judge_model_id` that differs from the model an adapter calls.
+- Tests that need an approval now store the `agree` first; the executor's and `answer`'s own checks are tested on a
+  store without the new trigger (defence in depth).
+Consequences: a migration is a protected path, so `juanbetancurm` reviews. The deploy applies 016 after 015.
+References: #323's review, ACR-0019 §3.8.
+
+## 2026-10-26 - PHASE-16 step 6: migration 016 deployed; the tamper drill detects an edited audit row
+
+Type: implementation (deploy step and drill)
+Who: conantkd (+ agent)
+Context: #342 merged (`6e87828`, migration 016). ACR-0018 step 6 asks for a tamper drill on vm-095.
+Decision / result:
+- vm-095 runs `main` `6e87828`: backup verified, migration 016 applied (schema 001-016), agent, worker and scheduler
+  rebuilt; 91/91 database checks; the audit chain verified. vm-166 unchanged.
+- The drill: the owner added one key to a chained audit row. `argus audit verify` and the scheduler's chain check both
+  named that row (`hash does not match its body`), and the digest job refused to sign the broken chain. The key was
+  removed and both checks verified the chain again.
+Consequences: phase 16's exit proof holds except the two step 5 follow-ups: the scheduler's outbound allowlist and the
+team's alert receiver.
+References: [evidence](../execution/history/PHASE-16/step-06-exit-drill/evidence.md), ACR-0018 step 6, #342.
+
+## 2026-10-26 - Phases 17 and 18 closed: status rows and the judge's cost
+
+Type: status
+Who: conantkd (+ agent)
+Context: phases 17 and 18 are merged and deployed, but `IMPLEMENTATION_PLAN.md` still showed both as planned, and
+phase 18 still listed the judge's per-token price and #323's review notes as left.
+Decision / result:
+- Phase 17 done: #316, #318 deployed (DEPLOY-01db0d7); its exit proof held live on 2026-10-26 (NIGHT-2026-10-26).
+- Phase 18 done (offline): #323's review notes were closed by #342 (migration 016, deployed in DEPLOY-6e87828).
+- The judge's cost, from the API account's usage for the 2026-10-26 measurement (36 reviews, 21,250 input and 6,436
+  output tokens): USD 0.043 input, USD 0.077 output, USD 0.12 in all; about USD 2 / 12 per 1M input / output tokens.
+Consequences: no test or VM action is needed to close either phase. The judge stays provisional until the candidates
+are compared before phase 20.
+References: [PHASE-18](../tasks/current/PHASE-18-supervised-actions.md),
+[T-0050](../tasks/current/T-0050-cards-and-catalogue.md), ACR-0019 §5.
+
+## 2026-10-26 - PHASE-16: security alerts to the team's Telegram group; the scheduler's egress proxy
+
+Type: implementation
+Who: conantkd (+ agent)
+Context: the two step 5 follow-ups left in phase 16: OCI-only egress for the scheduler was not enforced, and security
+events (ACR-0018 §18) reached no person. conantkd chose a Telegram group as the team's route.
+Decision / result:
+- `SecurityAlerts` (`infrastructure/security_alerts.py`, `security_alerts` in `schedules.yaml`): every minute the
+  scheduler posts each new alerting audit row to vm-095's Alertmanager with `argus_security="true"`; the alert names
+  the event, the actor, the time and the audit id, never the detail. A restart looks back one hour; a repeat merges in
+  Alertmanager. Argus's intake skips those alerts.
+- `alertmanager-vm-095.yml` (mounted by `compose.core-join.yml`): host alerts still pulled; the security route goes to
+  Telegram with the token and the chat id read from files under `/opt/argus-v18/secrets/alertmanager/`.
+- `argus-v18-egress` (tinyproxy, built from alpine 3.20): CONNECT :443 to `objectstorage.<region>.oraclecloud.com` and
+  `api.telegram.org` only. The scheduler moves to `argus-v18-sched` (internal); Postgres, the tunnel, vm-095's
+  Prometheus and Alertmanager join it.
+- ACR-0018 §18 phase 16 reading, ARCHITECTURE 1.8.37, `policies/NETWORK.md`.
+Consequences: after the deploy (Postgres and the tunnel are recreated to join the new network; a backup first), phase
+16 is done. A new destination in the proxy's filter needs an ACR.
+References: ACR-0018 §18, [task](../tasks/current/PHASE-16-operator-access.md).
+
+## 2026-10-26 - DEPLOY-798b69a: security alerts to Telegram and the scheduler's egress proxy; phase 16 done
+
+Type: deploy
+Who: conantkd (+ agent)
+Context: #344 (phase 16's security alerts and the scheduler's egress proxy) merged as `798b69a`; #343 and #345 are
+Brain only. No migration, no UI change.
+Decision / result:
+- vm-095 runs `798b69a`: a verified backup first; `argus-v18-sched` (internal) and `argus-v18-egress` created;
+  postgres, tunnel, agent, worker and scheduler recreated; Prometheus and Alertmanager joined the network.
+- The Telegram route works end to end: a test security alert reached the team's group.
+- The proxy passes the Telegram API and refuses other names; the scheduler has no direct route out.
+- 91/91 database checks, the audit chain verifies, the public edge answers 404 under `/api/v1/ops/`,
+  `NO INTERFERENCE` on both VMs.
+- Phase 16 is done.
+Consequences: between D.4 and D.5 the scheduler could not read vm-095's Alertmanager for about 12 minutes (one
+`monitoring lost` escalation, resolved); the next block of this kind runs the monitoring step straight after the
+core. Both leases released.
+References: [evidence](../execution/history/DEPLOY-798b69a/step-01/evidence.md), #344.
+
+## 2026-10-26 - T-0052: phase 19 rebuilt on main and the review's findings fixed
+
+Type: implementation
+Who: conantkd (+ agent)
+Context: a reviewer pass on draft #324 (head `ce20f39`) found the branch stacked on the pre-squash phase 18 (an old
+`014_remediation.sql`, conflicts in 9 files with main's 015 and 016) and gaps against ACR-0019 §3.9-§3.12.
+Decision / result:
+- The branch is rebuilt on main with only the phase 19 changes (`2dd55ed..ce20f39`), one commit, base `main`.
+- An approval answer writes a chained audit row (`action.approval_answered`: approval, digest, decision, reason) in
+  the same transaction as the answer and its resume intent; a denial needs a reason (§3.12).
+- `approve_action` and `place_hold` belong to the `approver` role only (ACR-0018 §5); an operator gets 403.
+- A red approval types the host-qualified target, not the container name (the name exists on both hosts).
+- The approval view returns `reversible` (the rollback is a catalogue action); the UI shows the target identity,
+  the arguments and reversible yes/no, and a reason box for a denial.
+- Holds: a whole host (`vm-166`) can be held; a target or host hold is released over the private API with its own
+  step-up (`hold-release:<id>`) and an audit row; the emergency stop (`*`) is released only from the CLI on vm-095;
+  `argus hold place|list|release` (audited).
+- Gateway: Docker's 304 (already started or stopped) is `confirmed`, not ambiguous; an identity change before the
+  write is `failed` (not sent), not left `received`.
+- The two missing exit proofs run on real images: the action token is unreadable by `argus-tools`; the gateway and
+  proxy containers enforce the released pair against a real Docker engine. The test found the proxy unable to create
+  its socket in a root-owned volume (fixed in the image).
+- `SELF_MERGE_PROTECTED` now covers `services/action_gateway/`, the package the reserved `services/action-gateway/`
+  became.
+- CI: `tests/test_acr0011_ui_edge.py` compared nginx's exact locations with the whole UI contract; the two
+  `/api/v1/ops/approvals` routes pass through the single private-path prefix location. The test now checks the public
+  routes one by one and that the prefix location exists with its `$argus_ops_ok` gate.
+- The private login is ACR-0032 (#325); ACR-0031 is the accepted link-probe replay.
+Consequences: offered for review as the first phase 19 slice (routes unmounted in production). Follow-ups: ACR-0032 (private login, #325), the worker's gateway client and
+token mount, leases as holds (`host_lease_clear` has no source yet), `ARCHITECTURE.md` and ACR-0019 §6 when the
+routes are mounted, the gateway's host binding in the deploy PR.
+References: [task](../tasks/current/PHASE-19-approval-ui-gateway.md), #324, ACR-0019 §3.9-§3.12, ACR-0018 §5.

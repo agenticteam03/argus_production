@@ -1,5 +1,32 @@
 # Next step
 
+Decide ACR-0032; then the worker's gateway client and leases as holds.
+
+Review #324 (phase 19) and #325 (ACR-0032).
+
+juanbetancurm reviews; then the deploy on vm-095: the bot token on the VM, the chat id read with `getUpdates`, the
+images, and the checks (OCI through the proxy, any other destination refused, a test alert reaching the group).
+
+Phase 19 planning (#324); compare the judge candidates before phase 20.
+
+The scheduler's outbound allowlist (OCI only), then the team's alert receiver; phase 16 is then done.
+
+`juanbetancurm` reviews (after #339). After merge: both leases, a backup, migration 016, the agent rebuilt.
+
+`juanbetancurm` reviews #339 (main-guard). Then: phase 16 step 6 tamper drill with the team, the scheduler's outbound
+allowlist, the judge's per-token price, and phase 19 planning.
+
+Record the judge's per-token price; compare the other candidates before phase 20.
+
+After merge: check out the merge on vm-095 and restart the scheduler (`audit digest: every 86400 s` in its log); then
+the egress allowlist follow-up.
+
+T-0046: the model arm once the replay's `now` is pinned; otherwise L6 is complete.
+
+Resolve proposed ACR-0032 before a private full-token browser login. Complete the Actions UI and test the gateway
+and proxy real images. Verify Phase 16 deployment and stacked dependencies before
+requesting any review or approval. Do not open a real action route in this PR.
+
 Live SC-03/SC-07 on this version (T-0046), then release the leases with a handoff.
 
 After #322 merges: both leases, a backup, migration 014 and the agent, worker and scheduler rebuilt.
