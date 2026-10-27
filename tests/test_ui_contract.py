@@ -34,6 +34,9 @@ UI_ROUTES = [("post", "/api/v1/auth/token"), ("post", "/api/v1/auth/logout"), ("
              ("post", "/api/v1/ops/auth/token"), ("get", "/api/v1/ops/approvals"),
              ("get", "/api/v1/ops/approvals/{approval_id}"),
              ("post", "/api/v1/ops/approvals/{approval_id}/answer"),
+             # T-0057 (ACR-0034 local tier): the staged reference sources an administrator approves (UI in T-0058)
+             ("get", "/api/v1/ops/corpus/sources"), ("post", "/api/v1/ops/corpus/sources/{name}/approve"),
+             ("post", "/api/v1/ops/corpus/sources/{name}/reject"),
              # ACR-0018 phase 16 step 3: the WebAuthn ceremonies and the caller's credentials
              *[("post", f"/api/v1/auth/webauthn/{c}/{s}") for c in ("register", "login", "step-up")
                for s in ("options", "verify")], ("get", "/api/v1/auth/webauthn/credentials")]
@@ -170,6 +173,7 @@ def test_the_api_matches_the_ui_contract(make_app):
     from argus.adapters.inbound.http import build_api
     app = make_app()
     app.action_rows = app.store  # explicit draft composition; production still omits the private routes
+    app.settings.corpus_staging_dir = "/nonexistent-staging"   # T-0057: the corpus routes mount with a staging folder
     current = ui_schema(build_api(app).openapi())
     if UPDATE:
         _write(CONTRACT, current)

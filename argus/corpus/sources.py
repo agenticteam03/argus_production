@@ -67,3 +67,15 @@ def load(path: Path | str) -> list[Source]:
         seen.add(s.name)
         out.append(s)
     return out
+
+
+def load_local(path: Path | str, base: list[Source]) -> list[Source]:
+    """An administrator's own sources (same schema). They may name only hosts the base allowlist already names: the
+    egress proxy lets nothing else out, and a new host is a reviewed change to `sources.yaml` and the proxy."""
+    allowed = {h for s in base for h in s.hosts}
+    out = load(path)
+    for s in out:
+        extra = set(s.hosts) - allowed
+        if extra:
+            raise ValueError(f"source {s.name!r}: {sorted(extra)} not in the base allowlist")
+    return out

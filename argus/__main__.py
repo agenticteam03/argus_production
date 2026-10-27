@@ -290,6 +290,20 @@ def corpus(args) -> None:
         print(f"bundle {args.out}: {sum(x['passages'] for x in m['sources'])} passage(s), "
               f"{sum(x['quarantined'] for x in m['sources'])} quarantined, passages sha256 {m['passages_sha256'][:16]}")
         return
+    if args.action == "fetch":
+        from argus.corpus import staging
+        staging_dir = args.staging or s.corpus_staging_dir
+        if not staging_dir:
+            raise SystemExit("corpus fetch needs --staging or ARGUS_CORPUS_STAGING_DIR")
+        base = sources.load(args.sources)
+        pool = base + (sources.load_local(args.local_sources, base) if args.local_sources else [])
+        chosen = [x for x in pool if x.name == args.source]
+        if not chosen:
+            raise SystemExit(f"{args.source}: not an allowlisted source")
+        m = staging.fetch_to_staging(chosen[-1], Path(staging_dir), log=print)
+        print(f"staged {args.source} in {staging_dir}: passages sha256 {m['passages_sha256'][:16]}; "
+              "an administrator approves it (never installed here)")
+        return
     if args.action == "import":
         dest = args.dest or s.corpus_dir
         if not dest:
@@ -417,7 +431,7 @@ def build_parser() -> argparse.ArgumentParser:
     u = sub.add_parser("user")
     u.add_argument("action", choices=["add", "disable"])
     u.add_argument("name")
-    u.add_argument("--role", default="operator", choices=["viewer", "operator", "approver"])
+    u.add_argument("--role", default="operator", choices=["viewer", "operator", "approver", "admin"])
     u.add_argument("--scopes", nargs="*", default=["lab"])
     d = sub.add_parser("db", help="Postgres system of record: import the lab SQLite history, prove the guarantees")
     d.add_argument("action", choices=["import-sqlite", "check", "prune-checkpoints", "prune-sessions"])
@@ -460,6 +474,11 @@ def build_parser() -> argparse.ArgumentParser:
     cb.add_argument("--sources", default="config/corpus/sources.yaml")
     cb.add_argument("--out", required=True)
     cb.add_argument("--only", default="", help="comma-separated source names (default: all)")
+    cf = cs.add_parser("fetch", help="stage ONE allowlisted source for an administrator's approval (never installs)")
+    cf.add_argument("--source", required=True)
+    cf.add_argument("--staging", default="")
+    cf.add_argument("--sources", default="config/corpus/sources.yaml")
+    cf.add_argument("--local-sources", default="", help="an administrator's own sources (hosts of the base list only)")
     ci = cs.add_parser("import", help="verify a bundle's hashes and install it with its keyword index")
     ci.add_argument("bundle")
     ci.add_argument("--dest", default="")
