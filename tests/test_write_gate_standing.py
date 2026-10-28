@@ -1,8 +1,8 @@
 """T-0031, phase 8: the standing write-gate test (ARCHITECTURE §22.2, §13.3, §13.4).
 
-While no (capability, target) pair is released, a model reply proposing `container.restart` must end as
-`no_action_escalated`, with no approval, no write node and no request to any action endpoint. It runs in every build
-(CI), on both runners. The deployment half is `ops/write-gate-check.sh` (tests/test_write_gate_check.py).
+While only cache start is released, a model reply proposing `container.restart` must end as `no_action_escalated`,
+with no approval, no write node and no request to any action endpoint. It runs in every build (CI), on both runners.
+The deployment half is `ops/write-gate-check.sh` (tests/test_write_gate_check.py).
 """
 from __future__ import annotations
 
@@ -16,6 +16,7 @@ from argus.policy.engine import PolicyEngine
 from test_core import ROOT, FakeMetrics, FakeTargetAgent, incident, make_app  # noqa: F401  (make_app = fixture)
 
 WORKER_166 = "vm-166/container:argus-lab-worker"
+CACHE_PAIR = {"capability": "container.start", "target": "vm-166/container:argus-lab-cache"}
 READ_ONLY = {"READ_ONLY_SAFE", "READ_ONLY_SENSITIVE"}
 WRITE_NODES = {"propose_action", "request_approval", "await_approval", "precheck_action", "execute_write"}
 
@@ -43,8 +44,9 @@ def write_calls(monkeypatch):
 
 @pytest.mark.parametrize("runner", ["plain", "langgraph"])
 @pytest.mark.parametrize("proposal", list(PROPOSALS))
-def test_a_proposed_restart_ends_escalated_with_no_approval_and_no_write(make_app, monkeypatch, write_calls,
-                                                                         runner, proposal):
+def test_a_proposed_restart_ends_escalated_with_no_approval_and_no_write(
+        make_app,  # noqa: F811
+        monkeypatch, write_calls, runner, proposal):
     monkeypatch.setenv("ARGUS_RUNNER", runner)
     metrics = FakeMetrics({WORKER_166: {"restarts_10m": 5, "oom_killed": 1, "last_exit_code": 137}})
     app = make_app(llm=ScriptedLLM(lambda ctx: {"calls": PROPOSALS[proposal]}), metrics=metrics)
@@ -70,12 +72,10 @@ def test_the_catalogue_registers_no_write_capability():
     assert not names & {"container.restart", "restart_container", "propose_remediation"}
 
 
-def test_the_policy_keeps_the_write_gate_closed_and_allows_only_reads():
+def test_the_policy_opens_only_cache_start_and_allows_only_reads():
     text = (ROOT / "config/policy.yaml").read_text(encoding="utf-8")
     data = yaml.safe_load(text)
-    assert data["write_gate"]["open"] == []
+    assert data["write_gate"]["open"] == [CACHE_PAIR]
     policy = PolicyEngine(data, text)
     assert policy.allowed_safety_classes <= READ_ONLY
-    with pytest.raises(ValueError, match="write_gate.open must be empty"):
-        PolicyEngine({**data, "write_gate": {"open": [{"capability": "container.restart", "target": WORKER_166}]}},
-                     text)
+    assert policy.write_gate_open == [CACHE_PAIR]
