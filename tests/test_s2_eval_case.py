@@ -94,7 +94,10 @@ def test_scripts_use_lab_names_only(script):
         assert forbidden not in text
 
 
-def _run(script, tmp_path, host, override=None):
+_LAST: dict = {}
+
+
+def _run(script, tmp_path, host, override=None, networks=""):
     """Run a script with `hostname` and `docker` replaced by shell functions; returns (exit code, docker calls)."""
     bash = shutil.which("bash")
     if bash is None:
@@ -103,14 +106,22 @@ def _run(script, tmp_path, host, override=None):
     log.write_text("", encoding="utf-8", newline="")
     # shell functions win over any PATH lookup (Git's bash launcher reorders an inherited PATH), so a test can
     # never reach the real docker: the script is sourced after both shims are defined
-    shims = ('hostname() { echo "$FAKE_HOST"; }; docker() { echo "$@" >> "$DOCKER_LOG"; }; '
+    shims = ('hostname() { echo "$FAKE_HOST"; }; '
+             'docker() { if [ "$1" = inspect ]; then echo "$FAKE_NETWORKS"; else echo "$@" >> "$DOCKER_LOG"; fi; }; '
              '. "$SCRIPT"')
-    env = {**os.environ, "FAKE_HOST": host, "DOCKER_LOG": log.as_posix(), "SCRIPT": script.as_posix()}
+    env = {**os.environ, "FAKE_HOST": host, "DOCKER_LOG": log.as_posix(), "FAKE_NETWORKS": networks, "SCRIPT": script.as_posix()}
     env.pop("ARGUS_HOSTNAME", None)
     if override:
         env["ARGUS_HOSTNAME"] = override
     done = subprocess.run([bash, "-c", shims], capture_output=True, env=env)
+    _LAST["out"] = done.stdout.decode("utf-8", "replace")
     return done.returncode, log.read_text(encoding="utf-8").splitlines()
+
+
+def _run_full(script, tmp_path, networks):
+    """(exit code, stdout, docker calls) for a run as argus-vm166 with the api on `networks`."""
+    code, calls = _run(script, tmp_path, "argus-vm166", networks=networks)
+    return code, _LAST["out"], calls
 
 
 @pytest.mark.parametrize("script", [INJECT, RESET])
@@ -128,9 +139,33 @@ def test_any_other_host_is_refused(script, tmp_path, host):
 
 @pytest.mark.parametrize("script", [INJECT, RESET])
 def test_the_real_vm166_name_is_accepted(script, tmp_path):
-    code, calls = _run(script, tmp_path, "argus-vm166")
+    code, calls = _run(script, tmp_path, "argus-vm166", networks="argus-lab-app" if script == INJECT else "argus-lab-iso")
     assert code == 0
     assert any(c.startswith("network connect") for c in calls) and any(c.startswith("network disconnect") for c in calls)
+
+
+def test_reset_after_argus_restored_the_network_skips_both_steps(tmp_path):
+    # scenario 2 succeeded: the api is already on its own network and off the isolated one
+    done = _run_full(RESET, tmp_path, networks="argus-lab-app")
+    assert done[0] == 0 and done[2] == []
+    assert "connect skipped" in done[1] and "disconnect skipped" in done[1]
+
+
+def test_reset_twice_is_safe(tmp_path):
+    first = _run_full(RESET, tmp_path, networks="argus-lab-iso")
+    assert first[0] == 0 and [c.split()[1] for c in first[2]] == ["connect", "disconnect"]
+    second = _run_full(RESET, tmp_path, networks="argus-lab-app")
+    assert second[0] == 0 and second[2] == []
+
+
+def test_reset_connects_when_the_api_is_on_neither_network(tmp_path):
+    done = _run_full(RESET, tmp_path, networks="")
+    assert done[0] == 0 and [c.split()[1] for c in done[2]] == ["connect"] and "disconnect skipped" in done[1]
+
+
+def test_reset_with_the_api_on_both_networks_only_disconnects(tmp_path):
+    done = _run_full(RESET, tmp_path, networks="argus-lab-app argus-lab-iso")
+    assert done[0] == 0 and [c.split()[1] for c in done[2]] == ["disconnect"] and "connect skipped" in done[1]
 
 
 def test_the_override_replaces_the_host_name(tmp_path):
