@@ -14,6 +14,7 @@ ROOT = Path(__file__).resolve().parents[1]
 POLICY_TEXT = (ROOT / "config/policy.yaml").read_text(encoding="utf-8")
 BASE_POLICY = yaml.safe_load(POLICY_TEXT)
 CACHE_PAIR = {"capability": "container.start", "target": "vm-166/container:argus-lab-cache"}
+NETWORK_RESTORE_PAIR = {"capability": "network.restore", "target": "vm-166/container:argus-lab-api"}
 
 
 def _engine(open_entries):
@@ -30,9 +31,18 @@ def test_one_cache_pair_is_valid():
     assert _engine([CACHE_PAIR]).write_gate_open == [CACHE_PAIR]
 
 
+def test_network_restore_on_the_exact_lab_api_pair_is_valid():
+    assert _engine([NETWORK_RESTORE_PAIR]).write_gate_open == [NETWORK_RESTORE_PAIR]
+
+
 def test_vm095_pair_is_refused():
     with pytest.raises(ValueError, match="write_gate.open"):
         _engine([{"capability": "container.start", "target": "vm-095/container:argus-lab-cache"}])
+
+
+def test_network_restore_outside_vm166_lab_is_refused():
+    with pytest.raises(ValueError, match="write_gate.open"):
+        _engine([{"capability": "network.restore", "target": "vm-095/container:argus-lab-api"}])
 
 
 def test_non_lab_target_is_refused():

@@ -80,6 +80,7 @@ targets:
     depends_on: [vm-166/host:vm-166]              # writes to the host's lab filesystem: in a host incident's scope (§5)
   - ref: vm-166/container:argus-lab-api           # SC-03 victim of its dependency
     depends_on: [vm-166/container:argus-lab-cache]
+    tcp_ports: [8080]
     http_endpoints: ["http://argus-lab-api:8080/health"]
     networks: [argus-lab-app]                     # ACR-0035: its declared network (network.restore)
     service:
@@ -88,7 +89,7 @@ targets:
       owner: platform
       criticality: medium
       data: ephemeral
-      safe_actions: [container.start, container.restart]
+      safe_actions: [container.start, container.restart, network.restore]
       never: [container.stop]
   - ref: vm-166/container:argus-lab-cache
     tcp_ports: [6379]
@@ -102,9 +103,9 @@ targets:
       data: ephemeral
       safe_actions: [container.start, container.restart]
       never: [container.stop]
-  - ref: vm-166/container:argus-lab-client        # SC-07 victim: cannot reach its backend (only on argus-lab-app)
+  - ref: vm-166/container:argus-lab-client        # SC-07 backend link and S2-5 link to the API
     profile: scenario
-    depends_on: [vm-166/container:argus-lab-backend]
+    depends_on: [vm-166/container:argus-lab-backend, vm-166/container:argus-lab-api]
     networks: [argus-lab-app]                     # E2E-2: its assigned network (container.status compares)
   - ref: vm-166/container:argus-lab-backend       # SC-07: healthy, but only on argus-lab-iso (the wrong network)
     profile: scenario

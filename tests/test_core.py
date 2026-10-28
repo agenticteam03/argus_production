@@ -199,7 +199,9 @@ def test_invoke_refuses_cross_host_read_directly(make_app):
 def test_dependency_scope_allows_neighbour(make_app):
     app = make_app()
     scope = {str(t) for t in app.runner.scope(TargetRef.parse("vm-166/container:argus-lab-api"))}
-    assert scope == {"vm-166/container:argus-lab-api", "vm-166/container:argus-lab-cache", "vm-166/host:vm-166"}
+    # argus-lab-client declares depends_on argus-lab-api (ACR-0035, S2-5), so the dependent is in the API's scope too
+    assert scope == {"vm-166/container:argus-lab-api", "vm-166/container:argus-lab-cache",
+                     "vm-166/container:argus-lab-client", "vm-166/host:vm-166"}
 
 
 def test_evidence_is_insert_only(make_app):

@@ -157,13 +157,16 @@ def test_suggestions_respect_service_card_and_database_forbidden(cards):
     assert _offered(cards, WRONG, db) == []
 
 
-def test_unreleased_pair_stays_refused():
-    """network.restore is not released: the gate holds exactly the reviewed release candidate, and nothing else."""
+def test_released_pair_is_the_exact_reviewed_network_restore_candidate():
+    """The released API pair and its frozen networks exactly match the reviewed candidate."""
     policy = yaml.safe_load((ROOT / "config/policy.yaml").read_text(encoding="utf-8"))
     release = json.loads((ROOT / "deploy/action_gateway/first-lab-release.candidate.json").read_text(encoding="utf-8"))
     gate = {(p["capability"], p["target"]) for p in policy["write_gate"]["open"]}
     assert gate == {(row["capability"], row["target"]) for row in release["released"]}
-    assert all(capability != "network.restore" for capability, _ in gate)
+    network = next(row for row in release["released"] if row["capability"] == "network.restore")
+    assert (network["target"], network["route"], network["connect_network"], network["disconnect_network"]) == (
+        "vm-166/container:argus-lab-api", "POST /containers/argus-lab-api/network-restore",
+        "argus-lab-app", "argus-lab-iso")
 
 
 # --- TASK-65: the REAL propose() with this card (review of #362, findings 1 and 2) --------------------------------------

@@ -115,7 +115,8 @@ class CandidateProposer:
             return ProposalInput(
                 incident_id=incident.id, capability=candidate["action"], target=candidate["target"],
                 target_identity=identity, arguments={}, root_cause=incident.root_cause_target or candidate["target"],
-                rationale=self._rationale(incident, name, values, candidate["action"]),
+                rationale=self._rationale(incident, name, values, candidate["action"])
+                + self._ruled_out(values, candidate["evidence_refs"], candidate["target"]),
                 evidence_refs=list(candidate["evidence_refs"]),
                 grounds=["runbook:" + ground for ground in candidate["grounds"]],
                 prediction=Prediction(signal=rule[0], target=str(incident.target), expected="healthy",
@@ -126,6 +127,24 @@ class CandidateProposer:
                 evidence_version=str(self.rows.evidence_state(incident.id)[0]))
         return None
 
+
+    def _ruled_out(self, values: dict, refs: list[str], cause: str) -> str:
+        """What the cited reads already exclude, in plain words for the judge and the approver: no model text, and a
+        fact only when the exclusion holds (an OOM kill or a restart count above zero is not 'ruled out'). A foreign
+        `container.status` among the cited records is a declared dependency of the cause (incident.py cites no other)."""
+        facts = []
+        if values.get("oom_killed") is False:
+            facts.append("no OOM kill")
+        if values.get("restart_count") == 0:
+            facts.append("0 restarts")
+        by_id = {record.evidence_id: record for record in self.rows.get_evidence(list(refs))}
+        for ref in refs:
+            record = by_id.get(ref)
+            seen = (record.values.get("values") or {}) if record is not None else {}
+            if (record is not None and record.capability == "container.status" and record.status == "ok"
+                    and record.target != cause and seen.get("state") == "running"):
+                facts.append(f"dependency {TargetRef.parse(record.target).name} is running")
+        return f" Ruled out by the cited reads: {'; '.join(facts)}." if facts else ""
 
     @staticmethod
     def _rationale(incident, name: str, values: dict, action: str) -> str:
