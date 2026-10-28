@@ -5,7 +5,7 @@
   "branch": "task/approver-manages-corpus",
   "base_commit": "2123140ad583de37f9a2fb26f90aec0b84df1110",
   "started_at": "2026-10-28T19:28:14+00:00",
-  "expires_at": "2026-10-28T23:41:43+00:00",
+  "expires_at": "2026-10-29T00:22:14+00:00",
   "released": false,
   "handoff": null,
   "vms": {
@@ -16,7 +16,7 @@
       "branch": "task/approver-manages-corpus",
       "base_commit": "2123140ad583de37f9a2fb26f90aec0b84df1110",
       "started_at": "2026-10-28T19:28:14+00:00",
-      "expires_at": "2026-10-28T23:41:43+00:00",
+      "expires_at": "2026-10-29T00:22:14+00:00",
       "released": false,
       "handoff": null
     },
@@ -27,7 +27,7 @@
       "branch": "task/approver-manages-corpus",
       "base_commit": "2123140ad583de37f9a2fb26f90aec0b84df1110",
       "started_at": "2026-10-28T19:28:14+00:00",
-      "expires_at": "2026-10-28T23:41:43+00:00",
+      "expires_at": "2026-10-29T00:22:14+00:00",
       "released": false,
       "handoff": null
     }
