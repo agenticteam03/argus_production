@@ -26,6 +26,7 @@ def _login(client, user):
 
 def test_approval_view_is_unmounted_without_explicit_action_rows(make_app):  # noqa: F811
     app = make_app()
+    app.action_rows = None          # X-9: no approval rows (an empty write gate); a released pair would mount them
     app.store.upsert_principal("alice", "human", "approver", ["lab"], PasswordHash.recommended().hash(PASSWORD))
     client = TestClient(build_api(app))
     auth = _login(client, "alice")

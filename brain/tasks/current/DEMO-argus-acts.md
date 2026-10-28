@@ -36,11 +36,12 @@ State values: `ready` (not started), `building`, `PR #n`, `merged`, `blocked: <w
 | X-1 | Rebuild phase 20 candidate on current `main` (draft #326 is far behind and conflicts) | C | merged | #354 |
 | X-2 | Deploy phase 19 (#324, #347) and corpus (#349, #351, #352), migrations, one window | C | second window deployed `9798950` on 2026-10-28: tunnel, worker, agent, scheduler and vm-166 target; gate closed, checks pass | |
 | X-3 | Gateway and socket-proxy services in the lab, action token (never in the repo), credential isolation on real images | C | building (stacked on #355; defined, not started: X-5's window starts them with the token) | |
-| X-4 | Wire frozen-row execution to the gateway client with fresh precheck and verify | C | PR #355 (#354 merged; also needs the target redeployed on vm-166) | #355 |
+| X-4 | Wire frozen-row execution to the gateway client with fresh precheck and verify | C | merged (#355); the target is redeployed in X-2's second window; building the path in production moved to X-9 | #355 |
 | X-5 | Release PR, pair 1: `container.start` on the cache (both approve) | C | ready | |
 | X-6 | Release PR, pair 2: `container.restart` on the job worker (both approve) | C | ready | |
 | X-7 | Release PR, pair 3: `network.restore` on the API (both approve) | C | ready | |
 | X-8 | ARCHITECTURE.md update and version bump for `network.restore`, in the PR that implements it (AGENT_PROTOCOL section 4; ACR-0035 itself may merge as `proposed`) | C | ready | |
+| X-9 | Production: build the action path from reviewed parts, closed by default (`ARGUS_ACTION_PATH`, `write_gate.open`); deterministic proposer | C | PR open; merges after X-2's window | |
 | S1-1 | Ranking: a cause whose anomaly started after its dependency's is demoted; `analysis.anomaly_summary` offered to the dependency classes | J | ready | |
 | S1-2 | Lab API CPU-spike fault and injection scripts | J | ready | |
 | S1-3 | Evaluation case: cache first, API CPU after | J | ready | |

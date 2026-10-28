@@ -23,8 +23,7 @@ LOGIN = "/api/v1/ops/auth/token"
 
 def _client(app, monkeypatch, *, credentials: int = 2, mounted: bool = True, edge: str = "testclient"):
     app.settings.ops_peer = edge                        # TestClient's peer plays the edge (argus-v18-ui)
-    if mounted:
-        app.action_rows = app.store
+    app.action_rows = app.store if mounted else None    # X-9: a build with a released pair mounts them by itself
     password = PasswordHash.recommended().hash(PASSWORD)
     for user, role in (("alice", "approver"), ("olga", "operator")):
         app.store.upsert_principal(user, "human", role, ["lab"], password)
