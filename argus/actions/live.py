@@ -49,7 +49,12 @@ class LivePrecheck:
             raise RemediationRefused("no reviewed action card for this capability")
         values, observed_at = self.read_status(data.target)
         identity = identity_of(card, values)
-        precondition_values = {**data.arguments, **values}
+        # The card's preconditions read the frozen arguments, the live status and the target's declared networks. The
+        # status (container.status) carries the networks the container is on, never the declared ones: those come from
+        # the inventory, and no argument or status field can replace them. A live fact wins over an argument.
+        info = self.inventory.target(TargetRef.parse(data.target)) if hasattr(self.inventory, "target") else None
+        precondition_values = {**data.arguments, **values,
+                               "declared_networks": list(getattr(info, "networks", None) or [])}
         incident = self.rows.get_incident(data.incident_id)
         return Precheck(
             target_identity=identity,

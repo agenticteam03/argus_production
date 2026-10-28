@@ -22,12 +22,19 @@ from argus.actions.execution import ActionExecutor
 from argus.actions.gateway_client import HttpActionGateway
 from argus.actions.live import LivePrecheck, LiveVerification
 from argus.actions.remediation import Prediction, freeze_proposal
+from argus.adapters.outbound.config_adapters import YamlInventory
 from argus.adapters.outbound.sqlite_store import SqliteStore
 from test_phase18_remediation import agreed, candidate
 from test_phase20_live_execution import Rows
 
 
 ROOT = Path(__file__).resolve().parents[1]
+INVENTORY = YamlInventory((ROOT / "config" / "inventory.yaml").read_text(encoding="utf-8"))
+
+
+def _inventory(target=None):
+    """The frozen proposal's inventory version, with the repository's real declarations (or `target`'s)."""
+    return SimpleNamespace(version=lambda: "inventory-1", target=target or INVENTORY.target)
 TOKEN = "offline-test-token-0123456789abcdef0123456789"
 FULL_ID = "c" * 64
 CARDS = load_action_cards(ROOT / "config" / "actions")
@@ -181,9 +188,9 @@ def _case(tmp_path, scenario, mode):
     rows = Rows(store, evidence_version="evidence-1")
     values = {"id": FULL_ID[:12], "container_id": FULL_ID, "state": scenario.state}
     if scenario.capability == "network.restore":
-        values.update(declared_networks=["argus-lab-app"], networks=["argus-lab-iso"])
+        values.update(networks=["argus-lab-iso"])            # what the target reports; the declaration is the inventory's
     precheck = LivePrecheck(
-        rows=rows, inventory=SimpleNamespace(version=lambda: "inventory-1"), policy_version="policy-1",
+        rows=rows, inventory=_inventory(), policy_version="policy-1",
         cards={scenario.capability: scenario.card}, read_status=lambda _target: (values, at),
         detector_firing=lambda _incident: True, host_lease_clear=lambda _host: True,
     )(proposal, at)
@@ -198,7 +205,9 @@ def _case(tmp_path, scenario, mode):
         thread.join(timeout=2)
 
 
-def test_network_precheck_evaluates_the_frozen_network_arguments(tmp_path):
+def test_network_precheck_evaluates_the_frozen_arguments_against_the_inventory_declaration(tmp_path):
+    """The real container.status reports the networks a container is on, never the declared ones: those come from the
+    inventory (argus-lab-app for the API), and a status field cannot replace them."""
     scenario = SCENARIOS[2]
     at = datetime.now(timezone.utc).replace(microsecond=0)
     proposal = _proposal(scenario, at)
@@ -206,17 +215,21 @@ def test_network_precheck_evaluates_the_frozen_network_arguments(tmp_path):
     try:
         store.add_action_proposal(proposal)
         rows = Rows(store, evidence_version="evidence-1")
-        values = {"id": FULL_ID[:12], "container_id": FULL_ID, "state": "running",
-                  "declared_networks": ["argus-lab-app"], "networks": ["argus-lab-iso"]}
-        check = LivePrecheck(
-            rows=rows, inventory=SimpleNamespace(version=lambda: "inventory-1"), policy_version="policy-1",
-            cards={scenario.capability: scenario.card}, read_status=lambda _target: (values, at),
-            detector_firing=lambda _incident: True, host_lease_clear=lambda _host: True,
-        )(proposal, at)
-        assert check.action_preconditions_met
+        status = {"id": FULL_ID[:12], "container_id": FULL_ID, "state": "running", "networks": ["argus-lab-iso"]}
+
+        def met(values, inventory=None):
+            return LivePrecheck(
+                rows=rows, inventory=inventory or _inventory(), policy_version="policy-1",
+                cards={scenario.capability: scenario.card}, read_status=lambda _target: (values, at),
+                detector_firing=lambda _incident: True, host_lease_clear=lambda _host: True,
+            )(proposal, at).action_preconditions_met
+
+        assert met(status)                                                      # shaped as the real target answers
+        assert met({**status, "declared_networks": ["argus-lab-iso"]})          # a status field cannot redeclare
+        assert not met(status, _inventory(target=lambda ref: None))             # no declaration: fails closed
+        assert not met({**status, "networks": ["argus-lab-app"]})               # already on the declared network
     finally:
         store._db.close()
-
 
 def _assert_request_contract(state, scenario):
     assert len(state.requests) == 1
