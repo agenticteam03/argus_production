@@ -29,12 +29,13 @@ describe("routes", () => {
     vi.unstubAllEnvs();
   });
 
-  it("shows Reference sources only when /me lists manage_corpus (ACR-0034)", () => {
+  it("shows Reference sources to approvers and administrators before the private login (ACR-0034, ACR-0040)", () => {
     const sources = flat.find((r) => r.path === "/tools/reference-sources");
     expect(sources).toBeDefined();
-    expect(canSee(sources, "approver", [])).toBe(false);
-    expect(canSee(sources, "viewer", ["approve_action"])).toBe(false);
-    expect(canSee(sources, "approver", ["manage_corpus"])).toBe(true);
+    expect(canSee(sources, "approver", [])).toBe(true);     // the screen then leads through the private login
+    expect(canSee(sources, "admin", [])).toBe(true);
+    expect(canSee(sources, "operator", [])).toBe(false);
+    expect(canSee(sources, "viewer", ["manage_corpus"])).toBe(false);
   });
 
   it("has no write screens in a read-only UI (approvals, simulator, scheduler)", () => {

@@ -32,6 +32,11 @@ export const httpArgusAdapter = {
     return getJson("/api/v1/ops/approvals");
   },
 
+  // ACR-0042: how many approvals wait for this approver ({waiting}); any token, a count only
+  async countWaitingApprovals() {
+    return getJson("/api/v1/approvals/waiting");
+  },
+
   async getApproval(id) {
     return getJson(`/api/v1/ops/approvals/${encodeURIComponent(id)}`);
   },

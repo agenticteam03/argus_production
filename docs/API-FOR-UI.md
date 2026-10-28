@@ -95,6 +95,10 @@ on. Anything else can change without notice.
     `diagnosis`, and gains `resolution: {by, at, reason}` (`null` on every other incident); the audit records
     `incident.resolved`. Show a "Resolve" control only on an escalated incident and only when `/me` lists
     `resolve_incident`.
+14. **Approvals waiting** (ACR-0042): `GET /api/v1/approvals/waiting` returns only `{"waiting": N}`: how many approvals
+    wait for this approver, with the private list's filter (pending, still verifying, in the caller's scope; at most
+    50). Any token, no second factor; never an id, an incident, an action or a target. Show it on the bell only when
+    `/me` lists `count_waiting_approvals`, and send the person to Actions, where the private login decides them.
 
 ## Routes
 
@@ -105,7 +109,8 @@ on. Anything else can change without notice.
 | `GET /api/v1/me` | any token | user, role, `access` (`read`/`investigate`/`full`), `actions`, and the role's `permissions` (ACR-0018: show controls by `actions`; `permissions` says what the role could do with a full token) | [`me.json`](../contracts/samples/me.json) |
 | `POST /api/v1/ops/auth/token` | anyone, but only on the private path (the edge's client certificate and allowlist; else 404) | ACR-0032: form `username`, `password`; a full `ops` token for a human approver with two security keys, valid only on the private path, until 15 minutes without a request or one hour after the login (401: sign in again); keep it in memory only | — |
 | `GET /api/v1/ops/approvals` | private `ops` (or full) human with `approve_action` and a WebAuthn-ready session | the pending approvals in the caller's scope: `id`, `incident_id`, `capability`, `target`, `risk`, `verdict`, `expires_at` | — |
-| `GET /api/v1/ops/corpus/sources` | private `ops` (or full) human `admin` with a WebAuthn-ready session (`manage_corpus`) | ACR-0034 local tier: the installed and staged reference sources: `name`, `ref`, `licence`, `status` (`installed`/`staged`), `passages`, `quarantined`, `at`, `sha256` | — |
+| `GET /api/v1/approvals/waiting` | a human approver, any token, no second factor; only while the action routes are mounted | `{"waiting": N}` (at most 50) (ACR-0042) | — |
+| `GET /api/v1/ops/corpus/sources` | private `ops` (or full) human `admin` with a WebAuthn-ready session (`manage_corpus`) | ACR-0034 local tier: the installed and staged reference sources, one row per source: `name` (the source's, or a staged bundle's: a bundle may carry several sources), `source` (the source's own name), `ref`, `licence`, `status` (`installed`/`staged`), `passages`, `quarantined`, `at`, `sha256` | — |
 | `POST /api/v1/ops/corpus/sources/{name}/approve` | same | `{step_up_token}`; the step-up is bound to `corpus:<name>:<sha256>` (the staged bundle's passages hash). Verifies the staged hashes and installs the source; 409 if nothing is staged or the bundle changed | — |
 | `POST /api/v1/ops/corpus/sources/{name}/reject` | same | `{reason, step_up_token}` (same binding); deletes the staged bundle | — |
 | `GET /api/v1/ops/approvals/{approval_id}` | private full-token human with `approve_action` and a WebAuthn-ready session; draft composition only | the frozen proposal, bound judge verdict, state, expiry and `reversible` (the rollback is a catalogue action); the UI opens one known approval ID | — |
@@ -140,6 +145,7 @@ incident or evidence id; `400` a login asked for a scope other than `read`.
 | `view_timeline` | every role | the run events (detect → recall → investigate ⇄ act → record) |
 | `view_evidence` | operator, approver | evidence records and the audit trail |
 | `start_investigation` | operator, approver, with a full or an **investigate** token | the "Start an investigation" form and "Investigate again" (ACR-0012) |
+| `count_waiting_approvals` | approver, any token, while the action routes are mounted | the bell's count of approvals waiting (ACR-0042) |
 | `manage_second_factor` | every role, when the second factor is configured | enrolling a key and completing the login with it; `/me`'s `second_factor` is `{enrolled, verified}` (`null` when not configured) (ACR-0018 step 3) |
 
 ## Examples

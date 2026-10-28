@@ -3,7 +3,7 @@ import { httpAuthAdapter } from "./httpAuthAdapter.js";
 import { httpArgusAdapter } from "./httpArgusAdapter.js";
 import { clearToken, getToken, setToken } from "./session.js";
 import { clearSession, loadSession, saveSession } from "./sessionStore.js";
-import { actionsStep } from "./actionsStep.js";
+import { actionsStep, corpusStep } from "./actionsStep.js";
 
 const response = (status, body) => ({ ok: status >= 200 && status < 300, status, json: async () => body });
 const stubStorage = () => {
@@ -80,5 +80,17 @@ describe("actionsStep", () => {
     expect(actionsStep({ role: "approver", access: "ops", actions: [], secondFactor: { verified: true } }))
       .toBe("not-granted");                                 // the key is confirmed but the server grants nothing
     expect(actionsStep({ role: "operator", access: "investigate", actions: [] })).toBe("not-granted");
+  });
+});
+
+describe("corpusStep", () => {
+  it("leads an approver or an administrator to the reference sources, never an operator", () => {
+    expect(corpusStep({ role: "approver", access: "investigate", actions: [] })).toBe("private-login");
+    expect(corpusStep({ role: "admin", access: "ops", actions: [], secondFactor: { verified: false } })).toBe("second-factor");
+    expect(corpusStep({ role: "admin", access: "ops", actions: ["manage_corpus"], secondFactor: { verified: true } }))
+      .toBe("ready");
+    expect(corpusStep({ role: "approver", access: "ops", actions: ["approve_action"], secondFactor: { verified: true } }))
+      .toBe("not-granted");                                 // approvals granted, but not the corpus
+    expect(corpusStep({ role: "operator", access: "investigate", actions: [] })).toBe("not-granted");
   });
 });
