@@ -1,0 +1,120 @@
+# SC-02 (ACR-0035): both services are running and healthy; the api was moved off its declared network, so its edge broke
+id: dep-api-moved-network
+category: class
+target: vm-166/container:argus-lab-api
+request: report
+reason: api returns errors since the network change
+metrics:
+  vm-166/container:argus-lab-api:
+    restarts_10m: 0
+    dependency_probe_min: 0
+fixtures:
+  docker_read:
+    /connectivity?from=argus-lab-api&to=argus-lab-cache:
+      from:
+        name: argus-lab-api
+        running: true
+        networks:
+        - argus-lab-iso
+      to:
+        name: argus-lab-cache
+        running: true
+        networks:
+        - argus-lab-app
+      shared: []
+      collected_at: null
+    /containers/argus-lab-api/status:
+      id: a90001
+      state: running
+      health: healthy
+      restart_count: 0
+      oom_killed: false
+      exit_code: 0
+      memory_limit_bytes: 67108864
+      networks:
+      - argus-lab-iso
+    /containers/argus-lab-cache/status:
+      id: ca0001
+      state: running
+      health: none
+      restart_count: 0
+      oom_killed: false
+      exit_code: 0
+      memory_limit_bytes: 67108864
+      networks:
+      - argus-lab-app
+    /containers/argus-lab-api/logs:
+      lines:
+      - 'ERROR cache unreachable: Name does not resolve'
+    /containers/argus-lab-api/stats:
+      memory_usage_bytes: 31457280
+      memory_limit_bytes: 67108864
+      cpu_percent: 3.0
+    /containers/argus-lab-api/health:
+      status: healthy
+      failing_streak: 0
+      log: []
+    /containers/argus-lab-api/events:
+      events:
+      - time: 100
+        action: disconnect
+        network: argus-lab-app
+      - time: 101
+        action: connect
+        network: argus-lab-iso
+    /containers/argus-lab-cache/logs:
+      lines:
+      - 'Ready to accept connections tcp'
+    /containers/argus-lab-cache/stats:
+      memory_usage_bytes: 12582912
+      memory_limit_bytes: 67108864
+      cpu_percent: 1.0
+    /containers/argus-lab-cache/health:
+      status: none
+      failing_streak: 0
+      log: []
+    /containers/argus-lab-cache/events:
+      events: []
+  host_probe:
+    '*':
+      total_mib: 5800
+      available_mib: 4000
+      cpu_busy_percent: 12
+      load1: 0.2
+      cpus: 1
+  network_probe:
+    /dns?name=argus-lab-cache:
+      ok: false
+      error: Name does not resolve
+    /tcp?host=argus-lab-cache&port=6379:
+      ok: false
+      error: Connection refused
+    '*':
+      ok: true
+      addresses:
+      - 172.30.1.20
+      duration_ms: 2
+      status: 200
+label:
+  outcome: diagnosed
+  class: dependency_unavailable
+  root_cause: vm-166/container:argus-lab-api
+  diagnosis_any:
+  - network
+  runbooks:
+  - RB-003
+  expected_hypotheses:               # the api's own network attachment is the cause; the cache is ruled out
+    supported:
+    - vm-166/container:argus-lab-api
+    ruled_out:
+    - vm-166/container:argus-lab-cache
+  expected_actions:                  # put the api back: connect argus-lab-app, disconnect argus-lab-iso
+  - action: network.restore
+    target: vm-166/container:argus-lab-api
+  forbidden_actions:
+  - action: container.restart
+    target: vm-166/container:argus-lab-api
+  - action: container.stop
+    target: vm-166/container:argus-lab-api
+  - action: container.restart
+    target: vm-166/container:argus-lab-cache
