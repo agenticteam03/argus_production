@@ -113,6 +113,56 @@ def test_the_proposer_restarts_a_stalled_worker_and_predicts_its_own_processing_
     assert aw.VERIFY_SIGNALS["worker_stalled"][0] == "jobs_processed_rate" and 0 < aw.VERIFY_SIGNALS["worker_stalled"][1] <= 0.1
 
 
+def test_the_proposer_restores_a_wrong_network_from_inventory_and_live_status_only():
+    client = "vm-166/container:argus-lab-client"
+    api_info = SimpleNamespace(networks=["argus-lab-app"])
+    client_info = SimpleNamespace(depends_on=[TargetRef.parse(API)])
+    inventory = SimpleNamespace(version=lambda: "inventory-1", target=lambda ref: (
+        api_info if str(ref) == API else client_info if str(ref) == client else None))
+    rows = SimpleNamespace(evidence_state=lambda incident_id: (7, None), get_evidence=lambda refs: [])
+    read = lambda _inc, _target: ({"state": "running", "container_id": FULL_ID,
+                                   "networks": ["argus-lab-iso"]}, NOW)
+    proposer = aw.CandidateProposer(rows=rows, inventory=inventory, cards=CARDS,
+                                    gate_open=frozenset({("network.restore", API)}), read_status=read,
+                                    policy_version="policy-1")
+    inc = SimpleNamespace(id="inc_s2", incident_class="dependency_unavailable", target=TargetRef.parse(client),
+                          root_cause_target=API)
+    result = proposer(inc, [candidate("network.restore", API)], {})
+    assert isinstance(result, ProposalInput)
+    assert (result.capability, result.target, result.arguments) == (
+        "network.restore", API, {"connect_network": "argus-lab-app", "disconnect_network": "argus-lab-iso"})
+    assert (result.prediction.signal, result.prediction.target, result.prediction.expected) == (
+        "link_ok", f"{client} -> {API}", "1")
+
+
+def test_network_restore_is_held_back_when_the_incident_has_no_declared_link_to_the_target():
+    api_info = SimpleNamespace(networks=["argus-lab-app"])
+    inventory = SimpleNamespace(version=lambda: "inventory-1", target=lambda ref: api_info if str(ref) == API else None)
+    rows = SimpleNamespace(evidence_state=lambda incident_id: (7, None))
+    read = lambda _inc, _target: ({"state": "running", "container_id": FULL_ID, "networks": ["argus-lab-iso"]}, NOW)
+    proposer = aw.CandidateProposer(rows=rows, inventory=inventory, cards=CARDS,
+                                    gate_open=frozenset({("network.restore", API)}), read_status=read,
+                                    policy_version="policy-1")
+    assert proposer(incident(), [candidate("network.restore", API)], {}) is None
+
+
+@pytest.mark.parametrize("declared, attached", [
+    (["argus-lab-app"], ["argus-lab-app"]),
+    ([], ["argus-lab-iso"]),
+    (["argus-lab-app", "argus-lab-extra"], ["argus-lab-iso"]),
+    (["argus-lab-app"], ["argus-lab-iso", "argus-lab-extra"]),
+])
+def test_network_restore_is_held_back_when_its_arguments_are_not_unambiguously_derivable(declared, attached):
+    api_info = SimpleNamespace(networks=declared)
+    inventory = SimpleNamespace(version=lambda: "inventory-1", target=lambda ref: api_info if str(ref) == API else None)
+    rows = SimpleNamespace(evidence_state=lambda incident_id: (7, None))
+    read = lambda _inc, _target: ({"state": "running", "container_id": FULL_ID, "networks": attached}, NOW)
+    proposer = aw.CandidateProposer(rows=rows, inventory=inventory, cards=CARDS,
+                                    gate_open=frozenset({("network.restore", API)}), read_status=read,
+                                    policy_version="policy-1")
+    assert proposer(incident(), [candidate("network.restore", API)], {}) is None
+
+
 def test_a_job_rate_is_healthy_only_when_it_is_above_zero():
     worker = "vm-166/container:argus-lab-jobworker"
 
@@ -121,6 +171,21 @@ def test_a_job_rate_is_healthy_only_when_it_is_above_zero():
                                                                            observed_at=NOW))
     sample = lambda value: aw.SignalSampler(rate(value))("jobs_processed_rate", worker)
     assert sample(0.5) == ("healthy", NOW) and sample(0.0)[0] == "unhealthy"
+
+
+def test_link_ok_is_sampled_from_the_single_recorded_inventory_edge():
+    dependent = "vm-166/container:argus-lab-client"
+    rows = SimpleNamespace(link_probe_cursors=lambda owner: {API: {"state": "ok", "at": NOW}})
+    info = SimpleNamespace(depends_on=[TargetRef.parse(API)])
+    inventory = SimpleNamespace(target=lambda ref: info if str(ref) == dependent else None)
+    edge = f"{dependent} -> {API}"
+    assert aw.SignalSampler(object(), rows=rows, inventory=inventory)("link_ok", edge) == ("1", NOW)
+
+    missing_rows = SimpleNamespace(link_probe_cursors=lambda owner: {})
+    assert aw.SignalSampler(object(), rows=missing_rows, inventory=inventory)("link_ok", edge) is None
+    bad_rows = SimpleNamespace(link_probe_cursors=lambda owner: {API: {"state": "broken", "at": NOW}})
+    assert aw.SignalSampler(object(), rows=bad_rows, inventory=inventory)("link_ok", edge) == ("0", NOW)
+    assert aw.SignalSampler(object(), rows=rows, inventory=inventory)("link_ok", f"{dependent} -> {CACHE}") is None
 
 
 # --- verification samples ---------------------------------------------------------------------------------------------

@@ -7,7 +7,8 @@ adds only the glue and one decision, written down here:
 *The proposer is deterministic.* ACR-0019 lets the model draft a proposal; this first version does not call a model for
 it. It builds the proposal from the reviewed candidate, the action card and a fresh read of the target, and the judge
 (a second model) still reviews the frozen result. That is narrower than the ACR allows, so it adds no authority. It
-proposes only for an action without parameters and only for an incident class with a reviewed verification signal
+proposes only for an argumentless action or `network.restore` whose arguments can be derived unambiguously from
+inventory and a fresh target read, and only for an incident class with a reviewed verification signal
 (`VERIFY_SIGNALS`); anything else is no proposal and the incident escalates, as it does today.
 
 The path is built only when `ARGUS_ACTION_PATH=1` **and** `write_gate.open` names a pair. With the flag set and the
@@ -29,20 +30,23 @@ from argus.actions.live import LivePrecheck, LiveVerification, identity_of, stat
 from argus.actions.remediation import Alternative, Prediction, ProposalInput, RemediationRefused
 from argus.application.correlation import detected_class
 from argus.application.invoke_capability import InvocationContext
+from argus.application.link_state import link_ok_actual
 from argus.domain.model import TargetRef
 
 log = logging.getLogger(__name__)
 
-# incident class -> (signal on the incident's own target, least value that counts as healthy). A class absent here gets
-# no proposal: the verification must be a reviewed fact, not a guess.
+# Incident class -> (signal on the incident's own target, least healthy value); `network.restore` uses the exact
+# dependent -> restored-target edge. An incident class absent here gets no proposal.
 VERIFY_SIGNALS: dict[str, tuple[str, float]] = {
     "dependency_unavailable": ("dependency_probe_min", 1.0),
     # S4: the restarted worker must process again; any positive five-minute rate counts (the detector wants exactly 0)
     "worker_stalled": ("jobs_processed_rate", 0.01),
+    # ACR-0035: this action is verified against its dependent's recorded link to the restored target.
+    "network.restore": ("link_ok", 1.0),
 }
 HEALTHY_AT_LEAST = {signal: minimum for signal, minimum in VERIFY_SIGNALS.values()}
-# actions this proposer may propose: those whose reviewed card needs no argument (a card's optional parameters, such as
-# `timeout`, are simply left out). An action with required choices, like network.restore's two networks, is not here.
+# Argumentless actions this proposer may propose (optional parameters such as `timeout` are left out). `network.restore`
+# is handled separately because its two required networks must be derived from reviewed facts.
 ARGUMENTLESS_ACTIONS = frozenset({"container.start", "container.restart"})
 PREDICTION_WINDOW_S = 120                      # ACR-0019 section 3.6's example; the same window as ACR-0035
 EXTRACT_MAX = 480                              # the judge accepts at most 500 characters per extract
@@ -101,25 +105,52 @@ class CandidateProposer:
             log.info("no reviewed verification signal for class %s: no proposal", incident.incident_class)
             return None
         for candidate in candidates:
-            card = self.cards.get(candidate["action"])
-            if (card is None or candidate["action"] not in ARGUMENTLESS_ACTIONS
-                    or (candidate["action"], candidate["target"]) not in self.gate_open):
-                continue                                    # not released, or it needs arguments this proposer cannot set
+            action, target = candidate["action"], candidate["target"]
+            card = self.cards.get(action)
+            if (card is None or (action not in ARGUMENTLESS_ACTIONS and action != "network.restore")
+                    or (action, target) not in self.gate_open):
+                continue                                    # not released, or outside this proposer's reviewed scope
             try:
-                values, _ = self.read_status(incident, candidate["target"])
+                values, _ = self.read_status(incident, target)
                 identity = identity_of(card, values)
             except RemediationRefused as exc:
-                log.info("no proposal for %s on %s: %s", candidate["action"], candidate["target"], exc)
+                log.info("no proposal for %s on %s: %s", action, target, exc)
                 continue
-            name = TargetRef.parse(candidate["target"]).name
+            arguments = {}
+            if action == "network.restore":
+                info = self.inventory.target(TargetRef.parse(target)) if hasattr(self.inventory, "target") else None
+                declared = list(getattr(info, "networks", None) or [])
+                attached = values.get("networks")
+                if (len(declared) != 1 or not isinstance(declared[0], str) or not declared[0]
+                        or not isinstance(attached, list) or len(attached) != 1
+                        or not isinstance(attached[0], str) or not attached[0]):
+                    log.info("no proposal for network.restore on %s: network arguments are not unambiguous", target)
+                    continue
+                dependent_info = (self.inventory.target(incident.target)
+                                  if hasattr(self.inventory, "target") else None)
+                dependencies = list(getattr(dependent_info, "depends_on", None) or [])
+                if dependent_info is None or TargetRef.parse(target) not in dependencies:
+                    log.info("no proposal for network.restore on %s: incident target has no declared link to it", target)
+                    continue
+                arguments = {"connect_network": declared[0], "disconnect_network": attached[0]}
+                preconditions = {**values, **arguments, "declared_networks": declared}
+                if not card.check_preconditions(preconditions):
+                    log.info("no proposal for network.restore on %s: live state does not meet its preconditions", target)
+                    continue
+            name = TargetRef.parse(target).name
+            prediction_rule = VERIFY_SIGNALS.get(action, rule)
+            expected = str(card.verify["expected"]) if prediction_rule[0] == "link_ok" else "healthy"
+            prediction_target = str(incident.target)
+            if action == "network.restore":
+                prediction_target = f"{prediction_target} -> {target}"
             return ProposalInput(
-                incident_id=incident.id, capability=candidate["action"], target=candidate["target"],
-                target_identity=identity, arguments={}, root_cause=incident.root_cause_target or candidate["target"],
-                rationale=self._rationale(incident, name, values, candidate["action"])
-                + self._ruled_out(values, candidate["evidence_refs"], candidate["target"]),
+                incident_id=incident.id, capability=action, target=target,
+                target_identity=identity, arguments=arguments, root_cause=incident.root_cause_target or target,
+                rationale=self._rationale(incident, name, values, action)
+                + self._ruled_out(values, candidate["evidence_refs"], target),
                 evidence_refs=list(candidate["evidence_refs"]),
                 grounds=["runbook:" + ground for ground in candidate["grounds"]],
-                prediction=Prediction(signal=rule[0], target=str(incident.target), expected="healthy",
+                prediction=Prediction(signal=prediction_rule[0], target=prediction_target, expected=expected,
                                       within_seconds=PREDICTION_WINDOW_S),
                 alternatives=[Alternative(action="wait", why_not="The cause stays in place, so the dependent keeps failing.")],
                 preview=f"{candidate['action']} on {name}", rollback=card.rollback,
@@ -159,10 +190,13 @@ class SignalSampler:
     """`(signal, target) -> (actual, sampled_at) | None` for `LiveVerification`. `actual` is "healthy" only when the fresh
     value reaches the reviewed minimum; a missing, stale or non-finite value is None (unknown, never healthy)."""
 
-    def __init__(self, metrics, healthy_at_least: dict[str, float] | None = None):
+    def __init__(self, metrics, healthy_at_least: dict[str, float] | None = None, *, rows=None, inventory=None):
         self.metrics, self.healthy_at_least = metrics, healthy_at_least or HEALTHY_AT_LEAST
+        self.rows, self.inventory = rows, inventory
 
     def __call__(self, signal: str, target: str):
+        if signal == "link_ok":
+            return self._link_sample(target)
         minimum = self.healthy_at_least.get(signal)
         if minimum is None:
             return None
@@ -175,6 +209,27 @@ class SignalSampler:
         if snapshot.observed_at is None or value is None or not math.isfinite(value):
             return None
         return ("healthy" if value >= minimum else "unhealthy"), snapshot.observed_at
+
+    def _link_sample(self, link: str):
+        """Sample the exact declared edge encoded as `dependent -> dependency`; missing state is unknown."""
+        if self.rows is None or self.inventory is None:
+            return None
+        try:
+            dependent, separator, dependency = link.partition(" -> ")
+            if not separator:
+                return None
+            dependent_ref, dependency_ref = TargetRef.parse(dependent), TargetRef.parse(dependency)
+            info = self.inventory.target(dependent_ref)
+            dependencies = list(getattr(info, "depends_on", None) or [])
+            if info is None or dependency_ref not in dependencies:
+                return None
+            cursor = (self.rows.link_probe_cursors(dependent) or {}).get(dependency)
+            if not cursor or cursor.get("at") is None:
+                return None
+            return link_ok_actual(self.rows, dependent, dependency), cursor["at"]
+        except Exception as exc:  # noqa: BLE001 - any missing link state is unknown, never healthy
+            log.info("no link verification sample for %s: %s", dependent, type(exc).__name__)
+            return None
 
 
 def class_detected(metrics, incident) -> bool:
@@ -303,7 +358,7 @@ def build_action_path(s, *, store, policy, inventory, action_policy, metrics, in
             detector_firing=lambda found: class_detected(metrics, found),
             host_lease_clear=lambda host: True)(proposal, at)       # leases are process, not code (ACR-0019 section 3.11)
 
-    verification = LiveVerification(rows=store, read_signal=SignalSampler(metrics),
+    verification = LiveVerification(rows=store, read_signal=SignalSampler(metrics, rows=store, inventory=inventory),
                                     detector_firing=lambda found: class_still_firing(metrics, found))
     return OfflineActionPath(
         rows=store, action_policy=action_policy, inventory=inventory,
