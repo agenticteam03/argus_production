@@ -8,7 +8,7 @@ Decision / result:
 - `deploy/action_gateway/first-lab-release.candidate.json` pins `POST /containers/argus-lab-api/network-restore`, connect `argus-lab-app`, disconnect `argus-lab-iso`. The gateway loader validates the entry and constructs the exact route map used by `ActionGateway`; no gateway service code changed.
 - `config/inventory.yaml` allows `network.restore` for the API and declares its TCP port 8080. `argus-lab-client` keeps its backend dependency and adds the API dependency; the generated `deploy/target/config/vm-166.json` probes each link separately. The API's service risk remains amber; the card is non-reversible.
 - The policy engine accepts the network pair only on a `vm-166/container:argus-lab-*` target, and the standing tests require exactly the three reviewed pairs.
-- ACR-0035 is marked accepted with architecture 1.8.44 / X-8. Conan's approval is the second safety approval; the developer and Conan approvals are required before merge.
+- ACR-0035 is marked accepted with architecture 1.8.45 / X-8. Conan's approval is the second safety approval; the developer and Conan approvals are required before merge.
 
 Consequences: the release is an offline candidate only. No VM was used, no deployment occurred, and the release remains subject to both approvals.
 

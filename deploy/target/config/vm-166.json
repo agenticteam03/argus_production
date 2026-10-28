@@ -69,7 +69,8 @@
       "owner": "argus-lab-jobworker",
       "dependency": "argus-lab-cache",
       "host": "argus-lab-cache",
-      "port": 6379
+      "port": 6379,
+      "protocol": "redis"
     },
     {
       "owner": "argus-lab-nginx",
@@ -81,7 +82,8 @@
       "owner": "argus-lab-api",
       "dependency": "argus-lab-cache",
       "host": "argus-lab-cache",
-      "port": 6379
+      "port": 6379,
+      "protocol": "redis"
     },
     {
       "owner": "argus-lab-client",

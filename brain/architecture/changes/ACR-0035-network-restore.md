@@ -10,7 +10,7 @@ pair on the lab API, with the exact route and network names in the candidate fil
 | Proposed by | juanbetancurm (+ agent) · 2026-10-27 |
 | Accepted by | Implementing release PR TASK-89; developer approval and Conan's second approval are required before merge |
 | Second approval (safety principle only) | **required** for the write gate and least-privilege body rule; Conan's approval is the second approval on TASK-89 (AGENT_PROTOCOL §4) |
-| Architecture version | `1.8.44` (phase 20, X-8; this implementing release) |
+| Architecture version | `1.8.45` (phase 20, X-8; this implementing release) |
 | Task / PR | TASK-89 (lane S2b), third release PR |
 
 ## 1. Detect and explain
@@ -223,7 +223,7 @@ Proposed. Decisions taken by the manager on 2026-10-27, written here for the rev
 
 ## 6. Applied
 
-- [x] `ARCHITECTURE.md` updated (§4.5, §12.2, §13.3, §14.4, §14.8, §15.1, changelog), version bumped to 1.8.44 (X-8)
+- [x] `ARCHITECTURE.md` updated (§4.5, §12.2, §13.3, §14.4, §14.8, §15.1, changelog), version bumped to 1.8.45 (X-8)
 - [x] ACR-0019 §3.3's catalogue list updated to the single action
 - [x] the action card, risk rows, gateway release entry, calls and journal steps, with their tests (implementation files were completed in the preceding S2 tasks)
 - [x] journal entry

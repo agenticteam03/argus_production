@@ -376,12 +376,12 @@ class GraphRunner(SkeletonRunner):
         except Exception as exc:
             self._audit(self._inc(s), "decision", "judge.doubt",
                         detail={"proposal_id": s["proposal_id"], "reason": str(exc)[:200]})
-            return {"route": "record"}
+            return self._held_back(s, "the judge's review failed")
         self._audit(self._inc(s), "decision", "judge.verdict",
                     detail={"proposal_id": s["proposal_id"], "verdict": verdict.verdict,
                             "reasons": list(verdict.reasons), "risk": verdict.risk})
         if verdict.verdict != "agree":
-            return {"route": "record"}  # recommendation remains visible; no approval or dispatch
+            return self._held_back(s, f"the judge answered {verdict.verdict}")   # no approval or dispatch
         return {"route": "request_approval"}
 
     def _n_request_approval(self, s: RunState) -> dict:
@@ -390,8 +390,21 @@ class GraphRunner(SkeletonRunner):
         except Exception as exc:
             self._audit(self._inc(s), "access", "action.approval_refused",
                         detail={"proposal_id": s["proposal_id"], "reason": str(exc)[:200]})
-            return {"route": "record"}
-        return {"route": "await_approval", "approval_id": approval_id} if approval_id else {"route": "record"}
+            return self._held_back(s, "the approval request was refused")
+        if not approval_id:
+            return self._held_back(s, "the approval request was refused")
+        return {"route": "await_approval", "approval_id": approval_id}
+
+    def _held_back(self, s: RunState, why: str) -> dict:
+        """The cause is found but its proposed action stopped before an approval: the problem is still there, so the
+        incident goes to a person instead of closing. It keeps its diagnosis, which now says why nothing was sent."""
+        inc = self._inc(s)
+        inc.diagnosis = f"{inc.diagnosis or ''} The proposed action was not sent for approval: {why}.".strip()
+        self.memory.update_incident(inc)
+        notify = getattr(self.action_path, "held_back", None)
+        if notify is not None:
+            notify(inc.id)
+        return self._final(IncidentOutcome.diagnosed, IncidentStatus.escalated, s["final"]["cited"])
 
     def _n_await_approval(self, s: RunState) -> dict:
         approval_id = s["approval_id"]

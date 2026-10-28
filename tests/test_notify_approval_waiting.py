@@ -159,3 +159,40 @@ def test_security_alert_sender_uses_existing_alertmanager_telegram_route():
     _url, resolved = client.calls[1]
     assert resolved[0]["labels"] == alerts[0]["labels"]       # same alert, so the group drops it
     assert resolved[0]["endsAt"] == NOW.isoformat()
+
+
+def test_a_held_back_proposal_tells_the_team_without_detail_and_a_failing_sender_is_only_logged(monkeypatch, caplog):
+    sent = []
+    path, _rows = _path(monkeypatch)
+    path.escalation_notifier = lambda message, incident_id: sent.append((message, incident_id))
+    path.held_back("inc_123")
+    assert sent == [("Argus: an incident needs a person; its proposed action was not sent for approval. "
+                     "Open the incident on the private path.", "inc_123")]
+    for detail in ("container", "start", TARGET, "argus-lab", "doubt", "judge", "/api/", "https://"):
+        assert detail not in sent[0][0].lower()
+
+    def broken(*_a):
+        raise RuntimeError("down")
+    path.escalation_notifier = broken
+    path.held_back("inc_123")
+    assert "escalation notification failed" in caplog.text
+
+
+def test_the_escalation_notice_rides_the_same_route_and_ends_after_the_hold():
+    class Client:
+        def __init__(self):
+            self.calls = []
+
+        def post(self, url, *, json):
+            self.calls.append((url, json))
+            return SimpleNamespace(raise_for_status=lambda: None)
+
+    client = Client()
+    SecurityAlerts(object(), "alertmanager", client=client, clock=lambda: NOW).notify_escalation("needs a person",
+                                                                                                "inc_123")
+    url, alerts = client.calls[0]
+    assert url == "alertmanager/api/v2/alerts"
+    assert alerts[0]["labels"] == {"alertname": "ArgusIncidentEscalated", "argus_security": "true",
+                                   "incident_id": "inc_123"}
+    assert alerts[0]["annotations"]["summary"] == "needs a person"
+    assert alerts[0]["endsAt"] == (NOW + timedelta(hours=1)).isoformat()

@@ -264,6 +264,17 @@ def build_action_path(s, *, store, policy, inventory, action_policy, metrics, in
     cards = action_policy.cards
     reader = StatusReader(invoke)
     judge = OpenAIJudge(judge_key, s.judge_model, deciding_model=s.llm_model)
+    # TASK-61: the approval notice (and a held-back proposal's escalation) goes out through the home host's
+    # Alertmanager, on the security route (Telegram)
+    home = inventory.host(s.home_host) if getattr(s, "home_host", "") else None
+    notifier = escalation = None
+    if home is not None and home.alertmanager:
+        from argus.infrastructure.security_alerts import SecurityAlerts
+        team = SecurityAlerts(store, home.alertmanager)
+        notifier, escalation = team.notify_approval_waiting, team.notify_escalation
+    else:
+        log.warning("ARGUS_HOME_HOST names no host with an Alertmanager: approval and escalation notices will not "
+                    "be sent")
 
     def snapshot(proposal, at):
         incident = store.get_incident(proposal.input.incident_id)
@@ -283,4 +294,5 @@ def build_action_path(s, *, store, policy, inventory, action_policy, metrics, in
         judge_context=ReviewContext(rows=store, inventory=inventory, cards=cards, runbooks_dir=s.runbooks_dir),
         snapshot=snapshot, sample=verification,
         gateway=HttpActionGateway(s.action_gateway_url, s.action_token_file),
-        gate_open=gate, daily_host_cap=s.action_daily_host_cap)
+        gate_open=gate, daily_host_cap=s.action_daily_host_cap, approval_notifier=notifier,
+        escalation_notifier=escalation)
