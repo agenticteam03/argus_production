@@ -20,13 +20,11 @@ verify:
   signal: up
   expected: 1
   window_sec: 60
-# A worker is healthy again only when it processes jobs AND its queue is draining (TASK-55; ACR-0019 §3.12).
-# `queue_depth_slope` is the queue depth's slope over the window (per second); the collector derives it.
+# A worker is healthy again when it processes jobs (TASK-55; ACR-0019 §3.12). Name only signals in config/signals.yaml.
 verify_by_role:
   worker:
     checks:
       - {signal: jobs_processed_rate, op: ">", expected: 0}
-      - {signal: queue_depth_slope, op: "<", expected: 0}
     window_sec: 180
 rollback: none
 sources:

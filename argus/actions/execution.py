@@ -24,7 +24,10 @@ def _holds(actual: str | None, op: str, expected: object) -> bool:
     if actual is None:
         return False
     if op == "==":
-        return str(actual) == str(expected)
+        try:
+            return float(actual) == float(expected)
+        except (TypeError, ValueError):
+            return str(actual) == str(expected)
     try:
         left, right = float(actual), float(expected)
     except (TypeError, ValueError):

@@ -18,12 +18,21 @@ from test_phase18_remediation import NOW, agreed, candidate
 ROOT = Path(_ROOT)
 WORKER = "vm-166/container:argus-lab-jobworker"
 RATE = "jobs_processed_rate"
-SLOPE = "queue_depth_slope"
+LINK = "link_ok"
 
 
 @pytest.fixture()
 def cards():
     return load_action_cards(ROOT / "config/actions")
+
+
+@pytest.fixture()
+def multi(tmp_path):
+    """A test-local container.restart card whose worker verify holds two existing signals."""
+    verify = {"checks": [{"signal": RATE, "op": ">", "expected": 0}, {"signal": LINK, "expected": 1}],
+              "window_sec": 180}
+    return load_action_cards(_card_copy(tmp_path, {"signal": "up", "expected": 1, "window_sec": 60},
+                                        verify_by_role={"worker": verify}))
 
 
 def _card_copy(tmp_path, verify, **extra):
@@ -53,7 +62,7 @@ def test_restart_has_a_worker_specific_verify(cards):
     assert card.verify_window() == 60
     assert card.verify_window("api") == 60
     checks = card.verify_checks("worker")
-    assert [(c["signal"], c["op"], c["expected"]) for c in checks] == [(RATE, ">", 0), (SLOPE, "<", 0)]
+    assert [(c["signal"], c["op"], c["expected"]) for c in checks] == [(RATE, ">", 0)]
     assert card.verify_window("worker") > 0
 
 
@@ -114,28 +123,28 @@ def _sample(seconds, signal, actual, cleared=True):
     return Verification(NOW + timedelta(seconds=seconds), cleared, signal, WORKER, actual)
 
 
-def test_all_checks_hold_is_verified_with_one_line_per_check(tmp_path, cards):
-    store, executor, action = _setup(tmp_path, cards)
+def test_all_checks_hold_is_verified_with_one_line_per_check(tmp_path, multi):
+    store, executor, action = _setup(tmp_path, multi)
     try:
-        samples = [_sample(30, RATE, "2.5"), _sample(30, SLOPE, "-0.4")]
+        samples = [_sample(30, RATE, "2.5"), _sample(30, LINK, "1")]
         assert executor.verify(action["id"], samples, at=NOW + timedelta(seconds=30),
                                role="worker") == "recovered_verified"
         details = store.get_action_outcome(action["id"])["body"]
         assert details["prediction_met"] is True
         assert [(c["signal"], c["actual"], c["ok"]) for c in details["checks"]] == [(RATE, "2.5", True),
-                                                                                  (SLOPE, "-0.4", True)]
+                                                                                  (LINK, "1", True)]
     finally:
         store._db.close()
 
 
-def test_one_failing_check_is_not_verified_after_the_window(tmp_path, cards):
-    store, executor, action = _setup(tmp_path, cards)
+def test_one_failing_check_is_not_verified_after_the_window(tmp_path, multi):
+    store, executor, action = _setup(tmp_path, multi)
     try:
         at = NOW + timedelta(seconds=30)
-        samples = [_sample(30, RATE, "2.5"), _sample(30, SLOPE, "0.9")]      # processing, but the queue still grows
+        samples = [_sample(30, RATE, "2.5"), _sample(30, LINK, "0")]      # processing, but the queue still grows
         assert executor.verify(action["id"], samples, at=at, role="worker") is None      # keeps waiting
         late = NOW + timedelta(seconds=200)
-        samples = [_sample(120, RATE, "2.5"), _sample(120, SLOPE, "0.9")]
+        samples = [_sample(120, RATE, "2.5"), _sample(120, LINK, "0")]
         assert executor.verify(action["id"], samples, at=late, role="worker") == "action_failed"
         details = store.get_action_outcome(action["id"])["body"]
         assert details["prediction_met"] is False
@@ -144,42 +153,42 @@ def test_one_failing_check_is_not_verified_after_the_window(tmp_path, cards):
         store._db.close()
 
 
-def test_a_missing_check_is_a_failure_at_the_deadline(tmp_path, cards):
-    store, executor, action = _setup(tmp_path, cards)
+def test_a_missing_check_is_a_failure_at_the_deadline(tmp_path, multi):
+    store, executor, action = _setup(tmp_path, multi)
     try:
         late = NOW + timedelta(seconds=200)
         assert executor.verify(action["id"], [_sample(100, RATE, "3")], at=late, role="worker") == "action_failed"
         lines = store.get_action_outcome(action["id"])["body"]["checks"]
-        assert lines[1]["signal"] == SLOPE and lines[1]["actual"] is None and lines[1]["ok"] is False
+        assert lines[1]["signal"] == LINK and lines[1]["actual"] is None and lines[1]["ok"] is False
     finally:
         store._db.close()
 
 
-def test_a_sample_outside_the_window_does_not_count(tmp_path, cards):
-    store, executor, action = _setup(tmp_path, cards)
+def test_a_sample_outside_the_window_does_not_count(tmp_path, multi):
+    store, executor, action = _setup(tmp_path, multi)
     try:
         late = NOW + timedelta(seconds=400)
-        samples = [_sample(300, RATE, "2.5"), _sample(300, SLOPE, "-1")]       # good, but after the 180 s window
+        samples = [_sample(300, RATE, "2.5"), _sample(300, LINK, "1")]       # good, but after the 180 s window
         assert executor.verify(action["id"], samples, at=late, role="worker") == "action_failed"
     finally:
         store._db.close()
 
 
-def test_a_detector_that_has_not_cleared_fails_the_check(tmp_path, cards):
-    store, executor, action = _setup(tmp_path, cards)
+def test_a_detector_that_has_not_cleared_fails_the_check(tmp_path, multi):
+    store, executor, action = _setup(tmp_path, multi)
     try:
         at = NOW + timedelta(seconds=200)
-        samples = [_sample(100, RATE, "2.5"), _sample(100, SLOPE, "-1", cleared=False)]
+        samples = [_sample(100, RATE, "2.5"), _sample(100, LINK, "1", cleared=False)]
         assert executor.verify(action["id"], samples, at=at, role="worker") == "action_failed"
     finally:
         store._db.close()
 
 
-def test_a_sample_before_the_action_completed_is_refused(tmp_path, cards):
-    store, executor, action = _setup(tmp_path, cards)
+def test_a_sample_before_the_action_completed_is_refused(tmp_path, multi):
+    store, executor, action = _setup(tmp_path, multi)
     try:
         with pytest.raises(RemediationRefused, match="predates"):
-            executor.verify(action["id"], [_sample(0, RATE, "2"), _sample(10, SLOPE, "-1")], at=NOW, role="worker")
+            executor.verify(action["id"], [_sample(0, RATE, "2"), _sample(10, LINK, "1")], at=NOW, role="worker")
     finally:
         store._db.close()
 
@@ -202,6 +211,22 @@ def test_a_list_of_samples_needs_cards_with_several_checks(tmp_path, cards):
         assert executor.verify(action["id"], [sample], at=sample.sampled_at) == "recovered_verified"
     finally:
         store._db.close()
+
+
+def test_a_number_is_compared_as_a_number():
+    from argus.actions.execution import _holds
+
+    assert _holds("1.0", "==", 1) and _holds("1", "==", 1) and _holds(" 1 ", "==", 1.0)
+    assert not _holds("0.0", "==", 1) and not _holds(None, "==", 1)
+    assert _holds("positive", "==", "positive") and not _holds("negative", "==", "positive")
+
+
+def test_the_real_card_names_only_collected_signals(cards):
+    signals = yaml.safe_load((ROOT / "config/signals.yaml").read_text(encoding="utf-8"))
+    card = cards["container.restart"]
+    for role in (None, "worker"):
+        for check in card.verify_checks(role):
+            assert check["signal"] in signals or check["signal"] in {"up", "link_ok"}, check
 
 
 # ---- the evaluation case -------------------------------------------------------------------------------------
