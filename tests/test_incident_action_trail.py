@@ -11,6 +11,7 @@ from pwdlib import PasswordHash
 
 from argus.actions.remediation import freeze_proposal
 from argus.adapters.inbound.http import build_api
+from argus.application.incident_action import incident_action
 from test_core import incident, make_app  # noqa: F401
 from test_phase18_remediation import TARGET, candidate
 
@@ -50,6 +51,44 @@ def test_the_answer_lands_on_the_incidents_audit_and_its_page_shows_the_action(m
     [line] = [a for a in page["audit"] if a["event"] == "action.approval_answered"]
     assert line["actor"] == "alice" and line["detail"]["decision"] == "approved"
     assert "digest" not in str(page["action"])
+
+
+class _Rows:
+    """Frozen rows for one proposal: no approval yet, or the whole trail down to the verification outcome."""
+
+    def __init__(self, proposal, approval=None, action=None, outcome=None):
+        self.proposal, self.approval, self.action, self.outcome = proposal, approval, action, outcome
+
+    def latest_action_proposal_for_incident(self, incident_id):
+        return self.proposal
+
+    def get_judge_verdict(self, proposal_id):
+        return None
+
+    def get_action_approval_for_proposal(self, proposal_id):
+        return self.approval
+
+    def get_action_for_approval(self, approval_id):
+        return self.action
+
+    def get_action_outcome(self, action_id):
+        return self.outcome
+
+
+def test_the_trail_stops_at_the_first_missing_step_and_ends_with_the_outcome():
+    now = datetime.now(timezone.utc)
+    proposal = freeze_proposal(candidate(incident_id="inc_trail"), at=now)
+    view = incident_action(_Rows(proposal), "inc_trail")
+    assert view["judge"] is None and view["approval"] is None and view["action"] is None
+
+    approval = {"id": "appr_1", "state": "approved", "actor": "alice", "requested_at": now, "answered_at": now}
+    action = {"id": "act_1", "state": "succeeded", "attempted_at": now, "result_at": now}
+    view = incident_action(_Rows(proposal, approval, action, {"outcome": "verified", "recorded_at": now}), "inc_trail")
+    assert view["approval"]["answered_by"] == "alice"
+    assert view["action"] == {"id": "act_1", "state": "succeeded", "attempted_at": now.isoformat(),
+                              "result_at": now.isoformat()}
+    assert view["outcome"] == {"outcome": "verified", "recorded_at": now.isoformat()}
+    assert incident_action(_Rows(None), "inc_trail") is None
 
 
 def test_without_action_rows_the_page_has_no_action(make_app):  # noqa: F811
