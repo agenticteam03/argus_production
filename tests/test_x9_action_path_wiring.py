@@ -37,9 +37,10 @@ def candidate(action="container.start", target=CACHE):
             "evidence_refs": ["ev_cache"], "risk_color": "amber", "is_executable": False}
 
 
-def proposer(gate=frozenset({("container.start", CACHE)}), read=None):
+def proposer(gate=frozenset({("container.start", CACHE)}), read=None, records=()):
     read = read or (lambda inc, target: ({"state": "exited", "container_id": FULL_ID}, NOW))
-    rows = SimpleNamespace(evidence_state=lambda incident_id: (7, None))
+    rows = SimpleNamespace(evidence_state=lambda incident_id: (7, None),
+                           get_evidence=lambda ids: [r for r in records if r.evidence_id in ids])
     return aw.CandidateProposer(rows=rows, inventory=SimpleNamespace(version=lambda: "inventory-1"), cards=CARDS,
                                 gate_open=gate, read_status=read, policy_version="policy-1")
 
@@ -438,3 +439,42 @@ def test_the_api_mounts_the_private_login_approval_and_hold_routes_only_with_app
     client = TestClient(build_api(opened))
     assert client.get("/api/v1/ops/approvals").status_code in (401, 404)            # still behind its own guards
     assert client.post("/api/v1/ops/auth/token", data={"username": "u", "password": "p"}).status_code == 404  # private path only
+
+
+def _status_record(evidence_id, target, state="running", status="ok"):
+    from argus.domain.model import EvidenceRecord
+    return EvidenceRecord(evidence_id=evidence_id, incident_id="inc_s4", kind="observation", capability="container.status",
+                          target=target, host="vm-166", executor="docker_read", caller="strategy:baseline",
+                          source_time=NOW, collected_at=NOW, status=status, values={"values": {"state": state}},
+                          model_text=f"state={state}").with_hash()
+
+
+def _stalled(values, records, refs=("ev_worker", "ev_cache")):
+    worker = "vm-166/container:argus-lab-jobworker"
+    inc = SimpleNamespace(id="inc_s4", incident_class="worker_stalled", target=TargetRef.parse(worker),
+                          root_cause_target=worker)
+    cand = {**candidate("container.restart", worker), "grounds": ["RB-022"], "evidence_refs": list(refs)}
+    read = lambda i, t: ({"state": "running", "container_id": FULL_ID, **values}, NOW)
+    return proposer(frozenset({("container.restart", worker)}), read, records)(inc, [cand], {}).rationale
+
+
+def test_the_rationale_says_what_the_cited_reads_ruled_out_for_the_judge_and_the_approver():
+    """The S4 judge doubted: it could not see that the worker's dependency was running (the read was not cited) and
+    nothing in the proposal said what had been excluded."""
+    worker = "vm-166/container:argus-lab-jobworker"
+    records = [_status_record("ev_worker", worker), _status_record("ev_cache", CACHE)]
+    text = _stalled({"oom_killed": False, "restart_count": 0}, records)
+    assert text.endswith("Ruled out by the cited reads: no OOM kill; 0 restarts; dependency argus-lab-cache is running.")
+    assert "worker_stalled" in text
+
+
+def test_a_fact_is_claimed_only_when_the_exclusion_holds():
+    worker = "vm-166/container:argus-lab-jobworker"
+    ok = [_status_record("ev_worker", worker), _status_record("ev_cache", CACHE)]
+    text = _stalled({"oom_killed": True, "restart_count": 3}, ok)
+    assert "OOM" not in text and "restarts" not in text and "Ruled out" in text   # only the running dependency
+    for records in ([_status_record("ev_worker", worker), _status_record("ev_cache", CACHE, state="exited")],
+                    [_status_record("ev_worker", worker), _status_record("ev_cache", CACHE, status="error")],
+                    [_status_record("ev_worker", worker)]):
+        assert "dependency" not in _stalled({}, records)
+    assert "Ruled out" not in _stalled({}, [])                                    # nothing known: nothing said
