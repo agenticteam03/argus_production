@@ -34,7 +34,7 @@ State values: `ready` (not started), `building`, `PR #n`, `merged`, `blocked: <w
 | Id | Piece | Owner | State | PR |
 |---|---|---|---|---|
 | X-1 | Rebuild phase 20 candidate on current `main` (draft #326 is far behind and conflicts) | C | merged | #354 |
-| X-2 | Deploy phase 19 (#324, #347) and corpus (#349, #351, #352), migrations, one window | C | deployed `7f137da` on 2026-10-27, leases released; a short second window after #354-#356 | |
+| X-2 | Deploy phase 19 (#324, #347) and corpus (#349, #351, #352), migrations, one window | C | second window deployed `9798950` on 2026-10-28: tunnel, worker, agent, scheduler and vm-166 target; gate closed, checks pass | |
 | X-3 | Gateway and socket-proxy services in the lab, action token (never in the repo), credential isolation on real images | C | building (stacked on #355; defined, not started: X-5's window starts them with the token) | |
 | X-4 | Wire frozen-row execution to the gateway client with fresh precheck and verify | C | PR #355 (#354 merged; also needs the target redeployed on vm-166) | #355 |
 | X-5 | Release PR, pair 1: `container.start` on the cache (both approve) | C | ready | |
