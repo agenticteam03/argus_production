@@ -58,6 +58,13 @@ class Settings:
     pg_user: str = field(default_factory=lambda: os.getenv("ARGUS_PG_USER", "argus_runtime"))
     audit_digest_sink: str = field(default_factory=lambda: os.getenv("ARGUS_AUDIT_DIGEST_SINK", "").strip())
     llm_model: str = field(default_factory=lambda: os.getenv("ARGUS_LLM_MODEL", "gpt-5.6-luna"))
+    # Phase 20 (X-9): the supervised-action path; off unless ARGUS_ACTION_PATH=1 (infrastructure/action_wiring.py)
+    action_path: bool = field(default_factory=lambda: os.getenv("ARGUS_ACTION_PATH", "0") == "1")
+    action_gateway_url: str = field(default_factory=lambda: os.getenv("ARGUS_ACTION_GATEWAY_URL", ""))
+    action_token_file: str = field(default_factory=lambda: os.getenv("ARGUS_ACTION_TOKEN_FILE",
+                                                                      "/run/argus-secrets/action_token"))
+    judge_model: str = field(default_factory=lambda: os.getenv("ARGUS_JUDGE_MODEL", "gpt-5.6-terra"))
+    action_daily_host_cap: int = field(default_factory=lambda: int(os.getenv("ARGUS_ACTION_DAILY_HOST_CAP", "2")))
     # ACR-0013: optional, filtered OTLP tracing to a self-hosted Langfuse; off by default. The project keys are the
     # secret files langfuse_public_key / langfuse_secret_key, mounted into the worker only.
     tracing_enabled: bool = field(default_factory=lambda: os.getenv("ARGUS_TRACING_ENABLED", "0") == "1")
@@ -151,6 +158,7 @@ class App:
     thresholds: Any = None              # ACR-0021: the UI's warning and critical lines (signals.yaml `thresholds:`)
     jwt_signing: Any = None             # ACR-0018: an Ed25519 private key; tokens are EdDSA, HS256 refused. None: HS256
     action_policy: Any = None           # Phase 17: read-only, reviewed action candidates
+    action_rows: Any = None             # X-9: approval, hold and private-login routes; None while the write gate is empty
 
 
 
@@ -477,6 +485,13 @@ def build(settings: Settings | None = None, llm=None, metrics=None, executors: E
     if s.runner == "langgraph" and hasattr(store, "checkpointer"):   # Postgres: checkpoints survive a restart
         extra["checkpointer"] = store.checkpointer()
     metrics = metrics or PrometheusMetrics(inventory, signals, s.metrics_max_staleness_s)
+    from argus.actions.incident import ActionPolicy
+    from argus.infrastructure.action_wiring import approval_rows, build_action_path
+    action_policy = ActionPolicy.from_paths(s.config_dir, s.runbooks_dir)
+    action_path = build_action_path(s, store=store, policy=policy, inventory=inventory, action_policy=action_policy,
+                                    metrics=metrics, invoke=invoke)
+    if action_path is not None:                         # None unless ARGUS_ACTION_PATH=1 and write_gate.open names a pair
+        extra["action_path"] = action_path
     runner = runners[s.runner](**extra, memory=store, audit=store, inventory=inventory, metrics=metrics,
                             knowledge=knowledge, notifier=store, invoke=invoke, events=events,
                             strategies=strategies, offered_specs=[sp for sp in specs if policy.capability_known(sp.name)],
@@ -491,11 +506,9 @@ def build(settings: Settings | None = None, llm=None, metrics=None, executors: E
     from argus.application.topology import Topology
     if s.home_host and inventory.host(s.home_host) is None:
         raise SystemExit(f"ARGUS_HOME_HOST {s.home_host!r} is not an inventory host")
-    from argus.actions.incident import ActionPolicy
-    action_policy = ActionPolicy.from_paths(s.config_dir, s.runbooks_dir)
     return App(settings=s, store=store, inventory=inventory, policy=policy, runner=runner, catalogue=catalogue,
                metrics=metrics, jwt_key=jwt_key, alertmanager_token=s.secret("alertmanager_token"), llm_configured=llm_configured,
                incident_metrics=IncidentMetrics(metrics, ui_signals, store=store, thresholds=thresholds,
                                                 inventory=inventory),
                topology=Topology(inventory, metrics, store, s.home_host, thresholds=thresholds), thresholds=thresholds,
-               jwt_signing=jwt_signing, action_policy=action_policy)
+               jwt_signing=jwt_signing, action_policy=action_policy, action_rows=approval_rows(policy, store))

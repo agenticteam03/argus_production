@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | in progress: step 1 (the candidate pair, #354), step 2 (execution through the gateway, #355) and step 3 (the gateway services, defined); X-2 and the release PRs follow |
+| Status | in progress: step 1 (the candidate pair, #354), step 2 (execution through the gateway, #355), step 3 (the gateway services, defined, #356) and step 4 (the action path built for the worker, closed by default, X-9); X-2's second window and the release PRs follow |
 | Phase | 20 of [NEXT-PHASE](NEXT-PHASE-supervised-remediation.md); pieces X-1..X-7 of the demo's shared coordination file (PR #353) |
 | Architecture | [ACR-0019](../../architecture/changes/ACR-0019-human-approved-remediation.md), accepted; ACR-0031 applied (#347); no new ACR for this step |
 | Branch | `task/T-0053-phase20-candidate`, from `main` (replaces draft #326, 97 commits behind and in conflict) |
@@ -55,9 +55,8 @@ the first 12 characters, so a proposal built from it would have been refused as 
 real dispatch. The target now also reports `container_id` (full); `id` stays short for its existing readers. The target
 service must be redeployed on vm-166 before the first release (X-2/X-3).
 
-**Still open for the release PR:** the production wiring that builds the path (the proposer, the judge adapter, the
-`container.status` read through `InvokeCapability`, the signal sampler, the detector and the lease check) and the
-policy engine's startup refusal of a non-empty gate; both belong with opening the first pair.
+**Moved to step 4 (X-9):** the production wiring that builds the path. The policy engine's startup refusal of a
+non-empty gate stays with the release PR (X-5), which is what lets the gate name a pair at all.
 
 ## STEP T-0053.3 — Define the gateway services and the worker's one path to them (X-3)
 
@@ -96,6 +95,46 @@ refuses a live socket or a path that is not a socket.
   the network alias `argus-v18-action-gateway` for the tunnel on `argus-v18-action`; the worker's gateway URL; the
   services started; the write-gate check changed to expect exactly this; `ARCHITECTURE.md` and ACR-0019 §6.
 
+## STEP T-0053.4 — Build the action path for the worker, closed by default (X-9)
+
+- **Goal:** the worker constructs the supervised-action path from parts that are already reviewed, and only when it is
+  asked to and the write gate names a pair.
+- **Why:** after X-4 nothing in `argus/` built `OfflineActionPath`, `LivePrecheck` or `HttpActionGateway`, so opening a
+  pair would have changed a file and nothing else. (This was between rows X-4 and X-5 of the coordination file and had no
+  row of its own; it is X-9 now.)
+- **Where:** laptop. **Changes:** `argus/infrastructure/action_wiring.py` (new); `Settings` and `build()` in
+  `argus/infrastructure/wiring.py`; `identity_of` factored out of `LivePrecheck` in `argus/actions/live.py`;
+  `tests/test_x9_action_path_wiring.py`. Undo by reverting the PR. No VM change.
+- **Built only when** `ARGUS_ACTION_PATH=1` **and** `write_gate.open` names a pair, and the runner is `langgraph`. With
+  the flag on and the gate open, a missing gateway address, token file, judge key or action table stops the start and
+  names every missing piece; it is never ignored. The default is off, and on `main` the policy engine still refuses a
+  non-empty gate.
+- **Decision, written here:** the proposer is deterministic. ACR-0019 lets the model draft a proposal; this version builds
+  it from the reviewed candidate, the action card and a fresh audited `container.status` read, and the judge (a second
+  model) still reviews the frozen result. That is narrower than the ACR allows. It proposes only for the argument-less
+  actions `container.start` and `container.restart`, and only for an incident class with a reviewed verification signal
+  (`dependency_unavailable`: `dependency_probe_min`, healthy at 1). Anything else is no proposal, and the incident
+  escalates as it does today. `network.restore` (two required networks) and the stalled-worker class are not here yet.
+- **The API's approval routes:** the private login, the approval and the hold routes are mounted only while
+  `write_gate.open` names a pair (`approval_rows`), whatever `ARGUS_ACTION_PATH` says (the API has no action token).
+  Before, production never mounted them, so no one could approve. Their guards are unchanged.
+- **Reads and checks fail in the safe direction:** the precheck treats "cannot tell whether the class still matches" as
+  not matching (nothing is sent); the verification treats it as still firing (no recovery is claimed); a missing,
+  stale or non-finite sample is unknown, never healthy.
+- **Command:** `python -m pytest -q tests/test_x9_action_path_wiring.py`.
+- **Expected:** the units (gate, proposer, sampler, detector checks, judge context, build decisions, Settings, the
+  `build()` hook) and one run from diagnosis to `recovered_verified` through the real gateway listener, with one
+  dispatch.
+- **If it fails:** compare the proposal with what `OfflineActionPath.propose()` validates (`argus/orchestration/action_path.py`).
+
+**Found on the way:** `OfflineActionPath.precheck`, `execute` and `verify` took their decision time before the read and
+then refused a read stamped after it, so every real precheck and verification would have failed (CI on Linux showed
+it; Windows' coarse clock hid it). Each is now judged at a time taken after its read.
+
+**Not covered, on purpose:** the approval notice of #367 is not wired (it needs the Alertmanager address in the worker);
+the host lease is not read by code (ACR-0019 section 3.11: by process); the judge and Prometheus are doubles in the
+test, so their real behaviour is for the live proof.
+
 ## Still required (each its own PR)
 
 1. **X-2:** one deploy window on vm-095 (phase 19 and the corpus), with the leases.
@@ -112,3 +151,4 @@ refuses a live socket or a path that is not a socket.
 Step 1: red seen (`FileNotFoundError`, the candidate absent), then green.
 Step 2: red seen (`ModuleNotFoundError: argus.actions.live`), then green.
 Step 3: red seen (`FileNotFoundError`, `compose.actions.yml` absent), then green.
+Step 4: written code first, then tests; the tests were mutation-checked (a sampler that always says healthy, and a proposer that ignores the gate, each fail them), then green.
