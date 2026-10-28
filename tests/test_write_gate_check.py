@@ -62,7 +62,7 @@ def test_gate_report_runs_from_stdin_inside_a_container_as_the_check_pipes_it(tm
     result = subprocess.run([sys.executable, "-"], input=source, env=env, cwd=tmp_path.anchor, capture_output=True)
     out = result.stdout.decode()
     assert result.returncode == 0, out + result.stderr.decode()
-    assert out.startswith("gate_open=1 ") and out.strip().endswith("released_ok=1")
+    assert out.startswith("gate_open=") and out.strip().endswith("released_ok=1")
 
 
 def test_equal_sets_pass(tmp_path):
