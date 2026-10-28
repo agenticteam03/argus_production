@@ -130,6 +130,7 @@ services:
       ARGUS_ACTION_GATEWAY_URL: http://argus-v18-action-gateway:18705
       ARGUS_ACTION_TOKEN_FILE: /run/argus-secrets/action_token
       ARGUS_ACTION_DAILY_HOST_CAP: "2"
+      ARGUS_HOME_HOST: vm-095                          # TASK-61: its Alertmanager carries the approval notice
     # no host port; reaches vm-095 executors directly and vm-166 through the tunnel; argus-v18-action: phase 20's
     # gateway forward, which only the worker reaches
     networks: [argus-v18-core, argus-v18-action]

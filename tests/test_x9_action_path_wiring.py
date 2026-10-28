@@ -246,6 +246,18 @@ def test_a_complete_configuration_builds_the_path_with_the_reviewed_gateway_and_
     assert path.judge_model_id == "gpt-5.6-terra" and path.judge_model.model == "gpt-5.6-terra"
 
 
+def test_the_approval_notice_goes_to_the_home_hosts_alertmanager_and_its_absence_is_logged(tmp_path, caplog):
+    """TASK-61's sender was never handed to the path: an approval waited with no notice on the team's route. A held-back
+    proposal's escalation uses the same route."""
+    path = build(settings(tmp_path, home_host="vm-095"))
+    sender, escalation = path.approval_notifier, path.escalation_notifier
+    assert (sender.__name__, escalation.__name__) == ("notify_approval_waiting", "notify_escalation")
+    assert sender.__self__.url == escalation.__self__.url == INVENTORY.host("vm-095").alertmanager
+    unset = build(settings(tmp_path))
+    assert unset.approval_notifier is None and unset.escalation_notifier is None
+    assert "approval and escalation notices will not be sent" in caplog.text
+
+
 def test_the_judge_must_be_a_different_model_from_the_decider(tmp_path):
     with pytest.raises(ValueError, match="different model"):
         build(settings(tmp_path, llm_model="gpt-5.6-terra"))

@@ -10,7 +10,8 @@ from argus.ports.ports import ProbeSample
 
 LINK_WARNING_MS = 100.0                    # a dependency answer slower than this is `slow` (inventory: link_warning_ms)
 # T-0045 B8: the exporter's failure kind of a broken link, in plain words ("other" and none stay "not reachable")
-LINK_REASONS = {"refused": "connection refused", "timeout": "timeout", "dns": "name not resolved"}
+LINK_REASONS = {"refused": "connection refused", "timeout": "timeout", "dns": "name not resolved",
+                "protocol": "no protocol answer"}
 
 
 def link_state(sample: ProbeSample | None, port: int | None,

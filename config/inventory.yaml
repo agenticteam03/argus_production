@@ -92,6 +92,7 @@ targets:
       never: [container.stop]
   - ref: vm-166/container:argus-lab-cache
     tcp_ports: [6379]
+    protocol: redis                               # its dependents' probe sends PING and wants PONG, not only a connect
     networks: [argus-lab-app]                     # ACR-0035: its declared network (network.restore)
     service:
       role: cache

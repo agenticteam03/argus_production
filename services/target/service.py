@@ -767,7 +767,8 @@ TCP_BUDGET_S, TCP_TIMEOUT_S, TCP_GAP_S, TCP_MIN_ATTEMPT_S = 8.0, 3.0, 0.5, 0.5  
 
 
 def failure_kind(e: OSError) -> str:
-    """T-0045 B8: why a connect failed, from the exception type only (never its text): refused, timeout, dns, other."""
+    """T-0045 B8: why a connect failed, from the exception type only (never its text): refused, timeout, dns, other.
+    A protocol probe adds `protocol`: it connected, but the answer was wrong (redis_ping)."""
     if isinstance(e, ConnectionRefusedError):
         return "refused"
     if isinstance(e, (socket.timeout, TimeoutError)):
@@ -785,6 +786,27 @@ def tcp(host: str, port: int, timeout: float = 3) -> dict:
     except OSError as e:
         return {"ok": False, "error": f"{type(e).__name__}: {e}", "kind": failure_kind(e),
                 "duration_ms": round((time.monotonic() - t0) * 1000, 1)}
+
+
+def redis_ping(host: str, port: int, timeout: float = 3) -> dict:
+    """The dependency answers its protocol, not only a TCP connect (RB-003 Recovery): Redis `PING` must get `+PONG`.
+    PING reads and changes nothing. A connect failure keeps its kind; any other answer is `protocol`."""
+    t0 = time.monotonic()
+    try:
+        with socket.create_connection((host, port), timeout=timeout) as s:
+            s.settimeout(timeout)
+            s.sendall(b"PING\r\n")
+            answer = s.recv(64)
+    except OSError as e:
+        return {"ok": False, "error": f"{type(e).__name__}: {e}", "kind": failure_kind(e),
+                "duration_ms": round((time.monotonic() - t0) * 1000, 1)}
+    ms = round((time.monotonic() - t0) * 1000, 1)
+    if answer.startswith(b"+PONG"):
+        return {"ok": True, "duration_ms": ms}
+    return {"ok": False, "error": "no PONG", "kind": "protocol", "duration_ms": ms}
+
+
+PROTOCOL_PROBES = {"redis": redis_ping}     # inventory `protocol:` of the dependency -> its check (else a TCP connect)
 
 
 def http_check(url: str, timeout: float = 5) -> dict:
@@ -1128,7 +1150,8 @@ def probe_lines(probes: list[dict], active: set[str]) -> list[str]:
     for p in probes:
         if p["owner"] not in active:
             continue
-        r = tcp(p["host"], p["port"])
+        check = PROTOCOL_PROBES[p["protocol"]] if "protocol" in p else tcp
+        r = check(p["host"], p["port"])
         lab = f'owner="{p["owner"]}",dependency="{p["dependency"]}"'
         lines += [f"argus_probe_success{{{lab}}} {1 if r['ok'] else 0}",
                   f"argus_probe_duration_seconds{{{lab}}} {r['duration_ms'] / 1000:.4f}"]
