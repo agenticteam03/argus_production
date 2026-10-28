@@ -310,14 +310,17 @@ class BaselineStrategy:
                 f"proxy's timeout (slow or saturated upstream, RB-015 H3); the root cause is {up}, not the proxy", up)
 
     def _worker_stalled(self, view, ok):
-        """Attribute a stalled queue to a dependency only when its status or recorded link is direct evidence."""
+        """RB-022: a dependency whose status or recorded link is direct evidence is the cause; a running worker whose
+        declared dependencies were all read as running, with no broken link, is itself the cause (alive, not consuming).
+        A dependency that was not read is unknown, never healthy."""
         target = view.incident.target
         t = str(target)
         status = self._texts(ok, "container.status")
         worker = status.get(t)
         if not worker or worker.get("state") != "running":
             return None                         # a contradictory/stopped worker needs a different incident path
-        for dependency in sorted((x for x in view.scope if x.kind == "container" and x != target), key=str):
+        dependencies = sorted((x for x in view.scope if x.kind == "container" and x != target), key=str)
+        for dependency in dependencies:
             ref = str(dependency)
             dep_status = status.get(ref)
             if dep_status and dep_status.get("state") not in ("running", None):
@@ -327,7 +330,11 @@ class BaselineStrategy:
             if link and link[0] == "broken":
                 return (f"the recorded worker dependency link to {ref} is broken ({link[1]}); investigate the "
                         "dependency path before restarting the worker", ref)
-        return None                             # healthy process/peers alone cannot identify why jobs are not consumed
+        if any((status.get(str(dependency)) or {}).get("state") != "running" for dependency in dependencies):
+            return None                         # a dependency that was not read is unknown, not healthy
+        return (f"{t} is running and its declared dependencies are running with no broken link, yet it is not consuming "
+                "its queue (RB-022): the worker loop is the cause; a restart needs preserved evidence and a human "
+                "approval", t)
 
     @staticmethod
     def _confirm(view) -> list[ReadCall]:

@@ -127,9 +127,49 @@ def test_worker_stalled_baseline_attributes_only_observed_cache_failure():
                                scope=[worker, cache], evidence=items)
         return BaselineStrategy()._worker_stalled(view, [item for item in items if item.status == "ok"])
 
-    assert decide([running_worker, running_cache]) is None
     assert decide([stopped_cache]) is None  # worker state is unknown, not evidence of a cause
     diagnosis, root = decide([running_worker, stopped_cache])
     assert root == str(cache) and "exited" in diagnosis
     diagnosis, root = decide([running_worker, running_cache, broken_link])
     assert root == str(cache) and "broken" in diagnosis
+
+
+def test_worker_stalled_blames_the_live_worker_only_when_it_runs_and_its_cache_and_link_are_healthy():
+    """S4: a running process that does not consume, with a healthy declared cache and an unbroken link, is RB-022's
+    "process alive, not consuming" cause. Missing or unknown evidence about the cache is not health."""
+    from argus.detectors.classes import CLASSES
+    from argus.domain.model import TargetRef
+    from argus.orchestration.strategies import BaselineStrategy
+
+    worker = TargetRef.parse("vm-166/container:argus-lab-jobworker")
+    cache = TargetRef.parse("vm-166/container:argus-lab-cache")
+    cls = next(spec for spec in CLASSES if spec.name == "worker_stalled")
+
+    def evidence(capability, text):
+        return SimpleNamespace(status="ok", capability=capability, model_text=text)
+
+    running_worker = evidence("container.status", f"{worker}: state=running health=healthy")
+    running_cache = evidence("container.status", f"{cache}: state=running health=healthy")
+    ok_link = evidence("network.link_states", "- argus-lab-jobworker -> argus-lab-cache: ok since 12:00 UTC")
+
+    def decide(items):
+        view = SimpleNamespace(incident_class=cls, incident=SimpleNamespace(target=worker),
+                               scope=[worker, cache], evidence=items)
+        return BaselineStrategy()._worker_stalled(view, [item for item in items if item.status == "ok"])
+
+    diagnosis, root = decide([running_worker, running_cache])
+    assert root == str(worker) and "not consuming" in diagnosis
+    assert decide([running_worker, running_cache, ok_link])[1] == str(worker)
+    assert decide([running_worker]) is None                    # the cache was never read: unknown is not healthy
+    assert decide([running_cache]) is None                     # the worker was never read
+
+
+def test_rb_022_offers_a_worker_restart_only_through_a_reviewed_card_and_a_running_worker():
+    from argus.actions.incident import ActionPolicy
+
+    policy = ActionPolicy.from_paths(ROOT / "config", ROOT / "argus" / "runbooks")
+    [action] = policy.runbook_actions["RB-022"]
+    assert (action.action, action.target_role, action.service_role) == ("container.restart", "root_cause", "worker")
+    assert "RB-022" in policy.cards["container.restart"].sources
+    text = (ROOT / "argus" / "runbooks" / "RB-022-worker-stalled.md").read_text(encoding="utf-8")
+    assert "evidence is preserved" in text and "approval" in text      # the safety wording stays

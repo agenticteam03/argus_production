@@ -21,7 +21,7 @@ SCRIPT = ROOT / "ops/write-gate-check.sh"
 RELEASE = ROOT / "deploy/action_gateway/first-lab-release.candidate.json"
 CACHE = {"capability": "container.start", "target": "vm-166/container:argus-lab-cache"}
 API = {"capability": "container.start", "target": "vm-166/container:argus-lab-api"}
-RELEASED_LINE = "gate_open=1 write_capabilities=0 action_gateway_resolves=0 policy=abc123def456 released_ok=1"
+RELEASED_LINE = "gate_open=2 write_capabilities=0 action_gateway_resolves=0 policy=abc123def456 released_ok=1"
 
 
 def _report(config_dir: Path, **extra: str) -> subprocess.CompletedProcess:
@@ -45,10 +45,10 @@ def _released(*pairs: dict) -> list:
     return [{**p, "route": "POST /containers/x/start"} for p in pairs]
 
 
-def test_gate_report_of_this_repository_holds_exactly_the_released_pair():
+def test_gate_report_of_this_repository_holds_exactly_the_released_pairs():
     result = _report(ROOT / "config")
     assert result.returncode == 0, result.stdout + result.stderr
-    assert result.stdout.startswith("gate_open=1 write_capabilities=0 action_gateway_resolves=0 policy=")
+    assert result.stdout.startswith("gate_open=2 write_capabilities=0 action_gateway_resolves=0 policy=")
     assert result.stdout.strip().endswith("released_ok=1")
 
 
@@ -138,7 +138,7 @@ case "$1" in
         [ "$c" = "$FAKE_MISSING" ] && { echo "Error: No such container: $c" >&2; exit 1; }
         # the default report is what the real one prints for the reviewed pair when it was handed the release JSON
         ok=0; [ -n "$release" ] && ok=1
-        echo "${FAKE_REPORT:-gate_open=${FAKE_RELEASED:-1} write_capabilities=0 action_gateway_resolves=0 policy=abc123def456 released_ok=$ok}"
+        echo "${FAKE_REPORT:-gate_open=${FAKE_RELEASED:-2} write_capabilities=0 action_gateway_resolves=0 policy=abc123def456 released_ok=$ok}"
         exit 0 ;;
   inspect) c="${@: -1}"
            case "$*" in
@@ -180,7 +180,7 @@ def test_check_reports_closed_when_every_service_holds_exactly_the_released_pair
     result = check()
     assert result.returncode == 0, result.stdout + result.stderr
     for service in ("argus-v18-agent", "argus-v18-worker", "argus-v18-scheduler"):
-        assert f"{service}: gate_open=1 write_capabilities=0 action_gateway_resolves=0" in result.stdout
+        assert f"{service}: gate_open=2 write_capabilities=0 action_gateway_resolves=0" in result.stdout
         assert result.stdout.count("released_ok=1") == 3
 
 
@@ -201,7 +201,7 @@ def test_check_stops_when_the_gate_holds_a_pair_the_release_lacks(check, tmp_pat
 
 
 def test_check_stops_on_a_count_that_is_not_the_released_count(check):
-    result = check(released="2")                  # two pairs in the gate, one in the release file
+    result = check(released="1")                  # one pair in the gate, two in the release file
     assert result.returncode != 0 and result.stdout.strip().splitlines()[-1].startswith("WRITE GATE STOP:")
 
 
@@ -232,10 +232,10 @@ def test_check_stops_on_an_action_credential_on_disk(check):
 
 # --- host-only mode: a Host T (vm-166) runs no Argus service, but ARCHITECTURE §2 would put the action gateway there --
 def test_host_only_mode_checks_the_host_without_any_service_report(check, tmp_path):
-    result = check("--host-only", no_exec="1")                 # this repository releases one pair
+    result = check("--host-only", no_exec="1")                 # this repository releases two pairs
     assert result.returncode == 0, result.stdout + result.stderr
     assert "gate_open=" not in result.stdout
-    assert result.stdout.strip().splitlines()[-1].startswith("WRITE GATE AS RELEASED: 1 reviewed pair(s); host-only")
+    assert result.stdout.strip().splitlines()[-1].startswith("WRITE GATE AS RELEASED: 2 reviewed pair(s); host-only")
     empty = tmp_path / "empty-release.json"
     empty.write_bytes(b'{"host": "vm-166", "released": []}')
     result = check("--host-only", no_exec="1", release_file=empty.as_posix())
@@ -271,7 +271,7 @@ def test_the_action_host_accepts_exactly_the_released_gateway_its_mounts_role_an
     _token(check, "secrets/action/action_token")
     result = check("--host-only", no_exec="1", extra_container=GATEWAY)
     assert result.returncode == 0, result.stdout + result.stderr
-    assert result.stdout.strip().splitlines()[-1].startswith("WRITE GATE AS RELEASED: 1 reviewed pair(s); host-only")
+    assert result.stdout.strip().splitlines()[-1].startswith("WRITE GATE AS RELEASED: 2 reviewed pair(s); host-only")
     assert "s3cret-value" not in result.stdout + result.stderr
 
 
@@ -292,7 +292,7 @@ def test_vm095_accepts_the_workers_settings_and_its_token_once_released(check):
     result = check(worker_env=WORKER_SETTINGS)
     assert result.returncode == 0, result.stdout + result.stderr
     last = result.stdout.strip().splitlines()[-1]
-    assert last.startswith("WRITE GATE AS RELEASED: 1 reviewed pair(s); argus-v18-agent,argus-v18-worker,argus-v18-scheduler")
+    assert last.startswith("WRITE GATE AS RELEASED: 2 reviewed pair(s); argus-v18-agent,argus-v18-worker,argus-v18-scheduler")
 
 
 @pytest.mark.parametrize("why, fake, token, reason", [
