@@ -11,7 +11,8 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
-from typing import Any, TypedDict
+import time
+from typing import Any, Callable, TypedDict
 
 from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.graph import END, START, StateGraph
@@ -58,9 +59,11 @@ class RunState(TypedDict, total=False):
 class GraphRunner(SkeletonRunner):
     """InvestigationRunner on LangGraph. Reuses SkeletonRunner's audit, evidence, scope, context and record."""
 
-    def __init__(self, *, checkpointer: Any = None, action_path: Any = None, **kw):
+    def __init__(self, *, checkpointer: Any = None, action_path: Any = None, verify_poll_s: float = 10.0,
+                 verify_sleep: Callable[[float], None] = time.sleep, **kw):
         super().__init__(**kw)
         self.action_path = action_path  # no production wiring while write_gate.open is empty
+        self.verify_poll_s, self.verify_sleep = verify_poll_s, verify_sleep
         self.checkpointer = checkpointer if checkpointer is not None else InMemorySaver()
         g = StateGraph(RunState)
         for name in ("detect", "recall", "investigate", "act", "evidence_pack", "propose_action",
@@ -452,9 +455,25 @@ class GraphRunner(SkeletonRunner):
         return {**self._final(outcome, IncidentStatus.escalated, s["final"]["cited"]),
                 "action_id": action["id"]}
 
+    def _verify_in_window(self, action_id: str) -> str | None:
+        """Ask for the verification now and, while no outcome exists yet, again every `verify_poll_s` until the reviewed
+        window (the prediction's seconds from the action's completion) is over. The first sample after a restart is
+        often not healthy yet (the five-minute rate has just reset) and the metrics need a scrape; sleeping until the
+        worker's next five-minute pass took the sample past the window and recorded `action_failed` for a worker that
+        had recovered in 16 s (S4 rehearsal, 2026-10-28). A path without `verify_wait` is asked once, as before."""
+        outcome = self.action_path.verify(action_id)
+        wait = getattr(self.action_path, "verify_wait", None)
+        remaining = wait(action_id) if wait is not None else 0.0
+        while outcome is None and remaining > 0:
+            step = min(self.verify_poll_s, remaining)
+            self.verify_sleep(step)
+            remaining -= step
+            outcome = self.action_path.verify(action_id)
+        return outcome
+
     def _n_verify(self, s: RunState) -> dict:
         try:
-            outcome = self.action_path.verify(s["action_id"])
+            outcome = self._verify_in_window(s["action_id"])
         except Exception as exc:
             self._audit(self._inc(s), "incident", "action.verification_failed",
                         detail={"action_id": s["action_id"], "reason": str(exc)[:200]})
