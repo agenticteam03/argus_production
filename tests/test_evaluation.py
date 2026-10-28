@@ -234,7 +234,8 @@ def _ids(*categories: str) -> list[str]:
 # the mount is still the cause (the model must read that history), so the baseline escalates there
 BASELINE_MISSES = {"restart-exit0-job-01", "ambiguous-health-no-cause", "disk-filler-stopped-with-history",
                    "ambiguous-health-no-cause-longlog",     # EVAL-offers: its long-log twin, the same story
-                   "worker-stalled"}                        # TASK-55: the baseline escalates by design; the model run diagnoses
+                   "worker-stalled",                        # TASK-55: the baseline escalates by design; the model run diagnoses
+                   "dep-api-moved-network"}                 # TASK-60: the baseline blames the cache; the model run diagnoses
 
 
 @pytest.mark.parametrize("cid", sorted(BASELINE_MISSES))
