@@ -49,11 +49,13 @@ def _call(client, target=API, info=None, **args):
     return S.impl(S.args_model(**{"incident_class": "dependency_unavailable", **args}), target, info, client)
 
 
-def test_a_level_3_safe_prometheus_read_offered_to_the_restart_class_only():
+def test_a_level_3_safe_prometheus_read_offered_to_the_restart_and_dependency_classes_only():
     assert (S.model_name, S.level, S.safety_class, S.executor, S.tags) == (
         "summarize_anomalies", 3, "READ_ONLY_SAFE", "prometheus", frozenset({"anomaly"}))
-    # step 2 part B: offered where the model batch met the rule; dependency_unavailable left out for its one hard
-    assert sorted(c.name for c in CLASSES if S.tags & c.tool_tags) == ["container_restart_loop"]
+    # step 2 part B offered it to the restart class; TASK-63 adds dependency_unavailable (the onset order is what
+    # separates a dependency's failure from its victim's CPU, TASK-50 / TASK-62)
+    assert sorted(c.name for c in CLASSES if S.tags & c.tool_tags) == ["container_restart_loop",
+                                                                      "dependency_unavailable"]
     pol = yaml.safe_load((ROOT / "config" / "policy.yaml").read_text(encoding="utf-8"))
     assert pol["capabilities"]["analysis.anomaly_summary"]["max_per_incident"] == 1
 
