@@ -380,8 +380,11 @@ class GraphRunner(SkeletonRunner):
         self._audit(self._inc(s), "decision", "judge.verdict",
                     detail={"proposal_id": s["proposal_id"], "verdict": verdict.verdict,
                             "reasons": list(verdict.reasons), "risk": verdict.risk})
-        if verdict.verdict != "agree":
+        if verdict.verdict == "disagree" or verdict.risk == "forbidden":
             return self._held_back(s, f"the judge answered {verdict.verdict}")   # no approval or dispatch
+        if verdict.verdict == "doubt":           # ACR-0039: the person decides, with the reasons and the raised colour
+            self._audit(self._inc(s), "decision", "judge.doubt_sent_to_approver",
+                        detail={"proposal_id": s["proposal_id"], "risk": verdict.risk})
         return {"route": "request_approval"}
 
     def _n_request_approval(self, s: RunState) -> dict:

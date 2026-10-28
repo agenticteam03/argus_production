@@ -120,7 +120,8 @@ def test_answer_needs_digest_and_single_use_step_up(make_app, monkeypatch):  # n
     assert app.store.get_action_approval("appr_red")["actor"] == "alice"
     [row] = [r[1] for r in app.store.audit_chain() if r[1]["event"] == "action.approval_answered"]
     assert row["actor"] == "alice" and row["detail"] == {
-        "approval_id": "appr_red", "proposal_digest": proposal.digest, "decision": "approved", "reason": None}
+        "approval_id": "appr_red", "proposal_digest": proposal.digest, "decision": "approved", "reason": None,
+        "judge_verdict": "agree", "risk": "red"}                          # ACR-0039: what the person decided over
     assert client.post(path, headers=auth, json=body).status_code == 409
 
 

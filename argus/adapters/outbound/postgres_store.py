@@ -889,6 +889,22 @@ CHECKS_SQL: list[tuple[str, str, bool]] = [
     ("an approval without the judge's agree is refused (migration 016)",
      "INSERT INTO approval (approval_id, proposal_id, proposal_digest, state, requested_at, expires_at) VALUES "
      "('appr_dbcheck2', 'prop_dbcheck2', repeat('b',64), 'pending', now(), now() + interval '30 minutes')", False),
+    ("insert a third and a fourth action proposal (migration 018's check)",
+     "INSERT INTO action_proposal (proposal_id, incident_id, capability, target, digest, body, created_at, expires_at) "
+     "VALUES ('prop_dbcheck3', 'inc_dbcheck', 'container.start', 'vm-166/container:argus-lab-cache', repeat('c',64), "
+     "'{}', now(), now() + interval '30 minutes'), ('prop_dbcheck4', 'inc_dbcheck', 'container.start', "
+     "'vm-166/container:argus-lab-cache', repeat('d',64), '{}', now(), now() + interval '30 minutes')", True),
+    ("insert a judge doubt and a judge disagreement (migration 018's check)",
+     "INSERT INTO judge_verdict (proposal_id, model_id, verdict, body, reviewed_at) VALUES "
+     "('prop_dbcheck3', 'gpt-5.6-terra', 'doubt', jsonb_build_object('proposal_digest', repeat('c',64), 'risk', "
+     "'amber'), now()), ('prop_dbcheck4', 'gpt-5.6-terra', 'disagree', jsonb_build_object('proposal_digest', "
+     "repeat('d',64), 'risk', 'amber'), now())", True),
+    ("an approval after the judge's doubt is accepted (migration 018)",
+     "INSERT INTO approval (approval_id, proposal_id, proposal_digest, state, requested_at, expires_at) VALUES "
+     "('appr_dbcheck3', 'prop_dbcheck3', repeat('c',64), 'pending', now(), now() + interval '30 minutes')", True),
+    ("an approval after the judge's disagreement is refused (migration 018)",
+     "INSERT INTO approval (approval_id, proposal_id, proposal_digest, state, requested_at, expires_at) VALUES "
+     "('appr_dbcheck4', 'prop_dbcheck4', repeat('d',64), 'pending', now(), now() + interval '30 minutes')", False),
     ("insert notification outbox (migration 014)",
      "INSERT INTO notification_outbox (key, channel, payload, next_attempt_at) "
      "VALUES ('appr_dbcheck', 'recording', '{}', now())", True),

@@ -5,7 +5,7 @@ import hmac
 from datetime import datetime, timezone
 
 from argus.actions.catalog import get_action_spec
-from argus.actions.remediation import RemediationRefused, verify_frozen_proposal
+from argus.actions.remediation import APPROVABLE_VERDICTS, RemediationRefused, verify_frozen_proposal
 
 
 class ApprovalViewRefused(ValueError):
@@ -63,8 +63,9 @@ def answerable_approval(rows, approval_id: str, digest: str, decision: str,
         if (rows.active_target_holds(target, now) or rows.active_target_holds(target.split("/", 1)[0], now)
                 or rows.active_target_holds("*", now)):
             raise ApprovalViewRefused("an active hold prevents approval")
-        if view["judge"]["verdict"] != "agree" or view["judge"]["risk"] == "forbidden":
-            raise ApprovalViewRefused("judge has not agreed to this action")
+        # ACR-0039: a doubt reaches the approver (with its reasons and the raised colour); a disagreement does not
+        if view["judge"]["verdict"] not in APPROVABLE_VERDICTS or view["judge"]["risk"] == "forbidden":
+            raise ApprovalViewRefused("the judge disagreed with this action")
         # the host-qualified target: a container name alone exists on both hosts
         if view["judge"]["risk"] == "red" and confirmation_target != target:
             raise ApprovalViewRefused("red action requires typing the host-qualified target")

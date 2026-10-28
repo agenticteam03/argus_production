@@ -830,7 +830,8 @@ def build_api(app_ctx) -> FastAPI:
             audit = hold_audit("action.approval_answered", p.id, now,
                                incident_id=view["proposal"]["input"]["incident_id"], approval_id=approval_id,
                                proposal_digest=body.proposal_digest, decision=body.decision,
-                               reason=body.reason.strip() if body.reason else None)
+                               reason=body.reason.strip() if body.reason else None,
+                               judge_verdict=view["judge"]["verdict"], risk=view["judge"]["risk"])   # ACR-0039
             if not action_rows.answer_action_approval(approval_id, body.proposal_digest, p.id,
                                                       body.decision, now, audit=audit):
                 raise HTTPException(409, "approval is no longer pending")

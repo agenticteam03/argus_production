@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING, Protocol
 from uuid import uuid4
 
 from argus.actions.gateway_client import HttpActionGateway
-from argus.actions.remediation import (FakeActionGateway, FrozenProposal, RemediationRefused, agreed_verdict,
+from argus.actions.remediation import (FakeActionGateway, FrozenProposal, RemediationRefused, approvable_verdict,
                                        check_action_scope, verify_frozen_proposal)
 
 if TYPE_CHECKING:
@@ -104,8 +104,8 @@ class ActionExecutor:
         verify_frozen_proposal(proposal)
         if approval["proposal_digest"] != proposal.digest:
             raise RemediationRefused("approval does not bind the frozen proposal")
-        if not agreed_verdict(self.rows.get_judge_verdict(proposal.id), proposal):
-            raise RemediationRefused("the judge did not agree with this proposal")
+        if not approvable_verdict(self.rows.get_judge_verdict(proposal.id), proposal):
+            raise RemediationRefused("the judge disagreed with this proposal, or no verdict is stored")
         check_action_scope(proposal.input.target)
         if at >= proposal.expires_at:
             raise RemediationRefused("proposal expired")

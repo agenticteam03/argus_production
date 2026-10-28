@@ -2,6 +2,9 @@ import { Card, Pill } from "./ui.jsx";
 import { dateTime } from "../utils/format.js";
 
 const RISKS = { green: ["Green risk", "green"], amber: ["Amber risk", "amber"], red: ["Red risk", "red"] };
+const VERDICTS = { agree: ["agree", "green"], doubt: ["doubt", "amber"], disagree: ["disagree", "red"] };
+// ACR-0039: a doubt reaches the approver; only a disagreement cannot be approved (the server refuses it too).
+const APPROVABLE = new Set(["agree", "doubt"]);
 const button = "rounded-lg px-4 py-2 text-sm font-medium transition enabled:cursor-pointer enabled:hover:opacity-85 disabled:cursor-not-allowed disabled:opacity-45";
 
 // The server owns authorization and the frozen digest. This view never creates or edits a proposal.
@@ -15,11 +18,18 @@ export default function ApprovalCard({ approval, canAnswer, busy, confirmation, 
   const pending = approval.state === "pending" && Date.parse(approval.expires_at) > Date.now();
   const ready = canAnswer && pending && !busy;
   // The host-qualified target: the same container name exists on both hosts.
-  const mayApprove = ready && approval.judge.verdict === "agree" && (!red || confirmation === input.target);
+  const doubted = approval.judge.verdict === "doubt";
+  const [verdictLabel, verdictTone] = VERDICTS[approval.judge.verdict] ?? [approval.judge.verdict, "neutral"];
+  const mayApprove = ready && APPROVABLE.has(approval.judge.verdict) && (!red || confirmation === input.target);
   const mayDeny = ready && reason.trim() !== "";
 
   return <Card title="Frozen action proposal" right={<Pill tone={tone}>{riskLabel}</Pill>}>
     <div className="space-y-4 text-sm">
+      {doubted && <div role="alert" className="rounded-xl border border-amber-400/30 bg-amber-400/10 p-3 text-amber-300">
+        <p className="font-medium">The independent judge doubted this action.</p>
+        <p className="mt-1">It was not stopped: you decide. Read the judge's reasons and the {riskLabel.toLowerCase()} below
+          (the doubt raised it one level) before approving; approving records that you overrode the doubt.</p>
+      </div>}
       <div className="flex flex-wrap items-center gap-2">
         <strong className="font-mono text-base text-ink">{input.capability}</strong>
         <span className="break-all text-muted">{input.target}</span>
@@ -41,7 +51,7 @@ export default function ApprovalCard({ approval, canAnswer, busy, confirmation, 
       <div><h3 className="font-medium">Before execution</h3><p className="mt-1 text-muted">{input.preview}</p></div>
       <div><h3 className="font-medium">Alternatives considered</h3><ul className="mt-1 list-disc pl-5 text-muted">{input.alternatives.map((a) => <li key={`${a.action}:${a.why_not}`}>{a.action}: {a.why_not}</li>)}</ul></div>
       <div className="rounded-xl border border-line p-3">
-        <div className="flex items-center gap-2"><h3 className="font-medium">Independent judge</h3><Pill tone={approval.judge.verdict === "agree" ? "green" : "amber"}>{approval.judge.verdict}</Pill></div>
+        <div className="flex items-center gap-2"><h3 className="font-medium">Independent judge</h3><Pill tone={verdictTone}>{verdictLabel}</Pill></div>
         <ul className="mt-2 list-disc pl-5 text-muted">{approval.judge.reasons.map((reason, i) => <li key={i}>{reason}</li>)}</ul>
       </div>
       <p className="text-xs text-muted">Approval {approval.id} · Expires {dateTime(approval.expires_at)} · Digest <span className="font-mono">{proposal.digest}</span></p>
