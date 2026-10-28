@@ -33,6 +33,7 @@ UI_ROUTES = [("post", "/api/v1/auth/token"), ("post", "/api/v1/auth/logout"), ("
              ("get", "/api/v1/overview"),
              # Phase 19 private Actions screen: mounted only when action rows are explicitly supplied.
              ("post", "/api/v1/ops/auth/token"), ("get", "/api/v1/ops/approvals"),
+             ("get", "/api/v1/approvals/waiting"),                       # ACR-0042: the bell's count, any token
              ("get", "/api/v1/ops/approvals/{approval_id}"),
              ("post", "/api/v1/ops/approvals/{approval_id}/answer"),
              # T-0057 (ACR-0034 local tier): the staged reference sources an administrator approves (UI in T-0058)

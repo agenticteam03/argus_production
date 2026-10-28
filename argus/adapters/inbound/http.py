@@ -62,7 +62,10 @@ ROLE_PERMISSIONS: dict[str, frozenset[str]] = {
     "approver": frozenset({"view", "view_evidence", "investigate", "resolve_incident"}),    # escalated incident
 }
 # Phase 19: granted only while the action routes are mounted (`action_rows`); production wiring mounts none yet.
-ACTION_ROLE_PERMISSIONS: dict[str, frozenset[str]] = {"approver": frozenset({"approve_action", "place_hold"})}
+# ACR-0042: `count_waiting_approvals` is not privileged: it gives an approver only how many approvals wait (the bell),
+# with any token; seeing and deciding them stays privileged and private.
+ACTION_ROLE_PERMISSIONS: dict[str, frozenset[str]] = {
+    "approver": frozenset({"approve_action", "place_hold", "count_waiting_approvals"})}
 # ACR-0034 local tier: installing a staged reference source is a privileged act (step-up each time); ACR-0040: an
 # approver may do it as well as an administrator
 CORPUS_ROLE_PERMISSIONS: dict[str, frozenset[str]] = {"admin": frozenset({"manage_corpus"}),
@@ -456,6 +459,8 @@ def build_api(app_ctx) -> FastAPI:
             actions.append("manage_second_factor")          # ACR-0018 step 3: enrol a key, complete the login
         # Phase 19: a granted privileged permission is also an action, so the UI shows its control (ACR-0001)
         actions += sorted(granted_now & {"approve_action", "place_hold", "manage_corpus"})   # ACR-0040: the corpus too
+        if "count_waiting_approvals" in granted_now:        # ACR-0042: the bell's count, with any token
+            actions.append("count_waiting_approvals")
         # ACR-0018: what the role grants; the token's access may narrow it (a read token starts nothing); a privileged
         # permission is listed only once the second factor holds
         return {"user": p.id, "role": p.role, "access": access, "actions": actions, "permissions": sorted(granted_now),
@@ -818,10 +823,9 @@ def build_api(app_ctx) -> FastAPI:
             if info is None or info.scope not in p.scopes:
                 raise HTTPException(403, "target is outside this principal's scope")
 
-        @api.get("/api/v1/ops/approvals", tags=["ops"])
-        def pending_approvals(p: Annotated[Principal, Depends(require("approve_action"))]):
+        def waiting_approvals(p: Principal) -> list[dict]:
             """The approvals waiting for a person, in this principal's scope; one that no longer verifies is left out
-            (opening it by id shows why)."""
+            (opening it by id shows why). At most PENDING_LIST_LIMIT."""
             if p.kind != "human":
                 raise HTTPException(403, "a human principal is required")
             out, now, after = [], utcnow(), None
@@ -846,6 +850,18 @@ def build_api(app_ctx) -> FastAPI:
                     break
                 after = page[-1]
             return out
+
+        @api.get("/api/v1/ops/approvals", tags=["ops"])
+        def pending_approvals(p: Annotated[Principal, Depends(require("approve_action"))]):
+            """The approvals waiting for a person, in this principal's scope; one that no longer verifies is left out
+            (opening it by id shows why)."""
+            return waiting_approvals(p)
+
+        @api.get("/api/v1/approvals/waiting", tags=["actions"])
+        def approvals_waiting(p: Annotated[Principal, Depends(require("count_waiting_approvals"))]):
+            """ACR-0042: how many approvals wait for this approver (the same filter as the private list, at most 50),
+            with any token and no second factor: a count only, never an id, an incident, an action or a target."""
+            return {"waiting": len(waiting_approvals(p))}
 
         @api.get("/api/v1/ops/approvals/{approval_id}", tags=["ops"])
         def inspect_approval(approval_id: str, p: Annotated[Principal, Depends(require("approve_action"))]):

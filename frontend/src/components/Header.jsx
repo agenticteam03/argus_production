@@ -3,7 +3,8 @@ import { Link, NavLink, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext.jsx";
 import { ROLES, canSee, routes } from "../routes.js";
 import { useTheme } from "../hooks/useTheme.js";
-import { Bell, Chevron, Logo, Moon, Sun } from "./ui.jsx";
+import NotificationBell from "./NotificationBell.jsx";
+import { Chevron, Logo, Moon, Sun } from "./ui.jsx";
 
 // Compact pills up to lg so the menu stays on one row with the logo and the buttons from sm (640 px) up.
 const pill = "whitespace-nowrap rounded-lg border px-2.5 py-2 text-sm transition motion-reduce:transition-none lg:px-3.5";
@@ -62,9 +63,7 @@ export default function Header() {
         <button type="button" onClick={toggleTheme} aria-label={theme === "light" ? "Switch to dark theme" : "Switch to light theme"} title={theme === "light" ? "Dark theme" : "Light theme"} className="grid size-10 cursor-pointer place-items-center rounded-xl border border-line bg-field text-muted hover:text-ink">
           {theme === "light" ? <Moon /> : <Sun />}
         </button>
-        <button type="button" aria-label="Notifications" className="grid size-10 place-items-center rounded-xl border border-line bg-field text-muted hover:text-ink">
-          <Bell />
-        </button>
+        <NotificationBell />
         <details className="relative">
           <summary className={summary} aria-label="Account menu">
             <span className="grid size-10 place-items-center rounded-full bg-accent/20 text-sm font-medium text-accent-hover">{user.name[0].toUpperCase()}</span>
