@@ -214,8 +214,9 @@ Proposed. Decisions taken by the manager on 2026-10-27, written here for the rev
    release PR, with two reviewers). SC-07's backend can follow. There is no automatic rollback and no release entry
    with the names swapped: a person restores the old state by hand, and the card shows `reversible: no` (section 3.4).
 3. **The dependent of the release target.** Section 3.4 verifies the link from the declared dependent to the target.
-   TASK-89 updates `config/inventory.yaml` so `argus-lab-client` declares `depends_on: [vm-166/container:argus-lab-api]`;
-   the release therefore has a real link for its prediction and post-action verification.
+   TASK-89 adds `vm-166/container:argus-lab-api` to `argus-lab-client`'s `depends_on` list while preserving its existing
+   backend dependency. The inventory renderer provides a separate TCP/8080 probe and link record for each edge; the
+   network restore prediction and post-action verification use the API edge.
 4. **Where the networks come from.** The SC-07 injection on `vm-166` moves `argus-lab-api` from `argus-lab-app` to
    `argus-lab-iso`. The release pins that exact pair. The connect-first sequence restores the API's declared network;
    no deployment or VM action is part of this PR.

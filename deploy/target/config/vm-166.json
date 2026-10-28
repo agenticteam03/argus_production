@@ -85,6 +85,12 @@
     },
     {
       "owner": "argus-lab-client",
+      "dependency": "argus-lab-backend",
+      "host": "argus-lab-backend",
+      "port": 8080
+    },
+    {
+      "owner": "argus-lab-client",
       "dependency": "argus-lab-api",
       "host": "argus-lab-api",
       "port": 8080

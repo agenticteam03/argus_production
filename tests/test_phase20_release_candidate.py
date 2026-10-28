@@ -55,7 +55,7 @@ def test_the_candidate_is_exactly_the_three_reviewed_pairs():
     assert _yaml("config/risk.yaml")["matrix"][NETWORK_PAIR[0]][api["kind"]] == "amber"
     client = next(row for row in _yaml("config/inventory.yaml")["targets"]
                   if row["ref"] == "vm-166/container:argus-lab-client")
-    assert client["depends_on"] == [API]
+    assert client["depends_on"] == ["vm-166/container:argus-lab-backend", API]
     api_target = next(row for row in _yaml("config/inventory.yaml")["targets"] if row["ref"] == API)
     assert api_target["tcp_ports"] == [8080]
     rendered = json.loads((ROOT / "deploy/target/config/vm-166.json").read_text(encoding="utf-8"))
