@@ -35,9 +35,6 @@ def _holds(actual: str | None, op: str, expected: object) -> bool:
 REVIEWED_GATEWAYS = (FakeActionGateway, HttpActionGateway)
 
 
-REVIEWED_GATEWAYS = (FakeActionGateway, HttpActionGateway)
-
-
 class ActionRows(Protocol):
     def get_action_approval(self, approval_id: str) -> dict | None: ...
     def get_action_proposal(self, proposal_id: str) -> FrozenProposal | None: ...
