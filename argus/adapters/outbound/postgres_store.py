@@ -15,7 +15,8 @@ from psycopg.types.json import Jsonb
 from psycopg_pool import ConnectionPool
 
 from argus.domain.audit_chain import GENESIS, link_hash
-from argus.domain.model import AuditRecord, EvidenceRecord, Incident, TargetRef, utcnow
+from argus.domain.model import (AuditRecord, EvidenceRecord, Incident, IncidentResolution, IncidentStatus, TargetRef,
+                                utcnow)
 
 
 AUDIT_CHAIN_LOCK = 0x41524755530A   # pg_advisory_xact_lock key of the audit chain (ACR-0018)
@@ -307,6 +308,16 @@ class PostgresStore:
     def update_incident(self, incident: Incident) -> None:
         self._q("UPDATE incident SET status = %s, body = %s WHERE id = %s",
                 (incident.status, Jsonb(incident.model_dump(mode="json")), incident.id))
+
+    def resolve_incident(self, incident_id: str, by: str, reason: str, at: datetime) -> Incident | None:
+        """ACR-0041: only from `escalated`, once (migration 019 allows exactly this change, with a resolution)."""
+        inc = self.get_incident(incident_id)
+        if inc is None or inc.status != IncidentStatus.escalated:
+            return None
+        inc.status, inc.resolution = IncidentStatus.closed, IncidentResolution(by=by, at=at, reason=reason)
+        rows = self._q("UPDATE incident SET status = %s, body = %s WHERE id = %s AND status = 'escalated' RETURNING id",
+                       (inc.status, Jsonb(inc.model_dump(mode="json")), incident_id))
+        return inc if rows else None
 
     def list_incidents(self, limit: int = 50, parent_id: str | None = None) -> list[Incident]:
         if parent_id is not None:                                # ACR-0021 B5: the re-checks of one incident
@@ -754,6 +765,17 @@ CHECKS_SQL: list[tuple[str, str, bool]] = [
     ("DELETE audit refused", "DELETE FROM audit WHERE audit_id = 'aud_dbcheck'", False),
     ("DELETE incident refused", "DELETE FROM incident WHERE id = 'inc_dbcheck'", False),
     ("closed incident cannot reopen", "UPDATE incident SET status = 'queued' WHERE id = 'inc_dbcheck'", False),
+    ("insert an escalated incident (migration 019's check)",
+     "INSERT INTO incident (id, target, status, opened_at, body) VALUES "
+     "('inc_dbcheck_esc', 'vm-095/container:dbcheck', 'escalated', now(), '{}')", True),
+    ("an escalated incident closes with a person's resolution (migration 019)",
+     "UPDATE incident SET status = 'closed', body = '{\"resolution\": {\"by\": \"dbcheck\", \"at\": \"2026-01-01T00:00:00Z\", "
+     "\"reason\": \"dbcheck\"}}' WHERE id = 'inc_dbcheck_esc'", True),
+    ("insert a second escalated incident (migration 019's check)",
+     "INSERT INTO incident (id, target, status, opened_at, body) VALUES "
+     "('inc_dbcheck_esc2', 'vm-095/container:dbcheck', 'escalated', now(), '{}')", True),
+    ("an escalated incident without a resolution stays final (migration 019)",
+     "UPDATE incident SET status = 'closed' WHERE id = 'inc_dbcheck_esc2'", False),
     # without migration 007 the two refusals below would "pass" on a missing column: this read proves it is there
     ("re-check lineage column present (migration 007)", "SELECT parent_id FROM incident LIMIT 0", True),
     ("re-check of a missing incident refused (ACR-0021)", "INSERT INTO incident (id, target, status, opened_at, body, "

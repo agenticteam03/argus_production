@@ -331,6 +331,7 @@
   "ranking_disagrees": false,
   "reason": "UI contract sample",
   "request_kind": "report",
+  "resolution": null,
   "root_cause_target": "vm-166/container:argus-lab-worker",
   "severity": "critical",
   "status": "closed",

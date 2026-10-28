@@ -12,7 +12,8 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from argus.domain.audit_chain import GENESIS, canonical, link_hash
-from argus.domain.model import (AuditRecord, EvidenceRecord, Incident, IncidentStatus, TargetRef, utcnow)
+from argus.domain.model import (AuditRecord, EvidenceRecord, Incident, IncidentResolution, IncidentStatus, TargetRef,
+                                utcnow)
 
 SCHEMA = """
 PRAGMA journal_mode=WAL;
@@ -564,6 +565,16 @@ class SqliteStore:
     def update_incident(self, incident: Incident) -> None:
         self._q("UPDATE incident SET status=?, body=? WHERE id=?",
                 (incident.status, incident.model_dump_json(), incident.id))
+
+    def resolve_incident(self, incident_id: str, by: str, reason: str, at: datetime) -> Incident | None:
+        """ACR-0041: only from `escalated`, once; the incident keeps its diagnosis and outcome."""
+        inc = self.get_incident(incident_id)
+        if inc is None or inc.status != IncidentStatus.escalated:
+            return None
+        inc.status, inc.resolution = IncidentStatus.closed, IncidentResolution(by=by, at=at, reason=reason)
+        rows = self._q("UPDATE incident SET status=?, body=? WHERE id=? AND status='escalated' RETURNING id",
+                       (inc.status, inc.model_dump_json(), incident_id))
+        return inc if rows else None
 
     def list_incidents(self, limit: int = 50, parent_id: str | None = None) -> list[Incident]:
         if parent_id is not None:                                # ACR-0021 B5: the re-checks of one incident

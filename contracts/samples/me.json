@@ -7,6 +7,7 @@
   ],
   "permissions": [
     "investigate",
+    "resolve_incident",
     "view",
     "view_evidence"
   ],

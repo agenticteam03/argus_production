@@ -27,6 +27,7 @@ UI_ROUTES = [("post", "/api/v1/auth/token"), ("post", "/api/v1/auth/logout"), ("
              ("get", "/api/v1/incidents/{incident_id}"), ("get", "/api/v1/incidents/{incident_id}/events"),
              ("get", "/api/v1/evidence/{evidence_id}"), ("get", "/api/v1/escalations"),
              ("post", "/api/v1/investigations"), ("get", "/api/v1/targets"),
+             ("post", "/api/v1/incidents/{incident_id}/resolve"),       # ACR-0041: close an escalated incident
              ("get", "/api/v1/host-metrics"), ("get", "/api/v1/incidents/{incident_id}/metrics"),
              ("get", "/api/v1/topology"), ("get", "/api/v1/target-metrics"),
              ("get", "/api/v1/overview"),
@@ -160,6 +161,10 @@ def scripted_run(make_app) -> dict[str, object]:
     out["investigation"] = api.post("/api/v1/investigations", json={"target": SC03, "reason": "from the UI",
                                                                     "request_kind": "check"},
                                     headers={"Authorization": f"Bearer {inv.json()['access_token']}"}).json()
+    # ACR-0041: closing the escalated incident with the same investigate token (last: the others keep it escalated)
+    out["incident-resolved"] = api.post(f"/api/v1/incidents/{started[UNSUPPORTED]}/resolve",
+                                        json={"reason": "fixed by hand outside Argus"},
+                                        headers={"Authorization": f"Bearer {inv.json()['access_token']}"}).json()
     out["login"]["access_token"] = "<a JWT>"          # a sample must never hold a usable token
     return out
 
