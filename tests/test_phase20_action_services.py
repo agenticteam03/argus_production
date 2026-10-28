@@ -83,20 +83,36 @@ def test_the_tunnel_forwards_the_gateway_on_the_worker_only_network():
     assert [f for f in forwards if f.endswith(":18705")] == ["172.30.5.2:18705:127.0.0.1:18705"]
     assert all(f.startswith("0.0.0.0:") for f in forwards if not f.endswith(":18705"))
     services, networks = CORE["services"], CORE["networks"]
-    assert services["argus-v18-tunnel"]["networks"]["argus-v18-action"] == {"ipv4_address": "172.30.5.2"}
+    assert services["argus-v18-tunnel"]["networks"]["argus-v18-action"]["ipv4_address"] == "172.30.5.2"
     assert networks["argus-v18-action"]["internal"] is True
     assert networks["argus-v18-action"]["ipam"]["config"] == [{"subnet": "172.30.5.0/24"}]
     members = {name for name, spec in services.items() if "argus-v18-action" in spec.get("networks", [])}
     assert members == {"argus-v18-tunnel", "argus-v18-worker"}
 
 
-def test_the_gateway_name_still_resolves_nowhere_on_vm_095():
-    """The write-gate check reports CLOSED only while ACTION_GATEWAY does not resolve; no alias gives it out early."""
+def test_the_gateway_name_resolves_only_on_the_tunnels_action_network_once_a_pair_is_released():
+    """The gate report accepts ACTION_GATEWAY resolving only while write_gate.open names a pair (X-5): the one alias is
+    the tunnel's, on the internal action network that only the worker shares, and it goes with an open gate."""
     assert ACTION_GATEWAY not in CORE["services"]
+    holders = []
     for name, spec in CORE["services"].items():
         nets = spec.get("networks", [])
-        for net in nets.values() if isinstance(nets, dict) else []:
-            assert ACTION_GATEWAY not in (net or {}).get("aliases", []), name
+        for net_name, net in (nets.items() if isinstance(nets, dict) else []):
+            if ACTION_GATEWAY in (net or {}).get("aliases", []):
+                holders.append((name, net_name))
+    assert holders == [("argus-v18-tunnel", "argus-v18-action")]
+    policy = yaml.safe_load((ROOT / "config" / "policy.yaml").read_text(encoding="utf-8"))
+    assert policy["write_gate"]["open"], "the alias must go when the gate closes"
+
+
+def test_the_workers_action_settings_are_off_by_default_and_name_the_tunnels_forward():
+    env = CORE["services"]["argus-v18-worker"]["environment"]
+    assert env["ARGUS_ACTION_PATH"] == "${ARGUS_ACTION_PATH:-0}"
+    assert env["ARGUS_ACTION_GATEWAY_URL"] == f"http://{ACTION_GATEWAY}:18705"
+    assert env["ARGUS_ACTION_TOKEN_FILE"] == "/run/argus-secrets/action_token"
+    for name, spec in CORE["services"].items():
+        if name != "argus-v18-worker":
+            assert not any(k.startswith("ARGUS_ACTION") for k in (spec.get("environment") or {})), name
 
 
 unix_only = pytest.mark.skipif(not hasattr(socket, "AF_UNIX") or not hasattr(socket, "SOCK_STREAM"),
