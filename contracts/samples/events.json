@@ -1,6 +1,6 @@
 [
   {
-    "at": "2026-10-22T21:03:37.778546+00:00",
+    "at": "2026-10-27T23:14:56.794317+00:00",
     "data": {
       "host": "vm-166",
       "request": "report",
@@ -17,7 +17,7 @@
     "seq": 1
   },
   {
-    "at": "2026-10-22T21:03:37.800137+00:00",
+    "at": "2026-10-27T23:14:56.844438+00:00",
     "data": {
       "classes_considered": [
         "container_restart_loop",
@@ -25,6 +25,7 @@
         "health_check_failed",
         "postgresql_connection_exhaustion",
         "nginx_upstream_failure",
+        "worker_stalled",
         "cpu_saturation"
       ],
       "family": "stability",
@@ -44,9 +45,12 @@
         "dependency_probe_min": null,
         "health_unhealthy": null,
         "http_gateway_error_ratio_5m": null,
+        "jobs_processed_rate": null,
         "last_exit_code": 137.0,
         "oom_killed": 1.0,
-        "restarts_10m": 5.0
+        "queue_depth": null,
+        "restarts_10m": 5.0,
+        "worker_last_processed_age_s": null
       },
       "strategy": "model_loop"
     },
@@ -56,7 +60,7 @@
     "seq": 2
   },
   {
-    "at": "2026-10-22T21:03:37.805764+00:00",
+    "at": "2026-10-27T23:14:56.857868+00:00",
     "data": {
       "runbooks": [
         "RB-001",
@@ -69,13 +73,13 @@
     "seq": 3
   },
   {
-    "at": "2026-10-22T21:03:37.816283+00:00",
+    "at": "2026-10-27T23:14:56.883332+00:00",
     "data": {
       "library": "library 1.1.1",
       "passages": [
         {
           "runbook_id": "RB-001",
-          "score": 16.292,
+          "score": 16.306,
           "section": "Required evidence",
           "sha256": "336e8e470a8469c07fc5c4e01c381c1ee9e038d055a222cfa0960f729420a19b",
           "status": "draft",
@@ -83,7 +87,7 @@
         },
         {
           "runbook_id": "RB-001",
-          "score": 16.125,
+          "score": 16.099,
           "section": "Required Argus tools",
           "sha256": "670780e489a3133a3eafe39e879fa4728eccb45f9c3ab5a2d45165d241636d86",
           "status": "draft",
@@ -91,7 +95,7 @@
         },
         {
           "runbook_id": "RB-001",
-          "score": 13.158,
+          "score": 13.192,
           "section": "Lab validation",
           "sha256": "bf494ccb8b30be1c7b58853d9f949f6d2293efa840e83aca4d0b59603efe02a7",
           "status": "draft",
@@ -105,7 +109,7 @@
     "seq": 4
   },
   {
-    "at": "2026-10-22T21:03:37.825253+00:00",
+    "at": "2026-10-27T23:14:56.896908+00:00",
     "data": {
       "step": 1,
       "steps_left": 8,
@@ -117,7 +121,7 @@
     "seq": 5
   },
   {
-    "at": "2026-10-22T21:03:37.837615+00:00",
+    "at": "2026-10-27T23:14:56.917374+00:00",
     "data": {
       "decided_by": "model",
       "decision": {
@@ -146,7 +150,7 @@
     "seq": 6
   },
   {
-    "at": "2026-10-22T21:03:37.853770+00:00",
+    "at": "2026-10-27T23:14:56.941557+00:00",
     "data": {
       "calls": 2
     },
@@ -156,7 +160,7 @@
     "seq": 7
   },
   {
-    "at": "2026-10-22T21:03:37.872837+00:00",
+    "at": "2026-10-27T23:14:56.989454+00:00",
     "data": {
       "capability": "container.status",
       "error_category": "none",
@@ -164,7 +168,7 @@
       "executor": "docker_read",
       "host": "vm-166",
       "result": "vm-166/container:argus-lab-worker: state=restarting health=none restarts=7 oom_killed=True exit_code=137 started_at=unknown memory_limit_bytes=67108864 cpu_limit_cores=unknown networks=unknown id=aaa111",
-      "sha256": "3c688def86aeabf06a09dbc0aa6072363e45f20697bd0cfe413180756581d18f",
+      "sha256": "00b6bfd2e0104d4e0cc5cf583cf1f84f5818f996eb71c823b79e672837b01b05",
       "status": "ok",
       "target": "vm-166/container:argus-lab-worker",
       "tool": "get_container_status"
@@ -175,7 +179,7 @@
     "seq": 8
   },
   {
-    "at": "2026-10-22T21:03:37.897750+00:00",
+    "at": "2026-10-27T23:14:57.045479+00:00",
     "data": {
       "capability": "container.logs",
       "error_category": "none",
@@ -183,7 +187,7 @@
       "executor": "docker_read",
       "host": "vm-166",
       "result": "vm-166/container:argus-lab-worker: last 1 log lines",
-      "sha256": "d73a6ea946f77ce0f63f7bf705ccd5b72d62f2e78ba260427fe23b05f9831efd",
+      "sha256": "05ac9268aa9295fb8431df1a281625bcea4a258a01de28c2764020d0fdcee728",
       "status": "ok",
       "target": "vm-166/container:argus-lab-worker",
       "tool": "get_container_logs"
@@ -194,7 +198,7 @@
     "seq": 9
   },
   {
-    "at": "2026-10-22T21:03:37.902677+00:00",
+    "at": "2026-10-27T23:14:57.066867+00:00",
     "data": {
       "evidence_total": 4
     },
@@ -204,7 +208,7 @@
     "seq": 10
   },
   {
-    "at": "2026-10-22T21:03:37.906933+00:00",
+    "at": "2026-10-27T23:14:57.085089+00:00",
     "data": {
       "step": 2,
       "steps_left": 7,
@@ -216,7 +220,7 @@
     "seq": 11
   },
   {
-    "at": "2026-10-22T21:03:37.924621+00:00",
+    "at": "2026-10-27T23:14:57.106559+00:00",
     "data": {
       "decided_by": "model",
       "decision": {
@@ -236,7 +240,7 @@
     "seq": 12
   },
   {
-    "at": "2026-10-22T21:03:37.952091+00:00",
+    "at": "2026-10-27T23:14:57.168589+00:00",
     "data": {
       "cited": [
         "obs_9a72f05666764ae7",

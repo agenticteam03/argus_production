@@ -2,6 +2,7 @@
   "host": "vm-166",
   "containers": [
     "argus-lab-worker",
+    "argus-lab-jobworker",
     "argus-lab-nginx",
     "argus-lab-slow",
     "argus-lab-burner",
@@ -15,6 +16,7 @@
   ],
   "dns_names": [
     "argus-lab-worker",
+    "argus-lab-jobworker",
     "argus-lab-nginx",
     "argus-lab-slow",
     "argus-lab-burner",
@@ -59,6 +61,12 @@
     }
   ],
   "probes": [
+    {
+      "owner": "argus-lab-jobworker",
+      "dependency": "argus-lab-cache",
+      "host": "argus-lab-cache",
+      "port": 6379
+    },
     {
       "owner": "argus-lab-nginx",
       "dependency": "argus-lab-slow",
