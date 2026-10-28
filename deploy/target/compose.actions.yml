@@ -1,0 +1,51 @@
+# Phase 20 (X-3, ACR-0019 §3.9): the action gateway and its socket proxy — vm-166 ONLY, never vm-095.
+# Not part of the target deploy: no command, env file or script loads this file. The first release PR's window starts
+# it, together with the active configuration, the action token and the write-gate check that expects it:
+#   ARGUS_DOCKER_GID=$(stat -c %g /var/run/docker.sock) docker compose -f deploy/target/compose.actions.yml up -d --build
+# Neither process starts with an empty release map (services/action_gateway/run.py).
+# Rollback: docker compose -f deploy/target/compose.actions.yml down (the journal volume stays, append-only evidence).
+name: argus-v18-actions
+x-common: &common
+  build: {context: ../.., dockerfile: services/action_gateway/Dockerfile}
+  image: argus-v18-action-gateway:1
+  restart: unless-stopped
+  user: "65532:65532"
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: ["no-new-privileges:true"]
+  mem_limit: 64m
+  memswap_limit: 64m
+  cpus: 0.2
+  pids_limit: 32
+services:
+  argus-v18-action-proxy:               # the only container with Docker's socket; exact released routes only
+    <<: *common
+    container_name: argus-v18-action-proxy
+    environment: {ARGUS_ACTION_ROLE: proxy}
+    group_add: ["${ARGUS_DOCKER_GID:?the Docker socket's group: stat -c %g /var/run/docker.sock}"]
+    network_mode: none                  # answers on its Unix socket only
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - argus-v18-action-run:/run/argus-v18
+      - /etc/argus-v18/action-gateway.json:/etc/argus-v18/action-gateway.json:ro
+  argus-v18-action-gateway:             # the worker's one entry: token, journal, then one call through the proxy
+    <<: *common
+    container_name: argus-v18-action-gateway
+    environment: {ARGUS_ACTION_ROLE: gateway}
+    volumes:
+      - argus-v18-action-run:/run/argus-v18
+      - /opt/argus-v18/secrets/action/action_token:/run/argus-v18/action_token:ro
+      - argus-v18-action-journal:/var/lib/argus-v18
+      - /etc/argus-v18/action-gateway.json:/etc/argus-v18/action-gateway.json:ro
+    ports: ["127.0.0.1:18705:8705"]     # loopback only; vm-095's worker reaches it through the restricted tunnel
+    networks: [argus-v18-action]
+    depends_on:
+      argus-v18-action-proxy: {condition: service_started}
+networks:
+  argus-v18-action:
+    name: argus-v18-action
+volumes:
+  argus-v18-action-run:
+    name: argus-v18-action-run
+  argus-v18-action-journal:
+    name: argus-v18-action-journal
