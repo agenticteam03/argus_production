@@ -3,7 +3,9 @@ from __future__ import annotations
 
 import json
 import os
+import socket
 import socketserver
+import stat
 from http.server import ThreadingHTTPServer
 from pathlib import Path
 
@@ -29,15 +31,38 @@ def load_config(path):
         raise ValueError("invalid host or releases")
     pairs = {}
     for item in releases:
-        if not isinstance(item, dict) or set(item) != {"capability", "target", "route"}:
+        base_fields = {"capability", "target", "route"}
+        network_fields = base_fields | {"connect_network", "disconnect_network"}
+        if (not isinstance(item, dict) or set(item) not in (base_fields, network_fields)
+                or (item.get("capability") == "network.restore") != (set(item) == network_fields)):
             raise ValueError("release fields differ")
         if not all(isinstance(value, str) for value in item.values()):
             raise ValueError("release fields must be strings")
         key = (item["capability"], item["target"])
         if key in pairs:
             raise ValueError("duplicate released pair")
-        pairs[key] = item["route"]
+        pairs[key] = ({"route": item["route"], "connect_network": item["connect_network"],
+                       "disconnect_network": item["disconnect_network"]}
+                      if item["capability"] == "network.restore" else item["route"])
     return host, dict(validated_pairs(host, pairs))
+
+
+def clear_stale_socket(path):
+    """A socket left by an earlier proxy run (a restart or a reboot keeps the volume) is removed only when nothing
+    answers on it; a live socket, or anything that is not a socket, still refuses the start."""
+    if not os.path.lexists(path):
+        return
+    if not stat.S_ISSOCK(os.lstat(path).st_mode):
+        raise RuntimeError("proxy socket path is not a socket")
+    probe = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    try:
+        probe.connect(path)
+    except ConnectionRefusedError:
+        os.unlink(path)
+        return
+    finally:
+        probe.close()
+    raise RuntimeError("proxy socket already exists")
 
 
 def main():
@@ -53,8 +78,7 @@ def main():
                                 GatewayProxyTransport(UnixRequester(PROXY_SOCKET)), released=released)
         server = ThreadingHTTPServer(("0.0.0.0", 8705), make_handler(gateway))
     elif role == "proxy":
-        if os.path.exists(PROXY_SOCKET):
-            raise RuntimeError("proxy socket already exists")
+        clear_stale_socket(PROXY_SOCKET)
         os.umask(0o077)
         policy = SocketProxyPolicy(host, released, DockerSocketClient(DOCKER_SOCKET))
 
