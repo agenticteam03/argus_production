@@ -42,10 +42,15 @@ def ev(monkeypatch):
     return evaluation
 
 
+# the baseline blames the cache here (it cannot tell which side left the shared network); the model run diagnoses it
+# (BASELINE_MISSES in test_evaluation.py)
+MODEL_ONLY = {"dep-api-moved-network"}
+
+
 def test_their_evaluation_cases_pass_as_registered_without_a_model(ev, tmp_path):
     """The registry as shipped (no strategy override, no model): every case of the two classes passes, with no
     model call and no hard violation."""
-    cases = [c for c in ev.load_cases(CASES) if c.label.incident_class in TO_BASELINE]
+    cases = [c for c in ev.load_cases(CASES) if c.label.incident_class in TO_BASELINE and c.id not in MODEL_ONLY]
     assert len(cases) >= 11
     failed = {}
     for c in cases:
