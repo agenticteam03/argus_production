@@ -97,3 +97,16 @@ def test_the_client_has_no_model_or_harness_import_path():
     source = Path(module.__file__).read_text(encoding="utf-8")
     for forbidden in ("argus.adapters.outbound.llm", "argus.tooling", "openai", "argus.adapters.outbound.judge"):
         assert forbidden not in source
+
+
+def test_each_hop_waits_longer_than_the_one_below_and_longer_than_a_docker_restart():
+    """S4: a restart took 10.7 s (Docker waits up to 10 s to stop, then starts) and a 10 s wait reported it as ambiguous."""
+    import inspect
+
+    from argus.actions.gateway_client import HttpActionGateway
+    from services.action_gateway.unix_transport import (DOCKER_TIMEOUT_S, PROXY_TIMEOUT_S, DockerSocketClient,
+                                                        UnixRequester)
+    client_s = inspect.signature(HttpActionGateway.__init__).parameters["timeout_s"].default
+    assert 10 < DOCKER_TIMEOUT_S < PROXY_TIMEOUT_S < client_s
+    assert DockerSocketClient("/nonexistent").request.timeout_s == DOCKER_TIMEOUT_S
+    assert UnixRequester("/nonexistent").timeout_s == PROXY_TIMEOUT_S

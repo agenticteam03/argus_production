@@ -2,6 +2,7 @@ import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import AnswerBlock from "../components/AnswerBlock.jsx";
 import ActionSuggestions from "../components/ActionSuggestions.jsx";
+import ActionTrail from "../components/ActionTrail.jsx";
 import CopySummary from "../components/CopySummary.jsx";
 import DiagnoseForm from "../components/DiagnoseForm.jsx";
 import IncidentChat from "../components/IncidentChat.jsx";
@@ -178,6 +179,7 @@ export default function IncidentDetail() {
               <IncidentChat key={inc.id} incident={inc} events={events} cited={cited} />
             </div>
           </div>
+          <ActionTrail action={inc.action} />
           <ActionSuggestions items={inc.next_actions} />
         </div>
       </TabPanel>
