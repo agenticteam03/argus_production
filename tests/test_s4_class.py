@@ -87,3 +87,49 @@ def test_the_capability_catalogue_names_worker_stalled_as_an_incident_class():
 
     assert "worker_stalled" in get_args(IncidentClassName)
     assert set(get_args(IncidentClassName)) == {spec.name for spec in CLASSES}
+
+
+def test_worker_stalled_baseline_reads_only_the_worker_and_declared_cache():
+    from argus.detectors.classes import CLASSES
+    from argus.domain.model import TargetRef
+    from argus.orchestration.strategies import BaselineStrategy
+
+    worker = TargetRef.parse("vm-166/container:argus-lab-jobworker")
+    cache = TargetRef.parse("vm-166/container:argus-lab-cache")
+    cls = next(spec for spec in CLASSES if spec.name == "worker_stalled")
+    view = SimpleNamespace(incident_class=cls, incident=SimpleNamespace(target=worker),
+                           scope=[cache, worker], offered_specs=[])
+    calls = BaselineStrategy().plan(view)
+    assert [(call.name, call.arguments["target"]) for call in calls] == [
+        ("container.status", str(worker)), ("container.status", str(cache)),
+    ]
+
+
+def test_worker_stalled_baseline_attributes_only_observed_cache_failure():
+    from argus.detectors.classes import CLASSES
+    from argus.domain.model import TargetRef
+    from argus.orchestration.strategies import BaselineStrategy
+
+    worker = TargetRef.parse("vm-166/container:argus-lab-jobworker")
+    cache = TargetRef.parse("vm-166/container:argus-lab-cache")
+    cls = next(spec for spec in CLASSES if spec.name == "worker_stalled")
+
+    def evidence(capability, text):
+        return SimpleNamespace(status="ok", capability=capability, model_text=text)
+
+    running_worker = evidence("container.status", f"{worker}: state=running health=healthy")
+    running_cache = evidence("container.status", f"{cache}: state=running health=healthy")
+    stopped_cache = evidence("container.status", f"{cache}: state=exited health=unknown")
+    broken_link = evidence("network.link_states", "- argus-lab-jobworker -> argus-lab-cache: broken since 12:00 UTC")
+
+    def decide(items):
+        view = SimpleNamespace(incident_class=cls, incident=SimpleNamespace(target=worker),
+                               scope=[worker, cache], evidence=items)
+        return BaselineStrategy()._worker_stalled(view, [item for item in items if item.status == "ok"])
+
+    assert decide([running_worker, running_cache]) is None
+    assert decide([stopped_cache]) is None  # worker state is unknown, not evidence of a cause
+    diagnosis, root = decide([running_worker, stopped_cache])
+    assert root == str(cache) and "exited" in diagnosis
+    diagnosis, root = decide([running_worker, running_cache, broken_link])
+    assert root == str(cache) and "broken" in diagnosis
