@@ -307,7 +307,7 @@ class SkeletonRunner:
         try:
             if any(r["step"] == step for r in self.memory.hypotheses(inc.id)):
                 return
-            ranked = {r.id: r for r in rank(hyps, evidence, self.ranking)}
+            ranked = {r.id: r for r in rank(hyps, evidence, self.ranking, **self._onset_inputs(hyps, evidence))}
             chosen = getattr(d, "chosen", None)
             add(inc.id, step, [{"hypothesis_id": h.id, "statement": h.statement, "cause_class": h.cause_class,
                                 "target": h.target, "relation": h.relation, "status": h.status,
@@ -315,6 +315,26 @@ class SkeletonRunner:
                                 "rank": ranked[h.id].rank, "chosen": h.id == chosen} for h in hyps], utcnow())
         except Exception:  # noqa: BLE001 — the hypotheses are a record of the reasoning, never a reason to fail it
             log.exception("hypotheses of %s step %d not recorded", inc.id, step)
+
+    def _onset_inputs(self, hyps: list, evidence: list) -> dict:
+        """TASK-62: the keyword arguments of `rank()` for the onset-order rule (TASK-50): the first anomaly onset per
+        target from the incident's `analysis.anomaly_summary` records, and each hypothesis target's direct inventory
+        dependencies. No anomaly_summary read (or no onset in it): nothing, so `rank()` is called as before."""
+        from argus.application.ranking import first_onsets
+        ids = [e.evidence_id for e in evidence if getattr(e, "capability", None) == "analysis.anomaly_summary"]
+        listed = [o for r in (self.memory.get_evidence(ids) if ids else []) for o in (r.values.get("onsets") or [])]
+        onsets = first_onsets(listed)
+        if not onsets:
+            return {}
+        depends_on: dict[str, list[str]] = {}
+        for h in hyps:
+            try:
+                info = self.inventory.target(TargetRef.parse(h.target)) if h.target else None
+            except ValueError:
+                info = None
+            if info is not None and info.depends_on:
+                depends_on[h.target] = [str(d) for d in info.depends_on]
+        return {"onsets": onsets, "depends_on": depends_on}
 
     # ---------------------------------------------------------------------------------------------
     def context(self, view: InvestigationView) -> str:
