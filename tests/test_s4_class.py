@@ -1,3 +1,4 @@
+import re
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -64,6 +65,11 @@ def test_worker_stalled_scrape_alert_and_inventory_contract():
     assert "last_processed_timestamp_seconds" in alert["expr"] and "> 180" in alert["expr"]
     assert "argus_lab_queue_depth" in alert["expr"] and "> 10" in alert["expr"]
     assert "deriv(" in alert["expr"] and "[3m]" in alert["expr"] and "> 0" in alert["expr"]
+    # the alert waits for the detector's own zero processed rate, over the detector's window (config/signals.yaml);
+    # without it the incident opened about two minutes early and escalated as unsupported
+    signals = yaml.safe_load((ROOT / "config/signals.yaml").read_text(encoding="utf-8"))
+    window = re.search(r"\[(\w+)\]\)$", signals["jobs_processed_rate"]).group(1)
+    assert f'rate(argus_lab_jobs_processed_total{{job="argus-lab-jobworker"}}[{window}]) == 0' in alert["expr"]
 
     inventory = yaml.safe_load((ROOT / "config/inventory.yaml").read_text(encoding="utf-8"))
     worker = next(item for item in inventory["targets"] if item["ref"] == "vm-166/container:argus-lab-jobworker")
