@@ -25,6 +25,11 @@ _PATH_CHARS = re.compile(r"[A-Za-z0-9._/-]*")
 _IN_PATH = re.compile(r"[A-Za-z0-9._/:~%-]")
 _TOKEN = re.compile(r"[A-Za-z0-9+_=-]{40,}")
 _SECRET_KEYS = re.compile(r"(?i)(password|secret|token|api[_-]?key|private[_-]?key|^env$)")
+# X-5: Docker's full container ID (64 lower-case hex) under the target service's own `container_id` key is the identity
+# the action gateway compares before a write; masked, every approved action would fail as "identity changed". Only that
+# key and exactly that shape are kept: the same 64 hex in any text or under any other key is still masked.
+_IDENTITY_KEYS = frozenset({"container_id"})
+_DOCKER_ID = re.compile(r"[0-9a-f]{64}", re.ASCII)
 
 
 class Redactor:
@@ -98,6 +103,9 @@ class Redactor:
         if isinstance(obj, dict):
             out, total = {}, 0
             for k, v in obj.items():
+                if k in _IDENTITY_KEYS and isinstance(v, str) and _DOCKER_ID.fullmatch(v):
+                    out[k] = v
+                    continue
                 if isinstance(k, str) and _SECRET_KEYS.search(k):
                     out[k] = "[REDACTED]"
                     total += 1

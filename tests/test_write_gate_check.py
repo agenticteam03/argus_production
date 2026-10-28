@@ -52,6 +52,19 @@ def test_gate_report_of_this_repository_holds_exactly_the_released_pairs():
     assert result.stdout.strip().endswith("released_ok=1")
 
 
+def test_gate_report_runs_from_stdin_inside_a_container_as_the_check_pipes_it(tmp_path):
+    """ops/write-gate-check.sh runs `docker exec -i ... python - <gate_report.py` with ARGUS_RELEASE_JSON: __file__ is
+    "<stdin>", so a module-level path built from it must not fail (found in the X-5 window: every report was missing)."""
+    env = {**os.environ, "ARGUS_CONFIG_DIR": str(ROOT / "config"), "PYTHONPATH": str(ROOT),
+           "ARGUS_RELEASE_JSON": RELEASE.read_text(encoding="utf-8")}
+    source = (ROOT / "argus/infrastructure/gate_report.py").read_bytes()
+    # from the filesystem root, as in a container whose working directory is shallow: "<stdin>" has one parent
+    result = subprocess.run([sys.executable, "-"], input=source, env=env, cwd=tmp_path.anchor, capture_output=True)
+    out = result.stdout.decode()
+    assert result.returncode == 0, out + result.stderr.decode()
+    assert out.startswith("gate_open=") and out.strip().endswith("released_ok=1")
+
+
 def test_equal_sets_pass(tmp_path):
     result = _report(tmp_path / "config", **_setup(tmp_path, [CACHE], _released(CACHE)))
     assert result.returncode == 0 and result.stdout.startswith("gate_open=1 ") and "released_ok=1" in result.stdout

@@ -109,3 +109,21 @@ def test_a_high_entropy_name_under_a_declared_directory_is_masked():
 def test_declared_paths_at_a_path_start_stay_readable(text):
     out, n = R.text(text)
     assert out == text and n == 0
+
+
+# --- X-5: Docker's container ID under the target service's own key is an identity, not a secret ---------------------
+DOCKER_ID = "ab" * 32                  # 64 lower-case hex, the shape of Docker's full Id (low entropy for the scanners)
+
+
+def test_the_full_container_id_under_its_own_key_is_kept_and_nowhere_else():
+    kept, n = Redactor().value({"container_id": DOCKER_ID, "id": DOCKER_ID[:12]})
+    assert kept == {"container_id": DOCKER_ID, "id": DOCKER_ID[:12]} and n == 0
+    masked, n = Redactor().value({"image_digest": DOCKER_ID, "note": f"id {DOCKER_ID}"})
+    assert DOCKER_ID not in str(masked) and n == 2                         # another key, or free text: still masked
+    assert Redactor().text(f"container_id={DOCKER_ID}")[0] != f"container_id={DOCKER_ID}"
+
+
+@pytest.mark.parametrize("value", ["AB" * 32, "ab" * 33, "Zm9v" * 16])
+def test_anything_else_under_container_id_is_still_masked(value):
+    masked, n = Redactor().value({"container_id": value})
+    assert masked["container_id"] == "[REDACTED HIGH-ENTROPY]" and n == 1

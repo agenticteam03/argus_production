@@ -44,6 +44,27 @@ def test_sc03_candidates_use_stored_root_evidence_and_recalled_runbook():
     assert candidates[0]["risk_color"] == "green" and candidates[0]["is_executable"] is False
 
 
+def test_candidates_also_cite_the_dependents_own_evidence_newest_of_each_kind():
+    """X-5: the judge saw only the cache's status and doubted that the API's failure was caused by it; the candidate now
+    also cites the incident target's reported symptom, metric snapshot and recorded links (the newest of each)."""
+    policy, inventory = _policy()
+    at = utcnow()
+    incident = SimpleNamespace(outcome=IncidentOutcome.diagnosed, target=TargetRef.parse(API), root_cause_target=CACHE)
+
+    def record(evidence_id, kind, capability=None, *, target=API, age=0, status="ok"):
+        return EvidenceRecord(evidence_id=evidence_id, incident_id="inc_sc03", kind=kind, capability=capability,
+                              target=target, host="vm-166", executor="x", caller="strategy:baseline",
+                              source_time=at, collected_at=at - timedelta(seconds=age), status=status,
+                              values={}, model_text=evidence_id).with_hash()
+
+    evidence = [_status(at), record("ev_symptom", "reported_symptom"), record("ev_old_snapshot", "metric_snapshot", age=60),
+                record("ev_snapshot", "metric_snapshot"), record("obs_links", "observation", "network.link_states"),
+                record("obs_links_failed", "observation", "network.link_states", age=5, status="error"),
+                record("ev_cache_symptom", "reported_symptom", target=CACHE)]
+    candidates = policy.next_actions(incident, evidence, {"RB-003"}, inventory, now=at)
+    assert candidates[0]["evidence_refs"] == ["ev_cache_status", "ev_symptom", "ev_snapshot", "obs_links"]
+
+
 def test_candidate_is_absent_without_fresh_evidence_or_runbook_recall():
     policy, inventory = _policy()
     at = utcnow()
