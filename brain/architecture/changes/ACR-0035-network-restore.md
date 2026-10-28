@@ -1,17 +1,17 @@
 # ACR-0035 — `network.restore`: reconnect a lab container to its expected network and leave the wrong one
 
 Extends [ACR-0019](ACR-0019-human-approved-remediation.md) (§3.3 the catalogue, §3.4 the cards, §3.7 the risk colours,
-§3.9 the execution path, §3.13 the release scope). It adds one action to the closed catalogue and two exact routes to
-the action gateway. Nothing is released by this ACR: `write_gate.open` stays empty until a release PR names the pair.
+§3.9 the execution path, §3.13 the release scope). TASK-89 applies it with the first and only `network.restore` release
+pair on the lab API, with the exact route and network names in the candidate file.
 
 | Field | Value |
 |---|---|
-| Status | `proposed` |
+| Status | `accepted` |
 | Proposed by | juanbetancurm (+ agent) · 2026-10-27 |
-| Accepted by | — |
-| Second approval (safety principle only) | **required**: the write gate (a new capability and two new gateway routes) and least privilege (the proxy starts to accept a request body). To be given in the PR that accepts this ACR (AGENT_PROTOCOL §4) |
-| Architecture version | from `1.8.40` → the next free version when applied (the PR that merges second renumbers) |
-| Task / PR | TASK-56 (fast track, lane S2) · PR to be opened by the manager |
+| Accepted by | Implementing release PR TASK-89; developer approval and Conan's second approval are required before merge |
+| Second approval (safety principle only) | **required** for the write gate and least-privilege body rule; Conan's approval is the second approval on TASK-89 (AGENT_PROTOCOL §4) |
+| Architecture version | `1.8.44` (phase 20, X-8; this implementing release) |
+| Task / PR | TASK-89 (lane S2b), third release PR |
 
 ## 1. Detect and explain
 
@@ -213,23 +213,18 @@ Proposed. Decisions taken by the manager on 2026-10-27, written here for the rev
    exact names `connect_network: argus-lab-app` and `disconnect_network: argus-lab-iso` (the names are set in the
    release PR, with two reviewers). SC-07's backend can follow. There is no automatic rollback and no release entry
    with the names swapped: a person restores the old state by hand, and the card shows `reversible: no` (section 3.4).
-3. **The dependent of the release target.** Section 3.4 verifies the link from the declared dependent to the target,
-   and `config/inventory.yaml` today has no target with `depends_on: [argus-lab-api]` (only `argus-lab-client`
-   depends on `argus-lab-backend`). Task S2-5 adds it: `argus-lab-client` declares `depends_on: [argus-lab-api]`.
-   The `argus-lab-api` pair is not released until S2-5 has merged; without a dependent there is no link to read, the
-   prediction cannot name one and `useful_when` never fires. (If S2-5 chooses another dependent, this entry is
-   updated with it; the alternative is to release the first pair on a target that already has one, such as
-   `argus-lab-backend`, whose dependent `argus-lab-client` exists today.)
-4. **Where the networks come from.** `argus-lab-iso` exists only while the `sc07` profile is up and AGENT_PROTOCOL
-   section 7 reserves it for SC-07, and moving the API off `argus-lab-app` also fails its `/health` (it needs the cache
-   by name). The release PR cannot name those networks until S2's injection design is settled; it waits for that
-   design. Until then the names in decision 2 are the proposal, not a release.
+3. **The dependent of the release target.** Section 3.4 verifies the link from the declared dependent to the target.
+   TASK-89 updates `config/inventory.yaml` so `argus-lab-client` declares `depends_on: [vm-166/container:argus-lab-api]`;
+   the release therefore has a real link for its prediction and post-action verification.
+4. **Where the networks come from.** The SC-07 injection on `vm-166` moves `argus-lab-api` from `argus-lab-app` to
+   `argus-lab-iso`. The release pins that exact pair. The connect-first sequence restores the API's declared network;
+   no deployment or VM action is part of this PR.
 
 ## 6. Applied
 
-- [ ] `ARCHITECTURE.md` updated (§4.5, §12.2, §13.3, §14.4, §14.8, §15.1, changelog), version bumped
-- [ ] ACR-0019 §3.3's catalogue list updated to the single action
-- [ ] the action card, the risk rows, the gateway release entry, calls and journal steps, with their tests
-- [ ] journal entry
+- [x] `ARCHITECTURE.md` updated (§4.5, §12.2, §13.3, §14.4, §14.8, §15.1, changelog), version bumped to 1.8.44 (X-8)
+- [x] ACR-0019 §3.3's catalogue list updated to the single action
+- [x] the action card, risk rows, gateway release entry, calls and journal steps, with their tests (implementation files were completed in the preceding S2 tasks)
+- [x] journal entry
 - [ ] the ACR, the architecture change and the first code that needs it are in the same pull request
 - [ ] a release PR for the first `(network.restore, target)` pair, two reviewers (ACR-0019 §3.13)

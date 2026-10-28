@@ -1,7 +1,7 @@
 # Argus — Production Architecture Specification
 
 **Document type:** consolidated target architecture and implementation blueprint ·
-**Version:** 1.8.43 (2026-10-28, ACR-0019 second release: `container.restart` on the lab job worker; 1.8.42 2026-10-28, ACR-0019 applied for the first release: one lab write pair, `container.start` on
+**Version:** 1.8.44 (2026-10-28, ACR-0035 accepted and implemented in phase 20, X-8: network.restore on the lab API; 1.8.43 2026-10-28, ACR-0019 second release: `container.restart` on the lab job worker; 1.8.42 2026-10-28, ACR-0019 applied for the first release: one lab write pair, `container.start` on
 the lab cache; 1.8.41 2026-10-27, ACR-0036: worker_stalled class and RB-022; 1.8.40 2026-10-27, ACR-0034 local tier: staged reference sources installed by an administrator's approval; 1.8.39 2026-10-27, ACR-0034: the curated reference corpus, `knowledge.reference`, its layered defences; 1.8.38 2026-10-27, ACR-0032 and ACR-0019 phase 19: the private browser login, a full `ops` token bound to the private path, the approval and hold routes and their UI; 1.8.37 2026-10-26, ACR-0018 phase 16: security alerts to the team's Telegram route and the scheduler's egress proxy; 1.8.36 2026-10-24, ACR-0031: durable dependency probe replay; 1.8.35 2026-10-23, ACR-0018 phase 16 step 5c: the scheduler's mounts for the audit digest and the command that checks it; 1.8.34 2026-10-23, ACR-0018 phase 16 step 5b: the OCI Object Storage sink of the audit digests; 1.8.33 2026-10-23, ACR-0024 as built: a read step's hypotheses get the structural checks only; 1.8.32 2026-10-23, ACR-0018 phase 16 step 5a: the signed daily audit digest job; 1.8.31 2026-10-23, ACR-0020 phase 21A: offline terminal broker contracts; 1.8.30 2026-10-22, ACR-0018 phase 16 step 4: the private path; 1.8.29 2026-10-22, ACR-0018 phase 16 step 3: the WebAuthn second factor and the step-up token; 1.8.28 2026-10-21, ACR-0024 as built in T-0047 H2: `state_hypotheses`; 1.8.27 2026-10-21, ACR-0024 hypotheses and a cause ranking; 1.8.26 2026-10-21, ACR-0018 phase 16 step 1: sessions, revocation, persisted login limiter, permissions, the audit hash chain, EdDSA tokens; 1.8.25 2026-10-21, ACR-0028 field allowlists; 1.8.24 2026-10-21, ACR-0025 live dependency graph; 1.8.23 2026-10-20, ACR-0027 the built gaps G-001, G-003, G-007; 1.8.22 2026-10-20, ACR-0026 safety classes; 1.8.21 2026-10-20, §14 marked designed, not built (OP-015); 1.8.20 2026-10-19, ACR-0021 B7 baseline, long ranges, deploy events, and B8 link reasons; 1.8.19 2026-10-19, ACR-0021 B6: target metrics and the overview; 1.8.18 2026-10-19, ACR-0021 UI insights v2: B1 to B5; 1.8.17 2026-10-19, ACR-0023 log pattern matches; 1.8.16 2026-10-18, ACR-0013 and ACR-0016 Langfuse Cloud tracing; 1.8.15 2026-10-16, ACR-0017 topology; 1.8.14 2026-10-16, ACR-0017 incident metrics; 1.8.12 2026-10-14, ACR-0014; 1.8.11 2026-10-14, ACR-0012; 1.8.10 2026-10-14, ACR-0011; 1.8.8 2026-10-12, ACR-0009; 1.8.7 2026-10-12, ACR-0008; 1.8.6 2026-10-11, ACR-0007; 1.8.5 2026-10-09, ACR-0005; 1.8.4 2026-10-09, ACR-0004; 1.8.3 2026-10-08, ACR-0003; 1.8.2 2026-10-09, ACR-0002; 1.8.1 2026-10-06, ACR-0001; base 1.8.0 of 30 September 2026, sanitized for the shared repository 2026-10-02) · **Audience:** engineers and AI coding agents implementing
 Argus from an empty repository.
 
@@ -701,6 +701,7 @@ exact per action:
 - Each released write capability has **one exact route** and an exact target allowlist, for example
   `POST /containers/{name}/restart` for `container.restart`. Routes and target lists change only
   together with the policy data file, in review.
+- A released `network.restore` entry pins `(capability, target, connect_network, disconnect_network)`; the worker sends those exact names on its one `/containers/{name}/network-restore` request. The gateway checks them against the release, then connects before disconnecting. Its proxy allows only the two released network paths with the exact body `{"Container":"<target container id>"}`; it refuses bodies on other routes.
 - It denies every other Docker operation and every action on Prometheus, Alertmanager, the gateways or
   the probes.
 - Every request **MUST** carry `X-Argus-Action-Id`; a request without it is rejected.
@@ -1845,6 +1846,7 @@ the rollout (`MAX_TOOL_LEVEL`, §13.1).
 |---|---|---|
 | `container.start` | `action_gateway` | **released** on `vm-166/container:argus-lab-cache` only (phase 20, first release; `write_gate.open`) |
 | `container.restart` | `action_gateway` | **released** on `vm-166/container:argus-lab-jobworker` only (phase 20, second release; `write_gate.open`); every other target is not released |
+| `network.restore` | `action_gateway` | **released** on `vm-166/container:argus-lab-api` only (phase 20, third release; connect `argus-lab-app`, then disconnect `argus-lab-iso`; `write_gate.open`); every other target or network pair is not released |
 | `service.scale`, `container.update_resources`, `docker.prune`, `logs.rotate`, `service.restart`, `deployment.rollback`, `container.isolate`, `runbook.execute` | `action_gateway` or a dedicated gateway | future; each is added with the write contract (§14.8) and released on its own |
 
 Write capabilities are never offered to the model as tools, never published over MCP, and run only
@@ -2147,7 +2149,8 @@ Releasing a pair is a reviewed deployment change: the policy file entry, the gat
 credential and the firewall rule, together. It is never a runtime toggle reachable through the API or a
 peer. **In this release `write_gate.open` names exactly the reviewed lab pairs (phase 20, first release:
 `container.start` on `vm-166/container:argus-lab-cache`; second release: `container.restart` on
-`vm-166/container:argus-lab-jobworker`); every other pair is denied. The deployment check
+`vm-166/container:argus-lab-jobworker`; third release: `network.restore` on `vm-166/container:argus-lab-api`,
+with the candidate pinning `argus-lab-app` as connect and `argus-lab-iso` as disconnect); every other pair is denied. The deployment check
 (`ops/write-gate-check.sh`) expects exactly the released pairs, the reviewed action gateway, its token and the
 worker's action settings, and stops on anything else.**
 
@@ -2273,6 +2276,8 @@ The per-target execution lock is held from step 7 until step 10 (or `indetermina
 action's target. A fast answer (before step 4 pauses) is consumed by `await_approval` on entry, and the
 resumer then gets `already_past`, so the graph advances exactly once.
 
+`network.restore` remains one worker dispatch and one action id. The gateway journals its connect step before its disconnect step; a failed connect stops before disconnect. If disconnect fails or its answer is lost after connect, the action is indeterminate and is never retried automatically; a person resolves the partial state.
+
 ### 14.5 Reconciling an `attempting` action on recovery (before anything else)
 
 1. `GET /actions/{action_id}` on the action gateway:
@@ -2334,6 +2339,8 @@ class WriteCapability(Protocol):
 | `reconcile` | gateway journal first; then same container ID and `StartedAt > attempted_at` |
 | `verification_signals` | the incident class's verification signals, re-run through the detector |
 
+For `network.restore`, `identity` is the target container ID; `dispatch` is one request to `POST /containers/{name}/network-restore` with the frozen connect/disconnect pair; `reconcile` reads the gateway's connect/disconnect journal by action id and never retries an ambiguous or partial result; verification requires a fresh `link_ok` sample for the declared dependent-to-target link; `reversible` is false.
+
 ---
 
 ## 15. Verification, recording and memory
@@ -2348,6 +2355,7 @@ class WriteCapability(Protocol):
   unhealthy or timeout ⇒ escalate (`action_failed` if the ledger says `failed`; otherwise escalation
   with the verification evidence).
 - Verification runs even when the action failed, so the incident record states the real end state.
+- For `network.restore`, success requires a fresh `link_ok` sample from the declared dependent to the target after dispatch completes. A target health check or a pre-action sample does not verify the repair.
 - The record distinguishes **service recovery** (symptom gone) from **root-cause resolution** (the
   diagnosed cause removed). A restart may recover a service while the cause remains; the summary says
   so explicitly.
@@ -3222,4 +3230,5 @@ erDiagram
 | 1.8.40 | 2026-10-27 | ACR-0034 local tier (T-0057): `argus corpus fetch` stages one allowlisted source; `argus-v18-corpus` (profile `corpus`, internal network, egress proxy only, no secret; the egress filter unchanged until it filters per client); role `admin` with `manage_corpus`; `GET /api/v1/ops/corpus/sources`, `POST .../{name}/approve` and `.../reject` (step-up bound to the staged bundle's hash, audited) (§15.3) | [ACR-0034](changes/ACR-0034-reference-corpus.md) |
 | 1.8.41 | 2026-10-27 | The worker_stalled incident class for a live worker with no progress and a growing Redis queue: RB-022, branch runbooks RB-003/RB-004, the baseline strategy, missing/non-finite signals treated as unknown, and the runbook library extended through RB-022 (section 1.3) | [ACR-0036](changes/ACR-0036-stalled-worker-class.md) |
 | 1.8.42 | 2026-10-28 | ACR-0019 applied for the first release (phase 20, X-5): sections 1.2, 12.2, 13.3 and the opening note of section 14 say that write capabilities are released per (capability, scope) on lab targets; `write_gate.open` names `container.start` on `vm-166/container:argus-lab-cache`; the deployment check expects exactly the released pair and its parts | [ACR-0019](changes/ACR-0019-human-approved-remediation.md) |
+| 1.8.44 | 2026-10-28 | ACR-0035 accepted and implemented in phase 20, X-8: network.restore is released only on vm-166/container:argus-lab-api, connecting argus-lab-app before disconnecting argus-lab-iso; the candidate pins the route and network pair, argus-lab-client is its declared dependent for link verification, and the deployment check expects exactly three reviewed pairs | [ACR-0035](changes/ACR-0035-network-restore.md) |
 | 1.8.43 | 2026-10-28 | ACR-0019 second release (phase 20, X-6): `write_gate.open` also names `container.restart` on `vm-166/container:argus-lab-jobworker`; the reviewed release file adds `POST /containers/argus-lab-jobworker/restart`; section 12.2 marks `container.restart` released on that target only and section 13.3 lists both pairs; the deployment check expects exactly two pairs and their parts | [ACR-0019](changes/ACR-0019-human-approved-remediation.md) |
