@@ -12,10 +12,16 @@ import socket
 
 from services.action_gateway.core import NotSent
 
+# Each hop waits longer than the one below it, and the bottom one longer than a restart: Docker waits up to 10 s for
+# the container to stop before it kills it, then starts it. With 10 s here, the S4 rehearsal's restart (10.7 s) was
+# done but reported as ambiguous. The Argus client waits longer still (argus/actions/gateway_client.py).
+DOCKER_TIMEOUT_S = 20                 # proxy -> Docker
+PROXY_TIMEOUT_S = 25                  # gateway -> proxy
+
 
 class _UnixHTTP(http.client.HTTPConnection):
-    def __init__(self, path):
-        super().__init__("localhost", timeout=10)
+    def __init__(self, path, timeout):
+        super().__init__("localhost", timeout=timeout)
         self.path = path
 
     def connect(self):
@@ -26,11 +32,11 @@ class _UnixHTTP(http.client.HTTPConnection):
 
 
 class UnixRequester:
-    def __init__(self, socket_path):
-        self.socket_path = socket_path
+    def __init__(self, socket_path, timeout_s: float = PROXY_TIMEOUT_S):
+        self.socket_path, self.timeout_s = socket_path, timeout_s
 
     def __call__(self, method, path, headers=None, body=None):
-        conn = _UnixHTTP(self.socket_path)
+        conn = _UnixHTTP(self.socket_path, self.timeout_s)
         try:
             conn.request(method, path, body=body, headers=headers or {})
             response = conn.getresponse()
@@ -46,7 +52,7 @@ class DockerSocketClient:
     """The socket-proxy process's only route to Docker; never constructed by the gateway process."""
 
     def __init__(self, socket_path):
-        self.request = UnixRequester(socket_path)
+        self.request = UnixRequester(socket_path, DOCKER_TIMEOUT_S)
 
     def __call__(self, method, path, action_id, body=None):
         headers = {"X-Argus-Action-Id": action_id} if action_id else {}

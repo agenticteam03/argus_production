@@ -20,7 +20,9 @@ TARGET = re.compile(r"^[a-z0-9-]+/container:(argus-lab-[A-Za-z0-9_.-]+)$")
 
 
 class HttpActionGateway:
-    def __init__(self, base_url: str, token_file: str | Path, *, timeout_s: float = 20.0):
+    def __init__(self, base_url: str, token_file: str | Path, *, timeout_s: float = 30.0):
+        # longer than the gateway's own wait on its proxy (services/action_gateway/unix_transport.py), so a slow
+        # restart comes back as the gateway's answer, not as this client's timeout
         try:
             token = Path(token_file).read_text(encoding="utf-8").strip()
         except OSError as exc:
