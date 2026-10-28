@@ -36,7 +36,8 @@ def test_a_policy_that_cannot_start_says_exactly_why():
     assert str(no_profile.value) == "policy.yaml must declare profile: lab | production"
     with pytest.raises(ValueError) as gate_open:
         _raw({"profile": "lab", "write_gate": {"open": ["container.restart"]}})
-    assert str(gate_open.value) == "v1.8-lab is read-only: write_gate.open must be empty"
+    assert str(gate_open.value) == ("write_gate.open entries must be exactly {capability, target}: a catalogue action "
+                                    "on a vm-166 argus-lab-* container")
 
 
 def test_a_refusal_is_false_not_merely_falsy_and_names_its_reason():

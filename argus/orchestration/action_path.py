@@ -201,22 +201,23 @@ class OfflineActionPath:
             expires = datetime.fromisoformat(expires)
         return "expired" if row["state"] == "pending" and self.clock() >= expires else row["state"]
 
+    # X-9: each check is judged at a time taken AFTER its read. A real read is stamped after the moment it starts, so a
+    # time taken before it made every fresh precheck sample (and every verification sample) look like it came from the
+    # future, and the executor refused it ("not current"); test doubles that stamped the read at that same moment hid it.
     def precheck(self, approval_id: str) -> Precheck:
-        at = self.clock()
-        proposal = self.executor._frozen(approval_id, at)
-        check = self.snapshot(proposal, at)
-        self.executor.validate_precheck(approval_id, proposal, check, at=at)
+        proposal = self.executor._frozen(approval_id, self.clock())
+        check = self.snapshot(proposal, self.clock())
+        self.executor.validate_precheck(approval_id, proposal, check, at=self.clock())
         return check
 
     def execute(self, approval_id: str) -> dict:
-        at = self.clock()
-        proposal = self.executor._frozen(approval_id, at)
-        return self.executor.execute(approval_id, self.snapshot(proposal, at), at=at)
+        proposal = self.executor._frozen(approval_id, self.clock())
+        check = self.snapshot(proposal, self.clock())
+        return self.executor.execute(approval_id, check, at=self.clock())
 
     def verify(self, action_id: str) -> str | None:
-        at = self.clock()
         old = self.rows.get_action_outcome(action_id)
         if old:
             return old["outcome"]
-        sample = self.sample(action_id, at)
-        return self.executor.verify(action_id, sample, at=at) if sample is not None else None
+        sample = self.sample(action_id, self.clock())
+        return self.executor.verify(action_id, sample, at=self.clock()) if sample is not None else None

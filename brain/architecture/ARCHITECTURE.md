@@ -1,7 +1,8 @@
 # Argus — Production Architecture Specification
 
 **Document type:** consolidated target architecture and implementation blueprint ·
-**Version:** 1.8.41 (2026-10-27, ACR-0036: worker_stalled class and RB-022; 1.8.40 2026-10-27, ACR-0034 local tier: staged reference sources installed by an administrator's approval; 1.8.39 2026-10-27, ACR-0034: the curated reference corpus, `knowledge.reference`, its layered defences; 1.8.38 2026-10-27, ACR-0032 and ACR-0019 phase 19: the private browser login, a full `ops` token bound to the private path, the approval and hold routes and their UI; 1.8.37 2026-10-26, ACR-0018 phase 16: security alerts to the team's Telegram route and the scheduler's egress proxy; 1.8.36 2026-10-24, ACR-0031: durable dependency probe replay; 1.8.35 2026-10-23, ACR-0018 phase 16 step 5c: the scheduler's mounts for the audit digest and the command that checks it; 1.8.34 2026-10-23, ACR-0018 phase 16 step 5b: the OCI Object Storage sink of the audit digests; 1.8.33 2026-10-23, ACR-0024 as built: a read step's hypotheses get the structural checks only; 1.8.32 2026-10-23, ACR-0018 phase 16 step 5a: the signed daily audit digest job; 1.8.31 2026-10-23, ACR-0020 phase 21A: offline terminal broker contracts; 1.8.30 2026-10-22, ACR-0018 phase 16 step 4: the private path; 1.8.29 2026-10-22, ACR-0018 phase 16 step 3: the WebAuthn second factor and the step-up token; 1.8.28 2026-10-21, ACR-0024 as built in T-0047 H2: `state_hypotheses`; 1.8.27 2026-10-21, ACR-0024 hypotheses and a cause ranking; 1.8.26 2026-10-21, ACR-0018 phase 16 step 1: sessions, revocation, persisted login limiter, permissions, the audit hash chain, EdDSA tokens; 1.8.25 2026-10-21, ACR-0028 field allowlists; 1.8.24 2026-10-21, ACR-0025 live dependency graph; 1.8.23 2026-10-20, ACR-0027 the built gaps G-001, G-003, G-007; 1.8.22 2026-10-20, ACR-0026 safety classes; 1.8.21 2026-10-20, §14 marked designed, not built (OP-015); 1.8.20 2026-10-19, ACR-0021 B7 baseline, long ranges, deploy events, and B8 link reasons; 1.8.19 2026-10-19, ACR-0021 B6: target metrics and the overview; 1.8.18 2026-10-19, ACR-0021 UI insights v2: B1 to B5; 1.8.17 2026-10-19, ACR-0023 log pattern matches; 1.8.16 2026-10-18, ACR-0013 and ACR-0016 Langfuse Cloud tracing; 1.8.15 2026-10-16, ACR-0017 topology; 1.8.14 2026-10-16, ACR-0017 incident metrics; 1.8.12 2026-10-14, ACR-0014; 1.8.11 2026-10-14, ACR-0012; 1.8.10 2026-10-14, ACR-0011; 1.8.8 2026-10-12, ACR-0009; 1.8.7 2026-10-12, ACR-0008; 1.8.6 2026-10-11, ACR-0007; 1.8.5 2026-10-09, ACR-0005; 1.8.4 2026-10-09, ACR-0004; 1.8.3 2026-10-08, ACR-0003; 1.8.2 2026-10-09, ACR-0002; 1.8.1 2026-10-06, ACR-0001; base 1.8.0 of 30 September 2026, sanitized for the shared repository 2026-10-02) · **Audience:** engineers and AI coding agents implementing
+**Version:** 1.8.42 (2026-10-28, ACR-0019 applied for the first release: one lab write pair, `container.start` on
+the lab cache; 1.8.41 2026-10-27, ACR-0036: worker_stalled class and RB-022; 1.8.40 2026-10-27, ACR-0034 local tier: staged reference sources installed by an administrator's approval; 1.8.39 2026-10-27, ACR-0034: the curated reference corpus, `knowledge.reference`, its layered defences; 1.8.38 2026-10-27, ACR-0032 and ACR-0019 phase 19: the private browser login, a full `ops` token bound to the private path, the approval and hold routes and their UI; 1.8.37 2026-10-26, ACR-0018 phase 16: security alerts to the team's Telegram route and the scheduler's egress proxy; 1.8.36 2026-10-24, ACR-0031: durable dependency probe replay; 1.8.35 2026-10-23, ACR-0018 phase 16 step 5c: the scheduler's mounts for the audit digest and the command that checks it; 1.8.34 2026-10-23, ACR-0018 phase 16 step 5b: the OCI Object Storage sink of the audit digests; 1.8.33 2026-10-23, ACR-0024 as built: a read step's hypotheses get the structural checks only; 1.8.32 2026-10-23, ACR-0018 phase 16 step 5a: the signed daily audit digest job; 1.8.31 2026-10-23, ACR-0020 phase 21A: offline terminal broker contracts; 1.8.30 2026-10-22, ACR-0018 phase 16 step 4: the private path; 1.8.29 2026-10-22, ACR-0018 phase 16 step 3: the WebAuthn second factor and the step-up token; 1.8.28 2026-10-21, ACR-0024 as built in T-0047 H2: `state_hypotheses`; 1.8.27 2026-10-21, ACR-0024 hypotheses and a cause ranking; 1.8.26 2026-10-21, ACR-0018 phase 16 step 1: sessions, revocation, persisted login limiter, permissions, the audit hash chain, EdDSA tokens; 1.8.25 2026-10-21, ACR-0028 field allowlists; 1.8.24 2026-10-21, ACR-0025 live dependency graph; 1.8.23 2026-10-20, ACR-0027 the built gaps G-001, G-003, G-007; 1.8.22 2026-10-20, ACR-0026 safety classes; 1.8.21 2026-10-20, §14 marked designed, not built (OP-015); 1.8.20 2026-10-19, ACR-0021 B7 baseline, long ranges, deploy events, and B8 link reasons; 1.8.19 2026-10-19, ACR-0021 B6: target metrics and the overview; 1.8.18 2026-10-19, ACR-0021 UI insights v2: B1 to B5; 1.8.17 2026-10-19, ACR-0023 log pattern matches; 1.8.16 2026-10-18, ACR-0013 and ACR-0016 Langfuse Cloud tracing; 1.8.15 2026-10-16, ACR-0017 topology; 1.8.14 2026-10-16, ACR-0017 incident metrics; 1.8.12 2026-10-14, ACR-0014; 1.8.11 2026-10-14, ACR-0012; 1.8.10 2026-10-14, ACR-0011; 1.8.8 2026-10-12, ACR-0009; 1.8.7 2026-10-12, ACR-0008; 1.8.6 2026-10-11, ACR-0007; 1.8.5 2026-10-09, ACR-0005; 1.8.4 2026-10-09, ACR-0004; 1.8.3 2026-10-08, ACR-0003; 1.8.2 2026-10-09, ACR-0002; 1.8.1 2026-10-06, ACR-0001; base 1.8.0 of 30 September 2026, sanitized for the shared repository 2026-10-02) · **Audience:** engineers and AI coding agents implementing
 Argus from an empty repository.
 
 
@@ -65,8 +66,10 @@ model and one trust boundary, so that together they can diagnose different kinds
 - The LLM **never holds execution authority**. It proposes; deterministic code authorizes; a human
   approves every write.
 - Argus is **not a general automation platform**. Remediations are only the write capabilities
-  released one by one through the write gate (§13.3). In this release **no write capability is
-  released**: Argus is read-only, and remediation is performed by humans.
+  released one by one through the write gate (§13.3). Write capabilities are released per
+  `(capability, scope)` (§13.3, §22.2), on lab targets only in this release. Each execution needs an
+  authenticated human's approval of a frozen proposal (§14). Argus never writes a command: it picks an
+  action and its parameters from closed lists.
 - Argus is **not the security agent**. Security diagnosis belongs to a peer agent that collaborates
   with Argus through the interface of §23.
 
@@ -1840,7 +1843,8 @@ the rollout (`MAX_TOOL_LEVEL`, §13.1).
 
 | Capability | Executor | Status in this release |
 |---|---|---|
-| `container.restart` | `action_gateway` | registered; **not released** (write gate closed) |
+| `container.start` | `action_gateway` | **released** on `vm-166/container:argus-lab-cache` only (phase 20, first release; `write_gate.open`) |
+| `container.restart` | `action_gateway` | registered; **not released** |
 | `service.scale`, `container.update_resources`, `docker.prune`, `logs.rotate`, `service.restart`, `deployment.rollback`, `container.isolate`, `runbook.execute` | `action_gateway` or a dedicated gateway | future; each is added with the write contract (§14.8) and released on its own |
 
 Write capabilities are never offered to the model as tools, never published over MCP, and run only
@@ -2141,7 +2145,10 @@ pass:
 
 Releasing a pair is a reviewed deployment change: the policy file entry, the gateway route, the
 credential and the firewall rule, together. It is never a runtime toggle reachable through the API or a
-peer. **In this release `write_gate.open` is empty: Argus is read-only.**
+peer. **In this release `write_gate.open` names exactly the reviewed lab pairs (phase 20, first release:
+`container.start` on `vm-166/container:argus-lab-cache`); every other pair is denied. The deployment check
+(`ops/write-gate-check.sh`) expects exactly the released pairs, the reviewed action gateway, its token and the
+worker's action settings, and stops on anything else.**
 
 ### 13.4 Required behaviours
 
@@ -2182,11 +2189,11 @@ evidence while the security agent examines a compromised container.
 ## 14. Human-in-the-loop: approval → resume → action state machine
 
 This machinery is **generic over write capabilities**. The capability-specific parts are supplied
-through the write contract (§14.8). **Designed, not built (OP-015):** no write capability is released, and
-the machinery of this section (its tables, nodes, routes, write contract, fake gateway and the §14.4 / §22.2
-suites) does not exist in the code yet. What exists is the closed write gate and its standing test (§13.3,
-T-0031). It is built against a fake gateway in phase 18 if ACR-0019 is accepted, so that the first release
-changes no core code.
+through the write contract (§14.8). **Built in phases 18 to 20 (ACR-0019):** the proposal, judge, approval,
+precheck, ledger, gateway and verification machinery exists (a fake gateway in phase 18, the real gateway and its
+socket proxy in phases 19 and 20), and the first release opens one lab pair (§13.3). Where the tables and routes
+below differ in detail from that code, ACR-0019 and the phase 18 to 20 code are the reference until this section is
+rewritten.
 
 ### 14.1 Tables (Postgres)
 
@@ -3213,3 +3220,4 @@ erDiagram
 | 1.8.39 | 2026-10-27 | ACR-0034 (T-0056): the curated reference corpus of vendor documentation: `config/corpus/sources.yaml` (allowlisted hosts, pinned refs, licences), `argus corpus build` offline (sanitising, scanner and quarantine, a manifest of SHA-256s), `import` (hashes verified, an FTS5 keyword index), `index` (a local Weaviate that only ranks, `text-embedding-3-small`), the read `knowledge.reference` (in-worker, offered to no class), `ref-*` grounds only when retrieved; `argus-v18-weaviate` and the worker's read-only `/corpus` on vm-095. Designed, not built: the local corpus (fetch service, UI approval), a bundle signature, the scanner's similarity check (§15.3, §16.1) | [ACR-0034](changes/ACR-0034-reference-corpus.md) |
 | 1.8.40 | 2026-10-27 | ACR-0034 local tier (T-0057): `argus corpus fetch` stages one allowlisted source; `argus-v18-corpus` (profile `corpus`, internal network, egress proxy only, no secret; the egress filter unchanged until it filters per client); role `admin` with `manage_corpus`; `GET /api/v1/ops/corpus/sources`, `POST .../{name}/approve` and `.../reject` (step-up bound to the staged bundle's hash, audited) (§15.3) | [ACR-0034](changes/ACR-0034-reference-corpus.md) |
 | 1.8.41 | 2026-10-27 | The worker_stalled incident class for a live worker with no progress and a growing Redis queue: RB-022, branch runbooks RB-003/RB-004, the baseline strategy, missing/non-finite signals treated as unknown, and the runbook library extended through RB-022 (section 1.3) | [ACR-0036](changes/ACR-0036-stalled-worker-class.md) |
+| 1.8.42 | 2026-10-28 | ACR-0019 applied for the first release (phase 20, X-5): sections 1.2, 12.2, 13.3 and the opening note of section 14 say that write capabilities are released per (capability, scope) on lab targets; `write_gate.open` names `container.start` on `vm-166/container:argus-lab-cache`; the deployment check expects exactly the released pair and its parts | [ACR-0019](changes/ACR-0019-human-approved-remediation.md) |

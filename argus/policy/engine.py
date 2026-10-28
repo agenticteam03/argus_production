@@ -5,8 +5,11 @@ Imports domain only. The rules themselves live in config/policy.yaml.
 from __future__ import annotations
 
 import hashlib
+import re
+from collections.abc import Mapping
 from dataclasses import dataclass
 
+from argus.actions.catalog import ACTION_CATALOGUE
 from argus.domain.model import TargetRef
 from argus.policy.inspection import InspectionPolicy
 
@@ -27,9 +30,24 @@ class PolicyEngine:
         self.capabilities: dict[str, dict] = data.get("capabilities", {}) or {}
         self.allowed_safety_classes: set[str] = set(data.get("allowed_safety_classes",
                                                              ["READ_ONLY_SAFE", "READ_ONLY_SENSITIVE"]))
-        self.write_gate_open: list = data.get("write_gate", {}).get("open", []) or []
-        if self.write_gate_open:
-            raise ValueError("v1.8-lab is read-only: write_gate.open must be empty")
+        write_gate = data.get("write_gate", {})
+        if not isinstance(write_gate, Mapping):
+            raise ValueError("write_gate must be a mapping with an open list")
+        self.write_gate_open: list = write_gate.get("open", [])
+        seen_pairs = set()
+        if not isinstance(self.write_gate_open, list):
+            raise ValueError("write_gate.open must be a list of {capability, target} pairs")
+        for pair in self.write_gate_open:
+            if (not isinstance(pair, Mapping) or set(pair) != {"capability", "target"}
+                    or not isinstance(pair["capability"], str) or pair["capability"] not in ACTION_CATALOGUE
+                    or not isinstance(pair["target"], str)
+                    or re.fullmatch(r"vm-166/container:argus-lab-[A-Za-z0-9_.-]+", pair["target"]) is None):
+                raise ValueError("write_gate.open entries must be exactly {capability, target}: a catalogue action on a "
+                                 "vm-166 argus-lab-* container")
+            pair_key = (pair["capability"], pair["target"])
+            if pair_key in seen_pairs:
+                raise ValueError("write_gate.open names the same pair twice")
+            seen_pairs.add(pair_key)
         # T-0019 batch 3a: the inspection policy (§4.7); arbitrary_exec: true or a malformed section refuses startup
         self.inspection = InspectionPolicy.from_data(data.get("inspection"))
         self.version = hashlib.sha256(raw_text.encode()).hexdigest()
