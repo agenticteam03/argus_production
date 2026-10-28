@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from argus.actions.remediation import JudgeResult
 from argus.adapters.outbound.llm import ScriptedLLM
-from argus.domain.model import IncidentOutcome
+from argus.domain.model import IncidentOutcome, IncidentStatus
 from test_core import incident, make_app as app_factory  # noqa: F401
 from test_graph_runner import WORKER_166, _diagnose_script, _metrics
 
@@ -56,13 +56,29 @@ def test_graph_pauses_without_answer_and_resumes_from_frozen_ids(app_factory, mo
     assert path.calls.count("execute") == 1
 
 
-def test_judge_doubt_records_recommendation_without_request(app_factory, monkeypatch):  # noqa: F811
+def test_judge_doubt_keeps_the_diagnosis_and_escalates_without_request(app_factory, monkeypatch):  # noqa: F811
+    """The cause is found but nothing was done: the problem is still there, so the incident is not closed."""
     monkeypatch.setenv("ARGUS_RUNNER", "langgraph")
     app = app_factory(llm=ScriptedLLM(_diagnose_script), metrics=_metrics())
     path = OfflinePath()
     path.judge = lambda proposal_id: JudgeResult("doubt", reasons=("The ground is uncertain.",))
+    path.held_back = lambda incident_id: path.calls.append(("held_back", incident_id))
     app.runner.action_path = path
     inc = incident(app, WORKER_166)
     done = app.runner.run(inc.id)
-    assert done.outcome == IncidentOutcome.diagnosed
+    assert done.outcome == IncidentOutcome.diagnosed and done.status == IncidentStatus.escalated
+    assert done.diagnosis.endswith("The proposed action was not sent for approval: the judge answered doubt.")
+    assert ("held_back", inc.id) in path.calls
     assert "request" not in path.calls and "execute" not in path.calls
+    sent = {n["key"]: n["payload"] for n in app.store.notifications()}
+    assert sent[f"{inc.id}:escalation"]["outcome"] == "diagnosed"
+
+
+def test_a_refused_approval_request_escalates_too(app_factory, monkeypatch):  # noqa: F811
+    monkeypatch.setenv("ARGUS_RUNNER", "langgraph")
+    app = app_factory(llm=ScriptedLLM(_diagnose_script), metrics=_metrics())
+    path = OfflinePath()
+    path.request = lambda proposal_id: None
+    app.runner.action_path = path
+    done = app.runner.run(incident(app, WORKER_166).id)
+    assert done.status == IncidentStatus.escalated and "the approval request was refused" in done.diagnosis
