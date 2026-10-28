@@ -17,6 +17,8 @@ verify:
   signal: up
   expected: 1
   window_sec: 30
-rollback: container.stop
+# No rollback: the state before this action is the outage itself, and a service card can forbid stopping the service
+# it was started for (the cache's `never` lists container.stop).
+rollback: "none: the previous state is the unavailable service itself"
 sources:
   - RB-003
