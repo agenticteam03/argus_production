@@ -119,14 +119,14 @@ export const mockArgusAdapter = {
     throw httpError(404, "Approval not found in this demo.");
   },
 
-  // ACR-0034, demo: one installed source and one staged; the preview never installs anything.
+  // ACR-0034, demo: one installed source and one staged bundle, in the API's shape; the preview never installs anything.
   async listCorpusSources() {
     record("/api/v1/ops/corpus/sources");
     return [
-      { name: "nginx", ref: "159f0a3", licence: "BSD-2-Clause", status: "installed", passages: 845, quarantined: 0,
-        staged_at: "2026-10-27T06:10:00Z", installed_at: "2026-10-27T06:20:00Z", sha256: "a".repeat(64) },
-      { name: "redis", ref: "7.2.5", licence: "BSD-3-Clause", status: "staged", passages: 1204, quarantined: 2,
-        staged_at: "2026-10-27T07:00:00Z", installed_at: null, sha256: "b".repeat(64) },
+      { name: "nginx", source: "nginx", ref: "159f0a3", licence: "BSD-2-Clause", status: "installed", passages: 845,
+        quarantined: 0, at: "2026-10-27T06:10:00Z", sha256: "a".repeat(64) },
+      { name: "redis", source: "redis", ref: "7.2.5", licence: "BSD-3-Clause", status: "staged", passages: 1204,
+        quarantined: 2, at: "2026-10-27T07:00:00Z", sha256: "b".repeat(64) },
     ];
   },
 

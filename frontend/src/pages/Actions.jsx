@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import ApprovalCard from "../components/ApprovalCard.jsx";
 import PendingApprovals from "../components/PendingApprovals.jsx";
-import PrivateLogin from "../components/PrivateLogin.jsx";
+import PrivateAccess from "../components/PrivateAccess.jsx";
 import { Card, ErrorCard, Skeleton } from "../components/ui.jsx";
 import { useAuth } from "../context/AuthContext.jsx";
 import { argus, secondFactor } from "../services/index.js";
@@ -79,13 +79,7 @@ export default function Actions() {
     {error && <ErrorCard title="Could not complete this request" text={error} />}
     {notice && <p role="status" className="rounded-xl border border-emerald-400/30 bg-emerald-400/10 p-3 text-sm text-emerald-300">{notice}</p>}
 
-    {step === "private-login" && <PrivateLogin busy={busy} onSubmit={(credentials) => run(() => loginPrivate(credentials))} />}
-
-    {step === "second-factor" && <Card title="Confirm with your security key">
-      <p className="mb-3 text-sm text-muted">Your private session is open. Touch your security key to confirm it before any decision.</p>
-      <button type="button" disabled={busy} onClick={() => run(async () => { await secondFactor.confirmLogin(); await refresh(); })}
-        className="cursor-pointer rounded-lg bg-accent-solid px-4 py-2 text-sm text-white disabled:opacity-50">Use security key</button>
-    </Card>}
+    <PrivateAccess step={step} busy={busy} run={run} loginPrivate={loginPrivate} secondFactor={secondFactor} refresh={refresh} />
 
     {step === "not-granted" && <Card title="No decisions for this account">
       <p className="text-sm text-muted">Argus grants decisions to approvers with two security keys, on the private path.</p>

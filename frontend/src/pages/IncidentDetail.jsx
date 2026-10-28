@@ -3,6 +3,7 @@ import { Link, useParams, useSearchParams } from "react-router-dom";
 import AnswerBlock from "../components/AnswerBlock.jsx";
 import ActionSuggestions from "../components/ActionSuggestions.jsx";
 import ActionTrail from "../components/ActionTrail.jsx";
+import IncidentApproval from "../components/IncidentApproval.jsx";
 import CopySummary from "../components/CopySummary.jsx";
 import DiagnoseForm from "../components/DiagnoseForm.jsx";
 import IncidentChat from "../components/IncidentChat.jsx";
@@ -184,6 +185,8 @@ export default function IncidentDetail() {
             </div>
           </div>
           <ActionTrail action={inc.action} />
+          {/* The pending approval, decided here by an approver (the same steps as Actions) */}
+          <IncidentApproval key={inc.action?.approval?.id ?? "none"} action={inc.action} onAnswered={retry} />
           <ActionSuggestions items={inc.next_actions} />
         </div>
       </TabPanel>
