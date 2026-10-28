@@ -93,9 +93,13 @@ class Settings:
                                                            if o.strip()])
     # ACR-0011: the header the public edge (Nginx, argus-v18-ui) always sets; a login carrying it is read-only
     edge_header: str = field(default_factory=lambda: os.getenv("ARGUS_EDGE_HEADER", "X-Argus-Edge"))
-    # ACR-0032: the header the edge sets on every request: "1" only on the private path (a team certificate from an
-    # allowlisted address); it replaces any copy from the browser. An `ops` token is refused without it.
+    # ACR-0032: the header the edge sets on every request: "1" only on the private path (a team certificate, or with
+    # ACR-0038's ARGUS_OPS_PASSKEY_ONLY=on any TLS request); it replaces any copy from the browser. An `ops` token is
+    # refused without it.
     ops_header: str = field(default_factory=lambda: os.getenv("ARGUS_OPS_HEADER", "X-Argus-Ops"))
+    # ACR-0038: the edge's $ssl_client_verify ("SUCCESS" for a verified team certificate), recorded in the audit of a
+    # private login and an approval answer; believed only on the private path from the edge itself
+    ops_cert_header: str = field(default_factory=lambda: os.getenv("ARGUS_OPS_CERT_HEADER", "X-Argus-Ops-Cert"))
     # ...believed only from the edge itself (its name on argus-v18-core, or an address): the API's other neighbours
     # there (worker, tunnel, egress) reach it directly and could send the header too
     ops_peer: str = field(default_factory=lambda: os.getenv("ARGUS_OPS_PEER", "argus-v18-ui"))

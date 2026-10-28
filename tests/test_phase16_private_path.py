@@ -1,12 +1,15 @@
 """ACR-0018, phase 16 step 4: the private path. Every privileged route lives under `/api/v1/ops/`; the public edge
-passes that prefix only for a client certificate of the team's CA (not revoked) from an allowlisted address, and
-answers 404 for anything else, as if the route did not exist.
+passes that prefix only for a client certificate of the team's CA (not revoked; ACR-0037: from any address), and
+answers 404 for anything else, as if the route did not exist. ACR-0038: with ARGUS_OPS_PASSKEY_ONLY=on (off by
+default) no certificate is needed; any TLS request reaches the prefix and the API's login, two security keys and the
+step-up are the proof.
 
-- static: the edge's rule, the allowlist in Git allowing nobody, the private path off by default, and every route
-  that needs a privileged permission under the prefix (nothing else there);
+- static: the edge's rule, the two ops-mode files, the allowlist in Git allowing nobody, the private path and the
+  passkey-only mode off by default, and every route that needs a privileged permission under the prefix;
 - the scripts with bash and openssl: the CA (encrypted key, 90-day client certificates, revocation into the CRL), a
   person's own key and CSR, the allowlist (named entries with an expiry, no address in its log or listing);
-- with Docker: the real Nginx in public mode with the private path on, against a fake API.
+- with Docker: the edge's start script choosing the mode, and the real Nginx in public mode with the private path on
+  (certificate mode and passkey-only mode), against a fake API.
 """
 from __future__ import annotations
 
@@ -49,10 +52,21 @@ def test_the_edge_tells_the_api_whether_a_request_came_through_the_private_path(
     any copy from the browser; the API refuses an `ops` token without 1."""
     proxy = (NGINX_DIR / "proxy.conf").read_text(encoding="utf-8")
     assert "proxy_set_header X-Argus-Ops $argus_ops_ok;" in proxy
+    assert "proxy_set_header X-Argus-Ops-Cert $ssl_client_verify;" in proxy    # ACR-0038: for the audit
     conf = (NGINX_DIR / "http.conf").read_text(encoding="utf-8")
-    m = re.search(r'map \$ssl_client_verify \$argus_ops_ok \{(.*?)\}', conf, re.S).group(1)
-    assert [line.strip() for line in m.strip().splitlines()] == ["default 0;", '"SUCCESS" 1;']
     assert "argus_ops_addr" not in conf                              # ACR-0037: the address is not a condition
+    assert "$argus_ops_ok {" not in conf                             # ACR-0038: an ops-mode file defines it
+
+
+@pytest.mark.parametrize("mode, key, value", [("certificate", "$ssl_client_verify", '"SUCCESS"'),
+                                              ("passkey", "$https", '"on"')])
+def test_each_ops_mode_file_defines_the_private_path_once(mode, key, value):
+    """ACR-0038: the certificate mode passes a verified team certificate; the passkey-only mode any TLS request."""
+    text = (NGINX_DIR / f"ops-mode-{mode}.conf").read_text(encoding="utf-8")
+    m = re.search(r"map (\S+) \$argus_ops_ok \{(.*?)\}", text, re.S)
+    assert m.group(1) == key
+    assert [line.strip() for line in m.group(2).strip().splitlines()] == ["default 0;", f"{value} 1;"]
+    assert text.count("$argus_ops_ok") == 1
 
 
 def test_the_allowlist_in_git_allows_nobody():
@@ -68,6 +82,9 @@ def test_the_private_path_is_off_by_default_and_on_needs_the_ca_and_its_crl():
     assert "ARGUS_OPS_PATH: ${ARGUS_OPS_PATH:-off}" in compose
     envsh = (UI / "05-argus-mode.envsh").read_text(encoding="utf-8")
     assert 'case "${ARGUS_OPS_PATH:-off}" in' in envsh and "ca.crt and crl.pem" in envsh
+    # ACR-0038: the passkey-only mode is off by default too, and needs the private path on
+    assert "ARGUS_OPS_PASSKEY_ONLY: ${ARGUS_OPS_PASSKEY_ONLY:-off}" in compose
+    assert 'case "${ARGUS_OPS_PASSKEY_ONLY:-off}" in' in envsh and "OPS_MODE=certificate" in envsh
     tls = (NGINX_DIR / "ops-tls.conf").read_text(encoding="utf-8")
     assert "ssl_verify_client      optional;" in tls and "ssl_crl" in tls and "error_page 495" in tls
     assert "include /etc/nginx/ops/*.conf;" in (NGINX_DIR / "public.conf.template").read_text(encoding="utf-8")
@@ -247,10 +264,21 @@ def _pem(key=None, cert=None) -> bytes:
 
 @pytest.fixture(scope="module")
 def private_edge(tmp_path_factory):
+    """The edge in the default mode: a client certificate of the team's CA."""
+    yield from _edge(tmp_path_factory, "certificate")
+
+
+@pytest.fixture(scope="module")
+def passkey_edge(tmp_path_factory):
+    """ACR-0038: the edge with ARGUS_OPS_PASSKEY_ONLY=on: no certificate is asked for (no ops-tls include)."""
+    yield from _edge(tmp_path_factory, "passkey")
+
+
+def _edge(tmp_path_factory, mode):
     if not _docker_ready():
         pytest.skip("needs Docker (the real Nginx image)")
     tag = uuid.uuid4().hex[:8]
-    net, api, web = f"argus-ops-test-{tag}", "argus-v18-agent", f"argus-ops-web-{tag}"
+    net, api, web = f"argus-ops-test-{tag}", "argus-v18-agent", f"argus-ops-web-{mode[:4]}-{tag}"
     root = tmp_path_factory.mktemp("ops")
     tls, ops, inc, conf, certs, books = (root / n for n in ("tls", "ops", "inc", "conf", "certs", "runbooks"))
     for d in (tls, ops, inc, conf, certs, books):
@@ -281,7 +309,10 @@ def private_edge(tmp_path_factory):
         (ops / "crl.pem").write_bytes(b.sign(ca_key, hashes.SHA256()).public_bytes(serialization.Encoding.PEM))
 
     write_crl([clients["mallory"][1]])
-    (inc / "tls.conf").write_text((NGINX_DIR / "ops-tls.conf").read_text(encoding="utf-8"), encoding="utf-8")
+    if mode == "certificate":                           # what 05-argus-mode.envsh copies for each mode
+        (inc / "tls.conf").write_text((NGINX_DIR / "ops-tls.conf").read_text(encoding="utf-8"), encoding="utf-8")
+    (conf / "00-argus-ops-mode.conf").write_text((NGINX_DIR / f"ops-mode-{mode}.conf").read_text(encoding="utf-8"),
+                                                 encoding="utf-8")
     (conf / "default.conf").write_text((NGINX_DIR / "public.conf.template").read_text(encoding="utf-8")
                                        .replace("${ARGUS_UI_DOMAIN}", "argus.test"), encoding="utf-8")
     allow = root / "allow.conf"
@@ -401,3 +432,86 @@ def test_the_runbooks_auth_check_uses_the_edges_ops_value_not_the_browsers(priva
     assert get("/runbooks/RB-001-x.md", None, headers={**ops, "X-Argus-Ops": "1"})[0] == 401   # forged, public
     code, body = get("/runbooks/RB-001-x.md", "alice", headers={**ops, "X-Argus-Ops": "0"})
     assert code == 200 and "RB-001" in body                                                      # private path
+
+
+def test_the_edge_passes_the_certificate_state_and_a_browser_cannot_claim_one(private_edge):
+    """ACR-0038: X-Argus-Ops-Cert is the edge's $ssl_client_verify (for the audit), never the browser's copy."""
+    get, set_allow, *_ = private_edge
+    set_allow(EVERYONE)
+    code, body = get("/api/v1/ops/approvals", "alice", headers={"X-Argus-Ops-Cert": "NONE"})
+    assert code == 200 and '"cert": "SUCCESS"' in body
+    code, body = get("/api/v1/escalations", None, headers={"X-Argus-Ops-Cert": "SUCCESS"})
+    assert code == 200 and '"cert": "SUCCESS"' not in body
+
+
+# --- with Docker: ACR-0038, the passkey-only mode (ARGUS_OPS_PASSKEY_ONLY=on) -----------------------------------------
+def test_nginx_accepts_the_passkey_only_configuration(passkey_edge):
+    *_, run, web = passkey_edge
+    r = run("exec", web, "nginx", "-t")
+    assert r.returncode == 0, r.stderr
+
+
+def test_in_passkey_mode_the_prefix_and_the_private_login_need_no_certificate(passkey_edge):
+    """The certificate is not asked for: the prefix and the private login reach the API with X-Argus-Ops 1, and the
+    audit header says no certificate whatever the browser sends. The API's login, two keys and step-up remain."""
+    from argus.adapters.inbound.http import OPS_LOGIN
+    get, *_ = passkey_edge
+    for path in ("/api/v1/ops/approvals", OPS_LOGIN):
+        code, body = get(path, None, headers={"X-Argus-Ops": "0", "X-Argus-Ops-Cert": "SUCCESS"})
+        assert code == 200 and '"ops": "1"' in body and '"cert": "NONE"' in body, (path, body)
+    assert get("/docs")[0] == 404                                     # the rest of the edge is unchanged
+
+
+def test_in_passkey_mode_an_ops_token_reads_the_runbooks_without_a_certificate(passkey_edge):
+    get, *_ = passkey_edge
+    code, body = get("/runbooks/RB-001-x.md", None, headers={"Authorization": "Bearer ops", "X-Argus-Ops": "0"})
+    assert code == 200 and "RB-001" in body
+    assert get("/runbooks/RB-001-x.md", None, headers={"Authorization": "Bearer bad"})[0] == 401
+
+
+# --- with Docker: the edge's own start script chooses the mode --------------------------------------------------------
+@pytest.mark.parametrize("env, ca, code, expect", [
+    ({"ARGUS_UI_MODE": "public", "ARGUS_OPS_PATH": "on"}, True, 0, ("$ssl_client_verify", "tls.conf")),
+    ({"ARGUS_UI_MODE": "public", "ARGUS_OPS_PATH": "on", "ARGUS_OPS_PASSKEY_ONLY": "on"}, False, 0, ("$https", "")),
+    ({"ARGUS_UI_MODE": "public"}, False, 0, ("$ssl_client_verify", "")),
+    ({"ARGUS_UI_MODE": "loopback"}, False, 0, ("$ssl_client_verify", "")),
+    ({"ARGUS_UI_MODE": "public", "ARGUS_OPS_PASSKEY_ONLY": "on"}, False, 1, ("needs ARGUS_OPS_PATH=on",)),
+    ({"ARGUS_UI_MODE": "public", "ARGUS_OPS_PATH": "on", "ARGUS_OPS_PASSKEY_ONLY": "yes"}, True, 1, ("must be on or off",)),
+    ({"ARGUS_UI_MODE": "public", "ARGUS_OPS_PATH": "on"}, False, 1, ("needs /etc/argus-ops/ca.crt",)),
+])
+def test_the_start_script_picks_exactly_one_ops_mode(tmp_path, env, ca, code, expect):
+    """ACR-0038: off by default (the certificate map); on needs the private path on and no CA files; anything else
+    stops the edge before Nginx starts."""
+    if not _docker_ready():
+        pytest.skip("needs Docker (the real Nginx image)")
+    tls, ops = tmp_path / "tls", tmp_path / "ops"
+    for d in (tls, ops):
+        d.mkdir()
+    (tls / "fullchain.pem").write_text("x\n")
+    (tls / "privkey.pem").write_text("x\n")
+    if ca:
+        (ops / "ca.crt").write_text("x\n")
+        (ops / "crl.pem").write_text("x\n")
+    for d in (tmp_path, tls, ops):
+        d.chmod(0o755)
+        for f in d.iterdir():
+            if f.is_file():
+                f.chmod(0o644)
+    tmpfs = [a for p in ("/etc/nginx/ops", "/etc/nginx/conf.d", "/etc/nginx/templates")
+             for a in ("--tmpfs", f"{p}:uid=101,gid=101,mode=0700")]
+    envs = [a for k, v in env.items() for a in ("-e", f"{k}={v}")]
+    r = subprocess.run(["docker", "run", "--rm", *tmpfs, *envs, "-e", "ARGUS_UI_DOMAIN=argus.test",
+                        "-v", f"{NGINX_DIR}:/etc/nginx/argus:ro", "-v", f"{UI / '05-argus-mode.envsh'}:/e.envsh:ro",
+                        "-v", f"{tls}:/etc/argus-tls:ro", "-v", f"{ops}:/etc/argus-ops:ro", "--entrypoint", "sh",
+                        NGINX_IMAGE, "-c",
+                        ". /e.envsh; echo; grep '^map' /etc/nginx/conf.d/00-argus-ops-mode.conf; ls /etc/nginx/ops"],
+                       capture_output=True, text=True, timeout=300)
+    out = r.stdout + r.stderr
+    assert r.returncode == code, out
+    if code:
+        assert expect[0] in out and "00-argus-ops-mode" not in r.stdout
+        return
+    key, include = expect
+    [line] = [x for x in r.stdout.splitlines() if x.startswith("map ")]
+    assert line.split()[1] == key, out
+    assert (include in r.stdout.split(line)[1]) if include else "tls.conf" not in r.stdout.split(line)[1], out

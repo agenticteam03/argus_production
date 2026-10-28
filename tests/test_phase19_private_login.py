@@ -185,3 +185,47 @@ def test_the_public_login_still_never_issues_a_full_token(make_app, monkeypatch)
     _, client = _client(make_app(), monkeypatch)
     r = client.post("/api/v1/auth/token", data={"username": "alice", "password": PASSWORD}, headers=PRIVATE)
     assert r.status_code == 400
+
+
+def test_the_private_login_records_whether_the_edge_verified_a_certificate(make_app, monkeypatch):  # noqa: F811
+    """ACR-0038: with the passkey-only mode on, the edge passes no certificate; the audit says which proof was used."""
+    app = make_app()
+    _, client = _client(app, monkeypatch)
+    for header, expected in (("SUCCESS", "verified"), ("NONE", "none"), (None, "none")):
+        extra = {"X-Argus-Ops-Cert": header} if header else {}
+        assert _login(client, headers={**PRIVATE, **extra}).status_code == 200
+        login = [r[1] for r in app.store.audit_chain() if r[1]["event"] == "access.login"][-1]
+        assert login["detail"]["client_cert"] == expected, header
+    assert client.post(LOGIN, data={"username": "alice", "password": "wrong"},
+                       headers={**PRIVATE, "X-Argus-Ops-Cert": "SUCCESS"}).status_code == 401
+    refused = [r[1] for r in app.store.audit_chain() if r[1]["event"] == "access.ops_login_failed"][-1]
+    assert refused["detail"]["client_cert"] == "verified"
+
+
+def test_the_certificate_header_is_believed_only_on_the_private_path_from_the_edge(make_app):  # noqa: F811
+    from types import SimpleNamespace
+
+    from argus.adapters.inbound.http import client_cert
+    settings = make_app().settings
+    settings.ops_peer = "edge"
+
+    def request(headers, peer="edge"):
+        return SimpleNamespace(headers=headers, client=SimpleNamespace(host=peer))
+    assert client_cert(request({"X-Argus-Ops": "1", "X-Argus-Ops-Cert": "SUCCESS"}), settings) == "verified"
+    assert client_cert(request({"X-Argus-Ops": "0", "X-Argus-Ops-Cert": "SUCCESS"}), settings) == "none"
+    assert client_cert(request({"X-Argus-Ops": "1", "X-Argus-Ops-Cert": "SUCCESS"}, "worker"), settings) == "none"
+    assert client_cert(request({"X-Argus-Ops": "1", "X-Argus-Ops-Cert": "NONE"}), settings) == "none"
+
+
+def test_a_password_alone_never_reaches_a_privileged_route(make_app, monkeypatch):  # noqa: F811
+    """ACR-0038: without the client certificate, the security keys are what stand between a password and a decision.
+    An `ops` token whose session has not been completed with a key gets no privileged route; only after the key does."""
+    api, client = _client(make_app(), monkeypatch)                     # privileged_ready is false: no key yet
+    auth = {"Authorization": f"Bearer {_login(client).json()['access_token']}", **PRIVATE}
+    assert client.get("/api/v1/ops/approvals", headers=auth).status_code == 403
+    assert client.post("/api/v1/ops/approvals/appr_x/answer", headers=auth, json={
+        "decision": "approved", "proposal_digest": "0" * 64, "step_up_token": "t"}).status_code == 403
+    assert client.post("/api/v1/ops/holds", headers=auth, json={
+        "target": "vm-166/container:argus-lab-cache", "reason": "test", "step_up_token": "t"}).status_code == 403
+    monkeypatch.setattr(api.state.second_factor, "privileged_ready", lambda user, session: True)
+    assert client.get("/api/v1/ops/approvals", headers=auth).status_code == 200
