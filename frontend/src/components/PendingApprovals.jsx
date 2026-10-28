@@ -14,6 +14,7 @@ export default function PendingApprovals({ items, onOpen }) {
             <strong className="font-mono">{a.capability}</strong>
             <span className="break-all text-muted">{a.target}</span>
             <Pill tone={tone}>{label}</Pill>
+            {a.verdict === "doubt" && <Pill tone="amber">Judge doubted</Pill>}
             <span className="text-xs text-muted">{a.id} · expires {dateTime(a.expires_at)}</span>
             <button type="button" onClick={() => onOpen(a.id)}
               className="ml-auto cursor-pointer rounded-lg bg-accent-solid px-3 py-1.5 text-white">Open</button>

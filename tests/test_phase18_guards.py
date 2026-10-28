@@ -158,18 +158,30 @@ def test_request_creates_an_approval_for_an_agreeing_green_verdict_on_an_open_ga
 
 
 @pytest.mark.parametrize("change", [
-    {"verdict": "doubt"},
     {"verdict": "disagree"},
     {"proposal_digest": "0" * 64},
     {"risk": "forbidden"},
-], ids=["doubt", "disagree", "other-digest", "forbidden-colour"])
-def test_request_refuses_a_verdict_that_is_not_an_agreement_for_this_proposal(tmp_path, change):
+    {"verdict": "doubt", "risk": "forbidden"},
+], ids=["disagree", "other-digest", "forbidden-colour", "doubt-forbidden"])
+def test_request_refuses_a_verdict_that_does_not_let_a_person_decide(tmp_path, change):
     store, path = _path(tmp_path)
     try:
         proposal_id = path.propose(_Incident(), {"passages": [{"runbook_id": "RB-003"}]})
         _stored_verdict(store, proposal_id, **change)
         assert path.request(proposal_id) is None
         assert store.get_action_approval_for_proposal(proposal_id) is None
+    finally:
+        store._db.close()
+
+
+def test_request_sends_a_doubted_proposal_to_a_person(tmp_path):
+    """ACR-0039: a doubt is not a stop; the approval is created and the person sees the doubt and its colour."""
+    store, path = _path(tmp_path)
+    try:
+        proposal_id = path.propose(_Incident(), {"passages": [{"runbook_id": "RB-003"}]})
+        _stored_verdict(store, proposal_id, verdict="doubt", risk="amber")
+        assert path.request(proposal_id) is not None
+        assert store.get_action_approval_for_proposal(proposal_id) is not None
     finally:
         store._db.close()
 

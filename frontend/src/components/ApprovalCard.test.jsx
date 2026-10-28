@@ -16,10 +16,11 @@ const approval = {
   judge: { verdict: "agree", risk: "red", reasons: ["The dependency is confirmed stopped."] },
 };
 
-const html = (canAnswer = false, confirmation = "", reason = "") => renderToStaticMarkup(
-  <ApprovalCard approval={approval} canAnswer={canAnswer} busy={false} confirmation={confirmation}
+const html = (canAnswer = false, confirmation = "", reason = "", item = approval) => renderToStaticMarkup(
+  <ApprovalCard approval={item} canAnswer={canAnswer} busy={false} confirmation={confirmation}
     onConfirmation={() => {}} reason={reason} onReason={() => {}} onAnswer={() => {}} />,
 );
+const withJudge = (verdict, risk) => ({ ...approval, judge: { verdict, risk, reasons: ["Exit evidence conflicts."] } });
 const approveDisabled = (out) => /disabled=""[^>]*>Approve<\/button>/.test(out);
 const denyDisabled = (out) => /disabled=""[^>]*>Deny<\/button>/.test(out);
 
@@ -44,6 +45,19 @@ describe("ApprovalCard", () => {
     expect(approveDisabled(html(true, "wrong"))).toBe(true);
     expect(approveDisabled(html(true, "argus-lab-cache"))).toBe(true);     // the name exists on both hosts
     expect(approveDisabled(html(true, "vm-166/container:argus-lab-cache"))).toBe(false);
+  });
+
+  it("lets a person approve a doubted action, saying so and showing the raised risk (ACR-0039)", () => {
+    const out = html(true, "", "", withJudge("doubt", "amber"));
+    for (const text of ["The independent judge doubted this action.", "you decide", "amber risk", "Exit evidence conflicts.",
+      "Amber risk", ">doubt<"])
+      expect(out).toContain(text);
+    expect(approveDisabled(out)).toBe(false);
+    expect(html(true, "", "", withJudge("agree", "green"))).not.toContain("doubted this action");
+  });
+
+  it("never lets a person approve an action the judge disagreed with", () => {
+    expect(approveDisabled(html(true, "", "", withJudge("disagree", "amber")))).toBe(true);
   });
 
   it("requires a reason before a denial", () => {
