@@ -166,7 +166,7 @@ CLASSES: list[IncidentClassSpec] = [
                       required_signals={"dependency_probe_min"}, runbook_ids=["RB-003"],
                       branch_runbook_ids=["RB-004", "RB-009"], strategy="baseline",   # D-003 (§21.2)
                       tool_tags={"dependency", "network", "logs", "container", "availability", "knowledge", "connectivity",
-                                 "link_states"},
+                                 "link_states", "anomaly"},   # anomaly: TASK-63, the onset order (TASK-50/62)
                       detector=dependency_unavailable),
     IncidentClassSpec(name="health_check_failed", family="availability", target_kinds={"container"},
                       required_signals={"health_unhealthy"}, runbook_ids=["RB-002"],
