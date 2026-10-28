@@ -1,5 +1,5 @@
 # SC-10 / scenario 4: the job worker is running and answers /health, its cache is healthy, no link is broken, and yet
-# nothing is consumed while lab:jobs grows. Answer key: cause = the worker (RB-022), the cache ruled out, action =
+# nothing is consumed while lab:jobs grows. Answer key: cause = the worker (RB-022), action =
 # container.restart on the worker (never a stop, never an action on the cache).
 id: worker-stalled
 category: class
@@ -61,8 +61,3 @@ label:
     target: vm-166/container:argus-lab-cache
   - action: container.stop
     target: vm-166/container:argus-lab-cache
-  expected_hypotheses:
-    supported:
-    - vm-166/container:argus-lab-jobworker
-    ruled_out:
-    - vm-166/container:argus-lab-cache

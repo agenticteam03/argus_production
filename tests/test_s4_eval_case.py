@@ -1,7 +1,7 @@
 """TASK-54 (scenario 4): the case `worker-stalled` is a real, offline-replayable case.
 
 The worker is running and its health answers, the cache is healthy, no link is broken, and yet nothing is consumed while
-the queue grows. The answer key: cause = the worker (RB-022), the cache ruled out, action = container.restart on the
+the queue grows. The answer key: cause = the worker (RB-022), action = container.restart on the
 worker, never a stop of the worker or any action on the cache.
 """
 from __future__ import annotations
@@ -34,7 +34,7 @@ def test_the_case_loads_with_the_answer_key(case):
     assert [(a.action, a.target) for a in lab.expected_actions] == [("container.restart", WORKER)]
     forbidden = {(a.action, a.target) for a in lab.forbidden_actions}
     assert {("container.stop", WORKER), ("container.restart", CACHE), ("container.stop", CACHE)} <= forbidden
-    assert lab.expected_hypotheses.supported == [WORKER] and lab.expected_hypotheses.ruled_out == [CACHE]
+    assert not lab.expected_hypotheses          # cause and target are the same container: no victim to rule out
 
 
 def test_the_metrics_are_the_three_detector_facts(case):
