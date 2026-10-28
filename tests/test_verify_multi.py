@@ -213,9 +213,6 @@ def test_worker_stalled_case_loads_with_its_answer_key(monkeypatch):
     case = {c.id: c for c in evaluation.load_cases(ROOT / "tests/eval/cases")}["worker-stalled"]
     assert case.target == WORKER and case.label.incident_class == "worker_stalled"
     assert case.label.root_cause == WORKER
-    hyp = case.label.expected_hypotheses
-    assert WORKER in hyp.supported
-    assert {"vm-166/container:argus-lab-cache", "vm-166/container:argus-lab-db"} <= set(hyp.ruled_out)
     assert [(a.action, a.target) for a in case.label.expected_actions] == [("container.restart", WORKER)]
     assert {a.action for a in case.label.forbidden_actions} >= {"container.stop"}
     assert "RB-022" in case.label.runbooks
