@@ -127,10 +127,14 @@ case "$1" in
         ok=0; [ -n "$release" ] && ok=1
         echo "${FAKE_REPORT:-gate_open=${FAKE_RELEASED:-1} write_capabilities=0 action_gateway_resolves=0 policy=abc123def456 released_ok=$ok}"
         exit 0 ;;
-  inspect) case "$*" in
+  inspect) c="${@: -1}"
+           case "$*" in
              *Mounts*) echo "/opt/argus-v18/secrets/postgres/runtime_password /run/argus-secrets/db_password"
-                       [ -n "$FAKE_ACTION_MOUNT" ] && echo "/opt/argus-v18/secrets/action/token /run/argus-secrets/action_token" ;;
-             *Env*) echo "ARGUS_DB_BACKEND=postgres"; [ -n "$FAKE_ACTION_ENV" ] && echo "ARGUS_ACTION_TOKEN=s3cret-value" ;;
+                       [ -n "$FAKE_ACTION_MOUNT" ] && echo "/opt/argus-v18/secrets/action/token /run/argus-secrets/action_token"
+                       case "$c" in argus-v18-action-*) echo "/opt/argus-v18/secrets/action/action_token /run/argus-v18/action_token" ;; esac ;;
+             *Env*) echo "ARGUS_DB_BACKEND=postgres"; [ -n "$FAKE_ACTION_ENV" ] && echo "ARGUS_ACTION_TOKEN=s3cret-value"
+                    case "$c" in argus-v18-action-*) echo "ARGUS_ACTION_ROLE=gateway" ;; esac
+                    if [ "$c" = argus-v18-worker ]; then for kv in $FAKE_WORKER_ENV; do echo "$kv"; done; fi ;;
            esac ;;
 esac
 exit 0
@@ -214,15 +218,19 @@ def test_check_stops_on_an_action_credential_on_disk(check):
 
 
 # --- host-only mode: a Host T (vm-166) runs no Argus service, but ARCHITECTURE §2 would put the action gateway there --
-def test_host_only_mode_checks_the_host_without_any_service_report(check):
-    result = check("--host-only", no_exec="1")
+def test_host_only_mode_checks_the_host_without_any_service_report(check, tmp_path):
+    result = check("--host-only", no_exec="1")                 # this repository releases one pair
     assert result.returncode == 0, result.stdout + result.stderr
     assert "gate_open=" not in result.stdout
-    assert result.stdout.strip().splitlines()[-1].startswith("WRITE GATE CLOSED: host-only")
+    assert result.stdout.strip().splitlines()[-1].startswith("WRITE GATE AS RELEASED: 1 reviewed pair(s); host-only")
+    empty = tmp_path / "empty-release.json"
+    empty.write_bytes(b'{"host": "vm-166", "released": []}')
+    result = check("--host-only", no_exec="1", release_file=empty.as_posix())
+    assert result.returncode == 0 and result.stdout.strip().splitlines()[-1].startswith("WRITE GATE CLOSED: host-only")
 
 
 @pytest.mark.parametrize("fake, reason", [
-    ({"extra_container": "argus-v18-action-gateway"}, "action container present: argus-v18-action-gateway"),
+    ({"extra_container": "argus-v18-action-shell"}, "action container present: argus-v18-action-shell"),   # not reviewed
     ({"action_mount": "1"}, "argus-v18-postgres: action mount"),           # every argus-v18 container, not only services
     ({"action_env": "1"}, "argus-v18-postgres: action environment ARGUS_ACTION_TOKEN"),
     ({"ps_fail": "1"}, "docker ps failed: containers not checked"),   # never CLOSED on what was not looked at
@@ -232,3 +240,71 @@ def test_host_only_mode_stops_and_names_the_reason(check, fake, reason):
     assert result.returncode != 0 and result.stdout.strip().splitlines()[-1].startswith("WRITE GATE STOP:")
     assert reason in result.stdout
     assert "s3cret-value" not in result.stdout + result.stderr
+
+
+# --- once a pair is released: exactly the reviewed parts, nothing else (phase 20, X-5) ----------------------------------
+GATEWAY = "argus-v18-action-proxy argus-v18-action-gateway"
+WORKER_SETTINGS = ("ARGUS_ACTION_PATH=1 ARGUS_ACTION_GATEWAY_URL=http://argus-v18-action-gateway:18705 "
+                   "ARGUS_ACTION_TOKEN_FILE=/run/argus-secrets/action_token ARGUS_ACTION_DAILY_HOST_CAP=2")
+
+
+def _token(check, path: str) -> None:
+    target = check.home / path
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_bytes(b"s3cret-value")
+
+
+def test_the_action_host_accepts_exactly_the_released_gateway_its_mounts_role_and_token(check):
+    _token(check, "secrets/action/action_token")
+    result = check("--host-only", no_exec="1", extra_container=GATEWAY)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert result.stdout.strip().splitlines()[-1].startswith("WRITE GATE AS RELEASED: 1 reviewed pair(s); host-only")
+    assert "s3cret-value" not in result.stdout + result.stderr
+
+
+def test_with_nothing_released_the_gateway_is_refused_as_before(check, tmp_path):
+    empty = tmp_path / "empty-release.json"
+    empty.write_bytes(b'{"host": "vm-166", "released": []}')
+    _token(check, "secrets/action/action_token")
+    result = check("--host-only", no_exec="1", extra_container=GATEWAY, release_file=empty.as_posix())
+    last = result.stdout.strip().splitlines()[-1]
+    assert result.returncode != 0 and last.startswith("WRITE GATE STOP:")
+    assert "action container present: argus-v18-action-proxy argus-v18-action-gateway" in result.stdout
+    assert "argus-v18-action-gateway: action mount" in result.stdout
+    assert "action credential on disk: secrets/action secrets/action/action_token" in result.stdout
+
+
+def test_vm095_accepts_the_workers_settings_and_its_token_once_released(check):
+    _token(check, "secrets/agent/action_token")
+    result = check(worker_env=WORKER_SETTINGS)
+    assert result.returncode == 0, result.stdout + result.stderr
+    last = result.stdout.strip().splitlines()[-1]
+    assert last.startswith("WRITE GATE AS RELEASED: 1 reviewed pair(s); argus-v18-agent,argus-v18-worker,argus-v18-scheduler")
+
+
+@pytest.mark.parametrize("why, fake, token, reason", [
+    ("a gateway on the agent host", {"extra_container": "argus-v18-action-gateway"}, None,
+     "action container present: argus-v18-action-gateway"),
+    ("a variable that was not reviewed", {"worker_env": WORKER_SETTINGS + " ARGUS_ACTION_SECRET=s3cret-value"}, None,
+     "argus-v18-worker: action environment ARGUS_ACTION_SECRET"),
+    ("the worker's settings on another service", {"action_env": "1"}, None,
+     "argus-v18-agent: action environment ARGUS_ACTION_TOKEN"),
+    ("the gateway's token on the agent host", {}, "secrets/action/action_token", "action credential on disk: secrets/action"),
+])
+def test_vm095_still_refuses_anything_but_the_reviewed_parts(check, why, fake, token, reason):
+    if token:
+        _token(check, token)
+    result = check(**fake)
+    assert result.returncode != 0 and result.stdout.strip().splitlines()[-1].startswith("WRITE GATE STOP:"), why
+    assert reason in result.stdout, why
+    assert "s3cret-value" not in result.stdout + result.stderr
+
+
+def test_the_action_host_refuses_another_action_file_or_a_role_on_another_container(check):
+    _token(check, "secrets/action/action_token")
+    _token(check, "secrets/action/action_token.old")          # the check is by name: *action*
+    result = check("--host-only", no_exec="1", extra_container=GATEWAY + " argus-v18-action-shell")
+    assert result.returncode != 0
+    assert "action credential on disk: secrets/action/action_token.old" in result.stdout
+    assert "action container present: argus-v18-action-shell" in result.stdout
+
