@@ -1,4 +1,4 @@
-// ACR-0034, the local tier: an administrator approves or rejects a staged reference source. Argus decides every grant
+// ACR-0034, the local tier (ACR-0040: an approver too): an administrator approves or rejects a staged reference source. Argus decides every grant
 // (ACR-0001); the screen shows the decisions only when /me lists manage_corpus. Each decision needs a one-use
 // WebAuthn step-up bound to the exact staged bundle (`corpus:<name>:<sha256>`), so a newer bundle needs a new touch.
 export const corpusObject = (source) => `corpus:${source.name}:${source.sha256}`;

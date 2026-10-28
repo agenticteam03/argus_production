@@ -9,7 +9,7 @@ const STATUS = { installed: ["Installed", "green"], staged: ["Waiting for review
 const message = (error) => error?.detail ?? (error?.name === "NotAllowedError" ? "The security key was cancelled or timed out." : error?.message) ?? "The request failed.";
 
 // ACR-0034, the local tier: the reference sources Argus may cite. A staged source (downloaded by the isolated corpus
-// service, hashed, scanned) is installed only after an administrator approves it with a security key.
+// service, hashed, scanned) is installed only after an approver or an administrator approves it with a security key (ACR-0040).
 export function ReferenceSourcesView({ sources, canManage, busy, error, notice, reasons, onReason, onApprove, onReject }) {
   return <div className="space-y-5">
     <div>
@@ -19,7 +19,7 @@ export function ReferenceSourcesView({ sources, canManage, busy, error, notice, 
     {error && <ErrorCard title="Could not complete this request" text={error} />}
     {notice && <p role="status" className="rounded-xl border border-emerald-400/30 bg-emerald-400/10 p-3 text-sm text-emerald-300">{notice}</p>}
     {!canManage && <Card title="No decisions for this account">
-      <p className="text-sm text-muted">Argus grants these decisions to administrators on the private path, after a security key. Sign in privately from Actions first.</p>
+      <p className="text-sm text-muted">Argus grants these decisions to approvers and administrators on the private path, after a security key. Sign in privately from Actions first.</p>
     </Card>}
     {sources === null ? <Skeleton className="h-24" /> : <Card title="Sources" count={sources.length}>
       {sources.length === 0 ? <p className="text-sm text-muted">No reference source is installed or staged.</p> :
