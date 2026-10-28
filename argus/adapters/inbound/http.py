@@ -236,6 +236,14 @@ def private_path(request: Request, settings) -> bool:
         return False
 
 
+def client_cert(request: Request, settings) -> str:
+    """ACR-0038: "verified" when the edge verified a team certificate on this private request, else "none" (the
+    passkey-only mode, or no certificate). Off the private path the header is not believed."""
+    if private_path(request, settings) and request.headers.get(settings.ops_cert_header) == "SUCCESS":
+        return "verified"
+    return "none"
+
+
 def _principal_dep(app_ctx):
     def dep(request: Request, token: Annotated[str, Depends(oauth2)]) -> Principal:
         try:
@@ -736,7 +744,7 @@ def build_api(app_ctx) -> FastAPI:
             if not private_path(request, s):
                 raise HTTPException(status.HTTP_404_NOT_FOUND, "Not Found")
             _, address = origin(request)
-            where = {"client": address, "via": "ops"}
+            where = {"client": address, "via": "ops", "client_cert": client_cert(request, s)}
             wait = limiter.retry_after(form.username, address)
             if wait:
                 audit_access("access.login_locked", form.username, where)
@@ -831,6 +839,7 @@ def build_api(app_ctx) -> FastAPI:
                                incident_id=view["proposal"]["input"]["incident_id"], approval_id=approval_id,
                                proposal_digest=body.proposal_digest, decision=body.decision,
                                reason=body.reason.strip() if body.reason else None,
+                               client_cert=client_cert(request, s),
                                judge_verdict=view["judge"]["verdict"], risk=view["judge"]["risk"])   # ACR-0039
             if not action_rows.answer_action_approval(approval_id, body.proposal_digest, p.id,
                                                       body.decision, now, audit=audit):

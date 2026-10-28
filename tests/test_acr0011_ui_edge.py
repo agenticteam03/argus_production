@@ -104,7 +104,7 @@ class H(BaseHTTPRequestHandler):
             return self._send(401, {"detail": "an ops token off the private path"})   # as the API (ACR-0032)
         self._send(200, {"path": self.path, "method": self.command, "edge": self.headers.get("X-Argus-Edge"),
                          "real_ip": self.headers.get("X-Real-IP"), "xff": self.headers.get("X-Forwarded-For"),
-                         "ops": self.headers.get("X-Argus-Ops")})
+                         "ops": self.headers.get("X-Argus-Ops"), "cert": self.headers.get("X-Argus-Ops-Cert")})
     do_GET = do_POST = do_DELETE = do_PUT = _echo
     def log_message(self, *a): pass
 HTTPServer(("0.0.0.0", 8000), H).serve_forever()
@@ -132,6 +132,9 @@ def edge(tmp_path_factory):
     conf = tmp_path_factory.mktemp("conf")
     (conf / "default.conf").write_text((NGINX_DIR / "loopback.conf.template").read_text(encoding="utf-8"),
                                        encoding="utf-8")
+    # ACR-0038: exactly one ops-mode file defines $argus_ops_ok (05-argus-mode.envsh copies the default one)
+    (conf / "00-argus-ops-mode.conf").write_text((NGINX_DIR / "ops-mode-certificate.conf").read_text(encoding="utf-8"),
+                                                 encoding="utf-8")
     # pytest's temporary directories are 0700 for the runner's user; Nginx runs as uid 101 in the container and must
     # read the mounted files (on Linux CI an unreadable conf.d means no server block and nothing on 8080)
     for d in (site, site / "html", site / "runbooks", conf):
