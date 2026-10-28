@@ -14,6 +14,19 @@ APP=argus-lab-app
 ISO=argus-lab-iso
 API=argus-lab-api
 
-docker network connect argus-lab-app argus-lab-api
-docker network disconnect argus-lab-iso argus-lab-api
+# Safe to run twice, and after Argus itself restored the network: each step runs only when it is needed.
+attached=" $(docker inspect -f '{{range $name, $net := .NetworkSettings.Networks}}{{$name}} {{end}}' "$API") "
+
+if [[ "$attached" == *" $APP "* ]]; then
+  echo "s2-reset: $API is already on $APP, connect skipped"
+else
+  docker network connect argus-lab-app argus-lab-api
+  echo "s2-reset: $API connected to $APP"
+fi
+if [[ "$attached" == *" $ISO "* ]]; then
+  docker network disconnect argus-lab-iso argus-lab-api
+  echo "s2-reset: $API disconnected from $ISO"
+else
+  echo "s2-reset: $API is not on $ISO, disconnect skipped"
+fi
 echo "s2-reset: $API back on $APP, off $ISO"
