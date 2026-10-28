@@ -2,7 +2,7 @@
   "audit": [
     {
       "actor": "alice",
-      "at": "2026-10-22T21:03:37.764005+00:00",
+      "at": "2026-10-28T20:33:03.161559+00:00",
       "capability": null,
       "detail": {
         "request": "report",
@@ -15,7 +15,7 @@
     },
     {
       "actor": null,
-      "at": "2026-10-22T21:03:37.797025+00:00",
+      "at": "2026-10-28T20:33:03.164567+00:00",
       "capability": null,
       "detail": {
         "class": "container_restart_loop",
@@ -27,14 +27,14 @@
     },
     {
       "actor": null,
-      "at": "2026-10-22T21:03:37.812153+00:00",
+      "at": "2026-10-28T20:33:03.166566+00:00",
       "capability": null,
       "detail": {
         "library": "library 1.1.1",
         "passages": [
           {
             "runbook_id": "RB-001",
-            "score": 16.292,
+            "score": 16.301,
             "section": "Required evidence",
             "sha256": "336e8e470a8469c07fc5c4e01c381c1ee9e038d055a222cfa0960f729420a19b",
             "status": "draft",
@@ -42,7 +42,7 @@
           },
           {
             "runbook_id": "RB-001",
-            "score": 16.125,
+            "score": 16.078,
             "section": "Required Argus tools",
             "sha256": "670780e489a3133a3eafe39e879fa4728eccb45f9c3ab5a2d45165d241636d86",
             "status": "draft",
@@ -50,7 +50,7 @@
           },
           {
             "runbook_id": "RB-001",
-            "score": 13.158,
+            "score": 13.19,
             "section": "Lab validation",
             "sha256": "bf494ccb8b30be1c7b58853d9f949f6d2293efa840e83aca4d0b59603efe02a7",
             "status": "draft",
@@ -64,7 +64,7 @@
     },
     {
       "actor": "model",
-      "at": "2026-10-22T21:03:37.847869+00:00",
+      "at": "2026-10-28T20:33:03.172569+00:00",
       "capability": null,
       "detail": {
         "calls": [
@@ -92,7 +92,7 @@
     },
     {
       "actor": "model",
-      "at": "2026-10-22T21:03:37.858865+00:00",
+      "at": "2026-10-28T20:33:03.173567+00:00",
       "capability": "container.status",
       "detail": {},
       "event": "tool.requested",
@@ -101,19 +101,19 @@
     },
     {
       "actor": "model",
-      "at": "2026-10-22T21:03:37.869582+00:00",
+      "at": "2026-10-28T20:33:03.175598+00:00",
       "capability": "container.status",
       "detail": {
         "error_category": "none",
         "status": "ok"
       },
       "event": "tool.completed",
-      "evidence_id": "obs_9a72f05666764ae7",
+      "evidence_id": "obs_6243e57d3dab431f",
       "policy_rule": null
     },
     {
       "actor": "model",
-      "at": "2026-10-22T21:03:37.878874+00:00",
+      "at": "2026-10-28T20:33:03.175598+00:00",
       "capability": "container.logs",
       "detail": {},
       "event": "tool.requested",
@@ -122,27 +122,27 @@
     },
     {
       "actor": "model",
-      "at": "2026-10-22T21:03:37.892381+00:00",
+      "at": "2026-10-28T20:33:03.177245+00:00",
       "capability": "container.logs",
       "detail": {
         "error_category": "none",
         "status": "ok"
       },
       "event": "tool.completed",
-      "evidence_id": "obs_b5f0c65434884487",
+      "evidence_id": "obs_80e0ec1ec2d24214",
       "policy_rule": null
     },
     {
       "actor": "model",
-      "at": "2026-10-22T21:03:37.929537+00:00",
+      "at": "2026-10-28T20:33:03.229283+00:00",
       "capability": null,
       "detail": {
         "chosen": "h1",
         "confidence": "high",
         "diagnosis": "OOM-killed by its 64 MiB memory limit",
         "evidence_ids": [
-          "obs_9a72f05666764ae7",
-          "obs_b5f0c65434884487"
+          "obs_6243e57d3dab431f",
+          "obs_80e0ec1ec2d24214"
         ],
         "hypotheses": [
           {
@@ -153,8 +153,8 @@
             "statement": "OOM-killed by its memory limit",
             "status": "supported",
             "support": [
-              "obs_9a72f05666764ae7",
-              "obs_b5f0c65434884487"
+              "obs_6243e57d3dab431f",
+              "obs_80e0ec1ec2d24214"
             ],
             "target": "vm-166/container:argus-lab-worker"
           },
@@ -179,12 +179,12 @@
     },
     {
       "actor": null,
-      "at": "2026-10-22T21:03:37.957156+00:00",
+      "at": "2026-10-28T20:33:03.232292+00:00",
       "capability": null,
       "detail": {
         "cited": [
-          "obs_9a72f05666764ae7",
-          "obs_b5f0c65434884487"
+          "obs_6243e57d3dab431f",
+          "obs_80e0ec1ec2d24214"
         ],
         "outcome": "diagnosed",
         "root_cause_target": "vm-166/container:argus-lab-worker",
@@ -205,20 +205,20 @@
   "cause_path": [
     "vm-166/container:argus-lab-worker"
   ],
-  "closed_at": "2026-10-22T21:03:37.933095Z",
+  "closed_at": "2026-10-28T20:33:03.231293Z",
   "confidence": "high",
   "diagnosis": "OOM-killed by its 64 MiB memory limit",
-  "duration_ms": 185,
+  "duration_ms": 74,
   "evidence": [
     {
       "caller": "alice",
       "capability": null,
-      "collected_at": "2026-10-22T21:03:37.776021+00:00",
-      "evidence_id": "ev_f5de798421654c48",
+      "collected_at": "2026-10-28T20:33:03.162567+00:00",
+      "evidence_id": "ev_96446934bb1244a2",
       "executor": null,
       "kind": "reported_symptom",
       "model_text": "reported by alice: UI contract sample",
-      "sha256": "1bd5b6eceda095ac3352e1c9b8621a1b7d38be43733045a86389a52580ef8824",
+      "sha256": "5bca581e672cbab62665374f0cb4316087a3742227243d1a9f4de69953dc9cb7",
       "source_time": null,
       "status": "ok",
       "target": "vm-166/container:argus-lab-worker"
@@ -226,25 +226,25 @@
     {
       "caller": "system",
       "capability": null,
-      "collected_at": "2026-10-22T21:03:37.784452+00:00",
-      "evidence_id": "ev_45ed7debb7264c5a",
+      "collected_at": "2026-10-28T20:33:03.163566+00:00",
+      "evidence_id": "ev_c04397592ce441ed",
       "executor": null,
       "kind": "metric_snapshot",
-      "model_text": "metric snapshot: {\"dependency_probe_min\": null, \"db_connection_usage\": null, \"last_exit_code\": 137.0, \"container_cpu_throttled_ratio_5m\": null, \"http_gateway_error_ratio_5m\": null, \"restarts_10m\": 5.0, \"db_up\": null, \"container_cpu_quota_used_ratio_5m\": null, \"health_unhealthy\": null, \"oom_killed\": 1.0}",
-      "sha256": "ec9316f569c85baf1c5626976ab9c33e85769cd1568658d28357e958ee138078",
-      "source_time": "2026-10-22T21:03:37.784452+00:00",
+      "model_text": "metric snapshot: {\"db_connection_usage\": null, \"container_cpu_quota_used_ratio_5m\": null, \"oom_killed\": 1.0, \"queue_depth\": null, \"worker_last_processed_age_s\": null, \"db_up\": null, \"health_unhealthy\": null, \"dependency_probe_min\": null, \"container_cpu_throttled_ratio_5m\": null, \"jobs_processed_rate\": null, \"http_gateway_error_ratio_5m\": null, \"last_exit_code\": 137.0, \"restarts_10m\": 5.0}",
+      "sha256": "4f4c151fd1f7782caa3b6f03d4a76f8655f0d4346ae5c2f6ce8b1fe2e3902afa",
+      "source_time": "2026-10-28T20:33:03.163566+00:00",
       "status": "ok",
       "target": "vm-166/container:argus-lab-worker"
     },
     {
       "caller": "model",
       "capability": "container.status",
-      "collected_at": "2026-10-22T21:03:37.863974+00:00",
-      "evidence_id": "obs_9a72f05666764ae7",
+      "collected_at": "2026-10-28T20:33:03.174567+00:00",
+      "evidence_id": "obs_6243e57d3dab431f",
       "executor": "docker_read",
       "kind": "observation",
       "model_text": "vm-166/container:argus-lab-worker: state=restarting health=none restarts=7 oom_killed=True exit_code=137 started_at=unknown memory_limit_bytes=67108864 cpu_limit_cores=unknown networks=unknown id=aaa111",
-      "sha256": "3c688def86aeabf06a09dbc0aa6072363e45f20697bd0cfe413180756581d18f",
+      "sha256": "af576fb665b848385904fad2fff146da0a24f90810aa4a9169f8c667da9b1c3a",
       "source_time": null,
       "status": "ok",
       "target": "vm-166/container:argus-lab-worker"
@@ -252,12 +252,12 @@
     {
       "caller": "model",
       "capability": "container.logs",
-      "collected_at": "2026-10-22T21:03:37.885449+00:00",
-      "evidence_id": "obs_b5f0c65434884487",
+      "collected_at": "2026-10-28T20:33:03.177245+00:00",
+      "evidence_id": "obs_80e0ec1ec2d24214",
       "executor": "docker_read",
       "kind": "observation",
       "model_text": "vm-166/container:argus-lab-worker: last 1 log lines",
-      "sha256": "d73a6ea946f77ce0f63f7bf705ccd5b72d62f2e78ba260427fe23b05f9831efd",
+      "sha256": "3f68da0922a9c9f652ea816e2ca48da9ad5dc54c70afb91b1044755e50cd57a6",
       "source_time": null,
       "status": "ok",
       "target": "vm-166/container:argus-lab-worker"
@@ -265,12 +265,12 @@
   ],
   "evidence_highlights": [
     {
-      "evidence_id": "obs_9a72f05666764ae7",
+      "evidence_id": "obs_6243e57d3dab431f",
       "stance": "supports",
       "text": "vm-166/container:argus-lab-worker: state=restarting health=none restarts=7 oom_killed=True exit_code=137 started_at=unknown memory_limit_bytes=67108864 cpu_limit_cores=unknown networks=unknown id=aaa111"
     },
     {
-      "evidence_id": "obs_b5f0c65434884487",
+      "evidence_id": "obs_80e0ec1ec2d24214",
       "stance": "supports",
       "text": "vm-166/container:argus-lab-worker: last 1 log lines"
     }
@@ -297,8 +297,8 @@
         "score": 6.0
       },
       "support_ids": [
-        "obs_9a72f05666764ae7",
-        "obs_b5f0c65434884487"
+        "obs_6243e57d3dab431f",
+        "obs_80e0ec1ec2d24214"
       ],
       "target": "vm-166/container:argus-lab-worker"
     },
@@ -320,23 +320,24 @@
       "target": null
     }
   ],
-  "id": "inc_7e49840f50fa",
+  "id": "inc_d0e829d433e9",
   "incident_class": "container_restart_loop",
   "next_actions": [],
   "not_checked": [],
-  "opened_at": "2026-10-22T21:03:37.747944Z",
+  "opened_at": "2026-10-28T20:33:03.157500Z",
   "outcome": "diagnosed",
   "parent_id": null,
   "principal": "alice",
   "ranking_disagrees": false,
   "reason": "UI contract sample",
   "request_kind": "report",
+  "resolution": null,
   "root_cause_target": "vm-166/container:argus-lab-worker",
   "severity": "critical",
   "status": "closed",
   "strategy": "model_loop",
   "summary": "Restart loop on argus-lab-worker: 5 restarts in the last 10 minutes",
   "target": "vm-166/container:argus-lab-worker",
-  "trigger_id": "manual:b9e260afaa9d40bea8b9f5194c3ffc8f",
+  "trigger_id": "manual:f230793c9c8b4117a2092547b9fd415a",
   "trigger_kind": "manual"
 }

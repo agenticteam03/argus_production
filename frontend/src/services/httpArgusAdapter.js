@@ -122,6 +122,16 @@ export const httpArgusAdapter = {
     return res.json();
   },
 
+  // ACR-0041: close an escalated incident with a reason (an investigate token may; the API checks the rest).
+  async resolveIncident(incidentId, reason) {
+    const res = await apiFetch(`/api/v1/incidents/${encodeURIComponent(incidentId)}/resolve`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ reason }),
+    });
+    return res.json();
+  },
+
   async askAgent(question, canStartInvestigation = false) {
     const investigation = parseInvestigationRequest(question);
     if (investigation) {

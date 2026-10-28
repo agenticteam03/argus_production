@@ -200,6 +200,25 @@ def test_an_approval_accepts_a_judge_doubt_but_never_a_disagreement_migration_01
             store.add_action_approval(f"appr_{secrets.token_hex(4)}", p.id, p.digest, now, p.expires_at)
 
 
+def test_an_escalated_incident_closes_once_with_a_resolution_migration_019(runtime_dsn, store):
+    """ACR-0041: escalated -> closed only with a person's resolution, once; every other final change still refused."""
+    import psycopg
+    from argus.domain.model import IncidentStatus, utcnow
+
+    inc = _incident(target="vm-166/container:argus-lab-cache", status="escalated")
+    store.create_incident(inc, None)
+    with psycopg.connect(runtime_dsn, autocommit=True) as c:
+        with pytest.raises(psycopg.Error, match="final"):
+            c.execute("UPDATE incident SET status = 'closed' WHERE id = %s", (inc.id,))
+    done = store.resolve_incident(inc.id, "olga", "restarted by hand", utcnow())
+    assert done is not None and store.get_incident(inc.id).status == IncidentStatus.closed
+    assert store.get_incident(inc.id).resolution.by == "olga"
+    assert store.resolve_incident(inc.id, "olga", "again", utcnow()) is None
+    with psycopg.connect(runtime_dsn, autocommit=True) as c:
+        with pytest.raises(psycopg.Error, match="final"):
+            c.execute("UPDATE incident SET status = 'escalated' WHERE id = %s", (inc.id,))
+
+
 def test_an_ops_session_is_accepted_by_migration_017(store):
     """ACR-0032: the private login's `ops` session; any other unknown access is still refused."""
     import psycopg

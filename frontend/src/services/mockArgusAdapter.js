@@ -150,6 +150,16 @@ export const mockArgusAdapter = {
     return { incident_id: demoList()[0].id, status: "queued", duplicate: false };
   },
 
+  // ACR-0041, demo: the escalated demo incident is closed for this session only; a viewer is refused as by the API.
+  async resolveIncident(incidentId, reason) {
+    calls.push({ method: "POST", path: `/api/v1/incidents/${incidentId}/resolve` });
+    await wait(200);
+    if (demoSession.role !== "operator" && demoSession.role !== "approver") throw httpError(403, "This role may not resolve incidents.");
+    const incident = demoList().find((i) => i.id === incidentId);
+    if (!incident || incident.status !== "escalated") throw httpError(409, "only an escalated incident can be resolved");
+    return { ...incident, status: "closed", resolution: { by: demoSession.role, at: new Date().toISOString(), reason } };
+  },
+
   async askAgent(text, canStartInvestigation = false) {
     const investigation = parseInvestigationRequest(text);
     if (investigation) {

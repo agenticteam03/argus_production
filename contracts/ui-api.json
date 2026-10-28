@@ -336,6 +336,23 @@
         "title": "InvestigationIn",
         "type": "object"
       },
+      "ResolveIn": {
+        "additionalProperties": false,
+        "description": "ACR-0041: why the escalated incident is closed (what fixed it, outside Argus).",
+        "properties": {
+          "reason": {
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason"
+        ],
+        "title": "ResolveIn",
+        "type": "object"
+      },
       "StepUpIn": {
         "additionalProperties": false,
         "properties": {
@@ -1063,6 +1080,62 @@
           }
         ],
         "summary": "Incident Metrics",
+        "tags": [
+          "incidents"
+        ]
+      }
+    },
+    "/api/v1/incidents/{incident_id}/resolve": {
+      "post": {
+        "description": "ACR-0041: close an escalated incident that was fixed outside Argus, with a reason. It keeps its diagnosis and\noutcome; only an escalated incident, once.",
+        "operationId": "resolve_incident_api_v1_incidents__incident_id__resolve_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "incident_id",
+            "required": true,
+            "schema": {
+              "title": "Incident Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResolveIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Resolve Incident",
         "tags": [
           "incidents"
         ]

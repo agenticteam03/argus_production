@@ -93,6 +93,13 @@ class IncidentOutcome(StrEnum):
     expired = "expired"
 
 
+class IncidentResolution(BaseModel):
+    """ACR-0041: a person closed an escalated incident that was fixed outside Argus; who, when and why."""
+    by: str
+    at: datetime
+    reason: str
+
+
 class Incident(BaseModel):
     id: str
     target: TargetRef
@@ -112,6 +119,7 @@ class Incident(BaseModel):
     opened_at: datetime
     closed_at: datetime | None = None
     parent_id: str | None = None          # ACR-0021 (T-0045 B5): the incident this one re-checks; never changes
+    resolution: IncidentResolution | None = None   # ACR-0041: set once, when a person closes an escalated incident
 
 
 # ---------------------------------------------------------------------------------------------
