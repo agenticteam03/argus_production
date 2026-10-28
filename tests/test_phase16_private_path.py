@@ -50,9 +50,9 @@ def test_the_edge_tells_the_api_whether_a_request_came_through_the_private_path(
     proxy = (NGINX_DIR / "proxy.conf").read_text(encoding="utf-8")
     assert "proxy_set_header X-Argus-Ops $argus_ops_ok;" in proxy
     conf = (NGINX_DIR / "http.conf").read_text(encoding="utf-8")
-    m = re.search(r'map "\$ssl_client_verify:\$argus_ops_addr" \$argus_ops_ok \{(.*?)\}', conf, re.S).group(1)
-    assert [line.strip() for line in m.strip().splitlines()] == ["default 0;", '"SUCCESS:1" 1;']
-    assert "include /etc/nginx/argus/ops-allow.conf;" in conf and "default 0;" in conf
+    m = re.search(r'map \$ssl_client_verify \$argus_ops_ok \{(.*?)\}', conf, re.S).group(1)
+    assert [line.strip() for line in m.strip().splitlines()] == ["default 0;", '"SUCCESS" 1;']
+    assert "argus_ops_addr" not in conf                              # ACR-0037: the address is not a condition
 
 
 def test_the_allowlist_in_git_allows_nobody():
@@ -363,15 +363,14 @@ def test_the_ops_header_is_0_off_the_private_path_and_a_browser_cannot_forge_it(
     for who in (None, "alice"):                                        # public routes, with or without a certificate
         code, body = get("/api/v1/escalations", who, headers={"X-Argus-Ops": "1"})
         assert code == 200 and ('"ops": "1"' in body) == (who == "alice"), body
-    set_allow("198.51.100.7 1;  # someone else\n")
-    code, body = get("/api/v1/escalations", "alice", headers={"X-Argus-Ops": "1"})
-    assert code == 200 and '"ops": "0"' in body                        # a certificate from an address not allowed
 
 
-def test_a_valid_certificate_from_an_address_not_allowed_is_404(private_edge):
+def test_a_valid_certificate_reaches_the_api_from_any_address(private_edge):
+    """ACR-0037: the allowlist no longer gates the private path; the certificate alone does."""
     get, set_allow, *_ = private_edge
-    set_allow("198.51.100.7 1;  # someone else\n")
-    assert get("/api/v1/ops/approvals", "alice")[0] == 404
+    set_allow("198.51.100.7 1;  # someone else, ignored by the edge\n")
+    code, body = get("/api/v1/ops/approvals", "alice")
+    assert code == 200 and '"ops": "1"' in body
 
 
 @pytest.mark.parametrize("who", ["mallory", "stranger"])          # revoked in the CRL; issued by another CA
@@ -382,8 +381,8 @@ def test_a_revoked_or_foreign_certificate_is_404(private_edge, who):
 
 
 def test_the_private_login_is_404_at_the_edge_unless_on_the_private_path(private_edge):
-    """ACR-0032 §3: the login itself, not only the prefix: no certificate, a revoked or foreign one, an address not
-    allowed are 404; the allowed certificate reaches the API with X-Argus-Ops 1."""
+    """ACR-0032 §3: the login itself, not only the prefix: no certificate, a revoked or foreign one are 404; a
+    valid certificate reaches the API with X-Argus-Ops 1."""
     from argus.adapters.inbound.http import OPS_LOGIN
     get, set_allow, *_ = private_edge
     set_allow(EVERYONE)
@@ -391,8 +390,6 @@ def test_the_private_login_is_404_at_the_edge_unless_on_the_private_path(private
         assert get(OPS_LOGIN, who, headers={"X-Argus-Ops": "1"})[0] == 404, who
     code, body = get(OPS_LOGIN, "alice", headers={"X-Argus-Ops": "0"})
     assert code == 200 and '"ops": "1"' in body
-    set_allow("198.51.100.7 1;  # someone else\n")
-    assert get(OPS_LOGIN, "alice")[0] == 404
 
 
 def test_the_runbooks_auth_check_uses_the_edges_ops_value_not_the_browsers(private_edge):
