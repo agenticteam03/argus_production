@@ -29,7 +29,8 @@ class OfflineActionPath:
                  judge_context: Callable[[FrozenProposal], dict], snapshot: Callable[[FrozenProposal, datetime], Precheck],
                  sample: Callable[[str, datetime], Verification | None], gateway,
                  gate_open: frozenset[tuple[str, str]], daily_host_cap: int,
-                 clock: Callable[[], datetime] = lambda: datetime.now(timezone.utc), approval_notifier=None):
+                 clock: Callable[[], datetime] = lambda: datetime.now(timezone.utc), approval_notifier=None,
+                 escalation_notifier=None):
         if not isinstance(gateway, REVIEWED_GATEWAYS):
             raise ValueError("the action path accepts only the fake gateway or the reviewed HTTP client")
         called = getattr(judge_model, "model", None)       # an adapter knows the model it calls; the stored id is it
@@ -38,7 +39,7 @@ class OfflineActionPath:
         self.rows, self.action_policy, self.inventory = rows, action_policy, inventory
         self.proposer, self.judge_model, self.judge_model_id = proposer, judge_model, judge_model_id
         self.judge_context, self.snapshot, self.sample, self.clock = judge_context, snapshot, sample, clock
-        self.approval_notifier = approval_notifier
+        self.approval_notifier, self.escalation_notifier = approval_notifier, escalation_notifier
         self.executor = ActionExecutor(rows, gateway, gate_open=gate_open, daily_host_cap=daily_host_cap)
 
     def propose(self, incident, state: dict) -> str | None:
@@ -160,6 +161,18 @@ class OfflineActionPath:
                      f"Argus: an approval is waiting; it expires at {expires:%H:%M}Z. "
                      "Open the Actions screen on the private path.")
         return approval_id
+
+    def held_back(self, incident_id: str) -> None:
+        """A proposal stopped before an approval: tell the team the incident needs a person. Like the approval notice,
+        the message carries no detail (ACR-0018 section 18); the private screen has it."""
+        if self.escalation_notifier is None:
+            log.info("escalation notification sender is not configured", extra={"incident_id": incident_id})
+            return
+        try:
+            self.escalation_notifier("Argus: an incident needs a person; its proposed action was not sent for "
+                                     "approval. Open the incident on the private path.", incident_id)
+        except Exception:
+            log.exception("escalation notification failed", extra={"incident_id": incident_id})
 
     def _notify(self, approval_id: str, expires_at: datetime, message: str, **kwargs) -> None:
         if self.approval_notifier is None:

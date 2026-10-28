@@ -9,6 +9,7 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
 REPO = ROOT                                   # where `argus` is imported from (tests move ROOT)
+PROTOCOLS = {"redis"}                         # the protocol probes services/target/service.py has (PROTOCOL_PROBES)
 
 
 def _inspection(host: str) -> dict:
@@ -38,8 +39,12 @@ def render_host(inv: dict, host: str) -> dict:
             dname = ref.split(":", 1)[1]
             dinfo = next((x for x in targets if x["ref"] == ref), {})
             declared = dep.get("port") if isinstance(dep, dict) else None
+            protocol = dinfo.get("protocol")          # the probe asks the protocol, not only TCP (RB-003 Recovery)
+            if protocol is not None and protocol not in PROTOCOLS:
+                raise ValueError(f"{ref}: protocol {protocol!r} has no probe (known: {sorted(PROTOCOLS)})")
             for port in [declared] if declared is not None else dinfo.get("tcp_ports", []):
-                probes.append({"owner": owner, "dependency": dname, "host": dname, "port": port})
+                probes.append({"owner": owner, "dependency": dname, "host": dname, "port": port,
+                               **({"protocol": protocol} if protocol else {})})
     # db-probe allowlist: a container target with a `database`, reached by its container name on the app network
     databases = [{"name": t["ref"].split(":", 1)[1], "host": t["ref"].split(":", 1)[1], "port": t["database"]["port"],
                   "dbname": t["database"]["dbname"]} for t in mine if "/container:" in t["ref"] and t.get("database")]

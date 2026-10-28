@@ -86,3 +86,15 @@ class SecurityAlerts:
         }
         response = self.client.post(f"{self.url}/api/v2/alerts", json=[alert])
         response.raise_for_status()
+
+    def notify_escalation(self, message: str, incident_id: str) -> None:
+        """Send an escalation notice (an incident a proposed action did not reach) on the same route; it ends after
+        `hold`, like a security event."""
+        now = self.clock()
+        alert = {
+            "labels": {"alertname": "ArgusIncidentEscalated", "argus_security": "true", "incident_id": incident_id},
+            "annotations": {"summary": message},
+            "startsAt": now.isoformat(), "endsAt": (now + self.hold).isoformat(),
+        }
+        response = self.client.post(f"{self.url}/api/v2/alerts", json=[alert])
+        response.raise_for_status()
