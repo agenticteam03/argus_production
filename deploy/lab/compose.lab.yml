@@ -181,7 +181,7 @@ services:
     <<: *lim
     image: python:3.12-alpine
     container_name: argus-lab-client
-    profiles: [sc07]
+    profiles: [sc07, sc07-api]            # sc07-api: the client alone, for scenario 2 (no backend, no iso fault)
     command: ["python", "-u", "/w/client.py"]
     volumes: ["./workloads:/w:ro"]
     networks: [argus-lab-app]
