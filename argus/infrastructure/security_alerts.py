@@ -72,15 +72,17 @@ class SecurityAlerts:
         self._since = max(row.at for row in rows)
         return f"{len(rows)} security alert(s) sent"
 
-    def notify_approval_waiting(self, message: str, approval_id: str, expires_at: datetime) -> None:
-        """Send an approval notice through the existing Alertmanager security route."""
+    def notify_approval_waiting(self, message: str, approval_id: str, expires_at: datetime,
+                                resolved: bool = False) -> None:
+        """Send an approval notice through the existing Alertmanager security route; `resolved` posts the same
+        alert (same labels) with `endsAt` now, so the group stops listing an answered approval as waiting."""
         now = self.clock()
         alert = {
             "labels": {"alertname": "ArgusApprovalWaiting", "argus_security": "true",
                        "approval_id": approval_id},
             "annotations": {"summary": message},
             "startsAt": now.isoformat(),
-            "endsAt": expires_at.isoformat(),
+            "endsAt": now.isoformat() if resolved else expires_at.isoformat(),
         }
         response = self.client.post(f"{self.url}/api/v2/alerts", json=[alert])
         response.raise_for_status()

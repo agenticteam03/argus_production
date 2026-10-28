@@ -61,8 +61,9 @@ def _path(monkeypatch, notifier=None):
 
 def test_new_approval_sends_one_safe_message_and_answers_do_not_send_again(monkeypatch):
     messages = []
-    def fake_sender(message, _approval_id, _expires_at):
-        messages.append(message)
+    def fake_sender(message, _approval_id, _expires_at, resolved=False):
+        if not resolved:
+            messages.append(message)
 
     path, _rows = _path(monkeypatch, fake_sender)
 
@@ -75,12 +76,49 @@ def test_new_approval_sends_one_safe_message_and_answers_do_not_send_again(monke
 
     assert len(messages) == 1
     message = messages[0]
-    for field in ("inc_123", "container.start", TARGET, "yellow", "agree", "2026-10-27", 
-                  f"/api/v1/ops/approvals/{approval_id}"):
-        assert field in message
-    assert "https://" not in message
-    assert "@" not in message
-    assert "secret" not in message.lower()
+    assert message == ("Argus: an approval is waiting; it expires at 12:30Z. "
+                       "Open the Actions screen on the private path.")
+    for detail in ("inc_123", "container", "start", TARGET, "argus-lab", "yellow", "agree", "risk", "/api/",
+                   "2026-10-27", "https://", "@", "secret"):
+        assert detail not in message.lower()
+
+
+def test_answer_posts_the_alert_again_as_resolved_once(monkeypatch):
+    calls = []
+    path, _rows = _path(monkeypatch, lambda *a, **k: calls.append((a, k)))
+    approval_id = path.request("prop_123")
+    args = dict(digest="proposal-digest", principal="reviewer", principal_kind="human",
+                decision="approved", confirmation_target="argus-lab-cache")
+
+    assert path.answer(approval_id, **args)
+    assert not path.answer(approval_id, **args)       # already answered: no second resolve
+
+    assert len(calls) == 2
+    (_m, aid, expires), kwargs = calls[1]
+    assert (aid, expires, kwargs) == (approval_id, NOW + timedelta(minutes=30), {"resolved": True})
+    assert "yellow" not in calls[1][0][0] and TARGET not in calls[1][0][0]
+
+
+def test_a_refused_answer_does_not_resolve(monkeypatch):
+    calls = []
+    path, _rows = _path(monkeypatch, lambda *a, **k: calls.append((a, k)))
+    approval_id = path.request("prop_123")
+    try:
+        path.answer(approval_id, digest="wrong", principal="reviewer", principal_kind="human", decision="approved")
+    except action_path_module.RemediationRefused:
+        pass
+    assert len(calls) == 1
+
+
+def test_a_failing_sender_never_blocks_the_answer(monkeypatch, caplog):
+    def broken(*_a, **_k):
+        raise RuntimeError("down")
+    path, _rows = _path(monkeypatch, broken)
+    approval_id = path.request("prop_123")
+    assert approval_id
+    assert path.answer(approval_id, digest="proposal-digest", principal="reviewer", principal_kind="human",
+                       decision="approved", confirmation_target="argus-lab-cache")
+    assert "approval notification failed" in caplog.text
 
 
 def test_missing_sender_does_not_block_approval_and_logs(monkeypatch, caplog):
@@ -109,11 +147,15 @@ def test_security_alert_sender_uses_existing_alertmanager_telegram_route():
     expiry = NOW + timedelta(minutes=30)
 
     sender.notify_approval_waiting("approval waiting", APPROVAL_ID, expiry)
+    sender.notify_approval_waiting("answered", APPROVAL_ID, expiry, resolved=True)
 
-    assert len(client.calls) == 1
+    assert len(client.calls) == 2
     url, alerts = client.calls[0]
     assert url == "alertmanager/api/v2/alerts"
     assert alerts[0]["labels"]["argus_security"] == "true"
     assert alerts[0]["labels"]["approval_id"] == APPROVAL_ID
     assert alerts[0]["annotations"]["summary"] == "approval waiting"
     assert alerts[0]["endsAt"] == expiry.isoformat()
+    _url, resolved = client.calls[1]
+    assert resolved[0]["labels"] == alerts[0]["labels"]       # same alert, so the group drops it
+    assert resolved[0]["endsAt"] == NOW.isoformat()
