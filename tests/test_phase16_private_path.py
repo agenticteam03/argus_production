@@ -86,7 +86,9 @@ def _permissions(dependant) -> set[str]:
 
 
 def test_every_privileged_route_lives_under_the_prefix_and_nothing_else_does(make_app):
-    routes = [r for r in build_api(make_app()).routes if hasattr(r, "dependant")]
+    app = make_app()
+    app.action_rows = None      # the routes without the private approval routes (an open gate mounts them; X-9)
+    routes = [r for r in build_api(app).routes if hasattr(r, "dependant")]
     perms = {r.path: _permissions(r.dependant) for r in routes}
     assert "investigate" in perms["/api/v1/investigations"]                       # the reading works
     for path, needed in perms.items():

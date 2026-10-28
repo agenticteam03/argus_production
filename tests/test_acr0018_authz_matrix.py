@@ -45,6 +45,7 @@ BODY = {("POST", "/api/v1/investigations"): {"target": "vm-166/container:argus-l
 @pytest.fixture()
 def ui(make_app):
     app = make_app()
+    app.action_rows = None      # the routes without the private approval routes (an open gate mounts them; X-9)
     pw = PasswordHash.recommended().hash(PASSWORD)
     for user, role in ROLES.items():
         app.store.upsert_principal(user, "human", role, ["lab"], pw)
