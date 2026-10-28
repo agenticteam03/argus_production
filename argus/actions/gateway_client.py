@@ -43,10 +43,14 @@ class HttpActionGateway:
 
     def dispatch(self, action_id: str, proposal: FrozenProposal) -> str:
         data = proposal.input
+        payload = {"capability": data.capability, "target": data.target,
+                   "target_identity": dict(data.target_identity)}
+        if data.capability == "network.restore":
+            payload["connect_network"] = data.arguments["connect_network"]
+            payload["disconnect_network"] = data.arguments["disconnect_network"]
         r = httpx.post(self.base_url + self.route_for(proposal), timeout=self._timeout,
                        headers={**self._headers, "X-Argus-Action-Id": action_id},
-                       json={"capability": data.capability, "target": data.target,
-                             "target_identity": dict(data.target_identity)})
+                       json=payload)
         if r.status_code == 200 and r.json().get("status") in ("confirmed", "failed"):
             return r.json()["status"]
         if r.status_code == 409:

@@ -7,12 +7,18 @@ id: RB-022
 title: Stalled job worker
 status: draft
 owner: Argus Team
-version: 1.0.1
+version: 1.1.0
 created: 2026-10-27
-last_reviewed: 2026-10-27
+last_reviewed: 2026-10-28
 source_review_date: 2026-10-27
 last_tested: null
 detector: worker_stalled
+actions:
+  - action: container.restart
+    target_role: root_cause
+    service_role: worker
+    when: 'state == "running" or state == "restarting"'
+    rationale: A live worker that is not consuming its queue may be restarted once its evidence is preserved and a human approves.
 ```
 
 ## Scope
@@ -78,9 +84,9 @@ required metrics fresh and the three trigger facts hold?
   no -> no worker-stalled incident or insufficient_evidence
   yes -> dependency link/status failure?
            cache -> investigate queue store (H2)
-           neither -> direct worker error evidence?
-                       yes -> worker loop/runtime (H1)
-                       no -> multiple_hypotheses; escalate without restart
+           neither (both read and healthy) -> worker loop/runtime (H1): evidence preserved, human approval
+                                              before any container.restart of the worker
+           not read or unknown -> multiple_hypotheses; escalate without restart
 ```
 
 ## False positives and edge cases

@@ -331,6 +331,8 @@ accepted on an audit trail that someone with `sudo` on the VMs could rewrite.
 
 - [ ] `ARCHITECTURE.md` updated (§1.2, §1.4, §4.5, §5.3, §5.6, §5.8, §10, §11.2, §11.3, §12.2, §13.1, §13.3, §14.3,
       §14.4, §15, §17.2, §21.2, §22, changelog), version bumped
+  - Partly applied in 1.8.42 (PR #371, the first release): §1.2, §12.2, §13.3 and the opening note of §14. The other sections listed here are still to rewrite.
+  - 1.8.43 (X-6, the second release): §12.2 and §13.3 also name `container.restart` on `vm-166/container:argus-lab-jobworker`.
 - [ ] `policies/SECURITY.md`, `PARALLEL_LANES.md`, `AGENT_PROTOCOL.md`, `REVIEW_PROTOCOL.md`, `RUNBOOK-CONVENTIONS.md`
 - [ ] journal entry
 - [ ] the ACR, the architecture change and the first code that needs it are in the same pull request

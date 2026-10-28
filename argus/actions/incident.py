@@ -119,6 +119,15 @@ class ActionPolicy:
         values = observed.values.get("values")
         if not isinstance(values, dict):
             return []
+        # X-5: besides the cause's own status, the newest record of each kind that ties the incident's target to it (the
+        # reported symptom, the detector's metric snapshot, the recorded links), so a reviewer sees the failing dependent
+        supporting = []
+        for kind, capability in (("reported_symptom", None), ("metric_snapshot", None),
+                                 ("observation", "network.link_states")):
+            found = [e for e in evidence if e.target == str(inc.target) and e.kind == kind
+                     and (capability is None or (e.capability == capability and e.status == "ok"))]
+            if found:
+                supporting.append(max(found, key=lambda e: e.collected_at).evidence_id)
         offered: dict[str, tuple[ActionCard, str]] = {}
         for runbook_id in recalled_runbooks:
             for action in self.runbook_actions.get(runbook_id, []):
@@ -134,6 +143,7 @@ class ActionPolicy:
             for suggestion in suggestions:
                 result.append({"action": suggestion.action, "target": str(target), "text": suggestion.text,
                                "basis": suggestion.basis.value, "grounds": suggestion.grounds,
-                               "evidence_refs": [observed.evidence_id], "risk_color": suggestion.risk_color.value,
+                               "evidence_refs": [observed.evidence_id, *supporting],
+                               "risk_color": suggestion.risk_color.value,
                                "is_executable": False})
         return result

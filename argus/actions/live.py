@@ -24,6 +24,14 @@ def status_from_observation(obs: Observation) -> tuple[dict[str, Any], datetime]
     return dict(obs.values), obs.source_time or obs.collected_at
 
 
+def identity_of(card, values: dict[str, Any]) -> dict[str, str]:
+    """The card's identity fields from a container status; refused unless every one is a non-empty string."""
+    identity = {name: values.get(name) for name in card.identity_fields}
+    if not identity or not all(isinstance(v, str) and v for v in identity.values()):
+        raise RemediationRefused("the target's identity is unavailable")
+    return identity
+
+
 class LivePrecheck:
     """`snapshot(proposal, at) -> Precheck`: every field read now, never copied from the proposal."""
 
@@ -40,9 +48,13 @@ class LivePrecheck:
         if card is None:
             raise RemediationRefused("no reviewed action card for this capability")
         values, observed_at = self.read_status(data.target)
-        identity = {name: values.get(name) for name in card.identity_fields}
-        if not identity or not all(isinstance(v, str) and v for v in identity.values()):
-            raise RemediationRefused("the target's identity is unavailable")
+        identity = identity_of(card, values)
+        # The card's preconditions read the frozen arguments, the live status and the target's declared networks. The
+        # status (container.status) carries the networks the container is on, never the declared ones: those come from
+        # the inventory, and no argument or status field can replace them. A live fact wins over an argument.
+        info = self.inventory.target(TargetRef.parse(data.target)) if hasattr(self.inventory, "target") else None
+        precondition_values = {**data.arguments, **values,
+                               "declared_networks": list(getattr(info, "networks", None) or [])}
         incident = self.rows.get_incident(data.incident_id)
         return Precheck(
             target_identity=identity,
@@ -52,7 +64,8 @@ class LivePrecheck:
             observed_at=observed_at,
             incident_open=incident is not None and incident.status in OPEN_STATES,
             class_detected=incident is not None and bool(self.detector_firing(incident)),
-            action_preconditions_met=all(evaluate_precondition(expr, values) for expr in card.preconditions),
+            action_preconditions_met=all(evaluate_precondition(expr, precondition_values)
+                                         for expr in card.preconditions),
             host_lease_clear=bool(self.host_lease_clear(TargetRef.parse(data.target).host)))
 
 

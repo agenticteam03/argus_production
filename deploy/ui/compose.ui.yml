@@ -16,6 +16,7 @@ services:
       - /tmp:uid=101,gid=101,mode=0700
       - /etc/nginx/templates:uid=101,gid=101,mode=0700
       - /etc/nginx/conf.d:uid=101,gid=101,mode=0700
+      - /etc/nginx/ops:uid=101,gid=101,mode=0700     # ARGUS_OPS_PATH=on copies the private path's TLS include here
     cap_drop: [ALL]
     security_opt: ["no-new-privileges:true"]
     pids_limit: 64

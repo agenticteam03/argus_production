@@ -72,6 +72,9 @@ def test_the_private_path_is_off_by_default_and_on_needs_the_ca_and_its_crl():
     assert "ssl_verify_client      optional;" in tls and "ssl_crl" in tls and "error_page 495" in tls
     assert "include /etc/nginx/ops/*.conf;" in (NGINX_DIR / "public.conf.template").read_text(encoding="utf-8")
     assert "include /etc/nginx/ops" not in (NGINX_DIR / "loopback.conf.template").read_text(encoding="utf-8")
+    # the edge runs read-only: the directory the switch copies into must be writable (found in the X-5 window)
+    ui = (NGINX_DIR.parent / "compose.ui.yml").read_text(encoding="utf-8")
+    assert "- /etc/nginx/ops:uid=101,gid=101,mode=0700" in ui and "read_only: true" in ui
 
 
 def _permissions(dependant) -> set[str]:
@@ -86,7 +89,9 @@ def _permissions(dependant) -> set[str]:
 
 
 def test_every_privileged_route_lives_under_the_prefix_and_nothing_else_does(make_app):
-    routes = [r for r in build_api(make_app()).routes if hasattr(r, "dependant")]
+    app = make_app()
+    app.action_rows = None      # the routes without the private approval routes (an open gate mounts them; X-9)
+    routes = [r for r in build_api(app).routes if hasattr(r, "dependant")]
     perms = {r.path: _permissions(r.dependant) for r in routes}
     assert "investigate" in perms["/api/v1/investigations"]                       # the reading works
     for path, needed in perms.items():
