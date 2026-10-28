@@ -5,7 +5,7 @@
   "branch": "task/DEMO-X5-window-prep",
   "base_commit": "16702b0c417736cf799b408805a0bf657d235b47",
   "started_at": "2026-10-28T06:11:30+00:00",
-  "expires_at": "2026-10-28T18:25:25+00:00",
+  "expires_at": "2026-10-28T18:29:47+00:00",
   "released": false,
   "handoff": null,
   "vms": {
@@ -16,7 +16,7 @@
       "branch": "task/DEMO-X5-window-prep",
       "base_commit": "16702b0c417736cf799b408805a0bf657d235b47",
       "started_at": "2026-10-28T06:11:30+00:00",
-      "expires_at": "2026-10-28T18:25:25+00:00",
+      "expires_at": "2026-10-28T18:29:47+00:00",
       "released": false,
       "handoff": null
     },
@@ -27,7 +27,7 @@
       "branch": "task/DEMO-X5-window-prep",
       "base_commit": "16702b0c417736cf799b408805a0bf657d235b47",
       "started_at": "2026-10-28T06:11:30+00:00",
-      "expires_at": "2026-10-28T18:25:25+00:00",
+      "expires_at": "2026-10-28T18:29:47+00:00",
       "released": false,
       "handoff": null
     }
