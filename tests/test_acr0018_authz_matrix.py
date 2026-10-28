@@ -21,6 +21,7 @@ MATRIX = {
     ("POST", "/api/v1/auth/logout"): (None, ALL),
     ("GET", "/api/v1/me"): (None, ALL),
     ("POST", "/api/v1/investigations"): ("investigate", ("investigate", "full")),
+    ("POST", "/api/v1/incidents/{incident_id}/resolve"): ("resolve_incident", ("investigate", "full")),   # ACR-0041
     ("GET", "/api/v1/targets"): ("view", ALL),
     ("GET", "/api/v1/host-metrics"): ("view", ALL),
     ("GET", "/api/v1/incidents"): ("view", ALL),
@@ -39,7 +40,8 @@ MATRIX = {
     ("GET", "/api/v1/auth/webauthn/credentials"): (None, ALL),
 }
 UNAUTHENTICATED = {("POST", "/api/v1/auth/token"), ("GET", "/healthz")}
-BODY = {("POST", "/api/v1/investigations"): {"target": "vm-166/container:argus-lab-worker", "reason": "matrix"}}
+BODY = {("POST", "/api/v1/investigations"): {"target": "vm-166/container:argus-lab-worker", "reason": "matrix"},
+        ("POST", "/api/v1/incidents/{incident_id}/resolve"): {"reason": "matrix"}}
 
 
 @pytest.fixture()
