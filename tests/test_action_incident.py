@@ -65,6 +65,27 @@ def test_candidates_also_cite_the_dependents_own_evidence_newest_of_each_kind():
     assert candidates[0]["evidence_refs"] == ["ev_cache_status", "ev_symptom", "ev_snapshot", "obs_links"]
 
 
+def test_a_candidate_cites_its_causes_declared_dependencies_status_newest_ok_read_only():
+    """S4: the worker was blamed by elimination (its dependency is running), but the dependency's read was not cited,
+    so the judge doubted that the dependency cause was resolved."""
+    policy, inventory = _policy()
+    at = utcnow()
+    worker = "vm-166/container:argus-lab-jobworker"
+    incident = SimpleNamespace(outcome=IncidentOutcome.diagnosed, target=TargetRef.parse(worker), root_cause_target=worker)
+
+    def status(evidence_id, target, *, state="running", age=0, ok="ok"):
+        return EvidenceRecord(evidence_id=evidence_id, incident_id="inc_s4", kind="observation",
+                              capability="container.status", target=target, host="vm-166", executor="docker_read",
+                              caller="strategy:baseline", source_time=at, collected_at=at - timedelta(seconds=age),
+                              status=ok, values={"values": {"state": state}}, model_text=state).with_hash()
+
+    evidence = [status("obs_worker", worker), status("obs_cache_old", CACHE, age=30), status("obs_cache", CACHE),
+                status("obs_cache_failed", CACHE, age=5, ok="error"), status("obs_api", API)]
+    candidates = policy.next_actions(incident, evidence, {"RB-022"}, inventory, now=at)
+    assert [c["action"] for c in candidates] == ["container.restart"]
+    assert candidates[0]["evidence_refs"] == ["obs_worker", "obs_cache"]      # not the old, the failed or the API's read
+
+
 def test_candidate_is_absent_without_fresh_evidence_or_runbook_recall():
     policy, inventory = _policy()
     at = utcnow()

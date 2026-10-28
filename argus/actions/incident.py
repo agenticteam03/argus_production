@@ -128,6 +128,13 @@ class ActionPolicy:
                      and (capability is None or (e.capability == capability and e.status == "ok"))]
             if found:
                 supporting.append(max(found, key=lambda e: e.collected_at).evidence_id)
+        # the cause's declared dependencies: a cause found by elimination ("its dependency is running, no link broken")
+        # is only as good as the read that shows it, and the judge sees only what the candidate cites
+        for dependency in info.depends_on:
+            found = [e for e in evidence if e.capability == "container.status" and e.target == str(dependency)
+                     and e.status == "ok" and e.kind == "observation"]
+            if found:
+                supporting.append(max(found, key=lambda e: e.collected_at).evidence_id)
         offered: dict[str, tuple[ActionCard, str]] = {}
         for runbook_id in recalled_runbooks:
             for action in self.runbook_actions.get(runbook_id, []):
