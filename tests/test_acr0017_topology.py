@@ -17,7 +17,7 @@ from pwdlib import PasswordHash
 
 from argus.adapters.inbound.http import build_api
 from argus.domain.model import EvidenceRecord, utcnow
-from argus.ports.ports import MetricsUnavailable, StaleMetrics
+from argus.ports.ports import MetricsUnavailable, ProbeSample, StaleMetrics
 from test_core import ROOT, FakeMetrics, incident, make_app  # noqa: F401  (make_app is a fixture)
 
 PASSWORD = "a-long-password"
@@ -87,13 +87,21 @@ def test_one_node_per_inventory_target_and_one_edge_per_declared_dependency_with
 
 
 def test_the_dependency_probe_drives_the_edge_and_unknown_is_never_ok(make_app):
-    metrics = FakeMetrics({CLIENT: {"dependency_probe_min": 0, "restarts_10m": 0, "health_unhealthy": 0},
-                           API: {"dependency_probe_min": 1, "restarts_10m": 0, "health_unhealthy": 0}})
+    class PerLinkMetrics(FakeMetrics):
+        def dependency_probes(self, target):
+            if str(target) == CLIENT:
+                return {"argus-lab-backend": ProbeSample(0, 0.01, utcnow(), "refused"),
+                        "argus-lab-api": ProbeSample(1, 0.01, utcnow())}
+            return {}
+
+    metrics = PerLinkMetrics({CLIENT: {"dependency_probe_min": 0, "restarts_10m": 0, "health_unhealthy": 0},
+                              API: {"dependency_probe_min": 1, "restarts_10m": 0, "health_unhealthy": 0}})
     app = make_app(metrics=metrics)
     api, headers = _api(app)
     body = _get(api, headers)
     assert _edge(body, CLIENT, BACKEND)["state"] == "broken"
     assert "8080" in _edge(body, CLIENT, BACKEND)["label"]
+    assert _edge(body, CLIENT, API)["state"] == "ok"
     assert _edge(body, API, CACHE)["state"] == "ok"
     leaker_db = _edge(body, "vm-166/container:argus-lab-leaker", "vm-166/container:argus-lab-db")
     assert leaker_db["state"] == "unknown"                          # no sample: unknown, never ok

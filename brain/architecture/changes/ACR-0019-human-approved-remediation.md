@@ -77,7 +77,7 @@ command: it picks an action and its parameters from closed lists."
 - **First catalogue, Docker (`action-gateway`):**
   - `container.start`, `container.restart`, `container.stop`, `container.pause`, `container.unpause`;
   - `container.update_resources`, `container.signal`;
-  - `container.network_connect`, `container.network_disconnect`;
+  - `network.restore` (one reviewed connect-then-disconnect action; its exact networks are pinned in the release entry, per ACR-0035);
   - `deployment.rollback`, `docker.prune_images`, `docker.prune_build_cache`.
 
   Later families (PostgreSQL `db-action`, configuration with a hash lock, Linux `host-action`, generated tools) each
@@ -333,6 +333,7 @@ accepted on an audit trail that someone with `sudo` on the VMs could rewrite.
       §14.4, §15, §17.2, §21.2, §22, changelog), version bumped
   - Partly applied in 1.8.42 (PR #371, the first release): §1.2, §12.2, §13.3 and the opening note of §14. The other sections listed here are still to rewrite.
   - 1.8.43 (X-6, the second release): §12.2 and §13.3 also name `container.restart` on `vm-166/container:argus-lab-jobworker`.
+  - 1.8.45 (X-8, the third release): ACR-0035 applies `network.restore` to `vm-166/container:argus-lab-api` with the exact network pair pinned in the release candidate.
 - [ ] `policies/SECURITY.md`, `PARALLEL_LANES.md`, `AGENT_PROTOCOL.md`, `REVIEW_PROTOCOL.md`, `RUNBOOK-CONVENTIONS.md`
 - [ ] journal entry
 - [ ] the ACR, the architecture change and the first code that needs it are in the same pull request

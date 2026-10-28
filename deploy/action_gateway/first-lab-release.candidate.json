@@ -10,6 +10,13 @@
       "capability": "container.restart",
       "target": "vm-166/container:argus-lab-jobworker",
       "route": "POST /containers/argus-lab-jobworker/restart"
+    },
+    {
+      "capability": "network.restore",
+      "target": "vm-166/container:argus-lab-api",
+      "route": "POST /containers/argus-lab-api/network-restore",
+      "connect_network": "argus-lab-app",
+      "disconnect_network": "argus-lab-iso"
     }
   ]
 }
