@@ -4,6 +4,7 @@ from __future__ import annotations
 from dataclasses import asdict
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
+import sqlite3
 
 import pytest
 
@@ -459,8 +460,8 @@ def _approved_without_verdict(tmp_path, verdict=None, target=TARGET):
         proposal = proposal.model_copy(update={"input": data, "digest": _proposal_digest(
             data, proposal.created_at, proposal.expires_at)})
     store.add_action_proposal(proposal)
-    store._db.execute("DROP TRIGGER approval_needs_agree")   # the executor's own check, without the store's
-    store._db.execute("DROP TRIGGER approval_approved_needs_agree")
+    store._db.execute("DROP TRIGGER approval_needs_verdict")   # the executor's own check, without the store's
+    store._db.execute("DROP TRIGGER approval_approved_needs_verdict")
     if verdict:
         body = {**asdict(JudgeResult.agree(proposal.digest)), "reasons": [], "verdict": verdict}
         store.add_judge_verdict(proposal.id, "judge-test", body, NOW)
@@ -472,13 +473,23 @@ def _approved_without_verdict(tmp_path, verdict=None, target=TARGET):
     return store, gateway, executor, check
 
 
-@pytest.mark.parametrize("verdict", [None, "doubt", "disagree"])
-def test_executor_refuses_an_approval_without_the_judges_agree(tmp_path, verdict):
+@pytest.mark.parametrize("verdict", [None, "disagree"])
+def test_executor_refuses_an_approval_the_judge_disagreed_with_or_never_reviewed(tmp_path, verdict):
     store, gateway, executor, check = _approved_without_verdict(tmp_path, verdict)
     try:
-        with pytest.raises(RemediationRefused, match="judge did not agree"):
+        with pytest.raises(RemediationRefused, match="judge disagreed"):
             executor.execute("appr_v", check, at=NOW)
         assert gateway.calls == [] and store.get_action_for_approval("appr_v") is None
+    finally:
+        store._db.close()
+
+
+def test_executor_dispatches_an_approval_a_person_gave_over_a_judge_doubt(tmp_path):
+    """ACR-0039: the person decided with the doubt in front of them; the executor does not second-guess it."""
+    store, gateway, executor, check = _approved_without_verdict(tmp_path, "doubt")
+    try:
+        executor.execute("appr_v", check, at=NOW)
+        assert len(gateway.calls) == 1
     finally:
         store._db.close()
 
@@ -513,13 +524,13 @@ def test_answer_fails_closed_without_a_stored_verdict(tmp_path):
     try:
         proposal = freeze_proposal(candidate(), at=NOW)
         store.add_action_proposal(proposal)
-        store._db.execute("DROP TRIGGER approval_needs_agree")   # answer's own check, without the store's
+        store._db.execute("DROP TRIGGER approval_needs_verdict")   # answer's own check, without the store's
         store.add_action_approval("appr_a", proposal.id, proposal.digest, NOW, proposal.expires_at)
         path = OfflineActionPath(
             rows=store, action_policy=None, inventory=None, proposer=None, judge_model=None, judge_model_id="none",
             judge_context=None, snapshot=None, sample=None, gateway=FakeActionGateway(), gate_open=frozenset(),
             daily_host_cap=1, clock=lambda: NOW)
-        with pytest.raises(RemediationRefused, match="judge did not agree"):
+        with pytest.raises(RemediationRefused, match="judge disagreed"):
             path.answer("appr_a", digest=proposal.digest, principal="operator", principal_kind="human",
                         decision="approved")
         assert store.get_action_approval("appr_a")["state"] == "pending"
@@ -571,8 +582,8 @@ def test_the_stored_judge_model_id_is_the_model_the_adapter_calls(tmp_path):
         store._db.close()
 
 
-@pytest.mark.parametrize("verdict", [None, "doubt", "disagree", "agree-other-digest"])
-def test_the_store_refuses_an_approval_without_the_judges_agree(tmp_path, verdict):
+@pytest.mark.parametrize("verdict", [None, "disagree", "agree-other-digest", "doubt-forbidden"])
+def test_the_store_refuses_an_approval_without_an_approvable_verdict(tmp_path, verdict):
     from argus.adapters.outbound.sqlite_store import SqliteStore
 
     store = SqliteStore(str(tmp_path / "need-agree.db"))
@@ -583,6 +594,8 @@ def test_the_store_refuses_an_approval_without_the_judges_agree(tmp_path, verdic
             body = {**asdict(JudgeResult.agree(proposal.digest)), "reasons": []}
             if verdict == "agree-other-digest":
                 body["proposal_digest"] = "b" * 64
+            elif verdict == "doubt-forbidden":
+                body.update(verdict="doubt", risk="forbidden")
             else:
                 body["verdict"] = verdict
             store.add_judge_verdict(proposal.id, "judge-test", body, NOW)
@@ -603,5 +616,42 @@ def test_the_store_accepts_an_approval_after_the_judges_agree(tmp_path):
         agreed(store, proposal, NOW)
         store.add_action_approval("appr_ok", proposal.id, proposal.digest, NOW, proposal.expires_at)
         assert store.answer_action_approval("appr_ok", proposal.digest, "operator", "approved", NOW)
+    finally:
+        store._db.close()
+
+
+def test_the_store_accepts_an_approval_after_a_judge_doubt(tmp_path):
+    """ACR-0039: a doubt reaches a person, so the approval row may exist and be approved (migration 018's mirror)."""
+    from argus.adapters.outbound.sqlite_store import SqliteStore
+
+    store = SqliteStore(str(tmp_path / "doubt.db"))
+    try:
+        proposal = freeze_proposal(candidate(), at=NOW)
+        store.add_action_proposal(proposal)
+        store.add_judge_verdict(proposal.id, "judge-test", {**asdict(JudgeResult.agree(proposal.digest)),
+                                                            "reasons": ["unsure"], "verdict": "doubt",
+                                                            "risk": "amber"}, NOW)
+        store.add_action_approval("appr_d", proposal.id, proposal.digest, NOW, proposal.expires_at)
+        assert store.answer_action_approval("appr_d", proposal.digest, "operator", "approved", NOW)
+    finally:
+        store._db.close()
+
+
+def test_an_old_sqlite_file_gets_the_doubt_rule_at_start(tmp_path):
+    """The agree-only triggers of an existing file are replaced when the store opens it again."""
+    from argus.adapters.outbound.sqlite_store import SqliteStore
+
+    path = str(tmp_path / "old.db")
+    SqliteStore(path)._db.close()
+    old = sqlite3.connect(path)
+    old.executescript("""
+CREATE TRIGGER IF NOT EXISTS approval_needs_agree BEFORE INSERT ON approval
+  WHEN NOT EXISTS (SELECT 1 FROM judge_verdict v WHERE v.proposal_id = NEW.proposal_id AND v.verdict = 'agree')
+  BEGIN SELECT RAISE(ABORT, 'an approval needs the judge''s agree on this proposal'); END;""")
+    old.close()
+    store = SqliteStore(path)
+    try:
+        names = {r[0] for r in store._db.execute("SELECT name FROM sqlite_master WHERE type = 'trigger'")}
+        assert "approval_needs_agree" not in names and "approval_needs_verdict" in names
     finally:
         store._db.close()

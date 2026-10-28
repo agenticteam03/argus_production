@@ -49,7 +49,7 @@ class FakeRows:
 
 def _path(monkeypatch, notifier=None):
     monkeypatch.setattr(action_path_module, "verify_frozen_proposal", lambda _proposal: None)
-    monkeypatch.setattr(action_path_module, "agreed_verdict", lambda _verdict, _proposal: True)
+    monkeypatch.setattr(action_path_module, "approvable_verdict", lambda _verdict, _proposal: True)
     rows = FakeRows()
     path = object.__new__(OfflineActionPath)
     path.rows = rows
@@ -81,6 +81,18 @@ def test_new_approval_sends_one_safe_message_and_answers_do_not_send_again(monke
     for detail in ("inc_123", "container", "start", TARGET, "argus-lab", "yellow", "agree", "risk", "/api/",
                    "2026-10-27", "https://", "@", "secret"):
         assert detail not in message.lower()
+
+
+def test_a_doubted_approval_says_so_and_still_carries_no_detail(monkeypatch):
+    """ACR-0039: the team learns the judge doubted it before anyone opens the private screen; nothing else is added."""
+    messages = []
+    path, rows = _path(monkeypatch, lambda message, *_a, **_k: messages.append(message))
+    rows.verdict = {"verdict": "doubt", "risk": "amber"}
+    assert path.request("prop_123")
+    assert messages == ["Argus: an approval is waiting; it expires at 12:30Z. The independent judge doubted it. "
+                        "Open the Actions screen on the private path."]
+    for detail in ("inc_123", "container", TARGET, "argus-lab", "amber", "/api/"):
+        assert detail not in messages[0].lower()
 
 
 def test_answer_posts_the_alert_again_as_resolved_once(monkeypatch):

@@ -172,6 +172,9 @@ diff, where the action has one) and the rollback plan.
 - **Phase 18 reading (2026-10-26, T-0051):** stricter than the colour raise above: a `doubt` or `disagree` stops the
   proposal before any approval request, and the approval answer and the executor both refuse without a stored `agree`
   bound to the proposal's digest. The colour raise applies only if a later phase lets such a proposal reach a person.
+- **Amended by [ACR-0039](ACR-0039-judge-doubt-reaches-approver.md) (2026-10-28):** a `doubt` reaches the approver
+  with its reasons and the colour raised one level; only a `disagree` (or a forbidden colour, another digest, no verdict)
+  stops the proposal.
 
 ### 3.9 Execution by the worker (§4.5, §17.2)
 

@@ -14,6 +14,12 @@ describe("PendingApprovals", () => {
       expect(out).toContain(text);
   });
 
+  it("marks an approval the judge doubted (ACR-0039)", () => {
+    const doubted = [{ ...items[0], verdict: "doubt", risk: "amber" }];
+    expect(renderToStaticMarkup(<PendingApprovals items={doubted} onOpen={() => {}} />)).toContain("Judge doubted");
+    expect(renderToStaticMarkup(<PendingApprovals items={items} onOpen={() => {}} />)).not.toContain("Judge doubted");
+  });
+
   it("says so when nothing waits", () => {
     expect(renderToStaticMarkup(<PendingApprovals items={[]} onOpen={() => {}} />)).toContain("No approval is waiting");
   });

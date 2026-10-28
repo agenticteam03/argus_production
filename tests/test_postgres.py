@@ -163,6 +163,43 @@ def test_phase19_hold_and_chained_audit_commit_together(store):
     assert not any(aid == "aud_phase19_again" for aid, _, _, _ in store.audit_chain())
 
 
+def test_an_approval_accepts_a_judge_doubt_but_never_a_disagreement_migration_018(store):
+    """ACR-0039: a doubt lets a person decide (the approval row may exist and be approved); a disagreement, another
+    digest or a forbidden colour are still refused by the database."""
+    from argus.actions.remediation import Alternative, Prediction, ProposalInput, freeze_proposal
+    from argus.domain.model import utcnow
+
+    inc = _incident(target="vm-166/container:argus-lab-cache")
+    store.create_incident(inc, None)
+    now = utcnow()
+
+    def proposal(rationale):
+        p = freeze_proposal(ProposalInput(
+            incident_id=inc.id, capability="container.start", target=str(inc.target),
+            target_identity={"container_id": "cache-1"}, arguments={}, root_cause=str(inc.target),
+            rationale=rationale, evidence_refs=["ev_cache"], grounds=["runbook:RB-003"],
+            prediction=Prediction(signal="dependency_probe_min", target=str(inc.target), expected="healthy",
+                                  within_seconds=120),
+            alternatives=[Alternative(action="wait", why_not="The dependency remains unavailable")],
+            preview="Start existing container", rollback="container.stop", inventory_version="inv-1",
+            policy_version="pol-1", evidence_version="ev-1"), at=now)
+        store.add_action_proposal(p)
+        return p
+
+    doubted = proposal("Start the stopped cache (doubted)")
+    store.add_judge_verdict(doubted.id, "gpt-5.6-terra", {"verdict": "doubt", "checks": {}, "reasons": ["unsure"],
+                                                          "risk": "amber", "proposal_digest": doubted.digest}, now)
+    store.add_action_approval("appr_doubt18", doubted.id, doubted.digest, now, doubted.expires_at)
+    assert store.answer_action_approval("appr_doubt18", doubted.digest, "operator", "approved", now)
+    for verdict, risk, digest in (("disagree", "amber", None), ("doubt", "forbidden", None),
+                                  ("doubt", "amber", "c" * 64)):
+        p = proposal(f"Start the stopped cache ({verdict}, {risk}, {bool(digest)})")
+        store.add_judge_verdict(p.id, "gpt-5.6-terra", {"verdict": verdict, "checks": {}, "reasons": ["no"],
+                                                        "risk": risk, "proposal_digest": digest or p.digest}, now)
+        with pytest.raises(Exception, match="judge"):
+            store.add_action_approval(f"appr_{secrets.token_hex(4)}", p.id, p.digest, now, p.expires_at)
+
+
 def test_an_ops_session_is_accepted_by_migration_017(store):
     """ACR-0032: the private login's `ops` session; any other unknown access is still refused."""
     import psycopg
