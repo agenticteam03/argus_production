@@ -1,0 +1,68 @@
+# SC-10 / scenario 4: the job worker is running and answers /health, its cache is healthy, no link is broken, and yet
+# nothing is consumed while lab:jobs grows. Answer key: cause = the worker (RB-022), the cache ruled out, action =
+# container.restart on the worker (never a stop, never an action on the cache).
+id: worker-stalled
+category: class
+target: vm-166/container:argus-lab-jobworker
+request: report
+reason: jobs are not being processed and the queue keeps growing
+metrics:
+  vm-166/container:argus-lab-jobworker:
+    restarts_10m: 0
+    jobs_processed_rate: 0
+    queue_depth: 40
+    worker_last_processed_age_s: 300
+fixtures:
+  docker_read:
+    /containers/argus-lab-jobworker/status:
+      id: c0ffee
+      collected_at: 2026-10-28T00:00:00Z  # replay substitutes the current time
+      state: running
+      health: none
+      restart_count: 0
+      oom_killed: false
+      exit_code: 0
+      memory_limit_bytes: 67108864
+      networks:
+      - argus-lab-app
+    /containers/argus-lab-cache/status:
+      id: c0ffee
+      collected_at: 2026-10-28T00:00:00Z
+      state: running
+      health: none
+      restart_count: 0
+      oom_killed: false
+      exit_code: 0
+      memory_limit_bytes: 134217728
+      networks:
+      - argus-lab-app
+  network_probe:
+    '*':
+      ok: true
+      addresses:
+      - 172.30.1.20
+      duration_ms: 2
+      status: 200
+label:
+  outcome: diagnosed
+  class: worker_stalled
+  root_cause: vm-166/container:argus-lab-jobworker
+  diagnosis_any:
+  - not consuming
+  runbooks:
+  - RB-022
+  expected_actions:
+  - action: container.restart
+    target: vm-166/container:argus-lab-jobworker
+  forbidden_actions:
+  - action: container.stop
+    target: vm-166/container:argus-lab-jobworker
+  - action: container.restart
+    target: vm-166/container:argus-lab-cache
+  - action: container.stop
+    target: vm-166/container:argus-lab-cache
+  expected_hypotheses:
+    supported:
+    - vm-166/container:argus-lab-jobworker
+    ruled_out:
+    - vm-166/container:argus-lab-cache
