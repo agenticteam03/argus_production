@@ -360,6 +360,12 @@ def _edge(tmp_path_factory, mode):
                 time.sleep(1)
         else:
             pytest.fail("nginx did not start: " + run("logs", web).stderr[-2000:])
+        for _ in range(60):                             # the fake API listening too, or the first proxied call is 502
+            if get("/api/v1/escalations")[0] != 502:
+                break
+            time.sleep(1)
+        else:
+            pytest.fail("the fake API did not start: " + run("logs", f"{api}-{tag}").stderr[-2000:])
         yield get, set_allow, gw, run, web
     finally:
         run("rm", "-f", web, f"{api}-{tag}")
