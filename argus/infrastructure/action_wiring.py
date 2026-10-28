@@ -35,6 +35,8 @@ log = logging.getLogger(__name__)
 # no proposal: the verification must be a reviewed fact, not a guess.
 VERIFY_SIGNALS: dict[str, tuple[str, float]] = {
     "dependency_unavailable": ("dependency_probe_min", 1.0),
+    # S4: the restarted worker must process again; any positive five-minute rate counts (the detector wants exactly 0)
+    "worker_stalled": ("jobs_processed_rate", 0.01),
 }
 HEALTHY_AT_LEAST = {signal: minimum for signal, minimum in VERIFY_SIGNALS.values()}
 # actions this proposer may propose: those whose reviewed card needs no argument (a card's optional parameters, such as
@@ -111,8 +113,7 @@ class CandidateProposer:
             return ProposalInput(
                 incident_id=incident.id, capability=candidate["action"], target=candidate["target"],
                 target_identity=identity, arguments={}, root_cause=incident.root_cause_target or candidate["target"],
-                rationale=(f"{name} is {values.get('state', 'not running')}; {candidate['action']} on it addresses the "
-                           f"cause of {incident.target.name}'s {incident.incident_class}, not the symptom."),
+                rationale=self._rationale(incident, name, values, candidate["action"]),
                 evidence_refs=list(candidate["evidence_refs"]),
                 grounds=["runbook:" + ground for ground in candidate["grounds"]],
                 prediction=Prediction(signal=rule[0], target=str(incident.target), expected="healthy",
@@ -122,6 +123,15 @@ class CandidateProposer:
                 inventory_version=self.inventory.version(), policy_version=self.policy_version,
                 evidence_version=str(self.rows.evidence_state(incident.id)[0]))
         return None
+
+
+    @staticmethod
+    def _rationale(incident, name: str, values: dict, action: str) -> str:
+        state = values.get("state", "not running")
+        if incident.target.name == name:
+            return f"{name} is {state} but its {incident.incident_class} persists; {action} on it addresses the cause."
+        return (f"{name} is {state}; {action} on it addresses the cause of {incident.target.name}'s "
+                f"{incident.incident_class}, not the symptom.")
 
 
 class SignalSampler:

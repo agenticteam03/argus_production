@@ -96,6 +96,32 @@ def test_the_proposer_skips_a_candidate_whose_identity_cannot_be_read_and_takes_
     assert proposer(gate, lambda i, t: ({"state": "exited"}, NOW))(incident(), [candidate()], {}) is None   # no identity
 
 
+def test_the_proposer_restarts_a_stalled_worker_and_predicts_its_own_processing_rate():
+    """S4: the cause and the symptom are the same container; the reviewed signal is its job throughput."""
+    worker = "vm-166/container:argus-lab-jobworker"
+    inc = SimpleNamespace(id="inc_s4", incident_class="worker_stalled", target=TargetRef.parse(worker),
+                          root_cause_target=worker)
+    cand = {**candidate("container.restart", worker), "grounds": ["RB-022"]}
+    read = lambda i, t: ({"state": "running", "container_id": FULL_ID}, NOW)
+    result = proposer(frozenset({("container.restart", worker)}), read)(inc, [cand], {})
+    assert (result.capability, result.target, result.arguments) == ("container.restart", worker, {})
+    assert result.grounds == ["runbook:RB-022"] and result.target_identity == {"container_id": FULL_ID}
+    assert (result.prediction.signal, result.prediction.target) == ("jobs_processed_rate", worker)
+    assert result.prediction.within_seconds == aw.PREDICTION_WINDOW_S
+    assert "running" in result.rationale and "worker_stalled" in result.rationale
+    assert aw.VERIFY_SIGNALS["worker_stalled"][0] == "jobs_processed_rate" and 0 < aw.VERIFY_SIGNALS["worker_stalled"][1] <= 0.1
+
+
+def test_a_job_rate_is_healthy_only_when_it_is_above_zero():
+    worker = "vm-166/container:argus-lab-jobworker"
+
+    def rate(value):
+        return SimpleNamespace(snapshot=lambda t, signals: SimpleNamespace(values={"jobs_processed_rate": value},
+                                                                           observed_at=NOW))
+    sample = lambda value: aw.SignalSampler(rate(value))("jobs_processed_rate", worker)
+    assert sample(0.5) == ("healthy", NOW) and sample(0.0)[0] == "unhealthy"
+
+
 # --- verification samples ---------------------------------------------------------------------------------------------
 def metrics_with(value, observed_at=NOW, raises=None):
     def snapshot(target, signals):

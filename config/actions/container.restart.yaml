@@ -11,6 +11,7 @@ preconditions:
 useful_when:
   - "Container is in a restart loop without OOM"
   - "Process is unresponsive or hung"
+  - "Worker is alive but not consuming its queue (RB-022)"
 not_useful_when:
   - "Victim container of an external dependency outage (RB-002, RB-003)"
   - "Database or persistent storage backend"
@@ -23,3 +24,4 @@ rollback: none
 sources:
   - RB-001
   - RB-008
+  - RB-022
