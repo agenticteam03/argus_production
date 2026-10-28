@@ -12,7 +12,7 @@ References: PR #366; [ACR-0036](../../architecture/changes/ACR-0036-stalled-work
 
 ### Test state
 
-Earlier red evidence: CI on `578c730` failed five rendered-inventory tests because the obsolete database probe remained in `vm-166.json`; commit `6a0aecb6` regenerated that file. CI on `6a0aecb6` then failed the changed-lines coverage gate (48%) because the new baseline plan and diagnosis paths lacked tests. New tests cover the worker/cache read plan and the observed stopped-cache, broken-link, healthy-peer and missing-worker paths; targeted pytest and Ruff pass, and local diff-cover reports 94% on changed lines. `brain.py audit` and `brain.py lint` are clean. Full local pytest and exact-head CI on the review update are pending.
+Earlier red evidence: CI on `578c730` failed five rendered-inventory tests because the obsolete database probe remained in `vm-166.json`; commit `6a0aecb6` regenerated that file. CI on `6a0aecb6` then passed its full Python test step but failed the changed-lines coverage gate (48%) because the new baseline plan and diagnosis paths lacked tests. New tests cover the worker/cache read plan and the observed stopped-cache, broken-link, healthy-peer and missing-worker paths; targeted pytest and Ruff pass, and local diff-cover reports 94% on changed lines. `brain.py audit` and `brain.py lint` are clean. The full local pytest run stopped at `tests/skills/test_check_block.py`: its subprocess invokes Windows `bash.EXE`, and WSL cannot find `/bin/bash` (`CreateProcessCommon: execvpe(/bin/bash) failed`). This is a local environment failure; the exact-head Linux CI run remains pending.
 
 ### Next step
 
