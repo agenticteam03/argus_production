@@ -19,6 +19,7 @@ TARGET = "vm-166/container:argus-lab-worker"
 def ui(make_app):
     from argus.adapters.inbound.http import build_api
     app = make_app()
+    app.action_rows = None      # the routes without the private approval routes (an open gate mounts them; X-9)
     pw = PasswordHash.recommended().hash(PASSWORD)
     app.store.upsert_principal("alice", "human", "operator", ["lab"], pw)
     app.store.upsert_principal("vera", "human", "viewer", ["lab"], pw)
