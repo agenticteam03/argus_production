@@ -7,7 +7,7 @@ id: RB-022
 title: Stalled job worker
 status: draft
 owner: Argus Team
-version: 1.0.0
+version: 1.0.1
 created: 2026-10-27
 last_reviewed: 2026-10-27
 source_review_date: 2026-10-27
@@ -17,7 +17,7 @@ detector: worker_stalled
 
 ## Scope
 
-The `argus-lab-jobworker` container on vm-166, its Redis queue store (`argus-lab-cache`), and its declared PostgreSQL dependency (`argus-lab-db`). This runbook diagnoses a symptom; it does not authorize a restart or establish that the worker is the root cause. Apply the shared [runbook conventions](RUNBOOK-CONVENTIONS.md).
+The `argus-lab-jobworker` container on vm-166 and its Redis queue store (`argus-lab-cache`). This runbook diagnoses a symptom; it does not authorize a restart or establish that the worker is the root cause. Apply the shared [runbook conventions](RUNBOOK-CONVENTIONS.md).
 
 ## Incident definition
 
