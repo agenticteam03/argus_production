@@ -2,6 +2,7 @@
 the string-parameter form of the card loader, the lab's declared networks and the suggestions."""
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest
@@ -157,8 +158,12 @@ def test_suggestions_respect_service_card_and_database_forbidden(cards):
 
 
 def test_unreleased_pair_stays_refused():
+    """network.restore is not released: the gate holds exactly the reviewed release candidate, and nothing else."""
     policy = yaml.safe_load((ROOT / "config/policy.yaml").read_text(encoding="utf-8"))
-    assert policy["write_gate"]["open"] == []
+    release = json.loads((ROOT / "deploy/action_gateway/first-lab-release.candidate.json").read_text(encoding="utf-8"))
+    gate = {(p["capability"], p["target"]) for p in policy["write_gate"]["open"]}
+    assert gate == {(row["capability"], row["target"]) for row in release["released"]}
+    assert all(capability != "network.restore" for capability, _ in gate)
 
 
 # --- TASK-65: the REAL propose() with this card (review of #362, findings 1 and 2) --------------------------------------
