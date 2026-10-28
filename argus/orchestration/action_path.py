@@ -4,7 +4,7 @@ from __future__ import annotations
 import logging
 import re
 from dataclasses import asdict
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Callable
 from uuid import uuid4
 
@@ -237,6 +237,21 @@ class OfflineActionPath:
         return {"approval_id": approval_id, "approved_by": approval.get("actor"),
                 "capability": proposal.input.capability if proposal else None,
                 "target": proposal.input.target if proposal else None}
+
+    def verify_wait(self, action_id: str) -> float:
+        """Seconds left of the reviewed window (the prediction's, counted from the action's completion); 0 when the
+        action or its completion time is unknown, so the caller then asks once and never waits on a guess."""
+        action = self.rows.get_action(action_id)
+        if not action or action.get("result_at") is None:
+            return 0.0
+        completed = action["result_at"]
+        if isinstance(completed, str):
+            completed = datetime.fromisoformat(completed)
+        proposal = self.rows.get_action_proposal(action["proposal_id"])
+        if proposal is None:
+            return 0.0
+        deadline = completed + timedelta(seconds=proposal.input.prediction.within_seconds)
+        return max(0.0, (deadline - self.clock()).total_seconds())
 
     def verify(self, action_id: str) -> str | None:
         old = self.rows.get_action_outcome(action_id)

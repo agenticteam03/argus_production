@@ -126,3 +126,57 @@ def test_a_failing_approver_lookup_never_stops_the_action(app_factory, monkeypat
     done = app.runner.run(incident(app, WORKER_166).id)
     assert done.outcome == IncidentOutcome.recovered_verified
     assert {a.event: a.detail for a in app.store.list_for(done.id)}["action.executed"]["approval_id"] == "appr_test"
+
+
+class SlowToRecover(OfflinePath):
+    """The worker has recovered, but the first samples after the restart are not healthy yet (or do not exist)."""
+
+    def __init__(self, answers, window_s=120.0):
+        super().__init__()
+        self.answer, self.answers, self.window_s, self.asked = "approved", list(answers), window_s, 0
+
+    def verify(self, action_id):
+        self.calls.append("verify")
+        self.asked += 1
+        return self.answers.pop(0) if self.answers else None
+
+    def verify_wait(self, action_id):
+        return self.window_s
+
+
+def _runner(app_factory, monkeypatch, path, slept):  # noqa: F811
+    monkeypatch.setenv("ARGUS_RUNNER", "langgraph")
+    app = app_factory(llm=ScriptedLLM(_diagnose_script), metrics=_metrics())
+    app.runner.action_path = path
+    app.runner.verify_sleep = slept.append             # no real waiting; the pauses are recorded
+    return app
+
+
+def test_the_verification_is_asked_again_inside_its_window_instead_of_waiting_for_the_next_pass(app_factory, monkeypatch):  # noqa: F811
+    """S4 rehearsal: the worker processed again 16 s after its restart, but the first verification found no healthy
+    sample yet, the run slept until the worker's next five-minute pass and the late sample read `action_failed`."""
+    slept = []
+    path = SlowToRecover([None, None, "recovered_verified"])
+    app = _runner(app_factory, monkeypatch, path, slept)
+    done = app.runner.run(incident(app, WORKER_166).id)
+    assert done.outcome == IncidentOutcome.recovered_verified and done.status == IncidentStatus.closed
+    assert path.asked == 3 and slept == [10.0, 10.0]
+
+
+def test_the_wait_ends_with_the_reviewed_window_and_never_runs_past_it(app_factory, monkeypatch):  # noqa: F811
+    slept = []
+    path = SlowToRecover([], window_s=35.0)             # no sample ever arrives
+    app = _runner(app_factory, monkeypatch, path, slept)
+    done = app.runner.run(incident(app, WORKER_166).id)
+    assert sum(slept) == 35.0 and slept == [10.0, 10.0, 10.0, 5.0]
+    assert done.outcome is None and done.status == "running"              # as before: it waits for a fresh sample
+    assert path.asked == 5                                                # and never claims a recovery it has not seen
+
+
+def test_a_path_without_a_window_is_asked_once_as_before(app_factory, monkeypatch):  # noqa: F811
+    slept = []
+    path = OfflinePath()
+    path.answer = "approved"
+    app = _runner(app_factory, monkeypatch, path, slept)
+    done = app.runner.run(incident(app, WORKER_166).id)
+    assert done.outcome == IncidentOutcome.recovered_verified and slept == []
