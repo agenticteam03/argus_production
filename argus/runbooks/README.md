@@ -1,6 +1,6 @@
 # Runbook library (reviewed copy, part of this repository)
 
-The 21 runbooks (`RB-001` ... `RB-021`), `RUNBOOK-CONVENTIONS.md` and `RUNBOOK-INDEX.md` live here, as architecture
+The 22 runbooks (`RB-001` ... `RB-022`), `RUNBOOK-CONVENTIONS.md` and `RUNBOOK-INDEX.md` live here, as architecture
 section 2.4 specifies. They are loaded by `TfidfRunbooks` (`argus/adapters/outbound/config_adapters.py`); IDs,
 versions and status come from each file's metadata block, never from the file name.
 

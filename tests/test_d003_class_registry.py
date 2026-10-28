@@ -15,7 +15,8 @@ CASES = ROOT / "tests" / "eval" / "cases"
 TO_BASELINE = {"dependency_unavailable", "nginx_upstream_failure"}
 KEPT = {"container_restart_loop": "model_loop", "health_check_failed": "model_loop",
         "postgresql_connection_exhaustion": "model_loop", "cpu_saturation": "model_loop",
-        "disk_pressure": "confirm_then_reason", "monitoring_blind_spot": "evidence_pack"}
+        "disk_pressure": "confirm_then_reason", "monitoring_blind_spot": "evidence_pack",
+        "worker_stalled": "baseline"}
 
 
 def _registry() -> dict[str, str]:

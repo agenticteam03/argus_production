@@ -22,6 +22,7 @@ CLASS_TEXT = {
     "health_check_failed": ("Health check failing", "health_check"),
     "postgresql_connection_exhaustion": ("Connection slots exhausted", "connection_exhaustion"),
     "nginx_upstream_failure": ("Gateway errors", "gateway_error"),
+    "worker_stalled": ("Worker stalled", "worker_stalled"),
     "cpu_saturation": ("CPU saturation", "cpu_saturation"),
     "disk_pressure": ("Disk pressure", "disk_pressure"),
     "monitoring_blind_spot": ("Monitoring blind spot", "blind_spot"),
