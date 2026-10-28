@@ -60,8 +60,10 @@ ROLE_PERMISSIONS: dict[str, frozenset[str]] = {
 }
 # Phase 19: granted only while the action routes are mounted (`action_rows`); production wiring mounts none yet.
 ACTION_ROLE_PERMISSIONS: dict[str, frozenset[str]] = {"approver": frozenset({"approve_action", "place_hold"})}
-# ACR-0034 local tier: installing a staged reference source is an administrator's privileged act (step-up each time)
-CORPUS_ROLE_PERMISSIONS: dict[str, frozenset[str]] = {"admin": frozenset({"manage_corpus"})}
+# ACR-0034 local tier: installing a staged reference source is a privileged act (step-up each time); ACR-0040: an
+# approver may do it as well as an administrator
+CORPUS_ROLE_PERMISSIONS: dict[str, frozenset[str]] = {"admin": frozenset({"manage_corpus"}),
+                                                      "approver": frozenset({"manage_corpus"})}
 
 
 def permissions_of(p: Principal) -> frozenset[str]:
@@ -433,7 +435,7 @@ def build_api(app_ctx) -> FastAPI:
         if second.configured:
             actions.append("manage_second_factor")          # ACR-0018 step 3: enrol a key, complete the login
         # Phase 19: a granted privileged permission is also an action, so the UI shows its control (ACR-0001)
-        actions += sorted(granted_now & {"approve_action", "place_hold"})
+        actions += sorted(granted_now & {"approve_action", "place_hold", "manage_corpus"})   # ACR-0040: the corpus too
         # ACR-0018: what the role grants; the token's access may narrow it (a read token starts nothing); a privileged
         # permission is listed only once the second factor holds
         return {"user": p.id, "role": p.role, "access": access, "actions": actions, "permissions": sorted(granted_now),
@@ -907,7 +909,8 @@ def build_api(app_ctx) -> FastAPI:
             return {"id": hold_id, "released_at": now}
 
     # ACR-0034 local tier: mounted only when a staging folder is configured (ARGUS_CORPUS_STAGING_DIR), like the
-    # phase 19 action routes; then staged reference sources are installed only by an administrator's approval
+    # phase 19 action routes; then staged reference sources are installed only by an approver's or an administrator's
+    # approval (ACR-0040)
     if s.corpus_staging_dir:
         from argus.corpus import staging as corpus_staging
 
