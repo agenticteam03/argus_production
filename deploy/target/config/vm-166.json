@@ -68,12 +68,6 @@
       "port": 6379
     },
     {
-      "owner": "argus-lab-jobworker",
-      "dependency": "argus-lab-db",
-      "host": "argus-lab-db",
-      "port": 5432
-    },
-    {
       "owner": "argus-lab-nginx",
       "dependency": "argus-lab-slow",
       "host": "argus-lab-slow",
