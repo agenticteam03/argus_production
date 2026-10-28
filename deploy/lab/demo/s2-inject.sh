@@ -14,6 +14,10 @@ APP=argus-lab-app
 ISO=argus-lab-iso
 API=argus-lab-api
 
+# the client whose link to the api is verified runs WITHOUT argus-lab-backend (profile sc07-api; SC-07 stays as it was)
+LAB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+docker compose -f "$LAB_DIR/compose.lab.yml" --profile sc07-api up -d argus-lab-client
+
 docker network inspect "$ISO" >/dev/null 2>&1 || docker network create --subnet 172.30.3.0/24 "$ISO"
 docker network disconnect argus-lab-app argus-lab-api
 docker network connect argus-lab-iso argus-lab-api

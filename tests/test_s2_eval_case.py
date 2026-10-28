@@ -186,3 +186,39 @@ def test_the_case_names_network_restore_and_forbids_restart_and_stop(monkeypatch
     assert case.label.root_cause == API
     status = case.fixtures["docker_read"]["/containers/argus-lab-api/status"]
     assert status["state"] == "running" and "argus-lab-app" not in status["networks"]
+
+
+# ---- TASK-95: the scenario 2 client runs without SC-07's backend ---------------------------------------------
+
+def _lab_services():
+    import yaml
+
+    return yaml.safe_load((ROOT / "deploy/lab/compose.lab.yml").read_text(encoding="utf-8"))["services"]
+
+
+def test_the_scenario_2_client_profile_does_not_include_the_backend():
+    services = _lab_services()
+    assert "sc07-api" in services["argus-lab-client"]["profiles"]
+    assert "sc07-api" not in services["argus-lab-backend"]["profiles"]
+    in_profile = {n for n, s in services.items() if "sc07-api" in s.get("profiles", [])}
+    assert in_profile == {"argus-lab-client"}
+
+
+def test_sc07_still_starts_the_client_and_the_backend_on_the_iso_network():
+    services = _lab_services()
+    assert "sc07" in services["argus-lab-client"]["profiles"] and "sc07" in services["argus-lab-backend"]["profiles"]
+    assert services["argus-lab-backend"]["networks"] == ["argus-lab-iso"]
+    assert services["argus-lab-client"]["networks"] == ["argus-lab-app"]
+
+
+def test_inject_starts_only_the_client_service_before_moving_the_api(tmp_path):
+    code, calls = _run(INJECT, tmp_path, "argus-vm166")
+    assert code == 0
+    up = [c for c in calls if c.startswith("compose")]
+    assert len(up) == 1 and "--profile sc07-api" in up[0] and up[0].endswith("up -d argus-lab-client")
+    assert "sc07 " not in up[0] and "backend" not in up[0]
+    assert calls.index(up[0]) < [i for i, c in enumerate(calls) if c.startswith("network disconnect")][0]
+
+
+def test_reset_does_not_start_anything():
+    assert "compose" not in RESET.read_text(encoding="utf-8")
