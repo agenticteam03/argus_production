@@ -17,6 +17,7 @@ from test_core import ROOT, FakeMetrics, FakeTargetAgent, incident, make_app  # 
 
 WORKER_166 = "vm-166/container:argus-lab-worker"
 CACHE_PAIR = {"capability": "container.start", "target": "vm-166/container:argus-lab-cache"}
+WORKER_PAIR = {"capability": "container.restart", "target": "vm-166/container:argus-lab-jobworker"}
 READ_ONLY = {"READ_ONLY_SAFE", "READ_ONLY_SENSITIVE"}
 WRITE_NODES = {"propose_action", "request_approval", "await_approval", "precheck_action", "execute_write"}
 
@@ -72,10 +73,10 @@ def test_the_catalogue_registers_no_write_capability():
     assert not names & {"container.restart", "restart_container", "propose_remediation"}
 
 
-def test_the_policy_opens_only_cache_start_and_allows_only_reads():
+def test_the_policy_opens_only_the_two_reviewed_pairs_and_allows_only_reads():
     text = (ROOT / "config/policy.yaml").read_text(encoding="utf-8")
     data = yaml.safe_load(text)
-    assert data["write_gate"]["open"] == [CACHE_PAIR]
+    assert data["write_gate"]["open"] == [CACHE_PAIR, WORKER_PAIR]
     policy = PolicyEngine(data, text)
     assert policy.allowed_safety_classes <= READ_ONLY
-    assert policy.write_gate_open == [CACHE_PAIR]
+    assert policy.write_gate_open == [CACHE_PAIR, WORKER_PAIR]

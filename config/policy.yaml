@@ -75,3 +75,5 @@ write_gate:
   open:
     - capability: container.start
       target: vm-166/container:argus-lab-cache
+    - capability: container.restart
+      target: vm-166/container:argus-lab-jobworker
