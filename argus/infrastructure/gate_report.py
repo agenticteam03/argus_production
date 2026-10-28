@@ -27,7 +27,10 @@ from argus.capabilities.catalog import build_catalog
 READ_ONLY = {"READ_ONLY_SAFE", "READ_ONLY_SENSITIVE"}
 ACTION_GATEWAY = "argus-v18-action-gateway"          # the §13.3 action gateway's name on the core network
 LAB_TARGET = re.compile(r"vm-166/container:argus-lab-[A-Za-z0-9_.-]+")     # the policy engine's lab rule
-RELEASE_FILE = Path(__file__).resolve().parents[2] / "deploy/action_gateway/first-lab-release.candidate.json"
+# The repository copy, when run from a checkout. ops/write-gate-check.sh pipes this file into a container's python
+# (`python - <file`, so __file__ is "<stdin>") and passes the release as ARGUS_RELEASE_JSON instead.
+_HERE = Path(__file__).resolve()
+RELEASE_FILE = (_HERE.parents[2] if len(_HERE.parents) > 2 else _HERE.parent) / "deploy/action_gateway/first-lab-release.candidate.json"
 
 
 def _resolves(name: str) -> bool:
