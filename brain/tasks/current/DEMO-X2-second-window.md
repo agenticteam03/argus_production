@@ -5,7 +5,7 @@
 | Status | `in review` — deployed on 2026-10-28, records await PR review; [evidence](../../execution/history/DEMO-X2/step-01/evidence.md) |
 | Owner | conantkd (+ agent) |
 | Target | both VMs, exact `main` commit `9798950bf6b0d7b3c26bd7699b39469d6e7ecdbc` |
-| Lease | both claimed for the deploy; to be released after verification and record |
+| Lease | both claimed for the deploy and released after verification and record |
 
 ## Goal
 

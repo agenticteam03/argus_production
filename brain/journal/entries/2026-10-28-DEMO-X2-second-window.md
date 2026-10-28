@@ -22,7 +22,8 @@ agent/worker/scheduler containers. vm-166 is a target host with none of those se
 check passed before and after deployment.
 
 Consequences: X-2's closed-gate foundation is deployed. X-5 remains a separate release PR and deploy window; no
-action token or active gateway configuration was installed here.
+action token or active gateway configuration was installed here. Both leases were released after the record was
+published.
 
 References: [evidence](../../execution/history/DEMO-X2/step-01/evidence.md),
 [coordination file](../../tasks/current/DEMO-argus-acts.md).

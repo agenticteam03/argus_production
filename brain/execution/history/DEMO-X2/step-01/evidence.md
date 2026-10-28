@@ -22,3 +22,4 @@ Observed verdicts (sanitized):
 The unqualified write-gate checker on vm-166 first returned `WRITE GATE STOP` because it expects the vm-095
 agent, worker and scheduler. Its documented `--host-only` mode passed on vm-166 before and after the deployment.
 No action gateway or socket proxy was started and no action credential was created in this window.
+Both leases were released after the deployment record was published.
