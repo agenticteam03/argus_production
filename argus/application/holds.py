@@ -33,6 +33,6 @@ def hold_release_step_up_object(hold_id: str) -> str:
     return f"hold-release:{hold_id}"
 
 
-def hold_audit(event: str, actor: str, at: datetime, **detail) -> AuditRecord:
-    return AuditRecord(audit_id=f"aud_{uuid.uuid4().hex[:16]}", incident_id=None, at=at, category="decision",
+def hold_audit(event: str, actor: str, at: datetime, *, incident_id: str | None = None, **detail) -> AuditRecord:
+    return AuditRecord(audit_id=f"aud_{uuid.uuid4().hex[:16]}", incident_id=incident_id, at=at, category="decision",
                        event=event, actor=actor[:64], detail=detail)

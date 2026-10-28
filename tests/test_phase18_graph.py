@@ -82,3 +82,32 @@ def test_a_refused_approval_request_escalates_too(app_factory, monkeypatch):  # 
     app.runner.action_path = path
     done = app.runner.run(incident(app, WORKER_166).id)
     assert done.status == IncidentStatus.escalated and "the approval request was refused" in done.diagnosis
+
+
+def test_the_executed_action_and_its_verification_are_on_the_incidents_audit_with_the_approver(app_factory, monkeypatch):  # noqa: F811
+    """S4 left no audit line for the execution: the incident did not say an operator approved a restart."""
+    monkeypatch.setenv("ARGUS_RUNNER", "langgraph")
+    app = app_factory(llm=ScriptedLLM(_diagnose_script), metrics=_metrics())
+    path = OfflinePath()
+    path.answer = "approved"
+    path.approved_action = lambda approval_id: {"approval_id": approval_id, "approved_by": "operator1",
+                                                "capability": "container.restart", "target": WORKER_166}
+    app.runner.action_path = path
+    inc = incident(app, WORKER_166)
+    app.runner.run(inc.id)
+    lines = {a.event: a.detail for a in app.store.list_for(inc.id)}
+    assert lines["action.executed"] == {"approval_id": "appr_test", "approved_by": "operator1",
+                                        "capability": "container.restart", "target": WORKER_166,
+                                        "action_id": "act_test", "state": "confirmed"}
+    assert lines["action.verified"] == {"action_id": "act_test", "outcome": "recovered_verified"}
+
+
+def test_a_failing_approver_lookup_never_stops_the_action(app_factory, monkeypatch):  # noqa: F811
+    monkeypatch.setenv("ARGUS_RUNNER", "langgraph")
+    app = app_factory(llm=ScriptedLLM(_diagnose_script), metrics=_metrics())
+    path = OfflinePath()
+    path.answer = "approved"
+    app.runner.action_path = path                          # OfflinePath has no approved_action: the lookup fails
+    done = app.runner.run(incident(app, WORKER_166).id)
+    assert done.outcome == IncidentOutcome.recovered_verified
+    assert {a.event: a.detail for a in app.store.list_for(done.id)}["action.executed"]["approval_id"] == "appr_test"

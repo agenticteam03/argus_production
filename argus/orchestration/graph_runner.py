@@ -439,6 +439,9 @@ class GraphRunner(SkeletonRunner):
             self._audit(self._inc(s), "access", "action.execution_refused",
                         detail={"approval_id": s["approval_id"], "reason": str(exc)[:200]})
             return self._final(IncidentOutcome.no_action_escalated, IncidentStatus.escalated, s["final"]["cited"])
+        # the operator's approved action, on the incident's own audit (the approval row says who answered)
+        self._audit(self._inc(s), "decision", "action.executed",
+                    detail={**self._approved(s["approval_id"]), "action_id": action["id"], "state": action["state"]})
         if action["state"] == "confirmed":
             return {"route": "verify", "action_id": action["id"]}
         outcome = (IncidentOutcome.action_failed if action["state"] == "failed"
@@ -462,7 +465,14 @@ class GraphRunner(SkeletonRunner):
         if outcome not in ("recovered_verified", "action_failed"):
             outcome = "indeterminate_escalated"
         status = IncidentStatus.closed if outcome == "recovered_verified" else IncidentStatus.escalated
+        self._audit(self._inc(s), "decision", "action.verified", detail={"action_id": s["action_id"], "outcome": outcome})
         return self._final(IncidentOutcome(outcome), status, s["final"]["cited"])
+
+    def _approved(self, approval_id: str) -> dict:
+        try:
+            return self.action_path.approved_action(approval_id)
+        except Exception:                                  # the audit line never stops the action branch
+            return {"approval_id": approval_id}
 
     def _n_record(self, s: RunState) -> dict:
         f = s["final"]

@@ -654,6 +654,11 @@ def build_api(app_ctx) -> FastAPI:
             view["audit"] = [{"at": a.at, "event": a.event, "capability": a.capability, "actor": a.actor,
                               "policy_rule": a.policy_rule, "evidence_id": a.evidence_id, "detail": a.detail}
                              for a in app_ctx.store.list_for(incident_id)]
+            if action_rows is not None:          # the supervised action's trail, while the action routes are mounted
+                from argus.application.incident_action import incident_action
+                found = incident_action(action_rows, incident_id)
+                if found is not None:
+                    view["action"] = found
         return view
 
     @api.get("/api/v1/incidents/{incident_id}/events", tags=["incidents"])
@@ -821,7 +826,9 @@ def build_api(app_ctx) -> FastAPI:
             except SecondFactorRefused as exc:
                 raise HTTPException(403, str(exc)) from exc
             now = utcnow()
-            audit = hold_audit("action.approval_answered", p.id, now, approval_id=approval_id,
+            # on the incident's own audit too, so its page shows which operator answered
+            audit = hold_audit("action.approval_answered", p.id, now,
+                               incident_id=view["proposal"]["input"]["incident_id"], approval_id=approval_id,
                                proposal_digest=body.proposal_digest, decision=body.decision,
                                reason=body.reason.strip() if body.reason else None)
             if not action_rows.answer_action_approval(approval_id, body.proposal_digest, p.id,

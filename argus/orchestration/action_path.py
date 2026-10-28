@@ -228,6 +228,14 @@ class OfflineActionPath:
         check = self.snapshot(proposal, self.clock())
         return self.executor.execute(approval_id, check, at=self.clock())
 
+    def approved_action(self, approval_id: str) -> dict:
+        """Who approved and what, for the incident's audit (never the token, digest or gateway journal)."""
+        approval = self.rows.get_action_approval(approval_id) or {}
+        proposal = self.rows.get_action_proposal(approval.get("proposal_id", "")) if approval else None
+        return {"approval_id": approval_id, "approved_by": approval.get("actor"),
+                "capability": proposal.input.capability if proposal else None,
+                "target": proposal.input.target if proposal else None}
+
     def verify(self, action_id: str) -> str | None:
         old = self.rows.get_action_outcome(action_id)
         if old:
