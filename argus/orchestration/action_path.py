@@ -1,6 +1,7 @@
 """The opt-in LangGraph action branch: the fake gateway (phase 18) or the reviewed HTTP client (phase 20)."""
 from __future__ import annotations
 
+import logging
 import re
 from dataclasses import asdict
 from datetime import datetime, timezone
@@ -12,6 +13,8 @@ from argus.actions.risk import RiskColor
 from argus.actions.remediation import (FrozenProposal, JudgeResult, ProposalInput, RemediationRefused,
                                        agreed_verdict, freeze_proposal, judge_proposal, verify_frozen_proposal)
 from argus.domain.model import EvidenceRecord, IncidentOutcome, TargetRef
+
+log = logging.getLogger(__name__)
 
 
 class OfflineActionPath:
@@ -26,7 +29,7 @@ class OfflineActionPath:
                  judge_context: Callable[[FrozenProposal], dict], snapshot: Callable[[FrozenProposal, datetime], Precheck],
                  sample: Callable[[str, datetime], Verification | None], gateway,
                  gate_open: frozenset[tuple[str, str]], daily_host_cap: int,
-                 clock: Callable[[], datetime] = lambda: datetime.now(timezone.utc)):
+                 clock: Callable[[], datetime] = lambda: datetime.now(timezone.utc), approval_notifier=None):
         if not isinstance(gateway, REVIEWED_GATEWAYS):
             raise ValueError("the action path accepts only the fake gateway or the reviewed HTTP client")
         called = getattr(judge_model, "model", None)       # an adapter knows the model it calls; the stored id is it
@@ -35,6 +38,7 @@ class OfflineActionPath:
         self.rows, self.action_policy, self.inventory = rows, action_policy, inventory
         self.proposer, self.judge_model, self.judge_model_id = proposer, judge_model, judge_model_id
         self.judge_context, self.snapshot, self.sample, self.clock = judge_context, snapshot, sample, clock
+        self.approval_notifier = approval_notifier
         self.executor = ActionExecutor(rows, gateway, gate_open=gate_open, daily_host_cap=daily_host_cap)
 
     def propose(self, incident, state: dict) -> str | None:
@@ -150,7 +154,21 @@ class OfflineActionPath:
             return None
         approval_id = f"appr_{uuid4().hex}"
         self.rows.add_action_approval(approval_id, proposal.id, proposal.digest, self.clock(), proposal.expires_at)
+        expires = proposal.expires_at.astimezone(timezone.utc)
+        # ACR-0018 section 18: an alert never carries the row's detail; the approver reads it on the private screen
+        self._notify(approval_id, proposal.expires_at,
+                     f"Argus: an approval is waiting; it expires at {expires:%H:%M}Z. "
+                     "Open the Actions screen on the private path.")
         return approval_id
+
+    def _notify(self, approval_id: str, expires_at: datetime, message: str, **kwargs) -> None:
+        if self.approval_notifier is None:
+            log.info("approval notification sender is not configured", extra={"approval_id": approval_id})
+            return
+        try:
+            self.approval_notifier(message, approval_id, expires_at, **kwargs)
+        except Exception:
+            log.exception("approval notification failed", extra={"approval_id": approval_id})
 
     def answer(self, approval_id: str, *, digest: str, principal: str, principal_kind: str,
                decision: str, confirmation_target: str | None = None) -> bool:
@@ -167,7 +185,12 @@ class OfflineActionPath:
         if decision == "approved" and verdict["risk"] == "red":
             if confirmation_target != TargetRef.parse(proposal.input.target).name:
                 raise RemediationRefused("red action requires typing the target name")
-        return self.rows.answer_action_approval(approval_id, digest, principal, decision, self.clock())
+        answered = self.rows.answer_action_approval(approval_id, digest, principal, decision, self.clock())
+        if answered:        # the group must stop listing it as waiting; an earlier or expired answer already ended it
+            expires = approval["expires_at"]
+            self._notify(approval_id, datetime.fromisoformat(expires) if isinstance(expires, str) else expires,
+                         "Argus: the approval was answered.", resolved=True)
+        return answered
 
     def approval_state(self, approval_id: str) -> str:
         row = self.rows.get_action_approval(approval_id)
