@@ -336,6 +336,9 @@ SUMMARIES = {
     "nginx_upstream_failure": ("http_gateway_error_ratio_5m", "max", None,
                                "Gateway errors reached {http_gateway_error_ratio_5m} of the probes.",
                                "Gateway errors stayed at or below {http_gateway_error_ratio_5m} of the probes."),
+    "worker_stalled": ("worker_last_processed_age_s", "max", 180,
+                        "No job was processed for at least {worker_last_processed_age_s} seconds while the queue grew.",
+                        "The worker processed jobs within 3 minutes; last processed age was {worker_last_processed_age_s} seconds."),
     "cpu_saturation": ("container_cpu_throttled_ratio_5m", "max", None,
                        "CPU periods throttled reached {container_cpu_throttled_ratio_5m}; quota used reached "
                        "{container_cpu_quota_used_ratio_5m}.",

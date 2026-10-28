@@ -1,6 +1,6 @@
 # Argus runbook index
 
-Library version 1.1.1 · source review 2026-09-29 · detector metadata review 2026-10-09 · 21 authored runbooks, RB-001–RB-021.
+Library version 1.1.1 · source review 2026-09-29 · detector metadata review 2026-10-09 · 22 authored runbooks, RB-001–RB-022.
 
 All runbooks are **draft** with `last_tested: null`. They include fault-injection specifications, not completed lab results. Technical documentation was reviewed; no production deployment or fault injection was performed. Start with the [assessment](RUNBOOK-ASSESSMENT.md), [shared contracts](RUNBOOK-CONVENTIONS.md), [book review](RUNBOOK-BOOK-REVIEW.md) and [capability backlog](ARGUS-CAPABILITY-GAPS.md). [RB-001](runbooks/RB-001-container-oom-restart-loop.md) is the authoring benchmark.
 
@@ -29,6 +29,7 @@ All runbooks are **draft** with `last_tested: null`. They include fault-injectio
 | [RB-019](runbooks/RB-019-postgresql-disk-capacity-pressure.md) | PostgreSQL storage pressure | `postgresql_storage_pressure` | Proposed category/mount reserve and write failures | Data/WAL/temp, slot/archive/replica retention | `inspect_database_health`; missing DB storage/retention tools | DBA/platform capacity/consumer repair | Every write; WAL/data protected | draft |
 | [RB-020](runbooks/RB-020-time-synchronization-clock-drift.md) | Clock drift | `clock_drift` | Proposed offset/error bound versus tolerance | Trusted reference, source age, clock domain, boot identity | Missing `get_time_sync_status`, `get_clock_offset_history` | Owner synchronization repair | Host-wide risk; no clock write tool | draft |
 | [RB-021](runbooks/RB-021-cascading-overload.md) | Cascading overload | `cascading_overload` | Proposed correlated graph pressure/feedback | Offered/admitted/shed work by priority, queues, capacity, topology | `trace_request_path`; missing queue/retry/capacity tools | Coordinated owner bounded load control | Every write; validated-core activation prerequisite | draft |
+| [RB-022](runbooks/RB-022-worker-stalled.md) | Stalled job worker | `worker_stalled` | No completed jobs for 3 minutes with a large, rising queue | Worker progress/health, Redis reachability/depth and dependency probe | `container.status`, `container.logs`, `read_link_states` | Owner diagnosis; approved worker restart only after cause review | Never stop worker or dependencies; every restart requires scoped approval | draft |
 
 ## Retrieval and integration
 

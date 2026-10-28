@@ -86,7 +86,7 @@ class SearchLogsArgs(_Args):
 
 IncidentClassName = Literal["container_restart_loop", "dependency_unavailable", "health_check_failed",
                             "postgresql_connection_exhaustion", "nginx_upstream_failure", "cpu_saturation",
-                            "disk_pressure", "monitoring_blind_spot"]          # = detectors/classes.py (a test pins it)
+                            "disk_pressure", "monitoring_blind_spot", "worker_stalled"]   # = detectors/classes.py (a test pins it)
 
 
 class AnomalyArgs(_Args):

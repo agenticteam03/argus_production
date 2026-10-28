@@ -7,6 +7,14 @@ shared-Brain setup B1–B8 under way (three developers).
 > The VMs are authoritative for what runs there: run `sudo bash /opt/argus-v18/app/ops/deploy.sh status` (or read
 > `/opt/argus-v18/DEPLOYED`) and the state probe before trusting this file.
 
+> **Update 2026-10-28 (`conantkd`, DEMO-X2 second window, OBSERVED with `deploy.sh status`):** **both VMs run
+> `main` `9798950`**. On vm-095, the tunnel, agent, worker and scheduler were rebuilt; only the tunnel and worker
+> joined the new internal `argus-v18-action` network. On vm-166, the target services were rebuilt with the full
+> `container_id` read. No migration; backup verified (31 tables, 34,110 rows), 94/94 database checks, lab baselines
+> OK, `WRITE GATE CLOSED` on both hosts, and `NO INTERFERENCE` on both. The action gateway and socket proxy are
+> defined but not started; their token and active configuration belong to X-5. Evidence:
+> [DEMO-X2 step 01](execution/history/DEMO-X2/step-01/evidence.md).
+
 > **Update 2026-10-26 (`conantkd`, DEPLOY-798b69a, OBSERVED with `deploy.sh status`):** **vm-095 runs `main`
 > `798b69a`**: #344: security events go from the scheduler to vm-095's Alertmanager and on to the team's Telegram
 > group (a test alert arrived); the scheduler is on `argus-v18-sched` (internal) and leaves only through

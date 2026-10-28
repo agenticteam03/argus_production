@@ -5,6 +5,8 @@ or as zero (G-007): it is reported as a finding and cannot trigger a class.
 """
 from __future__ import annotations
 
+import math
+
 from argus.domain.model import DetectorResult, IncidentClassSpec, MetricSnapshot
 
 
@@ -98,6 +100,25 @@ def nginx_upstream_failure(snap: MetricSnapshot) -> DetectorResult:
         "the proxy cannot get an answer from its upstream in time (RB-015): look at the upstream it depends on"])
 
 
+def worker_stalled(snap: MetricSnapshot) -> DetectorResult:
+    """RB-022: no processing progress for 3 minutes despite a large, growing queue."""
+    required = ("jobs_processed_rate", "queue_depth", "worker_last_processed_age_s")
+    miss = _missing(snap, *required)
+    miss.extend(name for name in required if name not in miss and not math.isfinite(snap.values[name]))
+    if miss:
+        return DetectorResult(matched=False, findings=[f"signal missing (unknown, not healthy): {name}" for name in miss])
+    rate = snap.values["jobs_processed_rate"]
+    depth = snap.values["queue_depth"]
+    age = snap.values["worker_last_processed_age_s"]
+    if rate > 0 or depth <= 10 or age < 180:
+        return DetectorResult(matched=False)
+    return DetectorResult(matched=True, findings=[
+        "the job worker has processed no jobs in the 5-minute rate window",
+        f"its Redis queue has {int(depth)} waiting jobs, above the 10-job threshold",
+        f"the last processed job was {int(age)} seconds ago (at least 3 minutes)",
+        "worker stalled (RB-022): verify worker and queue-store evidence before attributing cause"])
+
+
 def monitoring_blind_spot(snap: MetricSnapshot) -> DetectorResult:
     """RB-014 (T-0027): a scrape target of the host's Prometheus is down, so the signals it feeds are empty. That is
     a loss of visibility, never a healthy host (G-007). The gate exporter's own outage ends earlier, as
@@ -163,6 +184,11 @@ CLASSES: list[IncidentClassSpec] = [
                       tool_tags={"availability", "network", "dependency", "logs", "container", "knowledge", "config",
                                  "link_states"},
                       detector=nginx_upstream_failure),
+    IncidentClassSpec(name="worker_stalled", family="stability", target_kinds={"container"},
+                      required_signals={"jobs_processed_rate", "queue_depth", "worker_last_processed_age_s"},
+                      runbook_ids=["RB-022"], branch_runbook_ids=["RB-003", "RB-004"], strategy="baseline",
+                      tool_tags={"worker", "dependency", "container", "logs", "knowledge"},
+                      detector=worker_stalled),
 
 
     # T-0027: a host that lost part of its telemetry is a blind spot before it is anything else (unknown first).

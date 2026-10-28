@@ -1,3 +1,7 @@
 services:
-  argus-v18-prometheus: {ports: ["127.0.0.1:18090:9090"]}
+  argus-v18-prometheus:
+    ports: ["127.0.0.1:18090:9090"]
+    networks: [argus-v18-mon, argus-lab-app]  # vm-166 only: scrape the isolated SC-10 worker
   argus-v18-alertmanager: {ports: ["127.0.0.1:18091:9093"]}   # T-0022: vm-166, read through the tunnel only
+networks:
+  argus-lab-app: {external: true, name: argus-lab-app}
