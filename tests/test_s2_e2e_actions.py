@@ -8,7 +8,7 @@ from __future__ import annotations
 import json
 import time
 from contextlib import contextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timedelta, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -182,10 +182,6 @@ def _case(tmp_path, scenario, mode):
     values = {"id": FULL_ID[:12], "container_id": FULL_ID, "state": scenario.state}
     if scenario.capability == "network.restore":
         values.update(declared_networks=["argus-lab-app"], networks=["argus-lab-iso"])
-        # LivePrecheck currently evaluates parameter expressions from this mapping;
-        # include the frozen args to reach the gateway path. This exposes a separate
-        # limitation: a real container.status response does not contain these fields.
-        values.update(scenario.arguments)
     precheck = LivePrecheck(
         rows=rows, inventory=SimpleNamespace(version=lambda: "inventory-1"), policy_version="policy-1",
         cards={scenario.capability: scenario.card}, read_status=lambda _target: (values, at),
@@ -202,8 +198,6 @@ def _case(tmp_path, scenario, mode):
         thread.join(timeout=2)
 
 
-@pytest.mark.xfail(reason="LivePrecheck does not merge frozen network arguments into its precondition context",
-                   strict=True)
 def test_network_precheck_evaluates_the_frozen_network_arguments(tmp_path):
     scenario = SCENARIOS[2]
     at = datetime.now(timezone.utc).replace(microsecond=0)
@@ -233,31 +227,10 @@ def _assert_request_contract(state, scenario):
     assert not state.contract_errors, state.contract_errors
 
 
-def _assert_network_arguments_gap(state, scenario):
-    request = state.requests[0]
-    assert request["path"] == scenario.path
-    assert request["authorization"] == f"Bearer {TOKEN}"
-    assert request["body"] == {
-        "capability": scenario.capability, "target": scenario.target,
-        "target_identity": {"container_id": FULL_ID},
-    }
-    assert state.contract_errors == [
-        "body: expected fields ['capability', 'connect_network', 'disconnect_network', 'target', "
-        "'target_identity'], got ['capability', 'target', 'target_identity']"
-    ]
-    pytest.xfail("HttpActionGateway.dispatch omits network.restore arguments required by the gateway")
-
-
 @pytest.mark.parametrize("scenario", SCENARIO_PARAMS)
 def test_accepted_action_receipt_and_healthy_verification(tmp_path, scenario):
     with _case(tmp_path, scenario, "accepted") as case:
         action = case.executor.execute(case.approval_id, case.precheck, at=case.at)
-        if scenario.capability == "network.restore" and action["state"] == "indeterminate":
-            assert case.state.status_reads == 1
-            assert case.executor.execute(case.approval_id, case.precheck,
-                                         at=case.at + timedelta(seconds=1))["id"] == action["id"]
-            assert len(case.state.requests) == 1
-            _assert_network_arguments_gap(case.state, scenario)
         assert action["state"] == "confirmed"
         _assert_request_contract(case.state, scenario)
         assert case.state.status_reads == 1  # 202 accepted, then the durable receipt
@@ -280,8 +253,6 @@ def test_refusal_is_failed_and_never_retried(tmp_path, scenario):
         assert case.state.status_reads == 0
         assert case.executor.execute(case.approval_id, case.precheck, at=case.at + timedelta(seconds=1))["id"] == action["id"]
         assert len(case.state.requests) == 1
-        if scenario.capability == "network.restore":
-            _assert_network_arguments_gap(case.state, scenario)
         _assert_request_contract(case.state, scenario)
 
 
@@ -293,8 +264,6 @@ def test_gateway_timeout_is_indeterminate_and_never_retried(tmp_path, scenario):
         assert case.state.status_reads == 1
         assert case.executor.execute(case.approval_id, case.precheck, at=case.at + timedelta(seconds=1))["id"] == action["id"]
         assert len(case.state.requests) == 1
-        if scenario.capability == "network.restore":
-            _assert_network_arguments_gap(case.state, scenario)
         _assert_request_contract(case.state, scenario)
 
 
@@ -302,12 +271,6 @@ def test_gateway_timeout_is_indeterminate_and_never_retried(tmp_path, scenario):
 def test_unhealthy_verification_is_action_failed_and_never_retried(tmp_path, scenario):
     with _case(tmp_path, scenario, "accepted") as case:
         action = case.executor.execute(case.approval_id, case.precheck, at=case.at)
-        if scenario.capability == "network.restore" and action["state"] == "indeterminate":
-            assert case.state.status_reads == 1
-            assert len(case.state.requests) == 1
-            assert case.executor.execute(case.approval_id, case.precheck,
-                                         at=case.at + timedelta(seconds=1))["id"] == action["id"]
-            _assert_network_arguments_gap(case.state, scenario)
         assert action["state"] == "confirmed"
         _assert_request_contract(case.state, scenario)
         sampled_at = case.at + timedelta(seconds=case.proposal.input.prediction.within_seconds + 1)
@@ -323,3 +286,16 @@ def test_worker_scenario_uses_task54_inventory_release_contract():
     assert "container.restart" in WORKER_SERVICE_FROM_PR_366["safe_actions"]
     assert "container.stop" in WORKER_SERVICE_FROM_PR_366["never"]
     assert SCENARIOS[1].card.name == "container.restart"
+
+
+def test_container_start_precheck_works_without_arguments(tmp_path):
+    scenario = SCENARIOS[0]
+    with _case(tmp_path, scenario, "accepted") as case:
+        assert case.proposal.input.arguments == {}
+        assert case.precheck.action_preconditions_met
+
+
+def test_network_precheck_arguments_are_added_but_status_values_win(tmp_path):
+    scenario = replace(SCENARIOS[2], arguments={**SCENARIOS[2].arguments, "state": "exited"})
+    with _case(tmp_path, scenario, "accepted") as case:
+        assert case.precheck.action_preconditions_met

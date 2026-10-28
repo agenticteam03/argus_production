@@ -40,6 +40,7 @@ class LivePrecheck:
         if card is None:
             raise RemediationRefused("no reviewed action card for this capability")
         values, observed_at = self.read_status(data.target)
+        precondition_values = {**data.arguments, **values}
         identity = {name: values.get(name) for name in card.identity_fields}
         if not identity or not all(isinstance(v, str) and v for v in identity.values()):
             raise RemediationRefused("the target's identity is unavailable")
@@ -52,7 +53,8 @@ class LivePrecheck:
             observed_at=observed_at,
             incident_open=incident is not None and incident.status in OPEN_STATES,
             class_detected=incident is not None and bool(self.detector_firing(incident)),
-            action_preconditions_met=all(evaluate_precondition(expr, values) for expr in card.preconditions),
+            action_preconditions_met=all(evaluate_precondition(expr, precondition_values)
+                                         for expr in card.preconditions),
             host_lease_clear=bool(self.host_lease_clear(TargetRef.parse(data.target).host)))
 
 
