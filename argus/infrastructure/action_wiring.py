@@ -23,6 +23,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable
 
+import yaml
+
 from argus.actions.live import LivePrecheck, LiveVerification, identity_of, status_from_observation
 from argus.actions.remediation import Alternative, Prediction, ProposalInput, RemediationRefused
 from argus.application.correlation import detected_class
@@ -180,18 +182,39 @@ class ReviewContext:
         if service is None or card is None:
             raise RemediationRefused("reviewed service and action cards are required")
         return {"evidence_extracts": {key: _bounded(record.model_text) for key, record in records.items()},
-                "ground_extracts": {ground: self._runbook(ground) for ground in data.grounds},
+                "ground_extracts": {ground: self._runbook(ground, data.capability) for ground in data.grounds},
                 "service_card": service.model_dump() if hasattr(service, "model_dump") else asdict(service),
                 "action_card": asdict(card) if is_dataclass(card) else dict(card)}
 
-    def _runbook(self, ground: str) -> str:
+    def _runbook(self, ground: str, capability: str = "") -> str:
         runbook_id = ground.removeprefix("runbook:")
         paths = sorted(self.runbooks_dir.glob(f"{runbook_id}-*.md"))
         if not paths:
             raise RemediationRefused(f"runbook {runbook_id} is not in the library")
         text = paths[0].read_text(encoding="utf-8")
         text = re.sub(r"\A---\n.*?\n---\n", "", text, count=1, flags=re.S)
+        declared = _declared_action(text, capability)
+        if declared:          # X-5: the header alone (title, status) told the judge nothing about the action
+            recovery = re.search(r"^## Recovery\s*\n(.*?)(?=^## |\Z)", text, flags=re.S | re.M)
+            title = text.strip().splitlines()[0].lstrip("# ").strip()
+            text = f"{title}. Declared action: {declared}" + (f" Recovery: {recovery.group(1)}" if recovery else "")
         return _bounded(text)
+
+
+def _declared_action(text: str, capability: str) -> str:
+    """The runbook metadata's `actions:` entry for `capability`, as one sentence; "" when there is none."""
+    match = re.search(r"```yaml\s*\n(.*?)\n```", text, flags=re.S)
+    try:
+        metadata = yaml.safe_load(match.group(1)) if match else None
+    except yaml.YAMLError:
+        return ""
+    entries = metadata.get("actions") or [] if isinstance(metadata, dict) else []
+    for entry in entries:
+        if isinstance(entry, dict) and entry.get("action") == capability:
+            return (f"{capability} on the {entry.get('target_role', '?')} service with role "
+                    f"{entry.get('service_role', '?')} when {entry.get('when', '?')}. "
+                    f"{entry.get('rationale', '')}").strip()
+    return ""
 
 
 def _bounded(text: str) -> str:

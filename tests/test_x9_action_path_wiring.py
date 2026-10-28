@@ -149,6 +149,9 @@ def test_the_judge_context_has_bounded_extracts_of_exactly_the_cited_records_and
     assert context["evidence_extracts"] == {"ev_cache": "state=exited exit=1"}
     extract = context["ground_extracts"]["runbook:RB-003"]
     assert 0 < len(extract) <= 480 and "---" not in extract[:3]
+    # X-5: the runbook's declared action and its recovery check, not its header (the judge saw "status: draft" only)
+    assert extract.startswith("RB-003 — Dependency unavailable. Declared action: container.start on the root_cause")
+    assert "Recovery:" in extract and "status: draft" not in extract
     assert context["action_card"]["name"] == "container.start" and context["service_card"]["role"] == "cache"
     assert len(str(context)) < 6000
 
