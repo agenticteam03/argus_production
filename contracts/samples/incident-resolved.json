@@ -10,7 +10,7 @@
     "signal missing (unknown, not healthy): container_cpu_throttled_ratio_5m",
     "signal missing (unknown, not healthy): container_cpu_quota_used_ratio_5m"
   ],
-  "id": "inc_553a544d91ba",
+  "id": "inc_b5c64b846477",
   "incident_class": null,
   "opened_at": "2026-10-28T20:33:03.242292Z",
   "outcome": "unsupported_escalated",
