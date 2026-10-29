@@ -55,7 +55,7 @@ def test_card_loads_with_string_parameters(cards):
     assert card.executor == "action-gateway" and card.identity_fields == ["container_id"]
     assert card.parameters["connect_network"]["type"] == "str"
     assert card.parameters["disconnect_network"]["type"] == "str"
-    assert card.rollback == "none"          # ACR-0035: no automatic rollback (TASK-64)
+    assert card.rollback.startswith("none:")          # ACR-0035: no automatic rollback (TASK-64); a person restores
     assert card.verify["signal"] == "link_ok"
     assert set(card.sources) == {"RB-003", "RB-009"}
 
@@ -258,5 +258,5 @@ def test_an_int_argument_is_still_bounded(cards):
 
 def test_there_is_no_automatic_rollback_so_the_approver_sees_reversible_no(cards):
     from argus.application.approval_view import _reversible
-    assert cards["network.restore"].rollback == "none"
+    assert cards["network.restore"].rollback.startswith("none:")
     assert _reversible("none") is False
