@@ -3,6 +3,7 @@
 import { PHASE19_PREVIEW_ID, demoEscalations, demoEvents, demoEvidence, demoIncident, demoList, demoMetrics, demoTargetMetrics, demoTopology } from "./demoIncidents.js";
 import { demoSession } from "./demoSession.js";
 import { DEMO_APPROVAL_ID, demoApproval } from "./demoApproval.js";
+import { demoConsoleCommands, demoConsoleExecute, demoConsoleHistory } from "./demoConsole.js";
 import { answerMetricQuestion, parseInvestigationRequest } from "./metricQuestion.js";
 
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -165,6 +166,29 @@ export const mockArgusAdapter = {
     const incident = demoList().find((i) => i.id === incidentId);
     if (!incident || incident.status !== "escalated") throw httpError(409, "only an escalated incident can be resolved");
     return { ...incident, status: "closed", resolution: { by: demoSession.role, at: new Date().toISOString(), reason } };
+  },
+
+  // CON-3 (ACR-0043), demo: the operator console's private routes, scoped to the incident. Only the demo has them
+  // until CON-2 adds the real routes and the contract, so a real build keeps the Console tab hidden. A viewer is refused.
+  async getConsoleCommands(incidentId) {
+    record(`/api/v1/ops/console/incidents/${incidentId}/commands`);
+    await wait(150);
+    if (demoSession.role !== "operator" && demoSession.role !== "approver") throw httpError(403, "This role may not use the console.");
+    return demoConsoleCommands();
+  },
+
+  async getConsoleHistory(incidentId) {
+    record(`/api/v1/ops/console/incidents/${incidentId}/history`);
+    await wait(100);
+    if (demoSession.role !== "operator" && demoSession.role !== "approver") throw httpError(403, "This role may not use the console.");
+    return demoConsoleHistory(incidentId);
+  },
+
+  async executeConsoleCommand(incidentId, { input, confirmation } = {}) {
+    calls.push({ method: "POST", path: `/api/v1/ops/console/incidents/${incidentId}/execute` });
+    await wait(300);
+    if (demoSession.role !== "operator" && demoSession.role !== "approver") throw httpError(403, "This role may not use the console.");
+    return demoConsoleExecute(incidentId, { input, confirmation }, demoSession.role);
   },
 
   async askAgent(text, canStartInvestigation = false) {
