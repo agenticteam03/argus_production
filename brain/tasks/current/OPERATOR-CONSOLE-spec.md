@@ -1,5 +1,7 @@
 # Argus operator console: implementation spec (stage 1)
 
+> **Superseded where it differs from [ACR-0043](../../architecture/changes/ACR-0043-operator-console.md).** The ACR wins on: §6 (`net reconnect api` is the existing `network.restore`, not a new action), §7.3 (a typed confirmation is never an approval; a write command creates the normal proposal, approved through `POST /api/v1/ops/approvals/{id}/answer`), write commands only on the pairs in `write_gate.open`, and who may call the console.
+
 For the project-manager agent: use this to compare against the current codebase, find what exists and what's missing, and plan the work for this stage.
 
 ## 1. Context
@@ -8,7 +10,7 @@ Argus is our incident-investigation agent. For the presentation, it resolves thr
 
 1. Cache failure with a red herring (main scenario)
 2. Wrong network
-3. Frozen worker (scenario 4 in the original plan)
+3. Frozen worker (called scenario 4 everywhere else; this is the same scenario)
 
 The existing building blocks this feature should reuse: the live system map, hypothesis generation with evidence-based deterministic ranking, the second-opinion reviewer, `policy.check`, `NotificationPort`, the approve endpoint `POST /api/v1/incidents/{id}/approve`, `AuditSinkPort`, `MetricsPort`, the restricted Docker proxy (restart allowed, exec disabled), LangGraph checkpoints and interrupts, PostgreSQL, Langfuse and the React frontend.
 
@@ -79,12 +81,12 @@ Proposed names. The "Calls" column is what each command should map to. The PM ag
 | `net inspect <service>` | 2 | read | Read-only Docker inspect | Attached networks |
 | `net expected <service>` | 2 | read | Declared expected topology (compose or config) | Expected networks |
 | `net diff <service>` | 2 | read | Expected vs actual comparison | Mismatch, if any |
-| `net reconnect api` | 2 | write | **New** network action from the scenario 2 plan (connect/disconnect only, lab containers and declared networks only) | Disconnect/connect result |
+| `net reconnect api` | 2 | write | Existing `network.restore` on the API (ACR-0035; see the ACR) | Disconnect/connect result |
 
 Dependencies:
 
 - The frozen-worker commands need the worker's heartbeat, processed-jobs and queue-depth metrics. If those aren't instrumented yet, that's a blocking work item from the scenario plan.
-- `net reconnect api` depends on the new network action being built.
+- `net reconnect api` is the existing `network.restore` (ACR-0035); it also needs the open card TASK-97 so a proposal is built.
 
 ## 7. Backend design
 
@@ -108,10 +110,10 @@ Output streaming is optional in stage 1. Commands are short, so returning the fu
 ### 7.3 Write commands and the safety path
 
 1. The operator types a write command. The backend returns `needs_confirmation`.
-2. The operator types `yes`. The backend calls `policy.check` for the action.
-3. Approval: the typed confirmation is recorded as human approval through the same approve path (`POST /api/v1/incidents/{id}/approve` or its internal service), so there is one approval path. If Argus already has a pending proposal for the same action, this approves that proposal.
+2. The operator types `yes`. This only confirms the intent; it is **not** an approval. The backend maps the command to exactly one released (capability, target) pair in `write_gate.open` (otherwise it rejects), calls `policy.check`, and creates the normal proposal (or reuses a pending one for the same action).
+3. Approval: an approver with a fresh second factor answers the proposal through `POST /api/v1/ops/approvals/{id}/answer`, the one approval path.
 4. `AuditSinkPort` records before and after, with `source: "operator_console"`, the operator identity and the `command_id`.
-5. The action runs through the existing executor (the restart proxy, or the new network action).
+5. The action runs through the existing executor (the restart proxy, or the existing `network.restore` action).
 6. The verification step runs as usual. The post-command analysis (section 8) reuses its result.
 
 Open questions on this path are in section 15.
@@ -199,7 +201,7 @@ Sizes: S ≤ half a day, M ≤ 2 days, L > 2 days.
 | 8 | Split-view UI: terminal and Argus panel | M | 2 | Matches the mockup spec; works at 1280×720 |
 | 9 | Live updates to the panel through the existing channel | S | 6, 8 | Comment and ranking appear without a page reload |
 | 10 | Scenario 4 commands (depends on worker instrumentation) | S | 2, 3 | Frozen worker resolved end to end from the console |
-| 11 | Scenario 2 commands (depends on the new network action) | S | 2, 3 | Wrong network resolved end to end from the console |
+| 11 | Scenario 2 commands (depends on the open card TASK-97) | S | 2, 3 | Wrong network resolved end to end from the console |
 | 12 | Error handling: timeouts, metrics unavailable, backend errors | S | 5 | Each failure shows a clear message and the UI recovers |
 | 13 | Rehearsal: run each scenario several times and record the results | S per scenario | all | Argus reaches the right ranking and comment on every run |
 

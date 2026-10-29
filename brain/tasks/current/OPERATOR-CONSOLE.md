@@ -24,8 +24,11 @@
   proposal and the console asks for the approval there. No second approval path.
 - The cache fix is `container.start` (the cache is stopped): `cache restart` maps to start when the container is stopped.
 - The frontend refreshes by polling (`usePoll`); there is no WebSocket or SSE. The scrape interval is 15 s, so settle is 45 s.
-- Scenario 2 is blocked by TASK-97 (candidate builder in `argus/actions/incident.py`, protected).
-- The mockup spec named in the spec (`argus-console-mockup-spec.md`) is not in the repo yet; CON-3 needs it.
+- Scenario 2 is blocked by the open card TASK-97 (the candidate builder in `argus/actions/incident.py`, protected, builds no `network.restore` proposal yet).
+- The mockup spec named in the spec (`argus-console-mockup-spec.md`) is not in the repo yet; whoever takes CON-3 adds it first.
+- Write commands reach only the pairs in `write_gate.open` (start on the cache, restart on the jobworker, `network.restore` on the API); `cache restart` on a running cache is rejected. `net reconnect api` is the existing `network.restore`, not a new action. Access is described in the ACR.
+- The spec is superseded by the ACR where they differ (§6 and §7.3 of the spec).
+- Optional (cut first, not needed for the three scenarios): CON-5 suggestions beyond Insert and Copy, the Langfuse trace in CON-4, CON-9.
 
 ## Tasks
 
@@ -38,7 +41,7 @@
 | CON-5 | Suggestions with Insert and Copy, `suggestion_id`, "Applied" state | CON-3, CON-4 | no | | Insert fills the input and never runs it |
 | CON-6 | Write path: confirmation, proposal, approval, audit `operator_console`, gateway, verify | ACR, CON-2 | yes | | `cache restart` asks, needs approval, restarts, appears in the audit log |
 | CON-7 | Scenario 4 commands (worker status, heartbeat, throughput, queue depth, restart) | CON-2, CON-6, metric names confirmed | no | | frozen worker resolved from the console |
-| CON-8 | Scenario 2 commands (net inspect, expected, diff, reconnect) | CON-2, CON-6, TASK-97 | yes | | wrong network resolved from the console |
+| CON-8 | Scenario 2 commands (net inspect, expected, diff, reconnect = existing `network.restore`) | CON-2, CON-6, TASK-97 | yes | | wrong network resolved from the console |
 | CON-9 | Errors: timeouts, metrics unavailable, backend failures; manual re-check | CON-4 | no | | each failure shows a clear message; the UI recovers |
 | CON-10 | Rehearsal, several runs per scenario, results recorded | all | no | | right ranking and comment on every run |
 
