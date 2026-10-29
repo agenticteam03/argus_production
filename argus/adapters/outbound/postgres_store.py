@@ -614,6 +614,49 @@ class PostgresStore:
                        "ORDER BY owner, dependency, at DESC, id DESC")
         return {(r[0], r[1]): {"state": r[2], "at": r[3]} for r in rows}
 
+    # --- ACR-0043 (CON-2, migration 020): the operator console's history -------------------------------------------
+    def add_console_command(self, row: dict[str, Any]) -> None:
+        """One completed console command with its incident; insert-only (migration 020)."""
+        self._q("INSERT INTO console_command (command_id, incident_id, person, input, command, cls, status, output, "
+                "output_truncated, suggestion_id, started_at, finished_at) "
+                "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
+                (row["command_id"], row["incident_id"], row["person"], row["input"], row["command"], row["cls"],
+                 row["status"], row["output"], bool(row["output_truncated"]), row.get("suggestion_id"),
+                 row["started_at"], row["finished_at"]))
+
+    def console_history(self, incident_id: str, limit: int = 50) -> list[dict[str, Any]]:
+        """The incident's newest `limit` commands, oldest first."""
+        rows = self._q("SELECT command_id, incident_id, person, input, command, cls, status, output, "
+                       "output_truncated, suggestion_id, started_at, finished_at FROM (SELECT * FROM console_command "
+                       "WHERE incident_id = %s ORDER BY started_at DESC, command_id DESC LIMIT %s) AS c "
+                       "ORDER BY started_at, command_id", (incident_id, limit))
+        return [{"command_id": r[0], "incident_id": r[1], "person": r[2], "input": r[3], "command": r[4],
+                 "cls": r[5], "status": r[6], "output": r[7], "output_truncated": r[8], "suggestion_id": r[9],
+                 "started_at": r[10], "finished_at": r[11]} for r in rows]
+
+    @staticmethod
+    def _console_reads(person, incident_id, since) -> tuple[str, tuple]:
+        where, params = ["cls = 'read'"], []
+        for column, value in (("person", person), ("incident_id", incident_id)):
+            if value is not None:
+                where.append(f"{column} = %s")
+                params.append(value)
+        if since is not None:
+            where.append("started_at >= %s")
+            params.append(since)
+        return " AND ".join(where), tuple(params)
+
+    def console_read_count(self, *, person: str | None = None, incident_id: str | None = None,
+                           since: datetime | None = None) -> int:
+        """Read commands stored (the quota's count); `help`, `history` and `clear` are meta and never counted."""
+        where, params = self._console_reads(person, incident_id, since)
+        return self._q(f"SELECT COUNT(*) FROM console_command WHERE {where}", params)[0][0]
+
+    def console_oldest_read(self, *, person: str | None = None, incident_id: str | None = None,
+                            since: datetime | None = None) -> datetime | None:
+        where, params = self._console_reads(person, incident_id, since)
+        return self._q(f"SELECT MIN(started_at) FROM console_command WHERE {where}", params)[0][0]
+
     def close_queued_incident(self, incident_id: str, outcome: str, diagnosis: str, closed_at: datetime) -> bool:
         """Close an incident no worker has claimed (T-0026). False when it is no longer queued (claimed meanwhile)."""
         patch = {"status": "closed", "outcome": outcome, "diagnosis": diagnosis,
@@ -808,6 +851,13 @@ CHECKS_SQL: list[tuple[str, str, bool]] = [
     ("link event is insert-only (UPDATE refused)", "UPDATE link_event SET state = 'broken' WHERE owner = 'dbcheck'",
      False),
     ("link event is insert-only (DELETE refused)", "DELETE FROM link_event WHERE owner = 'dbcheck'", False),
+    ("insert console command (ACR-0043, migration 020)", "INSERT INTO console_command (command_id, incident_id, "
+     "person, input, command, cls, status, output, started_at, finished_at) VALUES ('dbcheck', 'dbcheck', 'dbcheck', "
+     "'help', 'help', 'meta', 'ok', '', now(), now())", True),
+    ("console command is insert-only (UPDATE refused)", "UPDATE console_command SET status = 'error' "
+     "WHERE command_id = 'dbcheck'", False),
+    ("console command is insert-only (DELETE refused)", "DELETE FROM console_command WHERE command_id = 'dbcheck'",
+     False),
     ("insert link probe cursor (T-0046, migration 014)", "INSERT INTO link_probe_cursor (owner,dependency,state,at) "
                                                            "VALUES ('dbcheck','dbcheck','ok',now())", True),
     ("advance link probe cursor (migration 014)", "UPDATE link_probe_cursor SET state='broken', at=at + interval '1 second' "

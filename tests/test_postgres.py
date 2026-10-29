@@ -317,6 +317,33 @@ def test_link_events_migration_009(runtime_dsn, store):
             c.execute("INSERT INTO link_event (owner, dependency, state, at) VALUES ('a', 'b', 'down', now())")
 
 
+def test_console_command_migration_020(runtime_dsn, store):
+    """ACR-0043 (CON-2): every completed console command is kept with its incident and person; insert-only for the
+    runtime role (no UPDATE or DELETE grant); a status or class outside the known values is refused by the table."""
+    import psycopg
+    from argus.domain.model import utcnow
+    now = utcnow()
+
+    def row(command_id, **extra):
+        return {"command_id": command_id, "incident_id": "inc_pgconsole", "person": "olga", "input": "cache status",
+                "command": "cache.status", "cls": "read", "status": "ok", "output": "line", "output_truncated": False,
+                "suggestion_id": None, "started_at": now, "finished_at": now, **extra}
+    store.add_console_command(row("cmd_pg1"))
+    store.add_console_command(row("cmd_pg2", cls="write", status="rejected"))
+    got = store.console_history("inc_pgconsole")
+    assert [(r["command_id"], r["cls"], r["status"]) for r in got] == [("cmd_pg1", "read", "ok"),
+                                                                       ("cmd_pg2", "write", "rejected")]
+    assert got[0]["started_at"].tzinfo is not None
+    assert store.console_read_count(incident_id="inc_pgconsole") == 1
+    with psycopg.connect(runtime_dsn, autocommit=True) as c:
+        for sql in ("UPDATE console_command SET status = 'error'", "DELETE FROM console_command"):
+            with pytest.raises(psycopg.Error, match="permission denied"):
+                c.execute(sql)
+        with pytest.raises(psycopg.Error, match="check constraint"):
+            c.execute("INSERT INTO console_command (command_id, incident_id, person, input, command, cls, status, "
+                      "output, started_at, finished_at) VALUES ('x', 'i', 'p', 'i', 'c', 'shell', 'ok', '', now(), now())")
+
+
 def test_link_probe_cursor_migration_014(runtime_dsn, store):
     """T-0046: cursor advances atomically with a transition and allows only monotonic sample-time updates."""
     import psycopg
