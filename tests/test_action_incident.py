@@ -196,11 +196,17 @@ def test_sc03_incident_route_offers_only_grounded_cache_start(make_app):  # noqa
 CLIENT = "vm-166/container:argus-lab-client"
 
 
+def _moved_api(at, networks=("argus-lab-iso",)):
+    record = _status(at, state="running", target=API)
+    return EvidenceRecord(**{**record.__dict__, "values": {"values": {"state": "running", "networks": list(networks)}}}
+                          ).with_hash()
+
+
 def test_rb003_offers_network_restore_for_a_running_api_and_still_container_start_for_a_cache():
     policy, inventory = _policy()
     at = utcnow()
     incident = SimpleNamespace(outcome=IncidentOutcome.diagnosed, target=TargetRef.parse(CLIENT), root_cause_target=API)
-    api = _status(at, state="running", target=API)
+    api = _moved_api(at)
     candidates = policy.next_actions(incident, [api], {"RB-003"}, inventory, now=at)
     assert [(c["action"], c["target"], c["grounds"]) for c in candidates] == [("network.restore", API, ["RB-003"])]
     assert candidates[0]["evidence_refs"][0] == "ev_cache_status" and candidates[0]["is_executable"] is False
@@ -215,6 +221,11 @@ def test_no_network_restore_candidate_when_the_api_is_not_running_or_the_runbook
     at = utcnow()
     incident = SimpleNamespace(outcome=IncidentOutcome.diagnosed, target=TargetRef.parse(CLIENT), root_cause_target=API)
     assert policy.next_actions(incident, [_status(at, state="exited", target=API)], {"RB-003"}, inventory, now=at) == []
+    # the api is on its declared network, on both, or on none: nothing to restore or nothing unambiguous
+    for networks in (("argus-lab-app",), ("argus-lab-app", "argus-lab-iso"), ()):
+        assert policy.next_actions(incident, [_moved_api(at, networks)], {"RB-003"}, inventory, now=at) == []
+    assert policy.next_actions(incident, [_status(at, state="running", target=API)], {"RB-003"}, inventory,
+                               now=at) == []              # no network read at all
     assert policy.next_actions(incident, [_status(at, state="running", target=API)], {"RB-022"}, inventory,
                                now=at) == []
 
