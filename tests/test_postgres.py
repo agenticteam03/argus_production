@@ -322,26 +322,35 @@ def test_console_command_migration_020(runtime_dsn, store):
     runtime role (no UPDATE or DELETE grant); a status or class outside the known values is refused by the table."""
     import psycopg
     from argus.domain.model import utcnow
+    inc = _incident(target="vm-166/container:argus-lab-cache")
+    store.create_incident(inc, None)                       # incident_id is a foreign key to the incident table
     now = utcnow()
 
     def row(command_id, **extra):
-        return {"command_id": command_id, "incident_id": "inc_pgconsole", "person": "olga", "input": "cache status",
+        return {"command_id": command_id, "incident_id": inc.id, "person": "olga", "input": "cache status",
                 "command": "cache.status", "cls": "read", "status": "ok", "output": "line", "output_truncated": False,
                 "suggestion_id": None, "started_at": now, "finished_at": now, **extra}
     store.add_console_command(row("cmd_pg1"))
     store.add_console_command(row("cmd_pg2", cls="write", status="rejected"))
-    got = store.console_history("inc_pgconsole")
+    store.add_console_command(row("cmd_pg3", command=None, cls=None, status="rejected", input="status; rm"))
+    got = store.console_history(inc.id)
     assert [(r["command_id"], r["cls"], r["status"]) for r in got] == [("cmd_pg1", "read", "ok"),
-                                                                       ("cmd_pg2", "write", "rejected")]
-    assert got[0]["started_at"].tzinfo is not None
-    assert store.console_read_count(incident_id="inc_pgconsole") == 1
+                                                                       ("cmd_pg2", "write", "rejected"),
+                                                                       ("cmd_pg3", None, "rejected")]
+    assert got[2]["command"] is None and got[0]["started_at"].tzinfo is not None
+    assert store.console_read_count(incident_id=inc.id) == 1
     with psycopg.connect(runtime_dsn, autocommit=True) as c:
         for sql in ("UPDATE console_command SET status = 'error'", "DELETE FROM console_command"):
             with pytest.raises(psycopg.Error, match="permission denied"):
                 c.execute(sql)
         with pytest.raises(psycopg.Error, match="check constraint"):
             c.execute("INSERT INTO console_command (command_id, incident_id, person, input, command, cls, status, "
-                      "output, started_at, finished_at) VALUES ('x', 'i', 'p', 'i', 'c', 'shell', 'ok', '', now(), now())")
+                      f"output, started_at, finished_at) VALUES ('x', '{inc.id}', 'p', 'i', 'c', 'shell', 'ok', '', "
+                      "now(), now())")
+        with pytest.raises(psycopg.Error, match="foreign key"):
+            c.execute("INSERT INTO console_command (command_id, incident_id, person, input, command, cls, status, "
+                      "output, started_at, finished_at) VALUES ('y', 'inc_nope', 'p', 'i', 'c', 'read', 'ok', '', "
+                      "now(), now())")
 
 
 def test_link_probe_cursor_migration_014(runtime_dsn, store):

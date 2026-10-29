@@ -74,3 +74,15 @@ def test_a_status_or_class_outside_the_known_values_is_refused(store):
         store.add_console_command(row("cmd_1", status="done"))
     with pytest.raises(sqlite3.IntegrityError):
         store.add_console_command(row("cmd_2", cls="shell"))
+
+
+def test_a_refused_input_is_stored_with_no_command_and_no_class(store):
+    store.add_console_command(row("cmd_1", command=None, cls=None, status="rejected", input="status; rm",
+                                  output="syntax not allowed: ;"))
+    store.add_console_command(row("cmd_2"))
+
+    got = store.console_history("inc_1")
+
+    assert (got[0]["command"], got[0]["cls"], got[0]["status"], got[0]["input"], got[0]["output"]) == (
+        None, None, "rejected", "status; rm", "syntax not allowed: ;")
+    assert store.console_read_count(person="olga") == 1                 # a refusal is not a read
