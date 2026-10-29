@@ -49,3 +49,18 @@ describe("demo console", () => {
     expect(r.output.length).toBe(demoConsoleCommands().commands.length + 1);
   });
 });
+
+describe("demo console suggestions (CON-5)", () => {
+  beforeEach(() => resetDemoConsole());
+
+  it("after a cache status, Argus's analysis suggests a registry command", () => {
+    demoConsoleExecute("inc_1", { input: "cache status" }, "olga");
+    const [e] = demoConsoleHistory("inc_1").entries;
+    expect(e.analysis).toMatchObject({ status: "done", suggestion: { command: "cache restart", command_id: "cache.restart" } });
+  });
+
+  it("stores the suggestion id of an inserted, unedited run", () => {
+    demoConsoleExecute("inc_1", { input: "cache status", suggestion_id: "sug-cmd_1" }, "olga");
+    expect(demoConsoleHistory("inc_1").entries[0].suggestion_id).toBe("sug-cmd_1");
+  });
+});

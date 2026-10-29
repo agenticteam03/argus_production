@@ -51,3 +51,34 @@ describe("ConsolePanel", () => {
     expect(html).toContain("olga");
   });
 });
+
+describe("ConsolePanel suggestions (CON-5)", () => {
+  const commands = [{ id: "cache.restart", usage: "cache restart" }, { id: "cache.status", usage: "cache status" }];
+  const withSuggestion = [
+    { command_id: "c1", input: "cache status", status: "ok", by: "olga", started_at: "2026-10-29T10:44:00Z",
+      analysis: { status: "done", comment: "The cache is stopped.", suggestion: { command: "cache restart", command_id: "cache.restart", rationale: "The API depends on it." } } },
+    { command_id: "c2", input: "map api", status: "ok", by: "olga", started_at: "2026-10-29T10:45:00Z",
+      analysis: { status: "done", comment: "x", suggestion: { command: "rm -rf /" } } },
+  ];
+  const render = (history) => renderToStaticMarkup(<ConsolePanel incident={incident} history={history} commands={commands} now={0} onInsert={() => {}} />);
+
+  it("shows a card per registry suggestion with Insert and Copy, and never one outside the registry", () => {
+    const html = render(withSuggestion);
+    expect(html).toContain("Suggestions");
+    expect(html).toContain("cache restart");
+    expect(html).toContain("The API depends on it.");
+    expect(html).toContain("Insert into console");
+    expect(html).toContain(">Copy<");
+    expect(html).not.toContain("rm -rf");
+    expect(html).not.toContain("Applied");
+  });
+
+  it("marks a suggestion Applied once a stored command carries its id", () => {
+    const html = render([...withSuggestion, { command_id: "c3", input: "cache restart", status: "ok", suggestion_id: "sug-c1" }]);
+    expect(html).toContain("Applied");
+  });
+
+  it("shows no Suggestions card without a suggestion", () => {
+    expect(render([])).not.toContain("Suggestions");
+  });
+});
