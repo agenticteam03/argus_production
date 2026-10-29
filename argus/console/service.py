@@ -39,6 +39,11 @@ class ConsoleResponse:
     finished_at: Any
 
 
+def lines_of(text: str) -> list[str]:
+    """A stored output (one text, newline-joined) as the lines `execute` answers; no output is no lines."""
+    return text.split("\n") if text else []
+
+
 def truncate(lines: list[str], limit: int) -> tuple[str, bool]:
     """The output as stored: one text, cut at `limit` bytes (never inside a character)."""
     text = "\n".join(lines)
@@ -112,6 +117,11 @@ class ConsoleService:
             parsed = parse(text)
         except ConsoleRefused as exc:
             at = utcnow()
+            output, cut = truncate([str(exc)], self.config.output_max_bytes)
+            self.app.store.add_console_command({           # the refusal is history too (Activity shows `rejected`)
+                "command_id": command_id, "incident_id": incident.id, "person": person, "input": text,
+                "command": None, "cls": None, "status": "rejected", "output": output, "output_truncated": cut,
+                "suggestion_id": suggestion_id, "started_at": at, "finished_at": at})
             self._audit("console.refused", person, incident.id, command_id=command_id, reason=str(exc)[:200])
             return ConsoleResponse(command_id, text, None, None, "rejected", [str(exc)], at, at)
         counted = parsed.cls == READ

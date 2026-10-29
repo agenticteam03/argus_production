@@ -1034,7 +1034,7 @@ def build_api(app_ctx) -> FastAPI:
     console_config = ConsoleConfig()
     if console_config.enabled:
         from argus.console import registry as console_registry
-        from argus.console.service import ConsoleService, QuotaRefused
+        from argus.console.service import ConsoleService, QuotaRefused, lines_of
         console = ConsoleService(app_ctx, console_config)
 
         def console_private(request: Request) -> None:
@@ -1061,11 +1061,13 @@ def build_api(app_ctx) -> FastAPI:
         @api.get("/api/v1/ops/console/incidents/{incident_id}/history", tags=["ops"],
                  dependencies=[Depends(console_private)])
         def console_history(incident_id: str, p: Annotated[Principal, Depends(console_person)]):
-            """The incident's stored commands, oldest first. `analysis` (CON-4) is not stored yet, so it is absent."""
+            """The incident's stored commands, oldest first, `output` as lines like `execute` answers it (the stores
+            keep one text). A refused input is an entry with `command` and `class` null. `analysis` (CON-4) is not
+            stored here, so it is absent."""
             console_incident(incident_id)
             return {"entries": [
                 {"command_id": r["command_id"], "input": r["input"], "command": r["command"], "class": r["cls"],
-                 "status": r["status"], "output": r["output"], "by": r["person"], "started_at": r["started_at"],
+                 "status": r["status"], "output": lines_of(r["output"]), "by": r["person"], "started_at": r["started_at"],
                  "finished_at": r["finished_at"]}
                 for r in app_ctx.store.console_history(incident_id, console_config.history_limit)]}
 

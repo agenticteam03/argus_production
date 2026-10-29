@@ -1,16 +1,17 @@
 -- 020: the operator console's history (ACR-0043, CON-2). One row per completed console command: its incident, the
 -- person, the input as typed, the command id and class, the status, the output (cut at 4 KB, `output_truncated`) and
--- the times. `history` reads it back per incident; the read quota counts its rows. Insert-only for the runtime role:
+-- the times. An input the parser refused is a row too: no command, no class, status `rejected`, the refusal as its
+-- output. `history` reads it back per incident; the read quota counts its rows. Insert-only for the runtime role:
 -- SELECT and INSERT, never UPDATE or DELETE (the grants, as for link_event). Additive: the old image keeps working on
 -- this schema; the new image needs the migration before it records a command.
 
 CREATE TABLE console_command (
   command_id       text PRIMARY KEY,
-  incident_id      text NOT NULL,
+  incident_id      text NOT NULL REFERENCES incident(id),
   person           text NOT NULL,
   input            text NOT NULL,
-  command          text NOT NULL,                -- the registry id, e.g. cache.status
-  cls              text NOT NULL CHECK (cls IN ('meta', 'read', 'write')),
+  command          text,                         -- the registry id, e.g. cache.status; NULL: the parser refused it
+  cls              text CHECK (cls IN ('meta', 'read', 'write')),     -- NULL with command
   status           text NOT NULL CHECK (status IN ('ok', 'error', 'rejected', 'needs_confirmation')),
   output           text NOT NULL,
   output_truncated boolean NOT NULL DEFAULT false,

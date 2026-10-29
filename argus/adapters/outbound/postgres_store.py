@@ -852,7 +852,7 @@ CHECKS_SQL: list[tuple[str, str, bool]] = [
      False),
     ("link event is insert-only (DELETE refused)", "DELETE FROM link_event WHERE owner = 'dbcheck'", False),
     ("insert console command (ACR-0043, migration 020)", "INSERT INTO console_command (command_id, incident_id, "
-     "person, input, command, cls, status, output, started_at, finished_at) VALUES ('dbcheck', 'dbcheck', 'dbcheck', "
+     "person, input, command, cls, status, output, started_at, finished_at) VALUES ('dbcheck', 'inc_dbcheck', 'dbcheck', "
      "'help', 'help', 'meta', 'ok', '', now(), now())", True),
     ("console command is insert-only (UPDATE refused)", "UPDATE console_command SET status = 'error' "
      "WHERE command_id = 'dbcheck'", False),

@@ -123,12 +123,16 @@ def test_every_call_is_audited_with_the_console_as_its_source(ctx):
     assert rows[0].detail["cls"] == "read" and rows[0].detail["command"] == "cache.status"
 
 
-def test_a_parse_error_is_a_rejected_answer_with_the_terminal_message_and_no_history(ctx):
+def test_a_parse_error_is_a_rejected_answer_with_the_terminal_message_and_a_history_row(ctx):
     got = run(ctx.client, ctx.auth, ctx.inc, "rm -rf /")
 
     assert got.status_code == 200 and got.json()["status"] == "rejected" and got.json()["output"]
-    assert ctx.calls == [] and ctx.app.store.console_history(ctx.inc.id) == []
-    assert any(r.event == "console.refused" for r in audit(ctx.app, ctx.inc))
+    assert ctx.calls == []
+    row = ctx.app.store.console_history(ctx.inc.id)[0]
+    assert (row["command_id"], row["input"], row["command"], row["cls"], row["status"], row["person"]) == (
+        got.json()["command_id"], "rm -rf /", None, None, "rejected", "olga")
+    assert row["output"] == "\n".join(got.json()["output"])
+    assert any(r.event == "console.refused" for r in audit(ctx.app, ctx.inc))       # the audit stays
 
 
 def test_a_write_command_is_rejected_and_nothing_is_invoked(ctx):
@@ -278,10 +282,43 @@ def test_the_history_route_returns_the_entries_of_the_mockup_spec_oldest_first(c
     assert (entries[0]["command_id"], entries[0]["by"], entries[0]["class"], entries[0]["status"]) == (
         first["command_id"], "olga", "read", "ok")
     assert entries[1]["class"] == "write" and entries[1]["status"] == "rejected"
-    assert isinstance(entries[0]["output"], str) and "state=running" in entries[0]["output"]
+    assert isinstance(entries[0]["output"], list) and "state=running" in "\n".join(entries[0]["output"])
 
 
 def test_a_refused_input_answers_with_a_null_command_and_class(ctx):
     got = run(ctx.client, ctx.auth, ctx.inc, "status; rm").json()
     assert (got["status"], got["input"], got["command"], got["class"]) == ("rejected", "status; rm", None, None)
     assert len(got["output"]) == 1
+
+
+def history_entry(ctx, command_id):
+    entries = ctx.client.get(url(ctx.inc, "history"), headers={**ctx.auth, **PRIVATE}).json()["entries"]
+    return next(e for e in entries if e["command_id"] == command_id)
+
+
+def test_execute_and_history_give_output_in_the_same_shape(ctx):
+    """The terminal maps over a list of lines for both; a command with output, one with none, one cut at 4 KB."""
+    ctx.app.runner.invoke = lambda c, n, a: (SimpleNamespace(status="ok", model_text="x" * 6000, values={"points": []},
+                                                             error_category=None), None)
+    answers = {text: run(ctx.client, ctx.auth, ctx.inc, text).json() for text in ("status", "clear", "api cpu")}
+
+    for text, answer in answers.items():
+        stored = history_entry(ctx, answer["command_id"])["output"]
+        assert isinstance(answer["output"], list) and isinstance(stored, list), text
+        assert all(isinstance(line, str) for line in answer["output"] + stored), text
+    assert answers["clear"]["output"] == [] == history_entry(ctx, answers["clear"]["command_id"])["output"]
+    with_output = history_entry(ctx, answers["status"]["command_id"])["output"]
+    assert with_output == answers["status"]["output"] and with_output
+    cut = history_entry(ctx, answers["api cpu"]["command_id"])["output"]
+    assert len("\n".join(answers["api cpu"]["output"])) > 4096 and len("\n".join(cut).encode()) <= 4096
+    assert "\n".join(answers["api cpu"]["output"]).startswith("\n".join(cut))
+
+
+def test_a_refused_input_shows_in_the_history_route_with_a_null_command(ctx):
+    refused = run(ctx.client, ctx.auth, ctx.inc, "status; rm").json()
+
+    entry = history_entry(ctx, refused["command_id"])
+
+    assert (entry["command"], entry["class"], entry["status"], entry["input"], entry["by"]) == (
+        None, None, "rejected", "status; rm", "olga")
+    assert entry["output"] == refused["output"] and len(entry["output"]) == 1

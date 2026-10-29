@@ -61,8 +61,8 @@ CREATE TRIGGER IF NOT EXISTS link_event_no_update BEFORE UPDATE ON link_event
 CREATE TRIGGER IF NOT EXISTS link_event_no_delete BEFORE DELETE ON link_event
   BEGIN SELECT RAISE(ABORT, 'link_event is insert-only'); END;
 CREATE TABLE IF NOT EXISTS console_command (
-  command_id TEXT PRIMARY KEY, incident_id TEXT NOT NULL, person TEXT NOT NULL, input TEXT NOT NULL,
-  command TEXT NOT NULL, cls TEXT NOT NULL CHECK (cls IN ('meta', 'read', 'write')),
+  command_id TEXT PRIMARY KEY, incident_id TEXT NOT NULL REFERENCES incident(id), person TEXT NOT NULL,
+  input TEXT NOT NULL, command TEXT, cls TEXT CHECK (cls IN ('meta', 'read', 'write')),
   status TEXT NOT NULL CHECK (status IN ('ok', 'error', 'rejected', 'needs_confirmation')),
   output TEXT NOT NULL, output_truncated INTEGER NOT NULL DEFAULT 0, suggestion_id TEXT,
   started_at TEXT NOT NULL, finished_at TEXT NOT NULL);
