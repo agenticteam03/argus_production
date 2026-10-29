@@ -16,8 +16,10 @@ from test_core import incident, make_app  # noqa: F401
 PASSWORD = "a-long-password"
 PRIVATE = {"X-Argus-Ops": "1"}
 PUBLIC = {"X-Argus-Ops": "0"}
-EXECUTE = "/api/v1/ops/console/execute"
-COMMANDS = "/api/v1/ops/console/commands"
+
+
+def url(inc, what):
+    return f"/api/v1/ops/console/incidents/{getattr(inc, 'id', inc)}/{what}"
 API = "vm-166/container:argus-lab-api"
 
 
@@ -57,7 +59,7 @@ def login(client, user="olga", scope=None):
 
 
 def run(client, headers, inc, text, **extra):
-    return client.post(EXECUTE, headers={**headers, **PRIVATE}, json={"incident_id": inc.id, "input": text, **extra})
+    return client.post(url(inc, "execute"), headers={**headers, **PRIVATE}, json={"input": text, **extra})
 
 
 @pytest.fixture
@@ -71,8 +73,9 @@ def ctx(make_app, monkeypatch):  # noqa: F811
 
 
 def test_the_catalogue_is_the_registry(ctx):
-    got = ctx.client.get(COMMANDS, headers={**ctx.auth, **PRIVATE})
-    assert got.status_code == 200 and got.json() == catalog()
+    got = ctx.client.get(url(ctx.inc, "commands"), headers={**ctx.auth, **PRIVATE})
+    assert got.status_code == 200 and got.json() == {"commands": catalog()}
+    assert set(got.json()["commands"][0]) == {"id", "usage", "class", "scenario", "summary"}
 
 
 def test_a_read_runs_through_invoke_and_answers_with_its_output(ctx):
@@ -80,6 +83,8 @@ def test_a_read_runs_through_invoke_and_answers_with_its_output(ctx):
 
     assert got.status_code == 200
     body = got.json()
+    assert set(body) == {"command_id", "input", "command", "class", "status", "output", "started_at", "finished_at"}
+    assert (body["input"], body["command"], body["class"]) == ("cache status", "cache.status", "read")
     assert body["status"] == "ok" and body["command_id"].startswith("cmd_")
     assert "state=running" in "\n".join(body["output"]) and "S-START" in "\n".join(body["output"])
     assert body["started_at"] <= body["finished_at"]
@@ -135,29 +140,31 @@ def test_a_write_command_is_rejected_and_nothing_is_invoked(ctx):
 
 
 def test_an_unknown_incident_is_404(ctx):
-    got = ctx.client.post(EXECUTE, headers={**ctx.auth, **PRIVATE}, json={"incident_id": "inc_nope", "input": "help"})
-    assert got.status_code == 404
+    for what, call in (("execute", ctx.client.post), ("commands", ctx.client.get), ("history", ctx.client.get)):
+        kwargs = {"json": {"input": "help"}} if what == "execute" else {}
+        assert call(url("inc_nope", what), headers={**ctx.auth, **PRIVATE}, **kwargs).status_code == 404
+    assert ctx.client.get(url("not-an-id", "history"), headers={**ctx.auth, **PRIVATE}).status_code == 404
 
 
 def test_a_bad_body_is_422(ctx):
-    for body in ({"incident_id": ctx.inc.id}, {"incident_id": "x", "input": "help"},
-                 {"incident_id": ctx.inc.id, "input": "help", "shell": True},
-                 {"incident_id": ctx.inc.id, "input": "x" * 201}):
-        assert ctx.client.post(EXECUTE, headers={**ctx.auth, **PRIVATE}, json=body).status_code == 422
+    for body in ({}, {"input": "help", "shell": True}, {"input": "help", "incident_id": ctx.inc.id},
+                 {"input": "x" * 201}):
+        assert ctx.client.post(url(ctx.inc, "execute"), headers={**ctx.auth, **PRIVATE}, json=body).status_code == 422
 
 
 # --- who may use it --------------------------------------------------------------------------------------------
 def test_a_viewer_is_refused(ctx):
     viewer = login(ctx.client, "vera")
     assert run(ctx.client, viewer, ctx.inc, "help").status_code == 403
-    assert ctx.client.get(COMMANDS, headers={**viewer, **PRIVATE}).status_code == 403
+    assert ctx.client.get(url(ctx.inc, "commands"), headers={**viewer, **PRIVATE}).status_code == 403
 
 
 @pytest.mark.parametrize("user", ["bot", "agent"])
 def test_service_and_agent_principals_are_refused(ctx, user):
     auth = login(ctx.client, user)
     assert run(ctx.client, auth, ctx.inc, "help").status_code == 403
-    assert ctx.client.get(COMMANDS, headers={**auth, **PRIVATE}).status_code == 403
+    assert ctx.client.get(url(ctx.inc, "commands"), headers={**auth, **PRIVATE}).status_code == 403
+    assert ctx.client.get(url(ctx.inc, "history"), headers={**auth, **PRIVATE}).status_code == 403
     assert ctx.calls == []
 
 
@@ -165,33 +172,36 @@ def test_service_and_agent_principals_are_refused(ctx, user):
 def test_a_scoped_token_is_refused_the_console_is_for_the_persons_own_session(ctx, scope):
     auth = login(ctx.client, scope=scope)
     assert run(ctx.client, auth, ctx.inc, "help").status_code == 403
-    assert ctx.client.get(COMMANDS, headers={**auth, **PRIVATE}).status_code == 403
+    assert ctx.client.get(url(ctx.inc, "commands"), headers={**auth, **PRIVATE}).status_code == 403
+    assert ctx.client.get(url(ctx.inc, "history"), headers={**auth, **PRIVATE}).status_code == 403
 
 
 def test_the_public_path_answers_404(ctx):
     for headers in (PUBLIC, {}):
-        assert ctx.client.get(COMMANDS, headers={**ctx.auth, **headers}).status_code == 404
-        assert ctx.client.post(EXECUTE, headers={**ctx.auth, **headers},
-                               json={"incident_id": ctx.inc.id, "input": "help"}).status_code == 404
+        assert ctx.client.get(url(ctx.inc, "commands"), headers={**ctx.auth, **headers}).status_code == 404
+        assert ctx.client.get(url(ctx.inc, "history"), headers={**ctx.auth, **headers}).status_code == 404
+        assert ctx.client.post(url(ctx.inc, "execute"), headers={**ctx.auth, **headers},
+                               json={"input": "help"}).status_code == 404
     assert ctx.calls == []
 
 
 def test_a_peer_that_is_not_the_edge_cannot_claim_the_private_path(ctx):
     ctx.app.settings.ops_peer = "argus-v18-ui"
-    assert ctx.client.get(COMMANDS, headers={**ctx.auth, **PRIVATE}).status_code == 404
+    assert ctx.client.get(url(ctx.inc, "commands"), headers={**ctx.auth, **PRIVATE}).status_code == 404
 
 
 def test_without_the_flag_the_routes_do_not_exist(make_app, monkeypatch):  # noqa: F811
     app = make_app()
     client = setup(app, monkeypatch, flag="0")
     auth = login(client)
-    assert client.get(COMMANDS, headers={**auth, **PRIVATE}).status_code == 404
-    assert client.post(EXECUTE, headers={**auth, **PRIVATE}, json={"incident_id": "inc_x", "input": "help"}
+    assert client.get(url("inc_x", "commands"), headers={**auth, **PRIVATE}).status_code == 404
+    assert client.get(url("inc_x", "history"), headers={**auth, **PRIVATE}).status_code == 404
+    assert client.post(url("inc_x", "execute"), headers={**auth, **PRIVATE}, json={"input": "help"}
                        ).status_code == 404
 
 
 def test_no_token_is_401(ctx):
-    assert ctx.client.get(COMMANDS, headers=PRIVATE).status_code == 401
+    assert ctx.client.get(url(ctx.inc, "commands"), headers=PRIVATE).status_code == 401
 
 
 # --- the read quota --------------------------------------------------------------------------------------------
@@ -250,3 +260,28 @@ def test_the_incident_read_budget_is_separate_and_rejects_without_invoking(make_
     got = run(client, auth, inc, "cache status")
     assert got.status_code == 200 and got.json()["status"] == "rejected" and "budget" in got.json()["output"][0]
     assert len(calls) == 1
+
+
+def test_the_history_route_returns_the_entries_of_the_mockup_spec_oldest_first(ctx):
+    first = run(ctx.client, ctx.auth, ctx.inc, "cache status").json()
+    run(ctx.client, ctx.auth, ctx.inc, "cache restart")
+    other = incident(ctx.app, API)
+    run(ctx.client, ctx.auth, other, "cache status")
+
+    got = ctx.client.get(url(ctx.inc, "history"), headers={**ctx.auth, **PRIVATE})
+
+    assert got.status_code == 200 and list(got.json()) == ["entries"]
+    entries = got.json()["entries"]
+    assert [e["input"] for e in entries] == ["cache status", "cache restart"]
+    assert set(entries[0]) == {"command_id", "input", "command", "class", "status", "output", "by", "started_at",
+                               "finished_at"}                              # `analysis` is CON-4's: absent until stored
+    assert (entries[0]["command_id"], entries[0]["by"], entries[0]["class"], entries[0]["status"]) == (
+        first["command_id"], "olga", "read", "ok")
+    assert entries[1]["class"] == "write" and entries[1]["status"] == "rejected"
+    assert isinstance(entries[0]["output"], str) and "state=running" in entries[0]["output"]
+
+
+def test_a_refused_input_answers_with_a_null_command_and_class(ctx):
+    got = run(ctx.client, ctx.auth, ctx.inc, "status; rm").json()
+    assert (got["status"], got["input"], got["command"], got["class"]) == ("rejected", "status; rm", None, None)
+    assert len(got["output"]) == 1

@@ -166,8 +166,7 @@ class ResolveIn(BaseModel):
 class ConsoleExecuteIn(BaseModel):
     """ACR-0043: one line typed in the operator console, for one incident."""
     model_config = ConfigDict(extra="forbid")
-    incident_id: str = Field(pattern=INCIDENT_ID, max_length=64)
-    input: str = Field(max_length=200)
+    input: str = Field(max_length=200)                         # the incident comes from the path
     suggestion_id: str | None = Field(None, max_length=64)
     confirmation: str | None = Field(None, max_length=64)      # CON-6: the write's confirmation; unused by reads
 
@@ -1047,22 +1046,42 @@ def build_api(app_ctx) -> FastAPI:
                 raise HTTPException(status.HTTP_403_FORBIDDEN, "the console is for a person's own session")
             return p
 
-        @api.get("/api/v1/ops/console/commands", tags=["ops"], dependencies=[Depends(console_private)])
-        def console_commands(p: Annotated[Principal, Depends(console_person)]):
-            return console_registry.catalog()
-
-        @api.post("/api/v1/ops/console/execute", tags=["ops"], dependencies=[Depends(console_private)])
-        def console_execute(body: ConsoleExecuteIn, p: Annotated[Principal, Depends(console_person)]):
-            inc = app_ctx.store.get_incident(body.incident_id)
+        def console_incident(incident_id: str):
+            inc = app_ctx.store.get_incident(incident_id) if re.match(INCIDENT_ID, incident_id) else None
             if inc is None:
                 raise HTTPException(status.HTTP_404_NOT_FOUND, "no such incident")
+            return inc
+
+        @api.get("/api/v1/ops/console/incidents/{incident_id}/commands", tags=["ops"],
+                 dependencies=[Depends(console_private)])
+        def console_commands(incident_id: str, p: Annotated[Principal, Depends(console_person)]):
+            console_incident(incident_id)
+            return {"commands": console_registry.catalog()}
+
+        @api.get("/api/v1/ops/console/incidents/{incident_id}/history", tags=["ops"],
+                 dependencies=[Depends(console_private)])
+        def console_history(incident_id: str, p: Annotated[Principal, Depends(console_person)]):
+            """The incident's stored commands, oldest first. `analysis` (CON-4) is not stored yet, so it is absent."""
+            console_incident(incident_id)
+            return {"entries": [
+                {"command_id": r["command_id"], "input": r["input"], "command": r["command"], "class": r["cls"],
+                 "status": r["status"], "output": r["output"], "by": r["person"], "started_at": r["started_at"],
+                 "finished_at": r["finished_at"]}
+                for r in app_ctx.store.console_history(incident_id, console_config.history_limit)]}
+
+        @api.post("/api/v1/ops/console/incidents/{incident_id}/execute", tags=["ops"],
+                  dependencies=[Depends(console_private)])
+        def console_execute(incident_id: str, body: ConsoleExecuteIn,
+                            p: Annotated[Principal, Depends(console_person)]):
+            inc = console_incident(incident_id)
             try:
                 done = console.run(p, inc, body.input, body.suggestion_id)
             except QuotaRefused as refused:
                 raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS,
                                     f"console read quota reached ({refused.which}); try again later",
                                     headers={"Retry-After": str(refused.retry_after)})
-            return {"command_id": done.command_id, "status": done.status, "output": done.output,
+            return {"command_id": done.command_id, "input": done.input, "command": done.command,
+                    "class": done.cls, "status": done.status, "output": done.output,
                     "started_at": done.started_at, "finished_at": done.finished_at}
 
     @api.get("/healthz", tags=["ops"])

@@ -30,6 +30,9 @@ class QuotaRefused(Exception):
 @dataclass(frozen=True)
 class ConsoleResponse:
     command_id: str
+    input: str
+    command: str | None          # the registry id; None when the parser refused the input
+    cls: str | None
     status: str
     output: list[str]
     started_at: Any
@@ -110,7 +113,7 @@ class ConsoleService:
         except ConsoleRefused as exc:
             at = utcnow()
             self._audit("console.refused", person, incident.id, command_id=command_id, reason=str(exc)[:200])
-            return ConsoleResponse(command_id, "rejected", [str(exc)], at, at)
+            return ConsoleResponse(command_id, text, None, None, "rejected", [str(exc)], at, at)
         counted = parsed.cls == READ
         if counted:
             try:
@@ -123,7 +126,7 @@ class ConsoleService:
                 self._release(person)
                 at = utcnow()
                 self._audit("console.budget_refused", person, incident.id, command_id=command_id, command=parsed.id)
-                return ConsoleResponse(command_id, "rejected",
+                return ConsoleResponse(command_id, parsed.text or text, parsed.id, parsed.cls, "rejected",
                                        [f"read budget for this incident reached ({self.config.incident_read_budget})"],
                                        at, at)
         try:
@@ -139,4 +142,5 @@ class ConsoleService:
                 self._release(person)
         self._audit("console.command", person, incident.id, command_id=command_id, command=parsed.id,
                     cls=parsed.cls, status=result.status)
-        return ConsoleResponse(command_id, result.status, result.output_lines, result.started_at, result.finished_at)
+        return ConsoleResponse(command_id, parsed.text or text, parsed.id, parsed.cls, result.status,
+                           result.output_lines, result.started_at, result.finished_at)
