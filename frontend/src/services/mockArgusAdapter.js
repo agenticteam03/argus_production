@@ -3,7 +3,7 @@
 import { PHASE19_PREVIEW_ID, demoEscalations, demoEvents, demoEvidence, demoIncident, demoList, demoMetrics, demoTargetMetrics, demoTopology } from "./demoIncidents.js";
 import { demoSession } from "./demoSession.js";
 import { DEMO_APPROVAL_ID, demoApproval } from "./demoApproval.js";
-import { demoConsoleCommands, demoConsoleExecute, demoConsoleHistory } from "./demoConsole.js";
+import { demoConsoleCommands, demoConsoleExecute, demoConsoleHistory, demoConsoleRecheck } from "./demoConsole.js";
 import { answerMetricQuestion, parseInvestigationRequest } from "./metricQuestion.js";
 
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -189,6 +189,19 @@ export const mockArgusAdapter = {
     await wait(300);
     if (demoSession.role !== "operator" && demoSession.role !== "approver") throw httpError(403, "This role may not use the console.");
     return demoConsoleExecute(incidentId, { input, confirmation, suggestion_id }, demoSession.role);
+  },
+
+  // CON-9, demo only: a manual re-check of a retryable analysis. The real route comes with the analysis wiring, so the
+  // http adapter has no such call and the panel shows no Re-check button against the real API.
+  async recheckConsoleAnalysis(incidentId, commandId) {
+    calls.push({ method: "POST", path: `/api/v1/ops/console/incidents/${incidentId}/commands/${commandId}/recheck` });
+    await wait(200);
+    if (demoSession.role !== "operator" && demoSession.role !== "approver") throw httpError(403, "This role may not use the console.");
+    try {
+      return demoConsoleRecheck(incidentId, commandId);
+    } catch (err) {
+      throw httpError(err.status ?? 500, err.message);
+    }
   },
 
   async askAgent(text, canStartInvestigation = false) {
