@@ -144,8 +144,16 @@ class ActionPolicy:
                 offered[action.action] = (card, runbook_id)
         result = []
         for name, (card, ground) in offered.items():
+            observations = values
+            if name == "network.restore":
+                # the card's preconditions name its arguments: derive them as the proposer does, only when unambiguous
+                declared, attached = list(info.networks or []), values.get("networks")
+                if len(declared) != 1 or not isinstance(attached, list) or len(attached) != 1:
+                    continue
+                observations = {**values, "declared_networks": declared, "connect_network": declared[0],
+                                "disconnect_network": attached[0]}
             suggestions = evaluate_candidate_actions(
-                target, service, {name: card}, self.risk_table, values, grounds=[ground], is_victim=False,
+                target, service, {name: card}, self.risk_table, observations, grounds=[ground], is_victim=False,
                 verified_sources={ground})
             for suggestion in suggestions:
                 result.append({"action": suggestion.action, "target": str(target), "text": suggestion.text,

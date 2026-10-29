@@ -26,7 +26,7 @@ verify:
   signal: link_ok
   expected: 1
   window_sec: 120
-rollback: none   # ACR-0035: no automatic rollback; a person restores the old state
+rollback: "none: a person puts the old network back (ACR-0035)"
 sources:
   - RB-003
   - RB-009
