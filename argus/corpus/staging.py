@@ -54,7 +54,7 @@ def list_sources(staging: Path | None, corpus: Path | None) -> list[dict]:
     out: list[dict] = []
     installed = _manifest(Path(corpus)) if corpus else None
     for s in (installed or {}).get("sources", []):
-        out.append({"name": s["name"], "ref": s["ref"], "licence": s.get("licence", ""), "status": "installed",
+        out.append({"name": s["name"], "source": s["name"], "ref": s["ref"], "licence": s.get("licence", ""), "status": "installed",
                     "passages": s.get("passages", 0), "quarantined": s.get("quarantined", 0),
                     "at": installed.get("built_at"), "sha256": installed.get("passages_sha256", "")})
     if staging and Path(staging).is_dir():
@@ -63,7 +63,8 @@ def list_sources(staging: Path | None, corpus: Path | None) -> list[dict]:
             if not m:
                 continue
             for s in m.get("sources", []):
-                out.append({"name": d.name, "ref": s["ref"], "licence": s.get("licence", ""), "status": "staged",
+                out.append({"name": d.name, "source": s["name"], "ref": s["ref"], "licence": s.get("licence", ""),
+                            "status": "staged",
                             "passages": s.get("passages", 0), "quarantined": s.get("quarantined", 0),
                             "at": m.get("built_at"), "sha256": m.get("passages_sha256", "")})
     return out
@@ -102,10 +103,14 @@ def approve(name: str, staging: Path, corpus: Path, expected_sha256: str) -> dic
     merge = Path(staging) / f".{name}.merge"
     shutil.rmtree(merge, ignore_errors=True)
     merge.mkdir(parents=True)
-    passages = [r for r in installed if r["source"] != name] + rows
-    quarantine = [r for r in _rows(corpus / "quarantine.jsonl") if r.get("source") != name] + _rows(src / "quarantine.jsonl")
+    # The bundle replaces every source it carries (a bundle may carry several under its own name, like `base`), so
+    # installing it twice never duplicates a source's passages.
+    replaced = {s["name"] for s in manifest["sources"]} | {name}
+    passages = [r for r in installed if r["source"] not in replaced] + rows
+    quarantine = ([r for r in _rows(corpus / "quarantine.jsonl") if r.get("source") not in replaced]
+                  + _rows(src / "quarantine.jsonl"))
     merged = {"format": bundle.BUNDLE_FORMAT, "built_at": manifest["built_at"],
-              "sources": [s for s in current.get("sources", []) if s["name"] != name] + manifest["sources"],
+              "sources": [s for s in current.get("sources", []) if s["name"] not in replaced] + manifest["sources"],
               "passages_sha256": bundle._write_jsonl(merge / "passages.jsonl", passages),
               "quarantine_sha256": bundle._write_jsonl(merge / "quarantine.jsonl", quarantine)}
     (merge / "manifest.json").write_text(json.dumps(merged, indent=1, sort_keys=True) + "\n", encoding="utf-8")

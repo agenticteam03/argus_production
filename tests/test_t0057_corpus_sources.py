@@ -69,6 +69,22 @@ def test_approve_verifies_the_hash_merges_and_replaces_the_old_passages(tmp_path
     assert not (stage / "demo").exists() and (corpus / "reference.db").is_file()
 
 
+def test_a_bundle_named_apart_from_its_sources_replaces_them_instead_of_repeating_them(tmp_path):
+    """The `base` bundle carries several sources under its own name: approving it over the same installed sources
+    replaces them, and the list names each source and its bundle."""
+    corpus, stage = tmp_path / "corpus", tmp_path / "staging"
+    srcs = [_source(name="alpha"), _source(name="beta")]
+    for _ in range(2):
+        bundle.build(srcs, stage / "base", fetcher=_fetcher("restart policy always restarts the container"))
+        staging.approve("base", stage, corpus, staging.staged_sha256(stage, "base"))
+    manifest, rows = bundle.verify(corpus)
+    assert sorted(s["name"] for s in manifest["sources"]) == ["alpha", "beta"] and len(rows) == 2
+    bundle.build(srcs, stage / "base", fetcher=_fetcher("restart policy always restarts the container"))
+    listed = staging.list_sources(stage, corpus)
+    assert sorted((r["status"], r["name"], r["source"]) for r in listed) == [
+        ("installed", "alpha", "alpha"), ("installed", "beta", "beta"), ("staged", "base", "alpha"), ("staged", "base", "beta")]
+
+
 def test_approve_refuses_a_tampered_or_changed_staged_bundle(tmp_path):
     stage = _stage(tmp_path)
     digest = staging.staged_sha256(stage, "demo")
@@ -115,8 +131,37 @@ def test_an_administrator_lists_and_approves_with_a_step_up_bound_to_the_bundle(
     assert again.status_code == 409                                            # nothing staged any more
 
 
-def test_an_operator_or_approver_cannot_manage_the_corpus(make_app, monkeypatch, tmp_path):  # noqa: F811
-    for role in ("operator", "approver"):
+def test_an_approver_manages_the_corpus_like_an_administrator(make_app, monkeypatch, tmp_path):  # noqa: F811
+    """ACR-0040: an approver lists, approves and rejects staged sources, each decision with its own step-up."""
+    app, client, auth, seen = _admin(make_app, monkeypatch, tmp_path, role="approver")
+    stage = _stage(tmp_path)
+    digest = staging.staged_sha256(stage, "demo")
+    assert client.get("/api/v1/ops/corpus/sources", headers=auth).json()[0]["status"] == "staged"
+    r = client.post("/api/v1/ops/corpus/sources/demo/approve", headers=auth, json={"step_up_token": "one"})
+    assert r.status_code == 200, r.text
+    assert seen == [("one", "ada", f"corpus:demo:{digest}")]
+    events = [b for _, b, _, _ in app.store.audit_chain() if b["event"] == "corpus.source_approved"]
+    assert events and events[0]["actor"] == "ada"
+    me = client.get("/api/v1/me", headers=auth).json()
+    assert "manage_corpus" in me["actions"]                              # the UI shows Reference sources
+
+
+def test_me_lists_the_corpus_action_only_with_the_second_factor(make_app, monkeypatch, tmp_path):  # noqa: F811
+    """The UI shows Reference sources when /me lists manage_corpus (ACR-0001); it did not list it before ACR-0040."""
+    for role in ("admin", "approver"):
+        _, client, auth, _ = _admin(make_app, monkeypatch, tmp_path / role, role=role)
+        assert "manage_corpus" in client.get("/api/v1/me", headers=auth).json()["actions"], role
+    app = make_app()
+    app.settings.corpus_staging_dir = str(tmp_path / "staging")
+    app.store.upsert_principal("ada", "human", "approver", ["lab"], PasswordHash.recommended().hash(PASSWORD))
+    client = TestClient(build_api(app))                                 # privileged_ready false: no key yet
+    token = client.post("/api/v1/auth/token", data={"username": "ada", "password": PASSWORD}).json()["access_token"]
+    me = client.get("/api/v1/me", headers={"Authorization": f"Bearer {token}"}).json()
+    assert "manage_corpus" not in me["actions"] and "manage_corpus" not in me["permissions"]
+
+
+def test_an_operator_cannot_manage_the_corpus(make_app, monkeypatch, tmp_path):  # noqa: F811
+    for role in ("operator", "viewer"):
         _, client, auth, seen = _admin(make_app, monkeypatch, tmp_path / role, role=role)
         assert client.get("/api/v1/ops/corpus/sources", headers=auth).status_code == 403
         assert client.post("/api/v1/ops/corpus/sources/demo/approve", headers=auth,

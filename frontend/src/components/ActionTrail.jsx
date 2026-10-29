@@ -27,14 +27,14 @@ const Step = ({ title, meta, children }) => {
 };
 
 // The supervised action of this incident, read-only: proposal, judge, the operator's answer, execution and verification.
-// Approving stays on the Actions screen of the private path; nothing here acts.
+// Nothing here acts: a pending approval is decided below it (IncidentApproval) or on the Actions screen.
 export default function ActionTrail({ action }) {
   if (!action) return null;
   const { judge, approval, outcome } = action;
   const run = action.action;
   return (
     <Card title="Action">
-      <p className="mb-3 text-[13px] text-muted">The proposal Argus froze for this incident and what happened to it. Approvals are answered on the Actions screen.</p>
+      <p className="mb-3 text-[13px] text-muted">The proposal Argus froze for this incident and what happened to it. An approver decides a waiting approval below or on the Actions screen.</p>
       <ol className="space-y-3">
         <Step title="Proposal" meta={["Frozen", "neutral"]}>
           <p><span className="font-mono">{action.capability}</span> on <span className="break-all">{action.target}</span></p>

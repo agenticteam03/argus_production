@@ -106,20 +106,27 @@ export const mockArgusAdapter = {
       target: a.proposal.input.target, risk: a.judge.risk, verdict: a.judge.verdict, expires_at: a.expires_at }];
   },
 
+  // ACR-0042: the bell's count; the local preview's one synthetic approval when its flag is on
+  async countWaitingApprovals() {
+    record("/api/v1/approvals/waiting");
+    if (demoSession.role !== "approver") throw httpError(403, "Only an approver counts the waiting approvals.");
+    return { waiting: import.meta.env.VITE_ARGUS_PHASE19_DEMO === "1" ? 1 : 0 };
+  },
+
   async getApproval(id) {
     record(`/api/v1/ops/approvals/${id}`);
     if (import.meta.env.VITE_ARGUS_PHASE19_DEMO === "1" && id === DEMO_APPROVAL_ID) return demoApproval();
     throw httpError(404, "Approval not found in this demo.");
   },
 
-  // ACR-0034, demo: one installed source and one staged; the preview never installs anything.
+  // ACR-0034, demo: one installed source and one staged bundle, in the API's shape; the preview never installs anything.
   async listCorpusSources() {
     record("/api/v1/ops/corpus/sources");
     return [
-      { name: "nginx", ref: "159f0a3", licence: "BSD-2-Clause", status: "installed", passages: 845, quarantined: 0,
-        staged_at: "2026-10-27T06:10:00Z", installed_at: "2026-10-27T06:20:00Z", sha256: "a".repeat(64) },
-      { name: "redis", ref: "7.2.5", licence: "BSD-3-Clause", status: "staged", passages: 1204, quarantined: 2,
-        staged_at: "2026-10-27T07:00:00Z", installed_at: null, sha256: "b".repeat(64) },
+      { name: "nginx", source: "nginx", ref: "159f0a3", licence: "BSD-2-Clause", status: "installed", passages: 845,
+        quarantined: 0, at: "2026-10-27T06:10:00Z", sha256: "a".repeat(64) },
+      { name: "redis", source: "redis", ref: "7.2.5", licence: "BSD-3-Clause", status: "staged", passages: 1204,
+        quarantined: 2, at: "2026-10-27T07:00:00Z", sha256: "b".repeat(64) },
     ];
   },
 
@@ -148,6 +155,16 @@ export const mockArgusAdapter = {
     await wait(300);
     if (demoSession.role !== "operator" && demoSession.role !== "approver") throw httpError(403, "This role may not start investigations.");
     return { incident_id: demoList()[0].id, status: "queued", duplicate: false };
+  },
+
+  // ACR-0041, demo: the escalated demo incident is closed for this session only; a viewer is refused as by the API.
+  async resolveIncident(incidentId, reason) {
+    calls.push({ method: "POST", path: `/api/v1/incidents/${incidentId}/resolve` });
+    await wait(200);
+    if (demoSession.role !== "operator" && demoSession.role !== "approver") throw httpError(403, "This role may not resolve incidents.");
+    const incident = demoList().find((i) => i.id === incidentId);
+    if (!incident || incident.status !== "escalated") throw httpError(409, "only an escalated incident can be resolved");
+    return { ...incident, status: "closed", resolution: { by: demoSession.role, at: new Date().toISOString(), reason } };
   },
 
   async askAgent(text, canStartInvestigation = false) {

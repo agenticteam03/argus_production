@@ -116,11 +116,11 @@ def test_me_tells_a_ui_who_is_logged_in_and_what_the_token_may_do(ui):
     assert r.status_code == 200
     assert r.json() == {"user": "alice", "role": "operator", "access": "read",
                         "actions": ["view_incidents", "view_timeline", "view_evidence"],
-                        "permissions": ["investigate", "view", "view_evidence"],   # ACR-0018: what the role grants
+                        "permissions": ["investigate", "resolve_incident", "view", "view_evidence"],   # ACR-0018
                         "second_factor": None}                                      # not configured here (step 3)
     full = me(api, "alice").json()
     assert full["access"] == "full" and full["actions"] == ["view_incidents", "view_timeline", "view_evidence",
-                                                            "start_investigation"]
+                                                            "start_investigation", "resolve_incident"]   # ACR-0041
     viewer = me(api, "vera").json()                      # a viewer's full token still cannot read evidence or start
     assert viewer["role"] == "viewer" and viewer["actions"] == ["view_incidents", "view_timeline"]
 

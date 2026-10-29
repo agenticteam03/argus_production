@@ -7,6 +7,7 @@ from urllib.parse import quote
 import hmac
 import logging
 import math
+import re
 import socket
 import time
 import uuid
@@ -20,7 +21,7 @@ import jwt
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, status
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from pwdlib import PasswordHash
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from argus.application.alerts import HandleAlertNotification
 from argus.application.incident_view import build_verdict
@@ -31,6 +32,8 @@ from argus.ports.ports import MetricsUnavailable, StaleMetrics
 
 READ_METHODS = ("GET", "HEAD")          # a read-only token (ACR-0001) may use only these
 INVESTIGATE_WRITES = {("POST", "/api/v1/investigations")}   # the one non-GET of an `investigate` token (ACR-0012)
+# ACR-0041: ...and closing an escalated incident, which acts on nothing
+RESOLVE_PATH = re.compile(r"^/api/v1/incidents/[A-Za-z0-9_-]{1,64}/resolve$")
 SCOPES = {"read", "investigate"}        # what a login may ask for; none = a full token (loopback only)
 ANY_TOKEN_WRITES = {("POST", "/api/v1/auth/logout")}   # ACR-0018: every token may end its own session
 # ACR-0018 step 3: every token may complete its own second factor (the UI's tokens are read or investigate ones): a
@@ -55,13 +58,18 @@ PENDING_LIST_LIMIT, PENDING_SCAN_PAGE = 50, 100  # the pending list's length; ap
 FULL_ACCESS = frozenset({"full", "ops"})
 ROLE_PERMISSIONS: dict[str, frozenset[str]] = {
     "viewer": frozenset({"view"}),
-    "operator": frozenset({"view", "view_evidence", "investigate"}),
-    "approver": frozenset({"view", "view_evidence", "investigate"}),
+    "operator": frozenset({"view", "view_evidence", "investigate", "resolve_incident"}),    # ACR-0041: close an
+    "approver": frozenset({"view", "view_evidence", "investigate", "resolve_incident"}),    # escalated incident
 }
 # Phase 19: granted only while the action routes are mounted (`action_rows`); production wiring mounts none yet.
-ACTION_ROLE_PERMISSIONS: dict[str, frozenset[str]] = {"approver": frozenset({"approve_action", "place_hold"})}
-# ACR-0034 local tier: installing a staged reference source is an administrator's privileged act (step-up each time)
-CORPUS_ROLE_PERMISSIONS: dict[str, frozenset[str]] = {"admin": frozenset({"manage_corpus"})}
+# ACR-0042: `count_waiting_approvals` is not privileged: it gives an approver only how many approvals wait (the bell),
+# with any token; seeing and deciding them stays privileged and private.
+ACTION_ROLE_PERMISSIONS: dict[str, frozenset[str]] = {
+    "approver": frozenset({"approve_action", "place_hold", "count_waiting_approvals"})}
+# ACR-0034 local tier: installing a staged reference source is a privileged act (step-up each time); ACR-0040: an
+# approver may do it as well as an administrator
+CORPUS_ROLE_PERMISSIONS: dict[str, frozenset[str]] = {"admin": frozenset({"manage_corpus"}),
+                                                      "approver": frozenset({"manage_corpus"})}
 
 
 def permissions_of(p: Principal) -> frozenset[str]:
@@ -140,6 +148,19 @@ class HoldIn(BaseModel):
     target: str = Field(min_length=1, max_length=128)
     reason: str = Field(min_length=1, max_length=500)
     step_up_token: str = Field(min_length=1, max_length=64)
+
+
+class ResolveIn(BaseModel):
+    """ACR-0041: why the escalated incident is closed (what fixed it, outside Argus)."""
+    model_config = ConfigDict(extra="forbid")
+    reason: str = Field(min_length=1, max_length=500)
+
+    @field_validator("reason")
+    @classmethod
+    def _not_blank(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("a reason is required")
+        return value.strip()
 
 
 class InvestigationIn(BaseModel):
@@ -236,6 +257,14 @@ def private_path(request: Request, settings) -> bool:
         return False
 
 
+def client_cert(request: Request, settings) -> str:
+    """ACR-0038: "verified" when the edge verified a team certificate on this private request, else "none" (the
+    passkey-only mode, or no certificate). Off the private path the header is not believed."""
+    if private_path(request, settings) and request.headers.get(settings.ops_cert_header) == "SUCCESS":
+        return "verified"
+    return "none"
+
+
 def _principal_dep(app_ctx):
     def dep(request: Request, token: Annotated[str, Depends(oauth2)]) -> Principal:
         try:
@@ -290,12 +319,14 @@ def _principal_dep(app_ctx):
                 detail={"method": request.method, "path": request.url.path}))
             raise HTTPException(status.HTTP_403_FORBIDDEN, "this token is read-only")
         elif (access == "investigate" and request.method not in READ_METHODS
-                and (request.method, request.url.path) not in INVESTIGATE_WRITES):
+                and (request.method, request.url.path) not in INVESTIGATE_WRITES
+                and not (request.method == "POST" and RESOLVE_PATH.match(request.url.path))):
             app_ctx.store.append(AuditRecord(
                 audit_id=f"aud_{uuid.uuid4().hex[:16]}", incident_id=None, at=utcnow(), category="access",
                 event="access.investigate_scope_refused", actor=row["id"],
                 detail={"method": request.method, "path": request.url.path}))
-            raise HTTPException(status.HTTP_403_FORBIDDEN, "this token may only read and start investigations")
+            raise HTTPException(status.HTTP_403_FORBIDDEN,
+                                "this token may only read, start investigations and resolve escalated incidents")
         return Principal(id=row["id"], kind=row["kind"], role=row["role"], scopes=frozenset(row["scopes"]))
     return dep
 
@@ -422,10 +453,14 @@ def build_api(app_ctx) -> FastAPI:
             actions.append("view_evidence")
             if "investigate" in granted_now and access in ("full", "ops", "investigate"):   # ACR-0012: an investigate token
                 actions.append("start_investigation")                                  # may start one
+        if "resolve_incident" in granted_now and access in ("full", "ops", "investigate"):   # ACR-0041
+            actions.append("resolve_incident")
         if second.configured:
             actions.append("manage_second_factor")          # ACR-0018 step 3: enrol a key, complete the login
         # Phase 19: a granted privileged permission is also an action, so the UI shows its control (ACR-0001)
-        actions += sorted(granted_now & {"approve_action", "place_hold"})
+        actions += sorted(granted_now & {"approve_action", "place_hold", "manage_corpus"})   # ACR-0040: the corpus too
+        if "count_waiting_approvals" in granted_now:        # ACR-0042: the bell's count, with any token
+            actions.append("count_waiting_approvals")
         # ACR-0018: what the role grants; the token's access may narrow it (a read token starts nothing); a privileged
         # permission is listed only once the second factor holds
         return {"user": p.id, "role": p.role, "access": access, "actions": actions, "permissions": sorted(granted_now),
@@ -525,6 +560,25 @@ def build_api(app_ctx) -> FastAPI:
             inc, duplicate = app_ctx.store.create_incident(inc, body.idempotency_key)
         audit_access("investigation.requested", p.id, {**how, "incident_id": inc.id, "duplicate": duplicate})
         return {"incident_id": inc.id, "status": inc.status, "duplicate": duplicate}
+
+    @api.post("/api/v1/incidents/{incident_id}/resolve", tags=["incidents"])
+    def resolve_incident(incident_id: str, body: ResolveIn,
+                         request: Request, p: Annotated[Principal, Depends(require("resolve_incident"))]):
+        """ACR-0041: close an escalated incident that was fixed outside Argus, with a reason. It keeps its diagnosis and
+        outcome; only an escalated incident, once."""
+        if p.kind != "human":
+            raise HTTPException(403, "a human principal is required")
+        inc = app_ctx.store.get_incident(incident_id)
+        if inc is None:
+            raise HTTPException(404, "no such incident")
+        done = app_ctx.store.resolve_incident(incident_id, p.id, body.reason, utcnow())
+        if done is None:
+            raise HTTPException(409, "only an escalated incident can be resolved")
+        app_ctx.store.append(AuditRecord(audit_id=f"aud_{uuid.uuid4().hex[:16]}", incident_id=incident_id,
+                                         at=done.resolution.at, category="decision", event="incident.resolved",
+                                         actor=p.id[:64], detail={"reason": body.reason,
+                                                                  "outcome": done.outcome.value if done.outcome else None}))
+        return done.model_dump(mode="json")
 
     @api.get("/api/v1/targets", tags=["incidents"])
     def targets(p: Annotated[Principal, Depends(current)]):
@@ -736,7 +790,7 @@ def build_api(app_ctx) -> FastAPI:
             if not private_path(request, s):
                 raise HTTPException(status.HTTP_404_NOT_FOUND, "Not Found")
             _, address = origin(request)
-            where = {"client": address, "via": "ops"}
+            where = {"client": address, "via": "ops", "client_cert": client_cert(request, s)}
             wait = limiter.retry_after(form.username, address)
             if wait:
                 audit_access("access.login_locked", form.username, where)
@@ -769,10 +823,9 @@ def build_api(app_ctx) -> FastAPI:
             if info is None or info.scope not in p.scopes:
                 raise HTTPException(403, "target is outside this principal's scope")
 
-        @api.get("/api/v1/ops/approvals", tags=["ops"])
-        def pending_approvals(p: Annotated[Principal, Depends(require("approve_action"))]):
+        def waiting_approvals(p: Principal) -> list[dict]:
             """The approvals waiting for a person, in this principal's scope; one that no longer verifies is left out
-            (opening it by id shows why)."""
+            (opening it by id shows why). At most PENDING_LIST_LIMIT."""
             if p.kind != "human":
                 raise HTTPException(403, "a human principal is required")
             out, now, after = [], utcnow(), None
@@ -797,6 +850,18 @@ def build_api(app_ctx) -> FastAPI:
                     break
                 after = page[-1]
             return out
+
+        @api.get("/api/v1/ops/approvals", tags=["ops"])
+        def pending_approvals(p: Annotated[Principal, Depends(require("approve_action"))]):
+            """The approvals waiting for a person, in this principal's scope; one that no longer verifies is left out
+            (opening it by id shows why)."""
+            return waiting_approvals(p)
+
+        @api.get("/api/v1/approvals/waiting", tags=["actions"])
+        def approvals_waiting(p: Annotated[Principal, Depends(require("count_waiting_approvals"))]):
+            """ACR-0042: how many approvals wait for this approver (the same filter as the private list, at most 50),
+            with any token and no second factor: a count only, never an id, an incident, an action or a target."""
+            return {"waiting": len(waiting_approvals(p))}
 
         @api.get("/api/v1/ops/approvals/{approval_id}", tags=["ops"])
         def inspect_approval(approval_id: str, p: Annotated[Principal, Depends(require("approve_action"))]):
@@ -830,7 +895,9 @@ def build_api(app_ctx) -> FastAPI:
             audit = hold_audit("action.approval_answered", p.id, now,
                                incident_id=view["proposal"]["input"]["incident_id"], approval_id=approval_id,
                                proposal_digest=body.proposal_digest, decision=body.decision,
-                               reason=body.reason.strip() if body.reason else None)
+                               reason=body.reason.strip() if body.reason else None,
+                               client_cert=client_cert(request, s),
+                               judge_verdict=view["judge"]["verdict"], risk=view["judge"]["risk"])   # ACR-0039
             if not action_rows.answer_action_approval(approval_id, body.proposal_digest, p.id,
                                                       body.decision, now, audit=audit):
                 raise HTTPException(409, "approval is no longer pending")
@@ -897,7 +964,8 @@ def build_api(app_ctx) -> FastAPI:
             return {"id": hold_id, "released_at": now}
 
     # ACR-0034 local tier: mounted only when a staging folder is configured (ARGUS_CORPUS_STAGING_DIR), like the
-    # phase 19 action routes; then staged reference sources are installed only by an administrator's approval
+    # phase 19 action routes; then staged reference sources are installed only by an approver's or an administrator's
+    # approval (ACR-0040)
     if s.corpus_staging_dir:
         from argus.corpus import staging as corpus_staging
 

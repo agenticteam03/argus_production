@@ -49,6 +49,8 @@ describe("the real adapters against contracts/ui-api.json", () => {
     await httpArgusAdapter.getOverview();
     await httpArgusAdapter.listTargets();                                            // ACR-0012
     await httpArgusAdapter.startInvestigation({ target: "vm-166/container:x", requestKind: "check", reason: "r" });
+    await httpArgusAdapter.resolveIncident("inc_1", "fixed by hand");                // ACR-0041
+    await httpArgusAdapter.countWaitingApprovals();                                  // ACR-0042: the bell
     await httpArgusAdapter.getTopology();                                            // ACR-0017: the system map
     await httpArgusAdapter.getTopology("inc_1");                                     // the incident overlay
     await httpArgusAdapter.getIncidentMetrics("inc_1", "15m");                       // the incident's metric window
@@ -63,7 +65,7 @@ describe("the real adapters against contracts/ui-api.json", () => {
     await httpSecondFactorAdapter.confirmLogin(keys);
     await httpSecondFactorAdapter.stepUp("test:x", keys);
     await httpAuthAdapter.signOut();                                                 // ACR-0018: ends the session
-    expect(calls.length).toBeGreaterThanOrEqual(24);
+    expect(calls.length).toBeGreaterThanOrEqual(25);
     expect(undeclared(calls)).toEqual([]);
   });
 

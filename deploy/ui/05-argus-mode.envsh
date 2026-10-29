@@ -15,14 +15,29 @@ if [ "$ARGUS_UI_MODE" = public ]; then
 fi
 # ACR-0018 phase 16 step 4: the private path. off (the default): /api/v1/ops/ is 404 for everyone. on: the client
 # certificate is asked for, so the team's CA certificate and its CRL must be there before the edge starts.
-rm -f /etc/nginx/ops/*.conf
+# ACR-0038: ARGUS_OPS_PASSKEY_ONLY=on (off by default, needs ARGUS_OPS_PATH=on) drops the certificate: the private path
+# is then proven by the API's login, two security keys and the step-up alone. Exactly one ops-mode file defines
+# $argus_ops_ok (http.conf).
+rm -f /etc/nginx/ops/*.conf /etc/nginx/conf.d/00-argus-ops-mode.conf
+OPS_MODE=certificate
+case "${ARGUS_OPS_PASSKEY_ONLY:-off}" in
+  off) ;;
+  on)
+    [ "${ARGUS_OPS_PATH:-off}" = on ] || { echo "argus-v18-ui: ARGUS_OPS_PASSKEY_ONLY=on needs ARGUS_OPS_PATH=on" >&2; exit 1; }
+    OPS_MODE=passkey ;;
+  *) echo "argus-v18-ui: ARGUS_OPS_PASSKEY_ONLY must be on or off" >&2; exit 1 ;;
+esac
 case "${ARGUS_OPS_PATH:-off}" in
   off) ;;
   on)
     [ "$ARGUS_UI_MODE" = public ] || { echo "argus-v18-ui: ARGUS_OPS_PATH=on needs ARGUS_UI_MODE=public" >&2; exit 1; }
-    [ -s /etc/argus-ops/ca.crt ] && [ -s /etc/argus-ops/crl.pem ]       || { echo "argus-v18-ui: ARGUS_OPS_PATH=on needs /etc/argus-ops/ca.crt and crl.pem" >&2; exit 1; }
-    cp /etc/nginx/argus/ops-tls.conf /etc/nginx/ops/tls.conf ;;
+    if [ "$OPS_MODE" = certificate ]; then
+      [ -s /etc/argus-ops/ca.crt ] && [ -s /etc/argus-ops/crl.pem ]       || { echo "argus-v18-ui: ARGUS_OPS_PATH=on needs /etc/argus-ops/ca.crt and crl.pem" >&2; exit 1; }
+      cp /etc/nginx/argus/ops-tls.conf /etc/nginx/ops/tls.conf
+    fi ;;
   *) echo "argus-v18-ui: ARGUS_OPS_PATH must be on or off" >&2; exit 1 ;;
 esac
+cp "/etc/nginx/argus/ops-mode-$OPS_MODE.conf" /etc/nginx/conf.d/00-argus-ops-mode.conf
+echo "argus-v18-ui: private path ${ARGUS_OPS_PATH:-off}, proof: $OPS_MODE"
 cp "/etc/nginx/argus/$ARGUS_UI_MODE.conf.template" /etc/nginx/templates/default.conf.template
 export NGINX_ENVSUBST_FILTER='^ARGUS_UI_DOMAIN$'

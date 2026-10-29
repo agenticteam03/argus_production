@@ -129,3 +129,6 @@ allowlist for its share-alike licence.
 - [ ] The scanner's similarity check; the run-time quarantine alert
 - [ ] Deployment evidence on vm-095 (bundle installed, indexed, a reference search from the worker)
 - [ ] A model batch before offering the read to any class
+
+- **Amended by [ACR-0040](ACR-0040-approver-manages-corpus.md) (2026-10-28):** an approver may list, approve and reject
+  staged sources as an administrator does (`manage_corpus`, private path, a step-up per decision).

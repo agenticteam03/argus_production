@@ -32,6 +32,11 @@ export const httpArgusAdapter = {
     return getJson("/api/v1/ops/approvals");
   },
 
+  // ACR-0042: how many approvals wait for this approver ({waiting}); any token, a count only
+  async countWaitingApprovals() {
+    return getJson("/api/v1/approvals/waiting");
+  },
+
   async getApproval(id) {
     return getJson(`/api/v1/ops/approvals/${encodeURIComponent(id)}`);
   },
@@ -118,6 +123,16 @@ export const httpArgusAdapter = {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ target, request_kind: requestKind, reason }),
+    });
+    return res.json();
+  },
+
+  // ACR-0041: close an escalated incident with a reason (an investigate token may; the API checks the rest).
+  async resolveIncident(incidentId, reason) {
+    const res = await apiFetch(`/api/v1/incidents/${encodeURIComponent(incidentId)}/resolve`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ reason }),
     });
     return res.json();
   },

@@ -1,0 +1,36 @@
+{
+  "closed_at": "2026-10-28T20:33:03.270057Z",
+  "confidence": null,
+  "diagnosis": "evidence pack collected; no diagnosis is claimed",
+  "findings": [
+    "signal missing (unknown, not healthy): http_gateway_error_ratio_5m",
+    "signal missing (unknown, not healthy): jobs_processed_rate",
+    "signal missing (unknown, not healthy): queue_depth",
+    "signal missing (unknown, not healthy): worker_last_processed_age_s",
+    "signal missing (unknown, not healthy): container_cpu_throttled_ratio_5m",
+    "signal missing (unknown, not healthy): container_cpu_quota_used_ratio_5m"
+  ],
+  "id": "inc_b5c64b846477",
+  "incident_class": null,
+  "opened_at": "2026-10-28T20:33:03.242292Z",
+  "outcome": "unsupported_escalated",
+  "parent_id": null,
+  "principal": "alice",
+  "reason": "UI contract sample",
+  "request_kind": "report",
+  "resolution": {
+    "at": "2026-10-28T20:33:03.536494Z",
+    "by": "alice",
+    "reason": "fixed by hand outside Argus"
+  },
+  "root_cause_target": null,
+  "status": "closed",
+  "strategy": "evidence_pack",
+  "target": {
+    "host": "vm-095",
+    "kind": "container",
+    "name": "argus-lab-worker"
+  },
+  "trigger_id": "manual:a67d718a5beb4caf83b35a84447705dc",
+  "trigger_kind": "manual"
+}

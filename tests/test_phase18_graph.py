@@ -56,22 +56,37 @@ def test_graph_pauses_without_answer_and_resumes_from_frozen_ids(app_factory, mo
     assert path.calls.count("execute") == 1
 
 
-def test_judge_doubt_keeps_the_diagnosis_and_escalates_without_request(app_factory, monkeypatch):  # noqa: F811
+def test_judge_disagreement_keeps_the_diagnosis_and_escalates_without_request(app_factory, monkeypatch):  # noqa: F811
     """The cause is found but nothing was done: the problem is still there, so the incident is not closed."""
     monkeypatch.setenv("ARGUS_RUNNER", "langgraph")
     app = app_factory(llm=ScriptedLLM(_diagnose_script), metrics=_metrics())
     path = OfflinePath()
-    path.judge = lambda proposal_id: JudgeResult("doubt", reasons=("The ground is uncertain.",))
+    path.judge = lambda proposal_id: JudgeResult("disagree", reasons=("The cause is elsewhere.",), risk="amber")
     path.held_back = lambda incident_id: path.calls.append(("held_back", incident_id))
     app.runner.action_path = path
     inc = incident(app, WORKER_166)
     done = app.runner.run(inc.id)
     assert done.outcome == IncidentOutcome.diagnosed and done.status == IncidentStatus.escalated
-    assert done.diagnosis.endswith("The proposed action was not sent for approval: the judge answered doubt.")
+    assert done.diagnosis.endswith("The proposed action was not sent for approval: the judge answered disagree.")
     assert ("held_back", inc.id) in path.calls
     assert "request" not in path.calls and "execute" not in path.calls
     sent = {n["key"]: n["payload"] for n in app.store.notifications()}
     assert sent[f"{inc.id}:escalation"]["outcome"] == "diagnosed"
+
+
+def test_judge_doubt_goes_to_a_person_with_the_raised_colour(app_factory, monkeypatch):  # noqa: F811
+    """ACR-0039: a doubt is not a stop. The approval is requested, the person decides, and the audit says the doubt
+    was sent to them."""
+    monkeypatch.setenv("ARGUS_RUNNER", "langgraph")
+    app = app_factory(llm=ScriptedLLM(_diagnose_script), metrics=_metrics())
+    path = OfflinePath()
+    path.judge = lambda proposal_id: JudgeResult("doubt", reasons=("The ground is uncertain.",), risk="amber")
+    app.runner.action_path = path
+    inc = incident(app, WORKER_166)
+    app.runner.run(inc.id)
+    assert "request" in path.calls and ("held_back", inc.id) not in path.calls
+    [sent] = [r[1] for r in app.store.audit_chain() if r[1]["event"] == "judge.doubt_sent_to_approver"]
+    assert sent["detail"] == {"proposal_id": "prop_test", "risk": "amber"}
 
 
 def test_a_refused_approval_request_escalates_too(app_factory, monkeypatch):  # noqa: F811
@@ -111,3 +126,57 @@ def test_a_failing_approver_lookup_never_stops_the_action(app_factory, monkeypat
     done = app.runner.run(incident(app, WORKER_166).id)
     assert done.outcome == IncidentOutcome.recovered_verified
     assert {a.event: a.detail for a in app.store.list_for(done.id)}["action.executed"]["approval_id"] == "appr_test"
+
+
+class SlowToRecover(OfflinePath):
+    """The worker has recovered, but the first samples after the restart are not healthy yet (or do not exist)."""
+
+    def __init__(self, answers, window_s=120.0):
+        super().__init__()
+        self.answer, self.answers, self.window_s, self.asked = "approved", list(answers), window_s, 0
+
+    def verify(self, action_id):
+        self.calls.append("verify")
+        self.asked += 1
+        return self.answers.pop(0) if self.answers else None
+
+    def verify_wait(self, action_id):
+        return self.window_s
+
+
+def _runner(app_factory, monkeypatch, path, slept):  # noqa: F811
+    monkeypatch.setenv("ARGUS_RUNNER", "langgraph")
+    app = app_factory(llm=ScriptedLLM(_diagnose_script), metrics=_metrics())
+    app.runner.action_path = path
+    app.runner.verify_sleep = slept.append             # no real waiting; the pauses are recorded
+    return app
+
+
+def test_the_verification_is_asked_again_inside_its_window_instead_of_waiting_for_the_next_pass(app_factory, monkeypatch):  # noqa: F811
+    """S4 rehearsal: the worker processed again 16 s after its restart, but the first verification found no healthy
+    sample yet, the run slept until the worker's next five-minute pass and the late sample read `action_failed`."""
+    slept = []
+    path = SlowToRecover([None, None, "recovered_verified"])
+    app = _runner(app_factory, monkeypatch, path, slept)
+    done = app.runner.run(incident(app, WORKER_166).id)
+    assert done.outcome == IncidentOutcome.recovered_verified and done.status == IncidentStatus.closed
+    assert path.asked == 3 and slept == [10.0, 10.0]
+
+
+def test_the_wait_ends_with_the_reviewed_window_and_never_runs_past_it(app_factory, monkeypatch):  # noqa: F811
+    slept = []
+    path = SlowToRecover([], window_s=35.0)             # no sample ever arrives
+    app = _runner(app_factory, monkeypatch, path, slept)
+    done = app.runner.run(incident(app, WORKER_166).id)
+    assert sum(slept) == 35.0 and slept == [10.0, 10.0, 10.0, 5.0]
+    assert done.outcome is None and done.status == "running"              # as before: it waits for a fresh sample
+    assert path.asked == 5                                                # and never claims a recovery it has not seen
+
+
+def test_a_path_without_a_window_is_asked_once_as_before(app_factory, monkeypatch):  # noqa: F811
+    slept = []
+    path = OfflinePath()
+    path.answer = "approved"
+    app = _runner(app_factory, monkeypatch, path, slept)
+    done = app.runner.run(incident(app, WORKER_166).id)
+    assert done.outcome == IncidentOutcome.recovered_verified and slept == []

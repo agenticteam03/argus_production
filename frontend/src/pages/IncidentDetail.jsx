@@ -3,11 +3,13 @@ import { Link, useParams, useSearchParams } from "react-router-dom";
 import AnswerBlock from "../components/AnswerBlock.jsx";
 import ActionSuggestions from "../components/ActionSuggestions.jsx";
 import ActionTrail from "../components/ActionTrail.jsx";
+import IncidentApproval from "../components/IncidentApproval.jsx";
 import CopySummary from "../components/CopySummary.jsx";
 import DiagnoseForm from "../components/DiagnoseForm.jsx";
 import IncidentChat from "../components/IncidentChat.jsx";
 import { AuditSection, EvidenceSection, RestrictedNotice } from "../components/EvidenceAudit.jsx";
 import RawOutputDialog from "../components/RawOutputDialog.jsx";
+import ResolveIncident, { Resolution } from "../components/ResolveIncident.jsx";
 import RunTimeline from "../components/RunTimeline.jsx";
 import MiniMap, { miniPair } from "../components/map/MiniMap.jsx";
 import SystemMap from "../components/map/SystemMap.jsx";
@@ -139,6 +141,7 @@ export default function IncidentDetail() {
         {subtitle && <p className="mt-1.5 text-sm leading-relaxed text-soft">{subtitle}</p>}
 
         <div className="mt-4 border-t border-line pt-4"><AnswerBlock incident={inc} active={active} /></div>
+        {inc.resolution && <div className="mt-4"><Resolution resolution={inc.resolution} /></div>}
 
         <div className="mt-4 flex flex-wrap items-start justify-between gap-3 border-t border-line pt-4">
           <Disclosure summary="Details: trigger, principal, times" className="min-w-0 flex-1 basis-64">
@@ -163,6 +166,8 @@ export default function IncidentDetail() {
             <button type="button" onClick={() => setRawOpen(true)} className={ghost}>Raw output</button>
             <CopySummary incident={inc} cited={cited} className={ghost} />
             <DiagnoseForm fixedTarget={inc.target} compact />
+            {/* ACR-0041: shown only on an escalated incident, when /me lists resolve_incident */}
+            <ResolveIncident incident={inc} onResolved={retry} />
           </div>
         </div>
       </section>
@@ -180,6 +185,8 @@ export default function IncidentDetail() {
             </div>
           </div>
           <ActionTrail action={inc.action} />
+          {/* The pending approval, decided here by an approver (the same steps as Actions) */}
+          <IncidentApproval key={inc.action?.approval?.id ?? "none"} action={inc.action} onAnswered={retry} />
           <ActionSuggestions items={inc.next_actions} />
         </div>
       </TabPanel>

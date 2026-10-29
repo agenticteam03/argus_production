@@ -7,6 +7,7 @@ services:
       ARGUS_UI_MODE: public
       ARGUS_UI_DOMAIN: ${ARGUS_UI_DOMAIN:?set ARGUS_UI_DOMAIN in deploy/ui/vm-095.env}
       ARGUS_OPS_PATH: ${ARGUS_OPS_PATH:-off}               # ACR-0018 step 4: the private path (on needs edge-ops)
+      ARGUS_OPS_PASSKEY_ONLY: ${ARGUS_OPS_PASSKEY_ONLY:-off}   # ACR-0038: on = no client certificate, security keys only
     ports: ["0.0.0.0:443:8443", "0.0.0.0:80:8080"]
     volumes:
       - /opt/argus-v18/secrets/tls:/etc/argus-tls:ro       # fullchain.pem, privkey.pem (ops/ui-cert.sh)

@@ -4,14 +4,14 @@ from __future__ import annotations
 import logging
 import re
 from dataclasses import asdict
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Callable
 from uuid import uuid4
 
 from argus.actions.execution import REVIEWED_GATEWAYS, ActionExecutor, Precheck, Verification
 from argus.actions.risk import RiskColor
 from argus.actions.remediation import (FrozenProposal, JudgeResult, ProposalInput, RemediationRefused,
-                                       agreed_verdict, freeze_proposal, judge_proposal, verify_frozen_proposal)
+                                       approvable_verdict, freeze_proposal, judge_proposal, verify_frozen_proposal)
 from argus.domain.model import EvidenceRecord, IncidentOutcome, TargetRef
 
 log = logging.getLogger(__name__)
@@ -149,7 +149,8 @@ class OfflineActionPath:
             return existing["id"]
         proposal = self.rows.get_action_proposal(proposal_id)
         verify_frozen_proposal(proposal)
-        if not agreed_verdict(self.rows.get_judge_verdict(proposal_id), proposal) or self.clock() >= proposal.expires_at:
+        verdict = self.rows.get_judge_verdict(proposal_id)
+        if not approvable_verdict(verdict, proposal) or self.clock() >= proposal.expires_at:
             return None
         if (proposal.input.capability, proposal.input.target) not in self.executor.gate_open:
             return None
@@ -157,8 +158,9 @@ class OfflineActionPath:
         self.rows.add_action_approval(approval_id, proposal.id, proposal.digest, self.clock(), proposal.expires_at)
         expires = proposal.expires_at.astimezone(timezone.utc)
         # ACR-0018 section 18: an alert never carries the row's detail; the approver reads it on the private screen
+        doubted = " The independent judge doubted it." if verdict["verdict"] == "doubt" else ""   # ACR-0039
         self._notify(approval_id, proposal.expires_at,
-                     f"Argus: an approval is waiting; it expires at {expires:%H:%M}Z. "
+                     f"Argus: an approval is waiting; it expires at {expires:%H:%M}Z.{doubted} "
                      "Open the Actions screen on the private path.")
         return approval_id
 
@@ -193,8 +195,8 @@ class OfflineActionPath:
             raise RemediationRefused("approval digest mismatch")
         proposal = self.rows.get_action_proposal(approval["proposal_id"])
         verdict = self.rows.get_judge_verdict(proposal.id)
-        if decision == "approved" and not agreed_verdict(verdict, proposal):
-            raise RemediationRefused("the judge did not agree with this proposal")   # fail closed: no verdict, no approval
+        if decision == "approved" and not approvable_verdict(verdict, proposal):
+            raise RemediationRefused("the judge disagreed with this proposal")   # fail closed: no verdict, no approval
         if decision == "approved" and verdict["risk"] == "red":
             if confirmation_target != TargetRef.parse(proposal.input.target).name:
                 raise RemediationRefused("red action requires typing the target name")
@@ -235,6 +237,21 @@ class OfflineActionPath:
         return {"approval_id": approval_id, "approved_by": approval.get("actor"),
                 "capability": proposal.input.capability if proposal else None,
                 "target": proposal.input.target if proposal else None}
+
+    def verify_wait(self, action_id: str) -> float:
+        """Seconds left of the reviewed window (the prediction's, counted from the action's completion); 0 when the
+        action or its completion time is unknown, so the caller then asks once and never waits on a guess."""
+        action = self.rows.get_action(action_id)
+        if not action or action.get("result_at") is None:
+            return 0.0
+        completed = action["result_at"]
+        if isinstance(completed, str):
+            completed = datetime.fromisoformat(completed)
+        proposal = self.rows.get_action_proposal(action["proposal_id"])
+        if proposal is None:
+            return 0.0
+        deadline = completed + timedelta(seconds=proposal.input.prediction.within_seconds)
+        return max(0.0, (deadline - self.clock()).total_seconds())
 
     def verify(self, action_id: str) -> str | None:
         old = self.rows.get_action_outcome(action_id)

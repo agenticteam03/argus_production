@@ -21,7 +21,8 @@ on. Anything else can change without notice.
 ## Rules for every UI
 
 1. **The public UI logs in with `scope=read` or `scope=investigate`** (ACR-0012). A read token can only read; an investigate token
-   reads and may also call `POST /api/v1/investigations`, nothing else. The team's UI uses `investigate`. Argus
+   reads and may also call `POST /api/v1/investigations` and `POST /api/v1/incidents/{id}/resolve` (ACR-0041),
+   nothing else. The team's UI uses `investigate`. Argus
    refuses any other non-`GET` (403, audited as `access.read_only_refused` or `access.investigate_scope_refused`),
    whatever the user's role. A bug in a UI cannot approve or change anything; the most it can do is start an
    investigation (a read of the target), within the quotas.
@@ -88,6 +89,16 @@ on. Anything else can change without notice.
     state of **that** dependency's probe (`ok`, `slow`, `broken`, `unknown`, `read`), `checked_at` (when Argus read the
     probe's value, not when the probe ran), `latency_ms` and
     `reason`; and, with the overlay, `cause_path` (the node ids from the target to the root cause; `[]` without one).
+13. **Resolving an escalated incident** (ACR-0041): `POST /api/v1/incidents/{id}/resolve` with `{"reason": "<what
+    fixed it, 1-500 characters>"}`, by an operator or approver, with a full or investigate token. Only an `escalated`
+    incident, once: anything else is 409 (404 for an unknown id). It becomes `closed`, keeps its `outcome` and
+    `diagnosis`, and gains `resolution: {by, at, reason}` (`null` on every other incident); the audit records
+    `incident.resolved`. Show a "Resolve" control only on an escalated incident and only when `/me` lists
+    `resolve_incident`.
+14. **Approvals waiting** (ACR-0042): `GET /api/v1/approvals/waiting` returns only `{"waiting": N}`: how many approvals
+    wait for this approver, with the private list's filter (pending, still verifying, in the caller's scope; at most
+    50). Any token, no second factor; never an id, an incident, an action or a target. Show it on the bell only when
+    `/me` lists `count_waiting_approvals`, and send the person to Actions, where the private login decides them.
 
 ## Routes
 
@@ -98,7 +109,8 @@ on. Anything else can change without notice.
 | `GET /api/v1/me` | any token | user, role, `access` (`read`/`investigate`/`full`), `actions`, and the role's `permissions` (ACR-0018: show controls by `actions`; `permissions` says what the role could do with a full token) | [`me.json`](../contracts/samples/me.json) |
 | `POST /api/v1/ops/auth/token` | anyone, but only on the private path (the edge's client certificate and allowlist; else 404) | ACR-0032: form `username`, `password`; a full `ops` token for a human approver with two security keys, valid only on the private path, until 15 minutes without a request or one hour after the login (401: sign in again); keep it in memory only | — |
 | `GET /api/v1/ops/approvals` | private `ops` (or full) human with `approve_action` and a WebAuthn-ready session | the pending approvals in the caller's scope: `id`, `incident_id`, `capability`, `target`, `risk`, `verdict`, `expires_at` | — |
-| `GET /api/v1/ops/corpus/sources` | private `ops` (or full) human `admin` with a WebAuthn-ready session (`manage_corpus`) | ACR-0034 local tier: the installed and staged reference sources: `name`, `ref`, `licence`, `status` (`installed`/`staged`), `passages`, `quarantined`, `at`, `sha256` | — |
+| `GET /api/v1/approvals/waiting` | a human approver, any token, no second factor; only while the action routes are mounted | `{"waiting": N}` (at most 50) (ACR-0042) | — |
+| `GET /api/v1/ops/corpus/sources` | private `ops` (or full) human `admin` with a WebAuthn-ready session (`manage_corpus`) | ACR-0034 local tier: the installed and staged reference sources, one row per source: `name` (the source's, or a staged bundle's: a bundle may carry several sources), `source` (the source's own name), `ref`, `licence`, `status` (`installed`/`staged`), `passages`, `quarantined`, `at`, `sha256` | — |
 | `POST /api/v1/ops/corpus/sources/{name}/approve` | same | `{step_up_token}`; the step-up is bound to `corpus:<name>:<sha256>` (the staged bundle's passages hash). Verifies the staged hashes and installs the source; 409 if nothing is staged or the bundle changed | — |
 | `POST /api/v1/ops/corpus/sources/{name}/reject` | same | `{reason, step_up_token}` (same binding); deletes the staged bundle | — |
 | `GET /api/v1/ops/approvals/{approval_id}` | private full-token human with `approve_action` and a WebAuthn-ready session; draft composition only | the frozen proposal, bound judge verdict, state, expiry and `reversible` (the rollback is a catalogue action); the UI opens one known approval ID | — |
@@ -113,6 +125,7 @@ on. Anything else can change without notice.
 | `GET /api/v1/incidents/{id}/metrics?range=30m` | any authenticated role | `incident_id`, `range`, `from`, `to`, `step_s`, `ranges_available`, `series[]` of `{key, title, unit, max, fired, kind, thresholds, detector_threshold, baseline, points: [[time, value or null]]}`, `incident_from`, `incident_to`, `events[]`, `summary` (ACR-0017, ACR-0021) | [`incident-metrics.json`](../contracts/samples/incident-metrics.json) |
 | `GET /api/v1/topology[?incident_id=<id>]` | any authenticated role; the `incident_id` overlay for operator/approver | `observed_at`, `hosts[]`, `nodes[]`, `edges[]` (nodes add `health`, `idle`, `networks`, `problems`, `role`; edges add `id`, `kind`, `checked_at`, `latency_ms`, `reason`; ACR-0021; and `required`, `since`; T-0046 L4) (and `incident_id` with the overlay) (ACR-0017) | [`topology.json`](../contracts/samples/topology.json), [`topology-incident.json`](../contracts/samples/topology-incident.json) |
 | `POST /api/v1/investigations` | operator, approver; full or **investigate** token | `incident_id`, `status`, `duplicate` (202); quotas for an investigate token (ACR-0012) | [`investigation.json`](../contracts/samples/investigation.json) |
+| `POST /api/v1/incidents/{id}/resolve` | operator, approver; full or **investigate** token | the closed incident with its `resolution` (200); 409 unless escalated (ACR-0041) | [`incident-resolved.json`](../contracts/samples/incident-resolved.json) |
 | `GET /api/v1/target-metrics?target=<host/kind:name>&range=15m` | any authenticated role | one inventory target's recent signals (ACR-0021): `target`, `range` (`15m` or `1h`), `from`, `to`, `step_s`, `series[]` of `{key, kind, title, unit, max, thresholds, points: [[time, value or null]]}`; a container gives CPU quota used and memory, a host CPU, memory used and disk used; `404` for a target not in `/api/v1/targets`, `422` for a bad range; shared for 30 s | [`target-metrics.json`](../contracts/samples/target-metrics.json) |
 | `GET /api/v1/overview` | any authenticated role | the dashboard in one answer (ACR-0021): `observed_at`, `status` (the worst open severity: `critical`, `warning`, `info`, or `ok` when nothing is open), `open_incidents` (`{critical, warning, info}`), `latest_open[]` (the 5 newest open: `{id, target, host, severity, kind, summary, opened_at, next_action}`; `info` = no class yet; `next_action` `null` for now), `hosts[]` (the `/host-metrics` rows), `fleet` (boxes by `health`: `{healthy, degraded, failed, unknown, idle}`), `links` (`{ok, total}` of the declared dependencies), `last_closed_at`; built from the store and the topology and host-metrics snapshots, no new host read; shared for 15 s | [`overview.json`](../contracts/samples/overview.json) |
 | `POST /api/v1/auth/webauthn/register/options` | any token | body `{ticket}` for the first key (the code another administrator gave), or `{step_up_token}` (a step-up for `webauthn.register:<user>`) for a further one; `{challenge_id, options}`: pass `options` to `navigator.credentials.create` (ACR-0018 step 3) | — |
@@ -132,6 +145,7 @@ incident or evidence id; `400` a login asked for a scope other than `read`.
 | `view_timeline` | every role | the run events (detect → recall → investigate ⇄ act → record) |
 | `view_evidence` | operator, approver | evidence records and the audit trail |
 | `start_investigation` | operator, approver, with a full or an **investigate** token | the "Start an investigation" form and "Investigate again" (ACR-0012) |
+| `count_waiting_approvals` | approver, any token, while the action routes are mounted | the bell's count of approvals waiting (ACR-0042) |
 | `manage_second_factor` | every role, when the second factor is configured | enrolling a key and completing the login with it; `/me`'s `second_factor` is `{enrolled, verified}` (`null` when not configured) (ACR-0018 step 3) |
 
 ## Examples

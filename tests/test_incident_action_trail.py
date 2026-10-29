@@ -50,6 +50,7 @@ def test_the_answer_lands_on_the_incidents_audit_and_its_page_shows_the_action(m
     assert page["action"]["approval"]["state"] == "approved" and page["action"]["approval"]["answered_by"] == "alice"
     [line] = [a for a in page["audit"] if a["event"] == "action.approval_answered"]
     assert line["actor"] == "alice" and line["detail"]["decision"] == "approved"
+    assert line["detail"]["client_cert"] == "none"                     # ACR-0038: no certificate on this request
     assert "digest" not in str(page["action"])
 
 

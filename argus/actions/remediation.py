@@ -112,6 +112,18 @@ def agreed_verdict(verdict: dict | None, proposal: FrozenProposal) -> bool:
         and verdict["risk"] != "forbidden"
 
 
+# ACR-0039: the verdicts that let a proposal reach a person. A `doubt` goes to the approver with its reasons and a risk
+# one colour higher; only a `disagree` (or a forbidden colour) stops it. The human decides.
+APPROVABLE_VERDICTS = frozenset({"agree", "doubt"})
+
+
+def approvable_verdict(verdict: dict | None, proposal: FrozenProposal) -> bool:
+    """A stored judge verdict for this exact frozen proposal that lets a person decide: `agree` or `doubt`, never
+    `disagree`, never forbidden. No verdict at all is still no approval (fail closed)."""
+    return bool(verdict) and verdict["proposal_digest"] == proposal.digest \
+        and verdict["verdict"] in APPROVABLE_VERDICTS and verdict["risk"] != "forbidden"
+
+
 def freeze_proposal(data: ProposalInput, *, at: datetime) -> FrozenProposal:
     """Freeze every field shown to the approver in a stable digest."""
     if at.tzinfo is None:
@@ -196,11 +208,12 @@ def judge_proposal(proposal: FrozenProposal, model: Callable[[dict], dict], *, i
             raise ValueError("agree conflicts with its checks")
         if verdict != "agree" and not reasons:
             raise ValueError("a doubt or disagreement needs a reason")
-        risk = _RISK[min(3, _RISK.index(initial_risk) + (verdict == "disagree"))]
+        # ACR-0039: a doubt raises the colour one level (the approver sees the higher risk); a disagreement too
+        risk = _RISK[min(3, _RISK.index(initial_risk) + (verdict != "agree"))]
         return JudgeResult(verdict, checks, tuple(reasons), risk, proposal.digest)
     except Exception:
         return JudgeResult("doubt", reasons=("The judge did not return a valid decision.",),
-                           risk=initial_risk, proposal_digest=proposal.digest)
+                           risk=_RISK[min(3, _RISK.index(initial_risk) + 1)], proposal_digest=proposal.digest)
 
 
 @dataclass
@@ -253,8 +266,8 @@ class RemediationFlow:
             raise RemediationRefused("write gate is closed for this action and target")
         if judge.proposal_digest != proposal.digest:
             raise RemediationRefused("judge reviewed another proposal digest")
-        if judge.verdict != "agree":
-            raise RemediationRefused("judge did not agree")
+        if judge.verdict not in APPROVABLE_VERDICTS or judge.risk == "forbidden":
+            raise RemediationRefused("the judge disagreed")      # ACR-0039: a doubt still reaches the approver
         if at >= proposal.expires_at:
             raise RemediationRefused("proposal expired")
         approval = Approval(f"appr_{uuid4().hex}", proposal)
