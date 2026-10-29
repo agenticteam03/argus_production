@@ -42,3 +42,22 @@ describe("mockArgusAdapter evidence", () => {
     await expect(mockArgusAdapter.getEvidence("ev_nope")).rejects.toMatchObject({ status: 404 });
   });
 });
+
+describe("mockArgusAdapter operator console (CON-3)", () => {
+  afterEach(() => { demoSession.role = null; });
+
+  it("answers an operator on the incident's private console routes", async () => {
+    demoSession.role = "operator";
+    expect((await mockArgusAdapter.getConsoleCommands("inc_c3")).commands.length).toBeGreaterThan(0);
+    const r = await mockArgusAdapter.executeConsoleCommand("inc_c3", { input: "cache status" });
+    expect(r.status).toBe("ok");
+    expect((await mockArgusAdapter.getConsoleHistory("inc_c3")).entries.map((e) => e.input)).toEqual(["cache status"]);
+    expect(mockArgusAdapter.calls).toContainEqual({ method: "POST", path: "/api/v1/ops/console/incidents/inc_c3/execute" });
+  });
+
+  it("refuses a viewer, so the Console tab stays hidden", async () => {
+    demoSession.role = "viewer";
+    await expect(mockArgusAdapter.getConsoleCommands("inc_c3")).rejects.toMatchObject({ status: 403 });
+    await expect(mockArgusAdapter.executeConsoleCommand("inc_c3", { input: "status" })).rejects.toMatchObject({ status: 403 });
+  });
+});

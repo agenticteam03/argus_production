@@ -2,8 +2,8 @@
 
 | Field | Value |
 |---|---|
-| Status | `proposed`, starts now; protected parts wait for the ACR |
-| Architecture | [ACR-0043](../../architecture/changes/ACR-0043-operator-console.md) (proposed) |
+| Status | `in progress`: CON-1 and CON-3 done; ACR-0043 accepted (#402), so the protected parts may start |
+| Architecture | [ACR-0043](../../architecture/changes/ACR-0043-operator-console.md) (accepted) |
 | Spec | [OPERATOR-CONSOLE-spec](OPERATOR-CONSOLE-spec.md) |
 | Needs the VM lease | only for the rehearsal and for confirming the worker metric names |
 
@@ -25,7 +25,7 @@
 - The cache fix is `container.start` (the cache is stopped): `cache restart` maps to start when the container is stopped.
 - The frontend refreshes by polling (`usePoll`); there is no WebSocket or SSE. The scrape interval is 15 s, so settle is 45 s.
 - Scenario 2 is blocked by the open card TASK-97 (the candidate builder in `argus/actions/incident.py`, protected, builds no `network.restore` proposal yet).
-- The mockup spec named in the spec (`argus-console-mockup-spec.md`) is not in the repo yet; whoever takes CON-3 adds it first.
+- The mockup spec is [`argus-console-mockup-spec.md`](argus-console-mockup-spec.md) (CON-3). Its §5 proposes the route and response shapes the UI reads; CON-2 adds the real routes, the `contracts/ui-api.json` entry and the HTTP adapter's console calls, and until then a real build hides the Console tab.
 - Write commands reach only the pairs in `write_gate.open` (start on the cache, restart on the jobworker, `network.restore` on the API); `cache restart` on a running cache is rejected. `net reconnect api` is the existing `network.restore`, not a new action. Access is described in the ACR.
 - The spec is superseded by the ACR where they differ (§6 and §7.3 of the spec).
 - Optional (cut first, not needed for the three scenarios): CON-5 suggestions beyond Insert and Copy, the Langfuse trace in CON-4, CON-9.
@@ -34,9 +34,9 @@
 
 | ID | Task | Depends on | Protected | Owner | Acceptance |
 |---|---|---|---|---|---|
-| CON-1 | Registry, parser, allowlist (`argus/console/`) | none | no | | `help` lists commands; `ls` and `status; rm` are rejected |
+| CON-1 | Registry, parser, allowlist (`argus/console/`) | none | no | juanbetancurm (done, #401) | `help` lists commands; `ls` and `status; rm` are rejected |
 | CON-2 | `GET /console/commands`, `POST /console/execute`, history table, scenario 1 read commands | CON-1 | routes and migration | | `cache status`, `api cpu`, `host metrics` return real lab data; each command stored with its incident |
-| CON-3 | Split-view UI: terminal and Argus panel, history, polling | CON-1 contract, mockup spec | no | conantkd | works at 1280x720; no hardcoded output |
+| CON-3 | Split-view UI: terminal and Argus panel, history, polling | CON-1 contract, mockup spec | no | conantkd (done, #403; real calls in CON-2) | works at 1280x720; no hardcoded output |
 | CON-4 | Post-command analysis: settle, samples, before/after, evidence, comment, ranking refresh, Langfuse trace | CON-2 | no | | after `api cpu`, the red-herring hypothesis is demoted with a grounded comment |
 | CON-5 | Suggestions with Insert and Copy, `suggestion_id`, "Applied" state | CON-3, CON-4 | no | | Insert fills the input and never runs it |
 | CON-6 | Write path: confirmation, proposal, approval, audit `operator_console`, gateway, verify | ACR, CON-2 | yes | | `cache restart` asks, needs approval, restarts, appears in the audit log |
