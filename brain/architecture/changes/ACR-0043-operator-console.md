@@ -5,9 +5,9 @@ terminal, which stays the stage-2 path), [ACR-0019](ACR-0019-human-approved-reme
 
 | Field | Value |
 |---|---|
-| Status | `proposed` |
+| Status | `accepted` |
 | Proposed by | juanbetancurm (+ agent) · 2026-10-29 |
-| Accepted by | |
+| Accepted by | conantkd · 2026-10-29 (review of the pull request; answers in §5) |
 | Second approval (safety principle only) | **required**: write gate (a human-typed command starts an action) and read-only (new read entry point) |
 | Architecture version | no change while `proposed`; the applying PR bumps it |
 | Task / PR | [OPERATOR-CONSOLE](../../tasks/current/OPERATOR-CONSOLE.md) · the pull request that adds this file |
@@ -46,6 +46,12 @@ Argus does not react to what the operator does.
   completed with a passkey) and, to approve, the `approver` role with a fresh second factor as today. Service and agent
   principals are refused. Read commands are rate-limited per person on the pattern of the ACR-0012 quotas (the numbers go in
   configuration, set in CON-2); write commands are bounded by the existing proposal and approval limits. Every call is audited.
+- **Routes are scoped to an open incident:** `/api/v1/ops/console/incidents/{id}/...`, so every command has its incident and its
+  history. Personal sessions only: no shared token, service or agent principal.
+- **Feature flag, off by default** (`ARGUS_OPERATOR_CONSOLE`): with the flag off the routes answer 404 and the UI entry is hidden.
+- **The console has its own per-incident read budget**, separate from the capability caps in `config/policy.yaml`
+  (for example `container.status: {max_per_incident: 8}`), so an operator typing the same read many times cannot use up the
+  budget Argus needs for its own investigation. The number is configuration, set in CON-2.
 - **Post-command analysis:** after each command Argus waits for the metrics to settle (at least two scrape intervals plus margin; the
   scrape interval is 15 s), samples twice, compares before and after, and records structured evidence with references. The
   deterministic ranking recomputes; the model does not rank. A comment may state only what the output or metrics show.
@@ -69,7 +75,21 @@ Alternatives considered:
 
 ## 5. Decision
 
-Pending. Open questions for the reviewer: (1) does the second-opinion reviewer also apply to operator writes (proposed: yes); (2) the access split above (`investigate` for reads, `propose_action` for writes, private path only); (3) the read-command rate limits.
+Accepted by conantkd on 2026-10-29 (second approval for the write gate and read-only principles), with these answers:
+
+1. **The second-opinion reviewer applies to operator writes: yes.** The rule is "no second path"; skipping the judge for a typed
+   write would let an operator avoid it by typing. A `doubt` reaches the approver and only a `disagree` stops (ACR-0039). If Argus
+   already has a pending proposal for the same action (same digest), the console reuses that proposal and its verdict instead of
+   judging again. The judge's latency is shown in the console's status line.
+2. **Access split accepted:** `investigate` for reads, `propose_action` for writes, private prefix only, personal sessions only,
+   routes scoped to an incident, feature flag off by default.
+3. **Rate limits:** read commands 20 a minute and 200 an hour per person, answered 429 with `Retry-After` and audited as
+   `console.quota_refused`; `help` and `clear` are not counted. Writes use the existing proposal limits plus at most one pending
+   proposal per (incident, command). The console has its own per-incident read budget (§3).
+4. **Who may approve a typed write.** The approval path as it stands today has no rule that stops the person who started a proposal
+   from answering it: proposals so far come from Argus, not from a person. The console keeps the existing rule (the approver
+   role, a fresh second factor, personal session) and adds no new one; the audit entry records the proposing and the approving
+   person so a review can see when they are the same. To be confirmed by the reviewer in the first console write PR (CON-6).
 
 ## 6. Applied
 
