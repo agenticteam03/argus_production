@@ -220,3 +220,58 @@ def test_sc03_incident_route_offers_only_grounded_cache_start(make_app):  # noqa
     assert body["next_actions"][0]["is_executable"] is False
     viewer_body = route(inc.id, Principal(id="viewer", kind="human", role="viewer"))
     assert viewer_body["next_actions"] == []
+
+
+# ---- TASK-97: RB-003 declares network.restore (scenario 2 must have a proposal to judge) -----------------------
+
+CLIENT = "vm-166/container:argus-lab-client"
+
+
+def _moved_api(at, networks=("argus-lab-iso",)):
+    record = _status(at, state="running", target=API)
+    return EvidenceRecord(**{**record.__dict__, "values": {"values": {"state": "running", "networks": list(networks)}}}
+                          ).with_hash()
+
+
+def test_rb003_offers_network_restore_for_a_running_api_and_still_container_start_for_a_cache():
+    policy, inventory = _policy()
+    at = utcnow()
+    incident = SimpleNamespace(outcome=IncidentOutcome.diagnosed, target=TargetRef.parse(CLIENT), root_cause_target=API)
+    api = _moved_api(at)
+    candidates = policy.next_actions(incident, [api], {"RB-003"}, inventory, now=at)
+    assert [(c["action"], c["target"], c["grounds"]) for c in candidates] == [("network.restore", API, ["RB-003"])]
+    assert candidates[0]["evidence_refs"][0] == "ev_cache_status" and candidates[0]["is_executable"] is False
+    # the cache case is unchanged
+    cache = SimpleNamespace(outcome=IncidentOutcome.diagnosed, target=TargetRef.parse(API), root_cause_target=CACHE)
+    assert [c["action"] for c in policy.next_actions(cache, [_status(at)], {"RB-003"}, inventory, now=at)] == [
+        "container.start"]
+
+
+def test_no_network_restore_candidate_when_the_api_is_not_running_or_the_runbook_is_not_recalled():
+    policy, inventory = _policy()
+    at = utcnow()
+    incident = SimpleNamespace(outcome=IncidentOutcome.diagnosed, target=TargetRef.parse(CLIENT), root_cause_target=API)
+    assert policy.next_actions(incident, [_status(at, state="exited", target=API)], {"RB-003"}, inventory, now=at) == []
+    # the api is on its declared network, on both, or on none: nothing to restore or nothing unambiguous
+    for networks in (("argus-lab-app",), ("argus-lab-app", "argus-lab-iso"), ()):
+        assert policy.next_actions(incident, [_moved_api(at, networks)], {"RB-003"}, inventory, now=at) == []
+    assert policy.next_actions(incident, [_status(at, state="running", target=API)], {"RB-003"}, inventory,
+                               now=at) == []              # no network read at all
+    assert policy.next_actions(incident, [_status(at, state="running", target=API)], {"RB-022"}, inventory,
+                               now=at) == []
+
+
+def test_network_restore_is_declared_only_by_rb003_and_its_guard_is_a_card_precondition():
+    policy, _ = _policy()
+    declared = {rid: [a.action for a in acts] for rid, acts in policy.runbook_actions.items()}
+    assert [rid for rid, acts in declared.items() if "network.restore" in acts] == ["RB-003"]
+    (entry,) = [a for a in policy.runbook_actions["RB-003"] if a.action == "network.restore"]
+    assert entry.when in policy.cards["network.restore"].preconditions and entry.service_role == "api"
+
+
+def test_the_network_restore_rollback_says_a_person_restores_the_network():
+    from argus.application.approval_view import _reversible
+
+    card = _policy()[0].cards["network.restore"]
+    assert card.rollback.startswith("none:") and "old network" in card.rollback
+    assert _reversible(card.rollback) is False

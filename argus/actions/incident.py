@@ -142,29 +142,18 @@ class ActionPolicy:
                     continue
                 card = self.cards[action.action]
                 offered[action.action] = (card, runbook_id)
-        # ACR-0035's reviewed network repair is grounded in the same recalled runbook and the cause's stored status.
-        # The action card supplies the preconditions; CandidateProposer later derives the exact network arguments from
-        # a fresh status read and the declared inventory, never from operator text.
-        network_card = self.cards.get("network.restore")
-        candidate_values = {**values, "declared_networks": list(getattr(info, "networks", None) or [])}
-        if network_card is not None and "network.restore" in service.safe_actions:
-            declared = list(getattr(info, "networks", None) or [])
-            attached = values.get("networks")
-            network_values = {**values, "declared_networks": declared}
-            if (len(declared) == 1 and isinstance(attached, list) and len(attached) == 1
-                    and all(isinstance(value, str) and value for value in (*declared, *attached))):
-                network_values.update(connect_network=declared[0], disconnect_network=attached[0])
-                candidate_values = network_values
-            if network_card.check_preconditions(network_values):
-                ground = next((value for value in sorted(recalled_runbooks) if value in network_card.sources), None)
-                if ground is not None:
-                    offered["network.restore"] = (network_card, ground)
         result = []
         for name, (card, ground) in offered.items():
+            observations = values
+            if name == "network.restore":
+                # the card's preconditions name its arguments: derive them as the proposer does, only when unambiguous
+                declared, attached = list(info.networks or []), values.get("networks")
+                if len(declared) != 1 or not isinstance(attached, list) or len(attached) != 1:
+                    continue
+                observations = {**values, "declared_networks": declared, "connect_network": declared[0],
+                                "disconnect_network": attached[0]}
             suggestions = evaluate_candidate_actions(
-                target, service, {name: card}, self.risk_table,
-                candidate_values,
-                grounds=[ground], is_victim=False,
+                target, service, {name: card}, self.risk_table, observations, grounds=[ground], is_victim=False,
                 verified_sources={ground})
             for suggestion in suggestions:
                 result.append({"action": suggestion.action, "target": str(target), "text": suggestion.text,
