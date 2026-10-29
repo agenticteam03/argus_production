@@ -12,10 +12,12 @@ import RawOutputDialog from "../components/RawOutputDialog.jsx";
 import ResolveIncident, { Resolution } from "../components/ResolveIncident.jsx";
 import RunTimeline from "../components/RunTimeline.jsx";
 import MiniMap, { miniPair } from "../components/map/MiniMap.jsx";
+import OperatorConsole from "../components/console/OperatorConsole.jsx";
 import SystemMap from "../components/map/SystemMap.jsx";
 import { ErrorCard, Disclosure, Fact, OUTCOME_META, OutcomeBadge, Skeleton, STATUS_META, StatusBadge, TabList, TabPanel } from "../components/ui.jsx";
 import WhyCard from "../components/WhyCard.jsx";
 import { useAuth } from "../context/AuthContext.jsx";
+import { useConsole } from "../hooks/useConsole.js";
 import { useIncident } from "../hooks/useIncident.js";
 import { useIncidentMetrics } from "../hooks/useIncidentMetrics.js";
 import { useTopology } from "../hooks/useTopology.js";
@@ -43,6 +45,8 @@ export default function IncidentDetail() {
   const canOverlay = user?.role === "operator" || user?.role === "approver";
   const topology = useTopology(canOverlay ? id : undefined);
   const metrics = useIncidentMetrics(id, range, inc?.status);
+  // CON-3 (ACR-0043): the operator console; null (no tab) unless the API answers its commands for this person
+  const operatorConsole = useConsole(id, params.get("tab") === "console");
   const headingRef = useRef(null);
   const [announce, setAnnounce] = useState("");
   const prevStatus = useRef(null);
@@ -98,6 +102,7 @@ export default function IncidentDetail() {
     { id: "overview", label: "Incident & Diagnosis" },
     ...(showMap ? [{ id: "map", label: "Map" }] : []),
     ...(showMetrics ? [{ id: "metrics", label: "Metrics" }] : []),
+    ...(operatorConsole ? [{ id: "console", label: "Console" }] : []),
     { id: "timeline", label: "Runtime Timeline" },
     { id: "evidence", label: "Evidence", count: hasEvidence ? inc.evidence.length : undefined },
     { id: "audit", label: "Audit", count: hasAudit ? inc.audit.length : undefined },
@@ -192,6 +197,7 @@ export default function IncidentDetail() {
       </TabPanel>
       <TabPanel id="map" value={tab}>{showMap && <SystemMap topology={topology} incident={inc} title="System map around the incident" />}</TabPanel>
       <TabPanel id="metrics" value={tab}>{showMetrics && <Suspense fallback={<Skeleton className="h-96" />}><MetricsTab metrics={metrics} incident={inc} range={range} onRange={setRange} /></Suspense>}</TabPanel>
+      <TabPanel id="console" value={tab}>{operatorConsole && <OperatorConsole incident={inc} console={operatorConsole} />}</TabPanel>
       <TabPanel id="timeline" value={tab}>
         <RunTimeline incident={inc} events={events} active={active} reconnecting={reconnecting} evidenceIds={evidenceIds} onJump={jumpToEvidence} />
       </TabPanel>
