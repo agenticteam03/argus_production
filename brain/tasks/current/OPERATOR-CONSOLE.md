@@ -36,7 +36,7 @@
 |---|---|---|---|---|---|
 | CON-1 | Registry, parser, allowlist (`argus/console/`) | none | no | | `help` lists commands; `ls` and `status; rm` are rejected |
 | CON-2 | `GET /console/commands`, `POST /console/execute`, history table, scenario 1 read commands | CON-1 | routes and migration | | `cache status`, `api cpu`, `host metrics` return real lab data; each command stored with its incident |
-| CON-3 | Split-view UI: terminal and Argus panel, history, polling | CON-1 contract, mockup spec | no | | works at 1280x720; no hardcoded output |
+| CON-3 | Split-view UI: terminal and Argus panel, history, polling | CON-1 contract, mockup spec | no | conantkd | works at 1280x720; no hardcoded output |
 | CON-4 | Post-command analysis: settle, samples, before/after, evidence, comment, ranking refresh, Langfuse trace | CON-2 | no | | after `api cpu`, the red-herring hypothesis is demoted with a grounded comment |
 | CON-5 | Suggestions with Insert and Copy, `suggestion_id`, "Applied" state | CON-3, CON-4 | no | | Insert fills the input and never runs it |
 | CON-6 | Write path: confirmation, proposal, approval, audit `operator_console`, gateway, verify | ACR, CON-2 | yes | | `cache restart` asks, needs approval, restarts, appears in the audit log |
