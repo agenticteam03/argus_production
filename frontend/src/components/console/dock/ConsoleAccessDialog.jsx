@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { useAuth } from "../../../context/AuthContext.jsx";
 import { argus, secondFactor } from "../../../services/index.js";
 import { hostOf } from "../../../utils/incidentView.js";
-import { CircleAlert, Server, StatusBadge, textareaClass } from "../../ui.jsx";
+import { CircleAlert, Server, SkeletonList, StatusBadge, textareaClass } from "../../ui.jsx";
 import { DOCK_HOSTS, dockAccess, hostIncidents, unlockStep } from "./consoleDock.js";
 import { KeyIcon, TerminalIcon } from "./icons.jsx";
 
@@ -134,7 +134,7 @@ export default function ConsoleAccessDialog({ request, openIds, full, onCancel, 
 
           <fieldset>
             <legend className="mb-2 text-xs font-medium uppercase tracking-wide text-muted">Incident</legend>
-            {!fixed && incidents === null && <p className="text-sm text-muted" role="status">Loading the incidents…</p>}
+            {!fixed && incidents === null && <SkeletonList label="Loading the incidents…" rows={2} className="h-10" grid="flex flex-col gap-1.5" />}
             {!fixed && incidents !== null && !choices.length && (
               <p className="text-sm text-muted">No incident on <span className="font-mono text-ink">{host}</span>. The console works inside an incident: start an investigation of a service on this host first.</p>
             )}
@@ -189,7 +189,7 @@ export default function ConsoleAccessDialog({ request, openIds, full, onCancel, 
             </div>
           )}
 
-          {error && <p role="alert" className="text-[13px] text-danger">{error}</p>}
+          {error && <p role="alert" className="animate-rise text-[13px] text-danger">{error}</p>}
         </div>
 
         <div className="flex justify-end gap-2 border-t border-line px-5 py-3">

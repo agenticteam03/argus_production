@@ -54,7 +54,7 @@ export default function ActionTrail({ action }) {
         <p className="break-all font-mono text-xs text-muted">{action.target}</p>
         <p className="mt-1.5 text-[13px] text-body">{action.rationale}</p>
       </div>
-      <ol>
+      <ol className="stagger">
         <Step title="Proposal" meta={["Frozen", "neutral"]}>
           <p className="text-muted">Argus froze <span className="font-mono text-ink">{action.capability}</span> on <span className="break-all">{action.target}</span>.</p>
         </Step>

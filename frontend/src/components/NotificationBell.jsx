@@ -22,10 +22,11 @@ export function NotificationBellView({ count, items, unread = count ?? 0, unread
   const isUnread = (id) => (unreadIds ? unreadIds.includes(id) : unread > 0);
   return <details className="relative">
     <summary className={summary} aria-label={label} title={label}>
-      <Bell />
-      {unread > 0 && <span aria-hidden="true" className="absolute -right-1.5 -top-1.5 grid h-5 min-w-5 place-items-center rounded-full bg-red-500 px-1 text-[11px] font-semibold leading-none text-white">{badge}</span>}
+      {/* T-0016: the bell rings when something unread arrives and the badge pops whenever the count changes */}
+      <Bell key={unread > 0 ? "ringing" : "quiet"} className={unread > 0 ? "origin-top animate-ring" : ""} />
+      {unread > 0 && <span key={badge} aria-hidden="true" className="animate-pop absolute -right-1.5 -top-1.5 grid h-5 min-w-5 place-items-center rounded-full bg-red-500 px-1 text-[11px] font-semibold leading-none text-white">{badge}</span>}
     </summary>
-    <div className="absolute right-0 z-20 mt-2 w-72 rounded-xl border border-line bg-card p-1.5 shadow-2xl">
+    <div className="menu-pop absolute right-0 z-20 mt-2 w-72 rounded-xl border border-line bg-card p-1.5 shadow-2xl">
       {count === null ? <p className="px-3 py-2 text-sm text-muted">No notifications.</p> : count === 0
         ? <p className="px-3 py-2 text-sm text-muted">No approval is waiting for you.</p>
         : <>
@@ -34,7 +35,7 @@ export function NotificationBellView({ count, items, unread = count ?? 0, unread
             {unread > 0 && <button type="button" onClick={onReadAll}
               className="shrink-0 cursor-pointer text-xs text-accent-hover hover:underline">Mark all as read</button>}
           </div>
-          {items?.length > 0 && <ul className="mt-1">
+          {items?.length > 0 && <ul className="stagger mt-1">
             {items.slice(0, 5).map((a) => <li key={a.id}>
               <Link to={`/incidents/${encodeURIComponent(a.incident_id)}`} onClick={(e) => { onRead?.(a.id); closeMenu(e); }}
                 className="flex items-start gap-2 rounded-lg px-3 py-2 hover:bg-ink/5">

@@ -8,7 +8,7 @@ const RISKS = { green: ["Green risk", "green"], amber: ["Amber risk", "amber"], 
 export default function PendingApprovals({ items, onOpen, selected = null }) {
   return <Card title="Waiting for a decision" count={items.length}>
     {items.length === 0 ? <p className="rounded-xl border border-dashed border-line px-4 py-6 text-center text-sm text-muted">No approval is waiting in your scope.</p> :
-      <ul className="space-y-2">
+      <ul className="stagger space-y-2">
         {items.map((a) => {
           const [label, tone] = RISKS[a.risk] ?? ["Risk unavailable", "neutral"];
           const on = a.id === selected;

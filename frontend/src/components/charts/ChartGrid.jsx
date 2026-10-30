@@ -134,7 +134,7 @@ export function MetricsTab({ metrics, incident, range, onRange }) {
       )}
       <MetricChart key={lead.key} series={lead} metrics={metrics} variant="hero" colors={colors} group={group} view={view} register={register} />
       {rest.length > 0 && (
-        <div className="mt-4 grid gap-x-5 gap-y-4 md:grid-cols-2 xl:grid-cols-3">
+        <div className="stagger mt-4 grid gap-x-5 gap-y-4 md:grid-cols-2 xl:grid-cols-3">
           {rest.map((s) => <MetricChart key={s.key} series={s} metrics={metrics} colors={colors} group={group} view={view} register={register} />)}
         </div>
       )}
@@ -152,7 +152,7 @@ export function MiniCharts({ metrics, onOpen }) {
   const shown = [lead, ...metrics.series.filter((s) => s !== lead)].slice(0, 2);
   return (
     <Card title="Around the incident" right={<button type="button" onClick={onOpen} className="cursor-pointer text-xs text-accent-hover hover:underline">All metrics</button>}>
-      <div className="grid gap-x-5 gap-y-4 sm:grid-cols-2">
+      <div className="stagger grid gap-x-5 gap-y-4 sm:grid-cols-2">
         {shown.map((s) => <MetricChart key={s.key} series={s} metrics={metrics} colors={colors} group={group} view={null} register={register} />)}
       </div>
     </Card>

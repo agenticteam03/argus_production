@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { morph } from "../../../utils/motion.js";
 import { useAuth } from "../../../context/AuthContext.jsx";
 import { Pill, Server } from "../../ui.jsx";
 import { clock, DOCK_HOSTS, maxDockWidth, MIN_WIDTH, timeLeft } from "./consoleDock.js";
@@ -20,6 +21,9 @@ export default function ConsoleDock({ tabs, activeId, onSelect, mode, onMode, on
   const [width, setWidth] = useState(() => clampWidth(Math.min(680, window.innerWidth * 0.45)));
   const [now, setNow] = useState(() => Date.now());
   const plus = useRef(null);
+  // T-0016: the panel slides in when it first opens; later changes of mode morph instead (morph, View Transitions).
+  const [entered, setEntered] = useState(false);
+  const switchMode = (next) => morph(() => onMode(next));
   const active = tabs.find((t) => t.incidentId === activeId) ?? tabs[0];
 
   // A smaller window keeps the panel within its limit; a click outside the "+" menu closes it.
@@ -75,7 +79,8 @@ export default function ConsoleDock({ tabs, activeId, onSelect, mode, onMode, on
   return (
     <>
       <aside aria-label="Operator console" style={{ "--dock-w": `${width}px` }}
-        className={`fixed z-40 flex flex-col overflow-hidden bg-card text-body ${place} ${mode === "minimized" ? "hidden" : ""}`}>
+        onAnimationEnd={(e) => e.target === e.currentTarget && setEntered(true)}
+        className={`fixed z-40 flex flex-col overflow-hidden bg-card text-body [view-transition-name:console-dock] ${entered ? "" : "animate-slide-in-right"} ${place} ${mode === "minimized" ? "hidden" : ""}`}>
         {mode === "docked" && (
           <div role="separator" aria-orientation="vertical" aria-label="Resize the console" tabIndex={0} aria-valuenow={width}
             aria-valuemin={MIN_WIDTH} aria-valuemax={Math.round(maxDockWidth(window.innerWidth))} onPointerDown={drag} onKeyDown={keyResize}
@@ -88,7 +93,7 @@ export default function ConsoleDock({ tabs, activeId, onSelect, mode, onMode, on
               {tabs.map((t) => {
                 const on = t.incidentId === active?.incidentId;
                 return (
-                  <div key={t.incidentId} className={`flex shrink-0 items-center rounded-lg border transition ${on ? "border-line bg-ink/5 text-ink" : "border-transparent text-muted hover:text-ink"}`}>
+                  <div key={t.incidentId} className={`flex shrink-0 animate-rise items-center rounded-lg border transition ${on ? "border-line bg-ink/5 text-ink" : "border-transparent text-muted hover:text-ink"}`}>
                     <button type="button" role="tab" id={`dock-tab-${t.incidentId}`} aria-selected={on}
                       aria-controls={`dock-panel-${t.incidentId}`} onClick={() => onSelect(t.incidentId)} title={`${t.target} · ${t.incidentId}`}
                       className="flex cursor-pointer items-center gap-1.5 py-1.5 pl-2.5 pr-2 text-sm">
@@ -113,7 +118,7 @@ export default function ConsoleDock({ tabs, activeId, onSelect, mode, onMode, on
                 className={`${iconButton} list-none [&::-webkit-details-marker]:hidden ${full ? "pointer-events-none opacity-40" : ""}`}>
                 <Plus width="16" height="16" />
               </summary>
-              <div className="absolute left-0 z-20 mt-1 min-w-48 rounded-xl border border-line bg-card p-1.5 shadow-2xl">
+              <div className="menu-pop absolute left-0 z-20 mt-1 min-w-48 rounded-xl border border-line bg-card p-1.5 shadow-2xl">
                 <p className="px-3 pb-1 pt-1.5 text-xs text-muted">Open a console on</p>
                 {DOCK_HOSTS.map((h) => (
                   <button key={h} type="button" onClick={() => { plus.current?.removeAttribute("open"); onAdd(h); }}
@@ -124,10 +129,10 @@ export default function ConsoleDock({ tabs, activeId, onSelect, mode, onMode, on
               </div>
             </details>
           </div>
-          <button type="button" onClick={() => onMode("minimized")} aria-label="Minimize the console" title="Minimize" className={iconButton}>
+          <button type="button" onClick={() => switchMode("minimized")} aria-label="Minimize the console" title="Minimize" className={iconButton}>
             <Minus width="16" height="16" />
           </button>
-          <button type="button" onClick={() => onMode(mode === "fullscreen" ? "docked" : "fullscreen")}
+          <button type="button" onClick={() => switchMode(mode === "fullscreen" ? "docked" : "fullscreen")}
             aria-label={mode === "fullscreen" ? "Exit full screen" : "Full screen"} title={mode === "fullscreen" ? "Exit full screen" : "Full screen"}
             className={iconButton}>
             {mode === "fullscreen" ? <Minimize width="16" height="16" /> : <Maximize width="16" height="16" />}
@@ -155,7 +160,7 @@ export default function ConsoleDock({ tabs, activeId, onSelect, mode, onMode, on
           </div>
         )}
         {active && left <= WARN_MS && (
-          <p role="status" className="border-b border-line bg-amber-400/10 px-4 py-1.5 text-xs text-ink">
+          <p role="status" className="animate-rise border-b border-line bg-amber-400/10 px-4 py-1.5 text-xs text-ink">
             This console session ends in {clock(left)}. Open it again afterwards if you still need it.
           </p>
         )}
@@ -163,7 +168,7 @@ export default function ConsoleDock({ tabs, activeId, onSelect, mode, onMode, on
         <div className="relative min-h-0 flex-1">
           {tabs.map((t) => (
             <div key={t.incidentId} role="tabpanel" id={`dock-panel-${t.incidentId}`} aria-labelledby={`dock-tab-${t.incidentId}`}
-              className={`absolute inset-0 ${t.incidentId === active?.incidentId ? "" : "invisible"}`}>
+              className={`absolute inset-0 ${t.incidentId === active?.incidentId ? "animate-fade-in" : "invisible"}`}>
               <DockSession incidentId={t.incidentId} active={t.incidentId === active?.incidentId && mode !== "minimized"} />
             </div>
           ))}
@@ -171,7 +176,7 @@ export default function ConsoleDock({ tabs, activeId, onSelect, mode, onMode, on
       </aside>
 
       {mode === "minimized" && active && (
-        <button type="button" onClick={() => onMode("docked")} aria-label={`Restore the console (${tabs.length} open)`}
+        <button type="button" onClick={() => switchMode("docked")} aria-label={`Restore the console (${tabs.length} open)`}
           className="toast-in fixed bottom-4 right-4 z-40 flex cursor-pointer items-center gap-2 rounded-xl border border-line bg-card px-3 py-2 text-sm text-ink shadow-[0_16px_48px_-12px_rgb(0_0_0/0.35)] hover:bg-field">
           <TerminalIcon width="16" height="16" />
           <span>Console</span>

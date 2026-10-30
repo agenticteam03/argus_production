@@ -23,7 +23,7 @@ export default function ActionSuggestions({ items = [] }) {
   return (
     <Card title="Suggested actions" count={items.length}>
       <p className="mb-3 text-[13px] text-muted">These are suggestions from reviewed cards and current evidence. They do not authorize an action.</p>
-      <ul className="space-y-2.5">
+      <ul className="stagger space-y-2.5">
         {items.map((item, index) => {
           const [riskLabel, tone] = RISK[item.risk_color] ?? ["Risk unavailable", "neutral"];
           return <li key={`${item.action}:${item.target}:${index}`}

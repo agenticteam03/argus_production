@@ -40,9 +40,9 @@ export default function ApprovalCard({ approval, canAnswer, busy, confirmation, 
   const mayApprove = ready && APPROVABLE.has(approval.judge.verdict) && (!red || confirmation === input.target);
   const mayDeny = ready && reason.trim() !== "";
 
-  return <Card title="Frozen action proposal" right={<Pill tone={tone}>{riskLabel}</Pill>}>
+  return <Card title="Frozen action proposal" className="animate-rise" right={<Pill tone={tone}>{riskLabel}</Pill>}>
     <div className="space-y-5 text-sm">
-      {doubted && <div role="alert" className="flex gap-3 rounded-xl border border-amber-400/30 bg-amber-400/10 p-3 text-amber-300">
+      {doubted && <div role="alert" className="animate-rise flex gap-3 rounded-xl border border-amber-400/30 bg-amber-400/10 p-3 text-amber-300">
         <CircleAlert width="18" height="18" className="mt-0.5 shrink-0" />
         <div>
           <p className="font-medium">The independent judge doubted this action.</p>

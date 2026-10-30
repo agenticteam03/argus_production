@@ -16,7 +16,7 @@ export default function RunbookCard({ runbook: rb, onOpen }) {
   const tools = [...rb.tools.filter(isMutating), ...rb.tools.filter((t) => !isMutating(t))];
 
   return (
-    <article className="group flex flex-col overflow-hidden rounded-2xl border border-line bg-card/80 transition hover:border-accent/40 hover:shadow-[0_0_40px_-20px_rgba(59,130,246,0.6)] motion-reduce:transition-none">
+    <article className="lift group flex flex-col overflow-hidden rounded-2xl border border-line bg-card/80 transition hover:border-accent/40 hover:shadow-[0_0_40px_-20px_rgba(59,130,246,0.6)] motion-reduce:transition-none">
       <div className="flex flex-1 flex-col gap-4 p-5">
         <header className="flex items-start gap-3">
           <span className="grid size-10 shrink-0 place-items-center rounded-xl border border-accent/20 bg-accent/10 text-accent-hover">

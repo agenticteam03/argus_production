@@ -172,11 +172,11 @@ export default function IncidentDetail() {
           <div className="flex flex-wrap items-center gap-2">
             {detailsOpen ? (
               // T-0016: with the details open the row is narrow: the two minor actions wait in a small menu
-              <details className="relative" onBlur={(e) => !e.currentTarget.contains(e.relatedTarget) && e.currentTarget.removeAttribute("open")}>
+              <details className="group relative" onBlur={(e) => !e.currentTarget.contains(e.relatedTarget) && e.currentTarget.removeAttribute("open")}>
                 <summary className={`${ghost} flex list-none items-center gap-1.5 [&::-webkit-details-marker]:hidden`}>
-                  More <Chevron width="14" height="14" />
+                  More <Chevron width="14" height="14" className="transition-transform group-open:rotate-180 motion-reduce:transition-none" />
                 </summary>
-                <div className="absolute right-0 z-20 mt-1 flex min-w-44 flex-col rounded-xl border border-line bg-card p-1.5 shadow-2xl">
+                <div className="menu-pop absolute right-0 z-20 mt-1 flex min-w-44 flex-col rounded-xl border border-line bg-card p-1.5 shadow-2xl">
                   <button type="button" onClick={() => setRawOpen(true)} className={menuItem}>Raw output</button>
                   <CopySummary incident={inc} cited={cited} className={menuItem} />
                 </div>

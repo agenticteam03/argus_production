@@ -16,7 +16,9 @@ const pill = "whitespace-nowrap rounded-lg border px-2.5 py-2 text-sm transition
 const on = "border-line bg-ink/5 text-ink";
 const off = "border-transparent text-muted hover:text-ink";
 const summary = "flex cursor-pointer list-none items-center gap-1.5 [&::-webkit-details-marker]:hidden";
-const menu = "absolute z-20 mt-2 min-w-60 rounded-xl border border-line bg-card p-1.5 shadow-2xl";
+const menu = "menu-pop absolute z-20 mt-2 min-w-60 rounded-xl border border-line bg-card p-1.5 shadow-2xl";
+// T-0016: a menu's chevron turns while it is open (its panel drops in: motion.css .menu-pop).
+const turn = "transition-transform group-open:rotate-180 motion-reduce:transition-none";
 const closeMenu = (e) => e.currentTarget.closest("details")?.removeAttribute("open");
 
 export default function Header() {
@@ -44,9 +46,9 @@ export default function Header() {
       <nav className="order-last flex w-full flex-wrap items-center justify-center gap-0.5 @min-[40rem]:order-none @min-[40rem]:w-auto @min-[40rem]:flex-nowrap @min-[64rem]:gap-1">
         {items.map((r) =>
           r.children ? (
-            <details key={r.label} className="relative">
+            <details key={r.label} className="group relative">
               <summary className={`${summary} ${pill} ${pathname.startsWith("/tools") ? on : off}`}>
-                {r.label} <Chevron width="14" height="14" />
+                {r.label} <Chevron width="14" height="14" className={turn} />
               </summary>
               <div className={`${menu} left-1/2 -translate-x-1/2`}>
                 {/* the pages that leave the row below 52rem (a docked console) wait here */}
@@ -83,13 +85,14 @@ export default function Header() {
 
       <div className="flex items-center gap-2">
         <button type="button" onClick={toggleTheme} aria-label={theme === "light" ? "Switch to dark theme" : "Switch to light theme"} title={theme === "light" ? "Dark theme" : "Light theme"} className="grid size-10 cursor-pointer place-items-center rounded-xl border border-line bg-field text-muted hover:text-ink">
-          {theme === "light" ? <Moon /> : <Sun />}
+          {/* keyed on the theme, so the new icon pops in as the page recolours (T-0016) */}
+          <span key={theme} className="animate-pop">{theme === "light" ? <Moon /> : <Sun />}</span>
         </button>
         <NotificationBell />
-        <details className="relative">
+        <details className="group relative">
           <summary className={summary} aria-label="Account menu">
             <span className="grid size-10 place-items-center rounded-full bg-accent/20 text-sm font-medium text-accent-hover">{user.name[0].toUpperCase()}</span>
-            <Chevron width="14" height="14" className="text-muted" />
+            <Chevron width="14" height="14" className={`text-muted ${turn}`} />
           </summary>
           <div className={`${menu} right-0`}>
             <div className="px-3 py-2">

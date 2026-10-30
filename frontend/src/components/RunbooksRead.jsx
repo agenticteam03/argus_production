@@ -26,7 +26,7 @@ export default function RunbooksRead({ ids }) {
     if (!rows.some((r) => r.id === id)) rows.push({ id, title: rb?.title });
   }
   return (
-    <ul className="mt-2 space-y-1.5">
+    <ul className="stagger mt-2 space-y-1.5">
       {rows.map(({ id, title }) => {
         return (
           <InsetRow as="li" key={id} className="p-0">

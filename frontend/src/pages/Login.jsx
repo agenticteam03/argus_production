@@ -45,7 +45,7 @@ export default function LoginPage({ onLogin }) {
 
   return (
     <div className="grid min-h-full place-items-center p-3 sm:p-6">
-      <main className="w-full max-w-[480px] overflow-hidden rounded-[20px] border border-line bg-card shadow-[0_40px_120px_-40px_rgba(59,130,246,0.25)] sm:rounded-3xl">
+      <main className="animate-rise w-full max-w-[480px] overflow-hidden rounded-[20px] border border-line bg-card shadow-[0_40px_120px_-40px_rgba(59,130,246,0.25)] sm:rounded-3xl">
         <section className="flex flex-col px-5 py-6 sm:px-10 sm:py-8">
           <header className="flex items-center gap-2.5 text-xl font-semibold tracking-tight">
             <Logo width="22" height="22" className="text-ink" />
@@ -97,7 +97,7 @@ export default function LoginPage({ onLogin }) {
                   <EyeIcon off={showPassword} />
                 </button>
               </div>
-              {error && <p id={errorId} role="alert" className="text-[13px] text-danger">{error}</p>}
+              {error && <p key={error} id={errorId} role="alert" className="animate-shake text-[13px] text-danger">{error}</p>}
             </div>
 
             <button

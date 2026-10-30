@@ -25,6 +25,10 @@ const approveDisabled = (out) => /disabled=""[^>]*>Approve<\/button>/.test(out);
 const denyDisabled = (out) => /disabled=""[^>]*>Deny<\/button>/.test(out);
 
 describe("ApprovalCard", () => {
+  it("rises in when it opens (T-0016; Actions keys it on the approval, so each one opened plays it)", () => {
+    expect(html()).toContain("animate-rise");
+  });
+
   it("shows the frozen action, identity, arguments, reversibility, judge, risk, evidence, prediction and rollback", () => {
     const out = html();
     for (const text of ["container.start", "argus-lab-cache", "Red risk", "The cache is stopped.",

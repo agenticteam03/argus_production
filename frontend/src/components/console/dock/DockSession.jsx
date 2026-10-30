@@ -3,6 +3,7 @@ import { useConsole } from "../../../hooks/useConsole.js";
 import { useIncident } from "../../../hooks/useIncident.js";
 import ConsolePanel from "../ConsolePanel.jsx";
 import ConsoleTerminal from "../ConsoleTerminal.jsx";
+import { Skeleton } from "../../ui.jsx";
 import { PanelIcon } from "./icons.jsx";
 
 // T-0016: one tab of the side panel: the team's operator console (ACR-0043) for one incident, unchanged: its terminal
@@ -31,8 +32,10 @@ export default function DockSession({ incidentId, active }) {
 
   if (!con) {
     return (
-      <div className="grid h-full place-items-center p-6 text-center">
-        <p role="status" className="max-w-sm text-sm text-muted">
+      // T-0016: while it connects, the terminal's place shimmers behind the words; a console that does not answer rises in
+      <div aria-busy={!waited} className="relative grid h-full place-items-center p-6 text-center">
+        {!waited && <Skeleton className="absolute inset-3" />}
+        <p key={String(waited)} role="status" className={`relative max-w-sm text-sm text-muted ${waited ? "animate-rise" : ""}`}>
           {waited
             ? "The console does not answer for this incident: it may be off on this Argus, or your private session ended. Disconnect and open it again."
             : "Connecting to the console…"}

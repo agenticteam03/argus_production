@@ -71,7 +71,7 @@ describe("ReferenceSourcesView", () => {
   });
 
   it("waits for the list, and says when there is none", () => {
-    expect(view({ sources: null })).toContain("animate-pulse");
+    expect(view({ sources: null })).toContain("skeleton");       // T-0016: a shimmer, not a blink
     expect(view({ sources: [] })).toContain("No reference source is installed or staged.");
   });
 });

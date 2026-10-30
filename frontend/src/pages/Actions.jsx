@@ -75,10 +75,10 @@ export default function Actions() {
       <h1 className="text-[28px] font-semibold tracking-[-0.03em]">Actions</h1>
       <p className="mt-1 text-sm text-muted">Review the frozen proposal and independent judge before deciding. A decision never executes this card directly.</p>
     </div>
-    {preview && <p className="flex items-center gap-2 rounded-xl border border-amber-400/30 bg-amber-400/10 p-3 text-sm text-amber-300">
+    {preview && <p className="animate-rise flex items-center gap-2 rounded-xl border border-amber-400/30 bg-amber-400/10 p-3 text-sm text-amber-300">
       <CircleAlert width="16" height="16" className="shrink-0" /> Local demonstration: this approval is synthetic and cannot be submitted.</p>}
     {error && <ErrorCard title="Could not complete this request" text={error} />}
-    {notice && <p role="status" className="flex items-center gap-2 rounded-xl border border-emerald-400/30 bg-emerald-400/10 p-3 text-sm text-emerald-300">
+    {notice && <p role="status" className="animate-rise flex items-center gap-2 rounded-xl border border-emerald-400/30 bg-emerald-400/10 p-3 text-sm text-emerald-300">
       <CircleCheck width="16" height="16" className="shrink-0" /> {notice}</p>}
 
     <PrivateAccess step={step} busy={busy} run={run} loginPrivate={loginPrivate} secondFactor={secondFactor} refresh={refresh} />
@@ -103,9 +103,9 @@ export default function Actions() {
       </div>
       <div className="min-w-0">
         {loading ? <Skeleton className="h-96" />
-          : approval ? <ApprovalCard approval={approval} canAnswer={canAnswer} busy={busy} confirmation={confirmation}
+          : approval ? <ApprovalCard key={approval.id} approval={approval} canAnswer={canAnswer} busy={busy} confirmation={confirmation}
             onConfirmation={setConfirmation} reason={reason} onReason={setReason} onAnswer={answer} />
-            : <div className="grid place-items-center rounded-2xl border border-dashed border-line px-6 py-16 text-center">
+            : <div className="grid animate-fade-in place-items-center rounded-2xl border border-dashed border-line px-6 py-16 text-center">
               <Inbox width="24" height="24" className="mb-2 text-muted" />
               <p className="text-sm font-medium text-ink">Open an approval to review it</p>
               <p className="mt-1 max-w-sm text-[13px] text-muted">Its frozen proposal, the independent judge and your decision appear here.</p>

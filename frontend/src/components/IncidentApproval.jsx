@@ -60,7 +60,7 @@ export default function IncidentApproval({ action, onAnswered }) {
       <Lock width="16" height="16" className="shrink-0 text-accent-hover" />
       This incident's action waits for an approver. Sign in privately to decide it here.</p>}
     {error && <ErrorCard title="Could not complete this request" text={error} />}
-    {notice && <p role="status" className="flex items-center gap-2 rounded-xl border border-emerald-400/30 bg-emerald-400/10 p-3 text-sm text-emerald-300">
+    {notice && <p role="status" className="animate-rise flex items-center gap-2 rounded-xl border border-emerald-400/30 bg-emerald-400/10 p-3 text-sm text-emerald-300">
       <CircleCheck width="16" height="16" className="shrink-0" /> {notice}</p>}
     <PrivateAccess step={step} busy={busy} run={run} loginPrivate={loginPrivate} secondFactor={secondFactor} refresh={refresh} />
     {step === "ready" && (approval
