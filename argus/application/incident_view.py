@@ -26,6 +26,7 @@ CLASS_TEXT = {
     "cpu_saturation": ("CPU saturation", "cpu_saturation"),
     "disk_pressure": ("Disk pressure", "disk_pressure"),
     "monitoring_blind_spot": ("Monitoring blind spot", "blind_spot"),
+    "target_down": ("Service or process not running", "target_down"),     # ACR-0044
 }
 # outcome -> a sentence for what is not a diagnosis; `{name}` is the target's short name
 OUTCOME_TEXT = {

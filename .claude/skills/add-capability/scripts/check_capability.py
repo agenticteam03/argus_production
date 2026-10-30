@@ -18,7 +18,7 @@ import re
 import sys
 
 READ_CLASSES = ("READ_ONLY_SAFE", "READ_ONLY_SENSITIVE")
-TARGET_KINDS = {"container", "host"}
+TARGET_KINDS = {"container", "host", "service", "process"}     # ACR-0044: the kinds an executor can read
 MODEL_NAME = re.compile(r"^[a-z][a-z0-9_]*$")
 
 

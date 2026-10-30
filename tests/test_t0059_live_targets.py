@@ -324,3 +324,76 @@ def test_each_hosts_prometheus_scrapes_the_host_probe_with_its_token():
         assert job["authorization"] == {"type": "Bearer", "credentials_file": "/etc/prometheus/secrets/host_probe_token"}
         assert job["static_configs"][0]["targets"] == ["argus-v18-host-probe:8700"]
         assert job["static_configs"][0]["labels"] == {"argus_host": host}
+
+
+# --- step 4: investigating a service or a process ------------------------------------------------------------------------
+def _spec(name):
+    from argus.capabilities.catalog import build_catalog
+    return {s.name: s for s in build_catalog()}[name]
+
+
+@pytest.mark.parametrize("name,model_name,kind,route", [
+    ("service.status", "get_service_status", "service", "/services/cron.service/status"),
+    ("process.status", "get_process_status", "process", "/processes/backup/status"),
+])
+def test_service_and_process_status_are_level_1_host_probe_reads(name, model_name, kind, route):
+    import yaml
+    from argus.detectors.classes import CLASSES
+    s = _spec(name)
+    assert (s.model_name, s.target_kinds, s.level, s.safety_class, s.executor) == (
+        model_name, frozenset({kind}), 1, "READ_ONLY_SAFE", "host_probe")
+    assert not any(s.tags & c.tool_tags for c in CLASSES)                 # offered to no model class
+    policy = yaml.safe_load((ROOT / "config/policy.yaml").read_text(encoding="utf-8"))
+    assert policy["capabilities"][name]["max_per_incident"] >= 1
+
+    class Client:
+        def get(self, path, params=None):
+            self.path = path
+            return ({"unit": "cron.service", "installed": True, "active": False, "pids": [],
+                     "collected_at": "2026-10-30T12:00:00Z"} if kind == "service" else
+                    {"name": "backup", "match": {"comm": "backup.sh"}, "running": False, "pids": [],
+                     "collected_at": "2026-10-30T12:00:00Z"})
+    c = Client()
+    ref = TargetRef.parse(f"h1/{kind}:{'cron.service' if kind == 'service' else 'backup'}")
+    out = s.impl(s.args_model(), ref, None, c)
+    assert c.path == route and "not running" in out.model_text
+
+
+def test_the_evidence_pack_of_a_service_or_process_reads_it_and_its_host():
+    from argus.orchestration.strategies import evidence_pack_plan
+    plan = [(c.name, c.arguments["target"]) for c in evidence_pack_plan(TargetRef.parse("h1/service:cron.service"))]
+    assert plan == [("service.status", "h1/service:cron.service"), ("host.memory", "h1/host:h1"), ("host.cpu", "h1/host:h1")]
+    plan = [c.name for c in evidence_pack_plan(TargetRef.parse("h1/process:backup"))]
+    assert plan == ["process.status", "host.memory", "host.cpu"]
+
+
+@pytest.mark.parametrize("vals,matched", [
+    ({"target_present": 1, "target_up": 0}, True),
+    ({"target_present": 1, "target_up": 1}, False),
+    ({"target_present": 0, "target_up": 0}, False),         # not on the host: nothing that should run is down
+    ({"target_present": None, "target_up": None}, False),   # unknown, never down
+])
+def test_target_down_is_a_declared_service_or_process_that_does_not_run(vals, matched):
+    from argus.detectors.classes import classes_for
+    from argus.domain.model import MetricSnapshot
+    for kind, name in (("service", "cron.service"), ("process", "backup")):
+        (spec,) = classes_for(kind)
+        assert (spec.name, spec.strategy, spec.runbook_ids) == ("target_down", "evidence_pack", ["RB-023"])
+        snap = MetricSnapshot(target=TargetRef(host="h1", kind=kind, name=name), values=vals, observed_at=NOW)
+        assert spec.detector(snap).matched is matched
+
+
+def test_the_target_down_alert_names_the_service_or_process():
+    import yaml
+    from argus.application.alerts import HandleAlertNotification as AlertIntake
+    from argus.domain.model import AlertNotification
+    rules = yaml.safe_load((ROOT / "deploy/monitoring/alerts.yml").read_text(encoding="utf-8"))
+    alert = next(r for g in rules["groups"] for r in g["rules"] if r.get("alert") == "TargetDown")
+    assert alert["expr"] == ('argus_target_up{kind=~"service|process"} == 0 '
+                             'and on(argus_host,kind,name) argus_target_present == 1')
+    intake = AlertIntake.__new__(AlertIntake)
+    a = AlertNotification.model_construct(labels={"alertname": "TargetDown", "argus_host": "vm-166", "kind": "service",
+                                                  "name": "cron.service"}, annotations={})
+    assert intake._target(a) == TargetRef.parse("vm-166/service:cron.service")
+    a = AlertNotification.model_construct(labels={"argus_host": "vm-166", "name": "argus-lab-burner"}, annotations={})
+    assert intake._target(a) == TargetRef.parse("vm-166/host:vm-166")        # a cAdvisor `name` is not a target kind

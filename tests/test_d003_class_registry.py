@@ -16,7 +16,8 @@ TO_BASELINE = {"dependency_unavailable", "nginx_upstream_failure"}
 KEPT = {"container_restart_loop": "model_loop", "health_check_failed": "model_loop",
         "postgresql_connection_exhaustion": "model_loop", "cpu_saturation": "model_loop",
         "disk_pressure": "confirm_then_reason", "monitoring_blind_spot": "evidence_pack",
-        "worker_stalled": "baseline"}
+        "worker_stalled": "baseline",
+        "target_down": "evidence_pack"}        # ACR-0044: model-free, no diagnosis claimed (no eval needed)
 
 
 def _registry() -> dict[str, str]:

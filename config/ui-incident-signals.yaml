@@ -47,3 +47,7 @@ classes:
     - {signal: host_disk_hours_to_full, title: "Hours until full", unit: "h", kind: disk}
   monitoring_blind_spot:
     - {signal: scrape_targets_down, title: "Scrape targets down", fired: true, kind: health}
+  target_down:                          # ACR-0044: a systemd unit or a declared process
+    - {signal: target_up, title: "Running (1 = yes)", max: 1, fired: true, kind: health}
+    - {signal: host_cpu_busy_ratio, title: "Host CPU busy", scope: host, unit: "%", scale: 100, max: 100, kind: cpu}
+    - {signal: host_memory_available_ratio, title: "Host memory available", scope: host, unit: "%", scale: 100, max: 100, kind: memory}
