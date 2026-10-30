@@ -2660,9 +2660,10 @@ shell, PTY, exec, pipe or script exists in it. Stage 2, a real shell for people,
   stored in the history with no command.
 - **Handlers** (`argus/console/handlers.py`). A handler turns one parsed command into output lines, and every line comes
   from a read through the ports: a capability by the guarded invoke path (§12.4), a metric, or the declared topology.
-  Nothing is typed into the handler. A read is bounded to a window of at most 120 minutes. Today the handlers cover the
-  meta commands, `status`, `map`, and the scenario 1 and scenario 4 reads; the scenario 2 reads are *in progress*
-  (TASK-113).
+  Nothing is typed into the handler. A read is bounded to a window of at most 120 minutes. The handlers cover the
+  meta commands, `status`, `map`, the scenario 1 and scenario 4 reads, and the scenario 2 reads `net inspect`,
+  `net expected` and `net diff` (one `container.status` read each: the attached networks and the inventory's declared
+  ones, compared in plain words).
 - **A write command maps to exactly one released pair.** The registry holds `cache restart` (`container.start` on the
   cache, accepted only while the cache is stopped), `worker restart` (`container.restart` on the job worker) and
   `net reconnect api` (`network.restore` on the API, ACR-0035). A console command can never reach a (capability, target)
