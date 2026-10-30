@@ -14,6 +14,7 @@ from argus.orchestration.action_path import OfflineActionPath
 from test_console_routes import PRIVATE, login, setup, url
 from test_core import incident, make_app as base_make_app  # noqa: F401
 from test_phase18_remediation import GOOD_CHECKS
+from test_phase19_private_login import _client as private_login_client, _login as private_login
 
 CACHE = "vm-166/container:argus-lab-cache"
 WORKER = "vm-166/container:argus-lab-jobworker"
@@ -83,7 +84,9 @@ def _case(factory, monkeypatch, text, command, incident_target, incident_class, 
     client = setup(app, monkeypatch)
     monkeypatch.setattr(client.app.state.second_factor, "privileged_ready", lambda *_: True)
     monkeypatch.setattr(client.app.state.second_factor, "consume_step_up", lambda *_: None)
-    auth = login(client)
+    app.store.upsert_principal("writer", "human", "approver", ["lab"],
+                               PasswordHash.recommended().hash("a-long-password"))
+    auth = login(client, "writer")
     return SimpleNamespace(app=app, incident=inc, client=client, auth=auth, pair=pair, path=path)
 
 
@@ -137,7 +140,7 @@ def test_console_audit_links_both_people_to_the_approval(app_factory, monkeypatc
     assert row.detail["source"] == "operator_console"
     assert row.detail["command_id"] == proposal_response["command_id"]
     assert row.detail["proposal_id"] == proposal.id
-    assert row.detail["proposed_by"] == "olga" and row.detail["approved_by"] == "vera"
+    assert row.detail["proposed_by"] == "writer" and row.detail["approved_by"] == "vera"
 
 
 def test_running_cache_is_rejected_and_the_other_released_pair_is_never_proposed(app_factory, monkeypatch):
@@ -152,7 +155,6 @@ def test_running_cache_is_rejected_and_the_other_released_pair_is_never_proposed
 def test_write_without_propose_action_is_refused_before_history_or_proposal(app_factory, monkeypatch):
     app = app_factory()
     app.action_rows = app.store
-    monkeypatch.setitem(ACTION_ROLE_PERMISSIONS, "operator", frozenset())
     client = setup(app, monkeypatch)
     response = client.post(url("inc_not_needed", "execute"), headers={**login(client), **PRIVATE},
                           json={"input": "cache restart"})
@@ -168,6 +170,12 @@ def test_write_without_propose_action_is_refused_before_history_or_proposal(app_
     assert audit[0].actor == audit[1].actor == "olga"
     assert audit[0].detail["command_id"] == audit[1].detail["command_id"]
     assert all(row.detail["source"] == "operator_console" and row.detail["proposal_id"] is None for row in audit)
+
+
+def test_operator_cannot_get_a_private_approver_login(app_factory, monkeypatch):
+    _api, client = private_login_client(app_factory(), monkeypatch)
+    assert "propose_action" not in ACTION_ROLE_PERMISSIONS.get("operator", frozenset())
+    assert private_login(client, "olga").status_code == 401
 
 
 def test_closed_incident_refuses_writes_but_still_allows_reads(app_factory, monkeypatch):

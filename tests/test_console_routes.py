@@ -58,6 +58,11 @@ def login(client, user="olga", scope=None):
     return {"Authorization": f"Bearer {client.post('/api/v1/auth/token', data=data).json()['access_token']}"}
 
 
+def approver_login(ctx):
+    ctx.app.store.upsert_principal("writer", "human", "approver", ["lab"], PasswordHash.recommended().hash(PASSWORD))
+    return login(ctx.client, "writer")
+
+
 def run(client, headers, inc, text, **extra):
     return client.post(url(inc, "execute"), headers={**headers, **PRIVATE}, json={"input": text, **extra})
 
@@ -187,7 +192,7 @@ def test_a_parse_error_is_a_rejected_answer_with_the_terminal_message_and_a_hist
 
 
 def test_a_write_command_without_a_passkey_session_is_refused(ctx):
-    response = run(ctx.client, ctx.auth, ctx.inc, "cache restart")
+    response = run(ctx.client, approver_login(ctx), ctx.inc, "cache restart")
 
     assert response.status_code == 403 and "passkey session" in response.json()["detail"]
     assert ctx.calls == []
@@ -324,7 +329,7 @@ def test_the_history_route_returns_the_entries_of_the_mockup_spec_oldest_first(c
         ("container.start", "vm-166/container:argus-lab-cache")})))
     ctx.client.app.state.second_factor.privileged_ready = lambda *_: True
     first = run(ctx.client, ctx.auth, ctx.inc, "cache status").json()
-    write = run(ctx.client, ctx.auth, ctx.inc, "cache restart")
+    write = run(ctx.client, approver_login(ctx), ctx.inc, "cache restart")
     assert write.json()["status"] == "needs_confirmation"
     other = incident(ctx.app, API)
     run(ctx.client, ctx.auth, other, "cache status")

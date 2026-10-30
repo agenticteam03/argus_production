@@ -65,7 +65,6 @@ ROLE_PERMISSIONS: dict[str, frozenset[str]] = {
 # ACR-0042: `count_waiting_approvals` is not privileged: it gives an approver only how many approvals wait (the bell),
 # with any token; seeing and deciding them stays privileged and private.
 ACTION_ROLE_PERMISSIONS: dict[str, frozenset[str]] = {
-    "operator": frozenset({"propose_action"}),
     "approver": frozenset({"propose_action", "approve_action", "place_hold", "count_waiting_approvals"})}
 # ACR-0034 local tier: installing a staged reference source is a privileged act (step-up each time); ACR-0040: an
 # approver may do it as well as an administrator
