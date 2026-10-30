@@ -1,14 +1,12 @@
-import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import DiagnoseForm from "../components/DiagnoseForm.jsx";
 import IncidentRow from "../components/IncidentRow.jsx";
 import StatusBanner from "../components/StatusBanner.jsx";
 import SystemMap from "../components/map/SystemMap.jsx";
-import { Arrow, Bell, Card, Empty, Inbox, LivePill, OutcomeBadge, Pill, Shield } from "../components/ui.jsx";
-import { useAuth } from "../context/AuthContext.jsx";
+import { Arrow, Bell, Card, Empty, Inbox, LivePill, OutcomeBadge, Pill } from "../components/ui.jsx";
 import { useLiveOverview } from "../hooks/useLiveOverview.js";
 import { useTopology } from "../hooks/useTopology.js";
-import { argus, dataSource } from "../services/index.js";
+import { dataSource } from "../services/index.js";
 import { dateTime, timeAgo } from "../utils/format.js";
 import { loadLevel, worstLevel } from "../utils/load.js";
 
@@ -78,31 +76,6 @@ function HostMetricsCard({ rows, live, updatedAt }) {
   );
 }
 
-function ApprovalItem({ approval, canDecide, onDecide }) {
-  const [now, setNow] = useState(Date.now());
-  useEffect(() => {
-    const id = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(id);
-  }, []);
-  const left = Math.max(0, new Date(approval.expiresAt) - now);
-  const expired = left === 0;
-  const clock = `${String(Math.floor(left / 60000)).padStart(2, "0")}:${String(Math.floor(left / 1000) % 60).padStart(2, "0")}`;
-  return (
-    <li className="rounded-xl bg-field p-3">
-      <p className="text-sm font-medium">{approval.action}</p>
-      <p className="mt-0.5 text-xs text-muted">{approval.target} · {expired ? "Expired" : `Expires in ${clock}`}</p>
-      {canDecide ? (
-        <div className="mt-3 flex gap-2">
-          <button disabled={expired} onClick={() => onDecide(approval.id, "approve")} className="h-9 flex-1 cursor-pointer rounded-lg bg-accent-solid text-sm font-medium text-white transition enabled:hover:bg-accent-solid-hover disabled:cursor-not-allowed disabled:bg-disabled disabled:text-faint">Approve</button>
-          <button disabled={expired} onClick={() => onDecide(approval.id, "deny")} className="h-9 flex-1 cursor-pointer rounded-lg border border-line text-sm transition enabled:hover:bg-ink/5 disabled:cursor-not-allowed disabled:text-faint">Reject</button>
-        </div>
-      ) : (
-        <p className="mt-2 text-xs text-muted">Only a token with the approve action can decide.</p>
-      )}
-    </li>
-  );
-}
-
 function EscalationsCard({ escalations }) {
   return (
     <Card title="Escalations" count={escalations.length}>
@@ -132,13 +105,8 @@ function EscalationsCard({ escalations }) {
 }
 
 export default function Dashboard() {
-  const { user } = useAuth();
-  const { incidents, approvals, escalations, hostMetrics, live, updatedAt, refresh } = useLiveOverview();
+  const { incidents, escalations, hostMetrics, live, updatedAt, refresh } = useLiveOverview();
   const topology = useTopology();     // ACR-0017: the live map, any role; the card hides itself when the route is absent
-  // A read token never lists `approve`, so the buttons stay hidden (ACR-0001); the UI never decides who may act.
-  const canDecide = user.actions?.includes("approve") ?? false;
-  // The server derives the actor from the token; an expired/conflicting decision just triggers a refresh.
-  const decide = (id, decision) => argus.decideApproval(id, decision).catch(() => {}).finally(refresh);
 
   return (
     <div className="space-y-6">
@@ -157,15 +125,6 @@ export default function Dashboard() {
         <div className="space-y-4 lg:col-span-2">
           <DiagnoseForm />
           <IncidentsCard incidents={incidents} />
-          <Card title="Pending approvals" count={approvals.length}>
-            {approvals.length === 0 ? (
-              <Empty icon={Shield} title="No pending approvals" text="Remediations that need a human decision will appear here." />
-            ) : (
-              <ul className="space-y-2">
-                {approvals.map((a) => <ApprovalItem key={a.id} approval={a} canDecide={canDecide} onDecide={decide} />)}
-              </ul>
-            )}
-          </Card>
         </div>
         <div className="space-y-4">
           <HostMetricsCard rows={hostMetrics} live={live} updatedAt={updatedAt} />
