@@ -1,4 +1,6 @@
 @import "tailwindcss";
+/* T-0016: the animations and micro-interactions, as theme tokens (see the file). */
+@import "./motion.css";
 
 /* Argus design tokens: each one becomes a Tailwind utility
    (bg-card, border-line, text-muted, bg-accent, font-sans...). */
@@ -26,6 +28,10 @@
   --color-disabled: #10141b;
   --color-field-hover: #313a4b;
   --color-scrim: rgb(0 0 0 / 0.6);
+  /* T-0016 motion (motion.css): a loading skeleton, the light that sweeps across it, a lifted card's shadow. */
+  --color-skeleton: rgb(242 244 248 / 0.05);
+  --color-shimmer: rgb(242 244 248 / 0.12);
+  --color-shadow: rgb(0 0 0 / 0.6);
   --color-md-text: var(--color-md-text);
   --color-md-heading: var(--color-md-heading);
   --color-md-line: var(--color-md-line);
@@ -151,6 +157,9 @@
   --color-disabled: #e8ecf2;
   --color-field-hover: #b7c1d1;
   --color-scrim: rgb(18 26 38 / 0.38);
+  --color-skeleton: rgb(18 26 38 / 0.06);
+  --color-shimmer: rgb(255 255 255 / 0.75);
+  --color-shadow: rgb(18 26 38 / 0.22);
   --color-md-text: #1f2328;
   --color-md-heading: #1f2328;
   --color-md-line: #d1d9e0;
@@ -176,11 +185,6 @@
    page recolours in one frame; the View Transition below cross-fades old and new pages as one picture. */
 :root[data-theme-switching] *, :root[data-theme-switching] *::before, :root[data-theme-switching] *::after { transition: none !important; }
 ::view-transition-old(root), ::view-transition-new(root) { animation-duration: 220ms; animation-timing-function: ease-out; }
-
-/* Toast (ui.jsx): slides up a little as it appears; no movement with reduced motion. */
-.toast-in { animation: toast-in 0.18s ease-out; }
-@keyframes toast-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
-@media (prefers-reduced-motion: reduce) { .toast-in { animation: none; } }
 
 /* System map (components/map): a dotted canvas, a soft glow on broken / cause-path links, and dots that flow along
    checked links (no flow with reduced motion). */
