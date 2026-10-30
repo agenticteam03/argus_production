@@ -397,3 +397,19 @@ a screen or a button in `frontend/`.
      `ENV VITE_ARGUS_INSIGHTS=1` (test `test_the_dockerfile_builds_the_map_and_metrics_calls_in`, red seen before the
      line). The image still has to be rebuilt and the UI edge redeployed on vm-095 (lease), then the real-mode
      click-through by a person.
+
+- **2026-10-30 — animations and micro-interactions across the UI (`juanes6554` + agent; branch `task/T-0016-ui-motion`,
+  its own PR):**
+  - **What changed (`frontend/` only; CSS and Tailwind, no new dependency):** every animation is a theme token in
+    `frontend/src/motion.css` (opacity and transform only, colours from `--color-skeleton`/`--color-shimmer`/
+    `--color-shadow`, all off with `prefers-reduced-motion: reduce`); shimmering skeletons wherever a first read is slow
+    (Dashboard cards, runbooks, agent runs, the map's layout, the node drawer); each page fades in; menus, the select and
+    tooltips drop or fade in; dialogs rise in over a fading backdrop; tab panels fade; lists come in one row after another;
+    counts pop and the banner's numbers count up; clickable cards lift; buttons give a little when pressed; toasts slide in
+    and out; alerts rise and a wrong password nudges its message. Details:
+    [`journal/entries/2026-10-30-T-0016-ui-motion.md`](../../journal/entries/2026-10-30-T-0016-ui-motion.md).
+  - **Red seen:** 15 unit and 9 Playwright tests failed before the code; the reduced-motion test also caught the Live dots
+    pulsing with `reduce` on `main` (fixed).
+  - **Green:** `npm test` 67 files / 427 tests; `npx playwright test` 48/48 (axe in both themes, while loading and with a
+    menu open); `npm run lint` 0 errors; `npm run build` green.
+  - **Not done:** the docked console panel is in #418 only; it gets its slide-in after one of the two merges.
