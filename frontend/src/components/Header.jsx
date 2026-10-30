@@ -3,6 +3,8 @@ import { Link, NavLink, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext.jsx";
 import { ROLES, canSee, routes } from "../routes.js";
 import { useTheme } from "../hooks/useTheme.js";
+import { useConsoleDock } from "./console/dock/ConsoleDockContext.jsx";
+import { TerminalIcon } from "./console/dock/icons.jsx";
 import NotificationBell from "./NotificationBell.jsx";
 import { Chevron, Logo, Moon, Sun } from "./ui.jsx";
 
@@ -15,6 +17,7 @@ const menu = "absolute z-20 mt-2 min-w-60 rounded-xl border border-line bg-card 
 const closeMenu = (e) => e.currentTarget.closest("details")?.removeAttribute("open");
 
 export default function Header() {
+  const dock = useConsoleDock();
   const { user, logout } = useAuth();
   const { pathname } = useLocation();
   const [theme, toggleTheme] = useTheme();
@@ -49,6 +52,14 @@ export default function Header() {
                     <span className="block text-xs text-muted">{c.desc}</span>
                   </Link>
                 ))}
+                {/* T-0016: the operator console opens as a side panel, not a page (an approver's, like Actions) */}
+                {r.label === "Tools" && dock.visible && (
+                  <button type="button" onClick={(e) => { closeMenu(e); dock.open(); }}
+                    className="block w-full cursor-pointer rounded-lg px-3 py-2 text-left hover:bg-ink/5">
+                    <span className="flex items-center gap-1.5 text-sm"><TerminalIcon width="14" height="14" /> Console</span>
+                    <span className="block text-xs text-muted">Run Argus&apos;s commands on a lab host</span>
+                  </button>
+                )}
               </div>
             </details>
           ) : (

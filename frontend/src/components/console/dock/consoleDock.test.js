@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { canSeeConsole, clock, dockAccess, hostIncidents, timeLeft, unlockStep } from "./consoleDock.js";
+import { canSeeConsole, clock, consoleBuilt, dockAccess, hostIncidents, timeLeft, unlockStep } from "./consoleDock.js";
 
 const user = (secondFactor, extra = {}) => ({ name: "juanes6554", role: "approver", access: "investigate", actions: [],
   secondFactor, ...extra });
@@ -39,6 +39,14 @@ describe("canSeeConsole", () => {
     expect(canSeeConsole({ role: "operator" })).toBe(false);
     expect(canSeeConsole({ role: "viewer" })).toBe(false);
     expect(canSeeConsole(null)).toBe(false);
+  });
+});
+
+describe("consoleBuilt", () => {
+  it("is on in the demo, and in a real build only with VITE_ARGUS_CONSOLE=1 (the team's console flag)", () => {
+    expect(consoleBuilt("demo", {})).toBe(true);
+    expect(consoleBuilt("api", {})).toBe(false);
+    expect(consoleBuilt("api", { VITE_ARGUS_CONSOLE: "1" })).toBe(true);
   });
 });
 

@@ -11,6 +11,10 @@ const HOST_INCIDENTS = 8;
 // private session and `investigate`, and its writes the approval path.
 export const canSeeConsole = (user) => user?.role === "approver";
 
+// Built in: always in the demo; in a real build only with the team's console flag (VITE_ARGUS_CONSOLE=1), so a build
+// for an API without the console routes shows no entry and calls none (frontend/e2e/console.e2e.js).
+export const consoleBuilt = (source, env) => source === "demo" || env?.VITE_ARGUS_CONSOLE === "1";
+
 // The access dialog's case. Two registered keys, and (ACR-0032, ACR-0043) the private session confirmed with one.
 // `user.secondFactor` is /me's `second_factor` ({ enrolled, verified }); absent when Argus has no keys configured.
 export function dockAccess(user) {

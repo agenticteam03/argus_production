@@ -1,6 +1,7 @@
 import { BrowserRouter, Navigate, Outlet, Route, Routes, useLocation } from "react-router-dom";
 import ErrorBoundary from "./components/ErrorBoundary.jsx";
 import Header from "./components/Header.jsx";
+import { ConsoleDockProvider } from "./components/console/dock/ConsoleDockContext.jsx";
 import { AuthProvider, useAuth } from "./context/AuthContext.jsx";
 import Agent from "./pages/Agent.jsx";
 import Actions from "./pages/Actions.jsx";
@@ -28,12 +29,15 @@ const pages = { "/agent": Agent, "/actions": Actions, "/incidents": Incidents, "
 const Shell = () => {
   const { pathname } = useLocation();
   return (
-    <>
-      <Header />
-      <main className="mx-auto w-full max-w-[1200px] px-4 py-6 sm:px-6">
-        <ErrorBoundary key={pathname}><Outlet /></ErrorBoundary>
-      </main>
-    </>
+    <ConsoleDockProvider>
+      {/* T-0016: a docked console panel takes the right side on wide screens; the page shrinks beside it */}
+      <div className="lg:pr-[var(--console-w,0px)]">
+        <Header />
+        <main className="mx-auto w-full max-w-[1200px] px-4 py-6 sm:px-6">
+          <ErrorBoundary key={pathname}><Outlet /></ErrorBoundary>
+        </main>
+      </div>
+    </ConsoleDockProvider>
   );
 };
 

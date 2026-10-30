@@ -16,6 +16,8 @@ import OperatorConsole from "../components/console/OperatorConsole.jsx";
 import SystemMap from "../components/map/SystemMap.jsx";
 import { ErrorCard, Disclosure, Fact, OUTCOME_META, OutcomeBadge, Skeleton, STATUS_META, StatusBadge, TabList, TabPanel } from "../components/ui.jsx";
 import WhyCard from "../components/WhyCard.jsx";
+import { useConsoleDock } from "../components/console/dock/ConsoleDockContext.jsx";
+import { TerminalIcon } from "../components/console/dock/icons.jsx";
 import { useAuth } from "../context/AuthContext.jsx";
 import { useConsole } from "../hooks/useConsole.js";
 import { useIncident } from "../hooks/useIncident.js";
@@ -36,6 +38,7 @@ const ghost = "cursor-pointer rounded-xl border border-line bg-field px-4 py-2 t
 export default function IncidentDetail() {
   const { id } = useParams();
   const { user } = useAuth();
+  const dock = useConsoleDock();
   const { view, incident: inc, events, reconnecting, retry } = useIncident(id);
   const [params, setParams] = useSearchParams();
   const [range, setRange] = useState("30m");
@@ -170,6 +173,12 @@ export default function IncidentDetail() {
           <div className="flex flex-wrap items-center gap-2">
             <button type="button" onClick={() => setRawOpen(true)} className={ghost}>Raw output</button>
             <CopySummary incident={inc} cited={cited} className={ghost} />
+            {/* T-0016: this incident's console in the side panel (an approver's; the API decides each command) */}
+            {dock.visible && String(inc.target).includes("/") && (
+              <button type="button" onClick={() => dock.open({ incident: inc })} className={`${ghost} inline-flex items-center gap-2`}>
+                <TerminalIcon width="16" height="16" /> Open console on {hostOf(inc.target)}
+              </button>
+            )}
             <DiagnoseForm fixedTarget={inc.target} compact />
             {/* ACR-0041: shown only on an escalated incident, when /me lists resolve_incident */}
             <ResolveIncident incident={inc} onResolved={retry} />
