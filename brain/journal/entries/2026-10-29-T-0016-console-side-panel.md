@@ -42,8 +42,15 @@ Decision / result:
   as plain lines in the incident's Audit tab, which reads the incident again on opening; the demo keeps the same rows.
 - **The bell (ACR-0042):** its badge counts only unread approvals (kept in the browser); opening one or Actions marks it
   read, "Mark all as read" clears them.
+- **Telegram, checked:** `security.console_refused` is posted to the Argus Alertmanager with `argus_security="true"`,
+  whose route is the team's Telegram receiver (test in `test_phase16_security_alerts.py`). The scheduler sends them
+  and runs the agent's image: after rebuilding it on deploy, recreate the scheduler too, or it keeps the old event list.
+- **Actions and Reference sources:** UI only, easier to read (two columns on Actions; three steps explaining the
+  reference sources; source rows; decision panels). Deleting one security key was left out: there is no per-key
+  revocation route (only `argus webauthn reset`, all keys, by another administrator); it needs an API change, a
+  step-up and its audit, so it is a task of its own.
 Consequences: on the VM the console needs a deploy of this branch with `ARGUS_OPERATOR_CONSOLE=1` in `hosts.env` (the
-agent and the UI build both read it), the agent and UI rebuilt, and the private path on;
+agent and the UI build both read it), the agent, the scheduler and the UI rebuilt or recreated, and the private path on;
 from `localhost` (the SSH tunnel bypasses the edge) the private login answers 404, so the real path is the deployed UI.
 The team's Console tab on the incident page stays as it is. Open PRs #407 and #408 change the console components the
 panel reuses; their props stay compatible.
