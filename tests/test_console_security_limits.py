@@ -59,8 +59,6 @@ def test_each_shell_character_is_refused_alone_and_inside_a_word(bad):
     "..", "/", "%00", "status\nhelp", "status\thelp", "status；help", "status｜help", "status＆help",
     "status" + chr(0xFF1B) + "help", "status" + chr(0xFF5C) + "help", "status" + chr(0xFF06) + "help",
     "map ../api", "map db", "map api extra", "map",
-    pytest.param("CACHE STATUS", marks=pytest.mark.xfail(
-        strict=True, reason="Parser normalizes uppercase input; security card requires uppercase to be refused.")),
     "cache restart && x",
     "$(x)", "`x`", "cache restart ; net reconnect api", "status " + "x" * 300,
 ])
@@ -71,6 +69,19 @@ def test_hostile_and_malformed_text_is_refused_with_repeatable_reason(text):
             parse(text)
         reasons.append(str(caught.value))
     assert reasons[0] == reasons[1] and reasons[0]
+
+
+def test_uppercase_commands_are_normalized_intentionally():
+    parsed = parse("CACHE STATUS")
+    assert parsed.id == "cache.status"
+    assert parsed.args == {}
+
+
+def test_normalized_uppercase_command_uses_the_same_allowlisted_handler(ctx):
+    response = run(ctx.client, ctx.auth, ctx.inc, "CACHE STATUS")
+    assert response.status_code == 200
+    assert response.json()["command"] == "cache.status" and response.json()["status"] == "ok"
+    assert ctx.calls == [("container.status", "vm-166/container:argus-lab-cache", "console:olga")]
 
 
 def test_refused_inputs_never_reach_a_handler(ctx):
@@ -99,14 +110,27 @@ def test_yes_on_a_read_is_not_treated_as_a_write_confirmation(ctx):
 
 @pytest.mark.xfail(
     strict=True,
-    reason="The API currently accepts confirmation=yes without server-side proof that it showed a prompt first.",
+    reason="accepted: a direct call creates only a pending proposal; see ACR-0043 section 5",
 )
-def test_yes_without_a_prior_confirmation_prompt_does_not_create_a_proposal(make_app, monkeypatch):  # noqa: F811
+def test_accepted_risk_direct_confirmation_without_prompt_is_refused(make_app, monkeypatch):  # noqa: F811
     case = _case(make_app, monkeypatch, *CASES[0].values)
     response = case.client.post(url(case.incident, "execute"), headers={**case.auth, **PRIVATE},
                                 json={"input": "cache restart", "confirmation": "yes"})
     assert response.json()["status"] == "rejected"
     assert case.app.store.latest_action_proposal_for_incident(case.incident.id) is None
+
+
+def test_direct_confirmation_without_prompt_creates_only_a_pending_proposal(make_app, monkeypatch):  # noqa: F811
+    case = _case(make_app, monkeypatch, *CASES[0].values)
+    response = case.client.post(url(case.incident, "execute"), headers={**case.auth, **PRIVATE},
+                                json={"input": "cache restart", "confirmation": "yes"})
+    body = response.json()
+    assert response.status_code == 200 and body["status"] == "ok" and body["proposal_id"]
+    proposal = case.app.store.latest_action_proposal_for_incident(case.incident.id)
+    approval = case.app.store.get_action_approval_for_proposal(body["proposal_id"])
+    assert proposal.id == body["proposal_id"] and approval["state"] == "pending"
+    assert case.path.executor.gateway.calls == []
+    assert body["judge_verdict"] == "agree"
 
 
 def test_different_write_is_refused_while_an_incident_proposal_is_active(make_app, monkeypatch):  # noqa: F811
@@ -170,7 +194,7 @@ def test_console_audit_rows_have_operator_console_source(ctx):
 
 @pytest.mark.xfail(
     strict=True,
-    reason="Console output is currently stored verbatim; redaction of fixture secrets is not implemented.",
+    reason="TASK-131 is responsible for redacting secrets from stored console output.",
 )
 def test_console_redacts_secrets_returned_by_a_read(ctx, monkeypatch):
     secrets = (ctx.auth["Authorization"].split(" ", 1)[1], API, "fixture-private-env-2e9a")
