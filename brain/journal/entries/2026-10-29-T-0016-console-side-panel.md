@@ -24,6 +24,14 @@ Decision / result:
 - **Demo parity:** the mock walks the four cases (a viewer has no key; an approver's private login and key are
   simulated, in memory only, and `approve_action` then appears, so Actions opens too); the mock dev server runs with
   `VITE_ARGUS_PHASE19_DEMO=1`.
+- **Review round (same day, juanes6554):** the menu's roles always apply (a viewer saw Actions in the demo: the
+  preview flag let any role see it); the dashboard's Pending approvals card is gone (approvals live on Actions); with
+  the incident details open, Raw output and Copy summary fold into "More"; the incident's Console tab is gone (the
+  console opens in the side panel only); the incident map scrolls freely (a fresh `[]` default re-ran the layout on
+  every render and each layout scrolled back to the root cause); the header follows its container (below 52rem Agent
+  and Actions move into Tools) and the panel stops where the page keeps 600 px; each of two or more tabs closes with
+  its x; the "+" menu closes outside; the dialog's private sign-in is a compact form; the demo answers like the real
+  `/me` (actions per role) and has a Security keys page with demo keys.
 Consequences: on the VM the console needs a deploy of `main` with `ARGUS_OPERATOR_CONSOLE=1` and the private path;
 from `localhost` (the SSH tunnel bypasses the edge) the private login answers 404, so the real path is the deployed UI.
 The team's Console tab on the incident page stays as it is. Open PRs #407 and #408 change the console components the
@@ -34,8 +42,8 @@ References: [ACR-0043](../../architecture/changes/ACR-0043-operator-console.md),
 ### Test state
 
 Backend: `tests/test_console_sessions.py` (red seen, then green) with the console route tests; the UI contract
-regenerated (only `ui-api.json`). Frontend: Vitest 393 passed (the dock rules, the adapters' session calls and the
-mock's private login and key seen red first); Playwright 37 passed over two builds, among them 5 side-panel tests
+regenerated (only `ui-api.json`). Frontend: Vitest 395 passed (the dock rules, the adapters' session calls and the
+mock's private login and key seen red first); Playwright 38 passed over two builds, among them 6 side-panel tests
 with axe (written after the code); ESLint 0 errors. Browser: mock in dark and light at 1280 px and at 390 px, the
 whole flow and a command; the real `localhost` shows case 3 for juanes6554 (two keys, ordinary session).
 
