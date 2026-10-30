@@ -1087,31 +1087,16 @@ def build_api(app_ctx) -> FastAPI:
         def console_execute(incident_id: str, body: ConsoleExecuteIn, request: Request,
                             p: Annotated[Principal, Depends(console_person)]):
             inc = console_incident(incident_id)
-            from argus.console.parser import ConsoleRefused, parse
             from argus.console.registry import WRITE
             try:
-                parsed = parse(body.input)
-            except ConsoleRefused:
-                parsed = None
-            if parsed is not None and parsed.cls == WRITE:
-                refusal = None
-                if p.kind != "human" or "propose_action" not in role_permissions(p):
-                    refusal = "the console write needs propose_action"
-                elif "propose_action" not in granted(request, p):
-                    refusal = "the permission propose_action needs a passkey session"
-                if refusal:
-                    command_id = f"cmd_{uuid.uuid4().hex[:16]}"
-                    console._audit("console.write.before", p.id, inc.id, command_id=command_id,
-                                   command=parsed.id, proposal_id=None, phase="authorization")
-                    console._audit("console.write.after", p.id, inc.id, command_id=command_id,
-                                   command=parsed.id, proposal_id=None, status="rejected", phase="authorization")
-                    raise HTTPException(status.HTTP_403_FORBIDDEN, refusal)
-            try:
-                done = console.run(p, inc, body.input, body.suggestion_id, body.confirmation)
+                done = console.run(p, inc, body.input, body.suggestion_id, body.confirmation,
+                                   granted=granted(request, p), role_grants=role_permissions(p))
             except QuotaRefused as refused:
                 raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS,
                                     f"console read quota reached ({refused.which}); try again later",
                                     headers={"Retry-After": str(refused.retry_after)})
+            if done.http_status != status.HTTP_200_OK:
+                raise HTTPException(done.http_status, done.output[0] if done.output else "console write refused")
             result = {"command_id": done.command_id, "input": done.input, "command": done.command,
                       "class": done.cls, "status": done.status, "output": done.output,
                       "started_at": done.started_at, "finished_at": done.finished_at}

@@ -1,6 +1,7 @@
 """CON-6: console confirmation proposes through the supervised action path and never acts itself."""
 from __future__ import annotations
 
+from threading import Event
 from types import SimpleNamespace
 
 import pytest
@@ -8,6 +9,8 @@ from pwdlib import PasswordHash
 
 from argus.actions.remediation import FakeActionGateway
 from argus.adapters.inbound.http import ACTION_ROLE_PERMISSIONS
+from argus.console.config import ConsoleConfig
+from argus.console.service import ConsoleService
 from argus.domain.model import AuditRecord, EvidenceRecord, IncidentOutcome, IncidentStatus, utcnow
 from argus.infrastructure.action_wiring import CandidateProposer, ReviewContext
 from argus.orchestration.action_path import OfflineActionPath
@@ -152,7 +155,7 @@ def test_running_cache_is_rejected_and_the_other_released_pair_is_never_proposed
     assert case.app.store.latest_action_proposal_for_incident(case.incident.id) is None
 
 
-def test_write_without_propose_action_is_refused_before_history_or_proposal(app_factory, monkeypatch):
+def test_write_without_propose_action_is_refused_and_stored_in_history(app_factory, monkeypatch):
     app = app_factory()
     app.action_rows = app.store
     client = setup(app, monkeypatch)
@@ -163,7 +166,10 @@ def test_write_without_propose_action_is_refused_before_history_or_proposal(app_
     response = client.post(url(inc, "execute"), headers={**login(client), **PRIVATE},
                            json={"input": "cache restart"})
     assert response.status_code == 403 and "needs propose_action" in response.json()["detail"]
-    assert app.store.console_history(inc.id) == []
+    [history] = app.store.console_history(inc.id)
+    assert (history["input"], history["command"], history["cls"], history["status"]) == (
+        "cache restart", "cache.restart", "write", "rejected")
+    assert "needs propose_action" in history["output"]
     assert app.store.latest_action_proposal_for_incident(inc.id) is None
     audit = [row for row in app.store.list_for(inc.id) if row.event in ("console.write.before", "console.write.after")]
     assert [row.event for row in audit] == ["console.write.before", "console.write.after"]
@@ -230,3 +236,59 @@ def test_confirmation_accepts_only_yes_and_never_approves(app_factory, monkeypat
     assert confirmed["status"] == "ok" and case.app.store.get_action_approval_for_proposal(
         confirmed["proposal_id"])["state"] == "pending"
     assert case.path.executor.gateway.calls == []
+
+
+def test_write_keeps_the_inserted_suggestion_id_in_history(app_factory, monkeypatch):
+    case = _case(app_factory, monkeypatch, "cache restart", "cache.restart", API, "dependency_unavailable", CACHE,
+                 "RB-003", "exited", {"container_id": "cache-id", "state": "exited"})
+    case.app.runner.invoke = lambda *_args, **_kwargs: (SimpleNamespace(
+        status="ok", model_text="cache state", values={"state": "exited", "health": "none"},
+        error_category=None), None)
+    read = case.client.post(url(case.incident, "execute"), headers={**case.auth, **PRIVATE},
+                            json={"input": "cache status"})
+    assert read.status_code == 200
+    prompt = case.client.post(url(case.incident, "execute"), headers={**case.auth, **PRIVATE},
+                              json={"input": "cache restart"})
+    assert prompt.json()["status"] == "needs_confirmation"
+    confirmed = case.client.post(url(case.incident, "execute"), headers={**case.auth, **PRIVATE},
+                                 json={"input": "cache restart", "confirmation": "yes",
+                                       "suggestion_id": "suggestion-cache-restart"})
+    assert confirmed.status_code == 200
+    rows = case.app.store.console_history(case.incident.id)
+    assert [row["command"] for row in rows] == ["cache.status", "cache.restart", "cache.restart"]
+    assert rows[-1]["suggestion_id"] == "suggestion-cache-restart"
+
+
+def test_slow_write_judge_does_not_block_a_read_on_the_same_incident(app_factory, monkeypatch):
+    from concurrent.futures import ThreadPoolExecutor
+
+    case = _case(app_factory, monkeypatch, "cache restart", "cache.restart", API, "dependency_unavailable", CACHE,
+                 "RB-003", "exited", {"container_id": "cache-id", "state": "exited"})
+    case.app.runner.invoke = lambda *_args, **_kwargs: (SimpleNamespace(
+        status="ok", model_text="cache state", values={"state": "exited", "health": "none"},
+        error_category=None), None)
+    service = ConsoleService(case.app, ConsoleConfig())
+    judge_started, release_judge = Event(), Event()
+    original_judge = case.path.judge
+
+    def slow_judge(proposal_id):
+        judge_started.set()
+        if not release_judge.wait(5):
+            raise TimeoutError("test judge release timed out")
+        return original_judge(proposal_id)
+
+    case.path.judge = slow_judge
+    writer = SimpleNamespace(id="writer", kind="human")
+    reader = SimpleNamespace(id="reader", kind="human")
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        write_future = pool.submit(service.run, writer, case.incident, "cache restart", None, "yes",
+                                   granted=frozenset({"propose_action"}),
+                                   role_grants=frozenset({"propose_action"}))
+        try:
+            assert judge_started.wait(3), "write did not reach the slow judge"
+            read_future = pool.submit(service.run, reader, case.incident, "cache status")
+            result = read_future.result(timeout=2)
+            assert result.status == "ok"
+        finally:
+            release_judge.set()
+        assert write_future.result(timeout=5).status == "ok"

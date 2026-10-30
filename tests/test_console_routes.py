@@ -196,7 +196,10 @@ def test_a_write_command_without_a_passkey_session_is_refused(ctx):
 
     assert response.status_code == 403 and "passkey session" in response.json()["detail"]
     assert ctx.calls == []
-    assert ctx.app.store.console_history(ctx.inc.id) == []
+    [row] = ctx.app.store.console_history(ctx.inc.id)
+    assert (row["input"], row["command"], row["cls"], row["status"]) == (
+        "cache restart", "cache.restart", "write", "rejected")
+    assert "passkey session" in row["output"]
 
 
 def test_an_unknown_incident_is_404(ctx):
