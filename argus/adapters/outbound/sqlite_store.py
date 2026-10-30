@@ -258,6 +258,10 @@ CREATE TRIGGER IF NOT EXISTS audit_no_delete BEFORE DELETE ON audit
   BEGIN SELECT RAISE(ABORT, 'audit is append-only'); END;
 """
 
+# inc_6a4980a4d8ed: requeue a parked run (paused at an interrupt, no worker holds it); a live run is never touched
+_WAKE_PARKED = ("UPDATE incident SET status='queued', body=json_set(body, '$.status', 'queued'), claimed_until=NULL "
+                "WHERE status='running' AND claimed_by IS NULL AND ")
+
 
 def _utc(at: datetime) -> str:
     return at.astimezone(timezone.utc).isoformat()
@@ -387,6 +391,9 @@ class SqliteStore:
                                      "SELECT ?, p.incident_id, ?, 'pending' FROM approval a "
                                      "JOIN action_proposal p ON a.proposal_id=p.proposal_id WHERE a.approval_id=?",
                                      (approval_id, decision, approval_id))
+                    # the answer wakes the run only when it is parked (never a live worker's claim): it is requeued
+                    self._db.execute(_WAKE_PARKED + "id=(SELECT p.incident_id FROM approval a JOIN action_proposal p "
+                                     "ON a.proposal_id=p.proposal_id WHERE a.approval_id=?)", (approval_id,))
                     if audit is not None:
                         self.append(audit)
                 self._db.execute("COMMIT")
@@ -628,6 +635,24 @@ class SqliteStore:
                 self._q("UPDATE incident SET claimed_until=? WHERE id=?",
                         ((now + timedelta(seconds=lease_s)).isoformat(), incident_id))
             return bool(row)
+
+    def park_claim(self, incident_id: str, worker_id: str, approval_id: str | None, lease_s: int = 300) -> bool:
+        """A run paused at an interrupt is parked: no worker holds it (`claimed_by` NULL) and its claim ends at the
+        pending approval's expiry, or after one lease when no approval waits. False: the claim is not this worker's."""
+        until = (utcnow() + timedelta(seconds=lease_s)).isoformat()
+        with self._lock:
+            cur = self._db.execute("UPDATE incident SET claimed_by=NULL, claimed_until=COALESCE((SELECT expires_at "
+                                   "FROM approval WHERE approval_id=? AND state='pending'), ?) "
+                                   "WHERE id=? AND status=? AND claimed_by=?",
+                                   (approval_id, until, incident_id, IncidentStatus.running.value, worker_id))
+            return cur.rowcount == 1
+
+    def wake_answered(self, incident_id: str, approval_id: str) -> bool:
+        """Requeue a parked run whose approval was answered before the park (the answer found it still live)."""
+        with self._lock:
+            cur = self._db.execute(_WAKE_PARKED + "id=? AND EXISTS (SELECT 1 FROM resume_intent WHERE approval_id=? "
+                                   "AND incident_id=?)", (incident_id, approval_id, incident_id))
+            return cur.rowcount == 1
 
     def requeue_expired(self, now: datetime | None = None) -> int:
         """Crash recovery: running incidents whose claim expired (or that never had one) go back to the queue."""
