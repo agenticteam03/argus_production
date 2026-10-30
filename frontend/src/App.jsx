@@ -31,7 +31,8 @@ const Shell = () => {
   return (
     <ConsoleDockProvider>
       {/* T-0016: a docked console panel takes the right side on wide screens; the page shrinks beside it */}
-      <div className="lg:pr-[var(--console-w,0px)]">
+      {/* @container: the header lays itself out by the room it has, not by the window's width */}
+      <div className="@container lg:pr-[var(--console-w,0px)]">
         <Header />
         <main className="mx-auto w-full max-w-[1200px] px-4 py-6 sm:px-6">
           <ErrorBoundary key={pathname}><Outlet /></ErrorBoundary>

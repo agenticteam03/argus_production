@@ -8,8 +8,11 @@ import { TerminalIcon } from "./console/dock/icons.jsx";
 import NotificationBell from "./NotificationBell.jsx";
 import { Chevron, Logo, Moon, Sun } from "./ui.jsx";
 
-// Compact pills up to lg so the menu stays on one row with the logo and the buttons from sm (640 px) up.
-const pill = "whitespace-nowrap rounded-lg border px-2.5 py-2 text-sm transition motion-reduce:transition-none lg:px-3.5";
+// Compact pills below 64rem so the menu stays on one row with the logo and the buttons from 40rem up. The sizes are of
+// the header's container (App.jsx), not the window: a docked console narrows it (T-0016).
+// Below 52rem the less used pages move into Tools, so the row never overflows.
+const COMPACT = new Set(["/agent", "/actions"]);
+const pill = "whitespace-nowrap rounded-lg border px-2.5 py-2 text-sm transition motion-reduce:transition-none @min-[64rem]:px-3.5";
 const on = "border-line bg-ink/5 text-ink";
 const off = "border-transparent text-muted hover:text-ink";
 const summary = "flex cursor-pointer list-none items-center gap-1.5 [&::-webkit-details-marker]:hidden";
@@ -33,12 +36,12 @@ export default function Header() {
   const items = routes.filter((r) => (r.children ? r.children.some((c) => canSee(c, user.role, user.actions)) : canSee(r, user.role, user.actions)));
 
   return (
-    <header className="relative z-30 mx-auto mt-4 flex w-[calc(100%-2rem)] max-w-[1200px] flex-wrap items-center justify-between gap-2 rounded-2xl border border-line bg-card/80 p-2.5 backdrop-blur sm:w-[calc(100%-3rem)] sm:flex-nowrap lg:gap-3">
+    <header className="relative z-30 mx-auto mt-4 flex w-[calc(100%-2rem)] max-w-[1200px] flex-wrap items-center justify-between gap-2 rounded-2xl border border-line bg-card/80 p-2.5 backdrop-blur @min-[40rem]:w-[calc(100%-3rem)] @min-[40rem]:flex-nowrap @min-[64rem]:gap-3">
       <Link to="/" aria-label="Argus home" className="grid size-11 place-items-center rounded-xl border border-line bg-field">
         <Logo width="20" height="20" className="text-ink" />
       </Link>
 
-      <nav className="order-last flex w-full flex-wrap items-center justify-center gap-0.5 sm:order-none sm:w-auto sm:flex-nowrap lg:gap-1">
+      <nav className="order-last flex w-full flex-wrap items-center justify-center gap-0.5 @min-[40rem]:order-none @min-[40rem]:w-auto @min-[40rem]:flex-nowrap @min-[64rem]:gap-1">
         {items.map((r) =>
           r.children ? (
             <details key={r.label} className="relative">
@@ -46,6 +49,13 @@ export default function Header() {
                 {r.label} <Chevron width="14" height="14" />
               </summary>
               <div className={`${menu} left-1/2 -translate-x-1/2`}>
+                {/* the pages that leave the row below 52rem (a docked console) wait here */}
+                {r.label === "Tools" && items.filter((x) => COMPACT.has(x.path)).map((x) => (
+                  <NavLink key={x.path} to={x.path} onClick={closeMenu}
+                    className={({ isActive }) => `block rounded-lg px-3 py-2 text-sm hover:bg-ink/5 @min-[52rem]:hidden ${isActive ? "text-ink" : ""}`}>
+                    {x.label}
+                  </NavLink>
+                ))}
                 {r.children.filter((c) => canSee(c, user.role, user.actions)).map((c) => (
                   <Link key={c.path} to={c.path} onClick={closeMenu} className="block rounded-lg px-3 py-2 hover:bg-ink/5">
                     <span className="text-sm">{c.label}</span>
@@ -63,7 +73,8 @@ export default function Header() {
               </div>
             </details>
           ) : (
-            <NavLink key={r.path} to={r.path} end={r.path === "/"} className={({ isActive }) => `${pill} ${isActive ? on : off}`}>
+            <NavLink key={r.path} to={r.path} end={r.path === "/"}
+              className={({ isActive }) => `${pill} ${isActive ? on : off} ${COMPACT.has(r.path) ? "@max-[52rem]:hidden" : ""}`}>
               {r.label}
             </NavLink>
           )

@@ -3,10 +3,9 @@ import { Link } from "react-router-dom";
 import { useAuth } from "../../../context/AuthContext.jsx";
 import { argus, secondFactor } from "../../../services/index.js";
 import { hostOf } from "../../../utils/incidentView.js";
-import PrivateAccess from "../../PrivateAccess.jsx";
 import { CircleAlert, Server, StatusBadge, textareaClass } from "../../ui.jsx";
 import { DOCK_HOSTS, dockAccess, hostIncidents, unlockStep } from "./consoleDock.js";
-import { TerminalIcon } from "./icons.jsx";
+import { KeyIcon, TerminalIcon } from "./icons.jsx";
 
 // T-0016: before the console opens. A modal like the prototype's, small enough that the page stays in view behind it:
 // the host and its incident (the console works inside one), then the access case from /me (two registered keys, and
@@ -23,6 +22,42 @@ const COPY = {
   unconfigured: ["Security keys are not set up",
     "This Argus has no security keys configured, so the console cannot open. Ask your Argus administrator."],
 };
+
+const field = "h-10 w-full rounded-lg border border-field-line bg-field px-3 text-sm text-ink outline-none transition placeholder:text-faint focus:border-accent focus:ring-[3px] focus:ring-accent/20";
+const primary = "inline-flex h-9 cursor-pointer items-center justify-center gap-2 rounded-lg bg-accent-solid px-3 text-sm font-medium text-white transition enabled:hover:bg-accent-solid-hover disabled:cursor-wait disabled:opacity-60";
+
+// Case 3 inside the dialog (the team's PrivateAccess is a page-width card): the private sign-in (ACR-0032) as a
+// compact form, then the key. Its own <form>, so the dialog's body is not one.
+function UnlockSteps({ step, busy, run, loginPrivate, refresh }) {
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  if (step === "private-login") {
+    return (
+      <form className="grid gap-2 sm:grid-cols-2" onSubmit={(e) => {
+        e.preventDefault();
+        if (username && password) run(() => loginPrivate({ username, password }));
+      }}>
+        <label htmlFor="dock-private-user" className="sr-only">Username</label>
+        <input id="dock-private-user" value={username} onChange={(e) => setUsername(e.target.value)} autoComplete="username"
+          placeholder="Username" className={field} />
+        <label htmlFor="dock-private-password" className="sr-only">Password</label>
+        <input id="dock-private-password" type="password" value={password} onChange={(e) => setPassword(e.target.value)}
+          autoComplete="current-password" placeholder="Password" className={field} />
+        <button type="submit" disabled={busy || !username || !password} className={`${primary} sm:col-span-2`}>
+          {busy ? "Signing in…" : "Sign in privately"}
+        </button>
+        <p className="text-xs text-muted sm:col-span-2">The private session ends after 15 minutes without use, after one hour, or if the page reloads.</p>
+      </form>
+    );
+  }
+  if (step !== "second-factor") return null;
+  return (
+    <button type="button" disabled={busy} className={primary}
+      onClick={() => run(async () => { await secondFactor.confirmLogin(); await refresh(); })}>
+      <KeyIcon width="15" height="15" /> {busy ? "Waiting for your key…" : "Use security key"}
+    </button>
+  );
+}
 
 const fail = (e) => e?.detail ?? (e?.status === 404 ? "This is only available on the private path (the deployed Argus)."
   : e?.name === "NotAllowedError" ? "The key confirmation was cancelled." : e?.message ?? "Something went wrong.");
@@ -70,7 +105,7 @@ export default function ConsoleAccessDialog({ request, openIds, full, onCancel, 
 
   return (
     <dialog ref={ref} aria-labelledby={titleId} onClose={onCancel}
-      className="m-auto max-h-[calc(100dvh-2rem)] w-[min(32rem,calc(100vw-2rem))] overflow-y-auto rounded-2xl border border-line bg-card p-0 text-body shadow-[0_24px_64px_-16px_rgb(0_0_0/0.45)] backdrop:bg-black/30">
+      className="m-auto max-h-[calc(100dvh-2rem)] w-[min(32rem,calc(100vw-2rem))] overflow-y-auto overflow-x-hidden rounded-2xl border border-line bg-card p-0 text-body shadow-[0_24px_64px_-16px_rgb(0_0_0/0.45)] backdrop:bg-black/30">
       <div className="flex flex-col">
         <div className="flex items-start gap-3 border-b border-line px-5 py-4">
           <span className="grid size-9 shrink-0 place-items-center rounded-xl border border-line bg-field text-ink">
@@ -137,8 +172,7 @@ export default function ConsoleAccessDialog({ request, openIds, full, onCancel, 
               )}
               {kase === "unlock" && (
                 <div className="mt-3">
-                  <PrivateAccess step={unlockStep(user)} busy={busy} run={run} loginPrivate={loginPrivate}
-                    secondFactor={secondFactor} refresh={refresh} />
+                  <UnlockSteps step={unlockStep(user)} busy={busy} run={run} loginPrivate={loginPrivate} refresh={refresh} />
                 </div>
               )}
             </div>

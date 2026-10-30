@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { canSeeConsole, clock, consoleBuilt, dockAccess, hostIncidents, timeLeft, unlockStep } from "./consoleDock.js";
+import { canSeeConsole, clock, consoleBuilt, dockAccess, hostIncidents, maxDockWidth, timeLeft, unlockStep } from "./consoleDock.js";
 
 const user = (secondFactor, extra = {}) => ({ name: "juanes6554", role: "approver", access: "investigate", actions: [],
   secondFactor, ...extra });
@@ -69,5 +69,14 @@ describe("timeLeft and clock", () => {
     expect(timeLeft("2026-10-29T11:00:00Z", now)).toBe(0);
     expect(clock(29 * 60_000 + 5000)).toBe("29:05");
     expect(clock(-5)).toBe("0:00");
+  });
+});
+
+describe("maxDockWidth", () => {
+  it("leaves the page 600 px on a wide screen, 10 % on a narrow one, and never goes under the panel's minimum", () => {
+    expect(maxDockWidth(1440)).toBe(840);
+    expect(maxDockWidth(1024)).toBe(424);
+    expect(maxDockWidth(800)).toBe(720);
+    expect(maxDockWidth(390)).toBe(380);
   });
 });

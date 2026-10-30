@@ -84,6 +84,34 @@ test.describe("operator console side panel", () => {
     await expect(page.getByText("Disconnected from the console on vm-166.")).toBeVisible();
   });
 
+  test("two consoles: each tab closes with its x, the last one only with Disconnect; the + menu closes outside", async ({ page, api }) => {
+    await api({ role: "approver", console: true, overrides: meWith({ enrolled: 2, verified: true }, "ops") });
+    await logIn(page);
+    await page.goto(`/incidents/${DIAGNOSED_ID}`);
+    await page.getByRole("button", { name: "Open console on vm-166" }).click();
+    await dialog(page).getByRole("button", { name: "Enter the console" }).click();
+
+    const p = panel(page);
+    await expect(p.getByRole("button", { name: /^Close the console/ })).toHaveCount(0);      // one session: no x
+    const plus = p.getByLabel("Open the console on a host");
+    await plus.click();
+    await expect(p.getByRole("button", { name: "vm-095" })).toBeVisible();
+    await page.getByRole("heading", { level: 1 }).click();                                  // a click outside
+    await expect(p.getByRole("button", { name: "vm-095" })).toBeHidden();
+
+    await plus.click();
+    await p.getByRole("button", { name: "vm-095" }).click();
+    const d = dialog(page);
+    await d.getByLabel(/Reason for access/).fill("Check the worker on vm-095");
+    await d.getByRole("button", { name: "Enter the console" }).click();
+    await expect(p.getByRole("tab")).toHaveCount(2);
+    await expect(p.getByRole("button", { name: /^Close the console/ })).toHaveCount(2);
+    await p.getByRole("button", { name: /^Close the console on vm-095/ }).click();
+    await expect(p.getByRole("tab")).toHaveCount(1);
+    await expect(p.getByRole("button", { name: /^Close the console/ })).toHaveCount(0);
+    await expect(p.getByRole("button", { name: /Disconnect/ })).toBeVisible();
+  });
+
   test("an operator sees no console: it is the approver's", async ({ page, api }) => {
     await api({ role: "operator", console: true });
     await logIn(page);

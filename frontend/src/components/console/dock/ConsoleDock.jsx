@@ -1,18 +1,18 @@
 import { useEffect, useRef, useState } from "react";
 import { useAuth } from "../../../context/AuthContext.jsx";
 import { Pill, Server } from "../../ui.jsx";
-import { clock, DOCK_HOSTS, timeLeft } from "./consoleDock.js";
+import { clock, DOCK_HOSTS, maxDockWidth, MIN_WIDTH, timeLeft } from "./consoleDock.js";
 import DockSession from "./DockSession.jsx";
+import { Close } from "../../ui.jsx";
 import { Maximize, Minimize, Minus, Plus, Power, TerminalIcon } from "./icons.jsx";
 
 // T-0016: the operator console's side panel, like an editor's: on the right, wider by dragging its edge (or the arrow
 // keys on it), minimized to a small bar, full screen and back to the width it had. No "x": a session ends with
 // Disconnect. One tab per incident; "+" offers the lab hosts. Each session shows its 30-minute limit and ends at it.
-const MIN_WIDTH = 380;
 const STEP = 24;
 const WARN_MS = 2 * 60_000;
 const iconButton = "grid size-8 cursor-pointer place-items-center rounded-lg text-muted transition hover:bg-ink/5 hover:text-ink focus-visible:outline-2 focus-visible:outline-accent-hover";
-const clampWidth = (w) => Math.round(Math.max(MIN_WIDTH, Math.min(w, window.innerWidth * 0.9)));
+const clampWidth = (w) => Math.round(Math.max(MIN_WIDTH, Math.min(w, maxDockWidth(window.innerWidth))));
 const shortId = (id) => id.replace(/^inc_/, "").slice(0, 6);
 
 export default function ConsoleDock({ tabs, activeId, onSelect, mode, onMode, onAdd, onClose, full }) {
@@ -21,6 +21,15 @@ export default function ConsoleDock({ tabs, activeId, onSelect, mode, onMode, on
   const [now, setNow] = useState(() => Date.now());
   const plus = useRef(null);
   const active = tabs.find((t) => t.incidentId === activeId) ?? tabs[0];
+
+  // A smaller window keeps the panel within its limit; a click outside the "+" menu closes it.
+  useEffect(() => {
+    const fit = () => setWidth((w) => clampWidth(w));
+    const outside = (e) => { if (plus.current?.open && !plus.current.contains(e.target)) plus.current.removeAttribute("open"); };
+    window.addEventListener("resize", fit);
+    document.addEventListener("pointerdown", outside);
+    return () => { window.removeEventListener("resize", fit); document.removeEventListener("pointerdown", outside); };
+  }, []);
 
   // A docked panel takes the right side on wide screens; the page shrinks beside it instead of hiding under it.
   useEffect(() => {
@@ -69,22 +78,35 @@ export default function ConsoleDock({ tabs, activeId, onSelect, mode, onMode, on
         className={`fixed z-40 flex flex-col overflow-hidden bg-card text-body ${place} ${mode === "minimized" ? "hidden" : ""}`}>
         {mode === "docked" && (
           <div role="separator" aria-orientation="vertical" aria-label="Resize the console" tabIndex={0} aria-valuenow={width}
-            aria-valuemin={MIN_WIDTH} aria-valuemax={Math.round(window.innerWidth * 0.9)} onPointerDown={drag} onKeyDown={keyResize}
+            aria-valuemin={MIN_WIDTH} aria-valuemax={Math.round(maxDockWidth(window.innerWidth))} onPointerDown={drag} onKeyDown={keyResize}
             className="absolute inset-y-0 -left-1 z-10 hidden w-2 cursor-col-resize touch-none hover:bg-accent/30 focus-visible:bg-accent/40 focus-visible:outline-none sm:block" />
         )}
 
         <div className="flex items-center gap-1 border-b border-line px-2 py-1.5">
           <div className="flex min-w-0 flex-1 items-center gap-1">
             <div role="tablist" aria-label="Console sessions" className="flex min-w-0 items-center gap-1 overflow-x-auto">
-              {tabs.map((t) => (
-                <button key={t.incidentId} type="button" role="tab" id={`dock-tab-${t.incidentId}`} aria-selected={t.incidentId === active?.incidentId}
-                  aria-controls={`dock-panel-${t.incidentId}`} onClick={() => onSelect(t.incidentId)} title={`${t.target} · ${t.incidentId}`}
-                  className={`flex shrink-0 cursor-pointer items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-sm transition ${t.incidentId === active?.incidentId ? "border-line bg-ink/5 text-ink" : "border-transparent text-muted hover:text-ink"}`}>
-                  <TerminalIcon width="14" height="14" />
-                  <span className="font-mono">{t.host}</span>
-                  <span className="font-mono text-xs text-muted">{shortId(t.incidentId)}</span>
-                </button>
-              ))}
+              {tabs.map((t) => {
+                const on = t.incidentId === active?.incidentId;
+                return (
+                  <div key={t.incidentId} className={`flex shrink-0 items-center rounded-lg border transition ${on ? "border-line bg-ink/5 text-ink" : "border-transparent text-muted hover:text-ink"}`}>
+                    <button type="button" role="tab" id={`dock-tab-${t.incidentId}`} aria-selected={on}
+                      aria-controls={`dock-panel-${t.incidentId}`} onClick={() => onSelect(t.incidentId)} title={`${t.target} · ${t.incidentId}`}
+                      className="flex cursor-pointer items-center gap-1.5 py-1.5 pl-2.5 pr-2 text-sm">
+                      <TerminalIcon width="14" height="14" />
+                      <span className="font-mono">{t.host}</span>
+                      <span className="font-mono text-xs text-muted">{shortId(t.incidentId)}</span>
+                    </button>
+                    {/* with two or more sessions each tab closes on its own; the last one ends with Disconnect */}
+                    {tabs.length > 1 && (
+                      <button type="button" onClick={() => onClose(t.incidentId, "disconnect", `Closed the console on ${t.host} (${t.incidentId}).`)}
+                        aria-label={`Close the console on ${t.host} (${t.incidentId})`} title="Close this console"
+                        className="mr-1 grid size-5 cursor-pointer place-items-center rounded text-muted hover:bg-ink/10 hover:text-ink">
+                        <Close width="12" height="12" />
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
             </div>
             <details ref={plus} className="relative shrink-0">
               <summary aria-label="Open the console on a host" title="Another console" aria-disabled={full}

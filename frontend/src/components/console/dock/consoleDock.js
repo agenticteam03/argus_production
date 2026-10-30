@@ -36,6 +36,11 @@ export const hostIncidents = (incidents, host) =>
   (incidents ?? []).filter((i) => String(i.target ?? "").includes("/") && hostOf(i.target) === host)
     .sort((a, b) => String(b.opened_at).localeCompare(String(a.opened_at))).slice(0, HOST_INCIDENTS);
 
+// The panel's widest: on a wide screen the page keeps 600 px beside it (more: full screen); narrower, 90 % of it.
+export const MIN_WIDTH = 380;
+const MIN_PAGE = 600;
+export const maxDockWidth = (viewport) => Math.max(MIN_WIDTH, viewport >= 1024 ? viewport - MIN_PAGE : viewport * 0.9);
+
 export const timeLeft = (expiresAt, now = Date.now()) => Math.max(0, Date.parse(expiresAt) - now);
 
 export const clock = (ms) => {
