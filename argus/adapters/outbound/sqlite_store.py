@@ -79,6 +79,14 @@ CREATE TABLE IF NOT EXISTS console_analysis (
 CREATE INDEX IF NOT EXISTS console_analysis_incident ON console_analysis(incident_id);
 CREATE TRIGGER IF NOT EXISTS console_analysis_no_delete BEFORE DELETE ON console_analysis
   BEGIN SELECT RAISE(ABORT, 'console_analysis is never deleted'); END;
+CREATE TABLE IF NOT EXISTS console_job (
+  job_id TEXT PRIMARY KEY, kind TEXT NOT NULL CHECK (kind IN ('read', 'propose')),
+  incident_id TEXT NOT NULL REFERENCES incident(id), person TEXT NOT NULL, request TEXT NOT NULL,
+  status TEXT NOT NULL CHECK (status IN ('queued', 'running', 'done', 'error')), claimed_by TEXT, result TEXT,
+  requested_at TEXT NOT NULL, updated_at TEXT NOT NULL);
+CREATE INDEX IF NOT EXISTS console_job_queued ON console_job(status, requested_at);
+CREATE TRIGGER IF NOT EXISTS console_job_no_delete BEFORE DELETE ON console_job
+  BEGIN SELECT RAISE(ABORT, 'console_job is never deleted'); END;
 CREATE TABLE IF NOT EXISTS link_probe_cursor (
   owner TEXT NOT NULL, dependency TEXT NOT NULL,
   state TEXT NOT NULL CHECK (state IN ('ok', 'slow', 'broken', 'unknown')),
@@ -1026,6 +1034,38 @@ class SqliteStore:
         """Every stored analysis of an incident's commands, by command id."""
         rows = self._q("SELECT command_id, status, body FROM console_analysis WHERE incident_id=?", (incident_id,))
         return {r[0]: {**json.loads(r[2]), "status": r[1]} for r in rows}
+
+    # --- ACR-0043 with §12.6 (migration 022): console reads and write proposals the worker runs for the API ---------
+    def add_console_job(self, job_id: str, kind: str, incident_id: str, person: str, request: dict[str, Any],
+                        at: datetime) -> None:
+        self._q("INSERT INTO console_job(job_id,kind,incident_id,person,request,status,requested_at,updated_at) "
+                "VALUES (?,?,?,?,?,'queued',?,?)",
+                (job_id, kind, incident_id, person, json.dumps(request, default=str), _utc(at), _utc(at)))
+
+    def claim_console_job(self, worker_id: str, *, since: datetime, at: datetime) -> dict[str, Any] | None:
+        """The oldest queued job requested at `since` or later, now `running` for this worker; None when there is none."""
+        with self._lock:
+            rows = self._q("SELECT job_id, kind, incident_id, person, request, requested_at FROM console_job "
+                           "WHERE status='queued' AND requested_at>=? ORDER BY requested_at, job_id LIMIT 1",
+                           (_utc(since),))
+            if not rows:
+                return None
+            r = rows[0]
+            self._q("UPDATE console_job SET status='running', claimed_by=?, updated_at=? WHERE job_id=?",
+                    (worker_id, _utc(at), r[0]))
+        return {"job_id": r[0], "kind": r[1], "incident_id": r[2], "person": r[3], "request": json.loads(r[4]),
+                "requested_at": datetime.fromisoformat(r[5])}
+
+    def finish_console_job(self, job_id: str, status: str, result: dict[str, Any], at: datetime) -> None:
+        self._q("UPDATE console_job SET status=?, result=?, updated_at=? WHERE job_id=?",
+                (status, json.dumps(result, default=str), _utc(at), job_id))
+
+    def get_console_job(self, job_id: str) -> dict[str, Any] | None:
+        rows = self._q("SELECT job_id, kind, status, result FROM console_job WHERE job_id=?", (job_id,))
+        if not rows:
+            return None
+        r = rows[0]
+        return {"job_id": r[0], "kind": r[1], "status": r[2], "result": json.loads(r[3]) if r[3] else None}
 
     def close_queued_incident(self, incident_id: str, outcome: str, diagnosis: str, closed_at: datetime) -> bool:
         """Close an incident no worker has claimed (T-0026). False when it is no longer queued (claimed meanwhile)."""

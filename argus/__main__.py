@@ -57,6 +57,12 @@ def worker() -> None:
     signal.signal(signal.SIGTERM, lambda *_: stop.set())
     signal.signal(signal.SIGINT, lambda *_: stop.set())
     app = build()
+    from argus.console.config import ConsoleConfig
+    console = ConsoleConfig()
+    if console.enabled:                 # ACR-0043 with §12.6: the console's reads and proposals, beside the runs
+        from argus.console.jobs import ConsoleJobRunner
+        threading.Thread(target=ConsoleJobRunner(app, console).run_forever, args=(stop,), daemon=True,
+                         name="console-jobs").start()
     try:
         Worker(app, lease_s=int(os.getenv("ARGUS_WORKER_LEASE_S", "300")),
                max_queued_age_s=int(os.getenv("ARGUS_SCHEDULE_MAX_QUEUED_AGE_S", "900")),

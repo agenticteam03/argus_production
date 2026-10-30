@@ -179,6 +179,7 @@ export const OUTCOME_META = {
   unsupported_escalated: ["Unsupported (escalated)", "amber"],
   no_action_escalated: ["No action (escalated)", "amber"],
   refused: ["Refused", "red"],
+  recovered_verified: ["Recovered Verified", "green"],     // an approved action whose verification held (phase 18)
 };
 export const StatusBadge = ({ status }) => {
   const [label, tone] = STATUS_META[status] ?? [status ?? "Unknown", "neutral"];

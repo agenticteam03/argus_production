@@ -165,6 +165,7 @@ class App:
     action_rows: Any = None             # X-9: approval, hold and private-login routes; None while the write gate is empty
     analysis_model: Any = None          # ACR-0043: the model the console's post-command analysis calls (the judge's, none added)
     tracing: Any = None                 # ACR-0013: the runner's event sink; the analysis hands its span to it
+    runs_tools: bool = True             # T-0021: False in `argus api` (no executor token): the worker runs console reads
 
 
 
@@ -518,4 +519,4 @@ def build(settings: Settings | None = None, llm=None, metrics=None, executors: E
                                                 inventory=inventory),
                topology=Topology(inventory, metrics, store, s.home_host, thresholds=thresholds), thresholds=thresholds,
                jwt_signing=jwt_signing, action_policy=action_policy, action_rows=approval_rows(policy, store),
-               analysis_model=llm, tracing=events)
+               analysis_model=llm, tracing=events, runs_tools=load_credentials)
