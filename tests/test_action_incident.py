@@ -65,6 +65,37 @@ def test_candidates_also_cite_the_dependents_own_evidence_newest_of_each_kind():
     assert candidates[0]["evidence_refs"] == ["ev_cache_status", "ev_symptom", "ev_snapshot", "obs_links"]
 
 
+def test_network_restore_candidate_uses_the_recalled_source_and_the_api_status_card():
+    policy, inventory = _policy()
+    at = utcnow()
+    api = "vm-166/container:argus-lab-api"
+    client = "vm-166/container:argus-lab-client"
+    incident = SimpleNamespace(outcome=IncidentOutcome.diagnosed, target=TargetRef.parse(client),
+                               root_cause_target=api)
+    api_status = EvidenceRecord(
+        evidence_id="ev_api_status", incident_id="inc_sc07", kind="observation", capability="container.status",
+        target=api, host="vm-166", executor="docker_read", caller="strategy:baseline", source_time=at,
+        collected_at=at, status="ok", values={"values": {"state": "running", "container_id": "api-1",
+                                                          "networks": ["argus-lab-iso"]}},
+        model_text="API is running on argus-lab-iso").with_hash()
+    links = EvidenceRecord(
+        evidence_id="ev_client_links", incident_id="inc_sc07", kind="observation", capability="network.link_states",
+        target=client, host="vm-166", executor="argus_internal", caller="strategy:baseline", source_time=at,
+        collected_at=at, status="ok", values={"values": {"links": [{"owner": client, "dependency": api,
+                                                                         "state": "broken"}]}},
+        model_text="client -> api: broken").with_hash()
+
+    assert policy.cards["network.restore"].check_preconditions({"state": "running", "networks": ["argus-lab-iso"],
+          "declared_networks": ["argus-lab-app"], "connect_network": "argus-lab-app",
+          "disconnect_network": "argus-lab-iso"})
+
+    candidates = policy.next_actions(incident, [api_status, links], {"RB-003"}, inventory, now=at)
+
+    assert [(row["action"], row["target"]) for row in candidates] == [("network.restore", api)]
+    assert candidates[0]["grounds"] == ["RB-003"]
+    assert candidates[0]["evidence_refs"] == ["ev_api_status", "ev_client_links"]
+
+
 def test_a_candidate_cites_its_causes_declared_dependencies_status_newest_ok_read_only():
     """S4: the worker was blamed by elimination (its dependency is running), but the dependency's read was not cited,
     so the judge doubted that the dependency cause was resolved."""

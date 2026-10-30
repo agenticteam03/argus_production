@@ -53,6 +53,29 @@ const OUTPUT = {
   "net.diff": () => ["no difference"],
 };
 
+// CON-5 demo: Argus's analysis of some reads, in CON-4's shape (`suggestion` = {command, command_id}), with a rationale.
+const ANALYSIS = {
+  "cache.status": { status: "done", comment: "The cache has no samples and the API's link to it is broken; the API errors follow from it.",
+    suggestion: { command: "cache restart", command_id: "cache.restart", rationale: "The cache is stopped and the API depends on it." } },
+  "api.cpu": { status: "done", comment: "The API's CPU did not change when its errors began, so CPU is not the cause.",
+    suggestion: { command: "cache status", command_id: "cache.status", rationale: "Check the API's dependency instead." } },
+};
+
+// CON-9 demo: one read per analysis failure (spec §8), so each error state and the re-check can be seen offline. A
+// function gives the stuck analysis a settle time in the past, measured when the command runs.
+const FAILING = {
+  "api.errors": () => ({ status: "error", countdown_s: null, message: "Metrics not available yet", retryable: true }),
+  "host.metrics": () => ({ status: "analyzing", settle_until: new Date(Date.now() - 120_000).toISOString() }),
+  "worker.throughput": () => ({ status: "error", error: "Analysis could not be completed", retryable: true }),
+};
+const RECHECKED = {
+  "api.errors": "The API's errors began at 10:42, when its link to the cache broke; they are a symptom, not the cause.",
+  "host.metrics": "The host has spare CPU, memory and disk, so the host is not the cause.",
+  "worker.throughput": "The worker's throughput is normal, so the job queue is not involved.",
+};
+const analysisOf = (id) => ANALYSIS[id] ?? FAILING[id]?.();
+const retryable = (a) => a?.retryable === true || a?.status === "analyzing";
+
 const store = new Map();
 let seq = 0;
 export const resetDemoConsole = () => { store.clear(); seq = 0; };
@@ -75,7 +98,7 @@ function parse(input) {
   return { command, service };
 }
 
-export function demoConsoleExecute(incidentId, { input, confirmation } = {}, by = "operator") {
+export function demoConsoleExecute(incidentId, { input, confirmation, suggestion_id } = {}, by = "operator") {
   const started = new Date().toISOString();
   const text = String(input ?? "").trim();
   const { command, service, error } = parse(text);
@@ -94,6 +117,20 @@ export function demoConsoleExecute(incidentId, { input, confirmation } = {}, by 
   } else {
     Object.assign(result, { status: "ok", output: OUTPUT[command.id]?.(service) ?? [] });
   }
-  if (result.status !== "needs_confirmation") store.set(incidentId, [...(store.get(incidentId) ?? []), { ...result, by }]);
+  if (result.status !== "needs_confirmation") {
+    const stored = { ...result, by, ...(suggestion_id ? { suggestion_id } : {}), ...(analysisOf(command?.id) ? { analysis: analysisOf(command.id) } : {}) };
+    store.set(incidentId, [...(store.get(incidentId) ?? []), stored]);
+  }
   return result;
+}
+
+// CON-9: a manual re-check of a retryable analysis; the next history read carries the result.
+export function demoConsoleRecheck(incidentId, commandId) {
+  const entries = store.get(incidentId) ?? [];
+  const entry = entries.find((e) => e.command_id === commandId);
+  if (!entry) throw Object.assign(new Error(`command not found: ${commandId}`), { status: 404 });
+  if (!retryable(entry.analysis)) throw Object.assign(new Error("this analysis is not retryable"), { status: 409 });
+  const analysis = { status: "done", comment: RECHECKED[entry.command] ?? "The command's output gives no new evidence." };
+  store.set(incidentId, entries.map((e) => (e === entry ? { ...e, analysis } : e)));
+  return { command_id: commandId, analysis };
 }

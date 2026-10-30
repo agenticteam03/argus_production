@@ -208,7 +208,7 @@
           "confirmation": {
             "anyOf": [
               {
-                "maxLength": 64,
+                "const": "yes",
                 "type": "string"
               },
               {

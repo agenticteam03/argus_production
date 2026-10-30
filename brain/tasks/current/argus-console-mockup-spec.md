@@ -67,7 +67,7 @@ CON-2 (the routes and the contract entry belong to CON-2).
   - `error`: "Analysis unavailable" and the reason.
   Without an `analysis` field the card shows only the command. The UI never writes a comment of its own.
 - The panel reads the history every 3 s while the tab is visible (`usePoll`), and right after each command.
-- Suggestions with Insert and Copy are CON-5, not this card.
+- Suggestions with Insert and Copy are CON-5, a card of their own (§7).
 
 ## 5. Shapes the UI reads (proposal for CON-2)
 
@@ -91,3 +91,49 @@ demo adapter implements them, so a build against the real API keeps the tab hidd
 - The output is a `role="log"` region with polite announcements; the input has a label ("Console command").
 - Status is never shown by colour alone (each status has its word).
 - Keyboard only: the tab, the input, ↑/↓, Enter; no hidden shortcuts.
+
+## 7. Suggestions (CON-5)
+
+A **Suggestions** card in the Argus panel, between Current diagnosis and Activity, shown only when there is at least one.
+
+- **Where they come from**: the `analysis.suggestion` of each history entry (CON-4, #406):
+  `{ "command": "<registry input>", "command_id": "<registry id>" }`, with an optional `id` and `rationale`. A plain string is
+  read as the command. The UI never makes up a suggestion of its own.
+- **Id**: the API's `id` when it sends one, otherwise `sug-<command_id of the entry that carries it>` (stable across polls).
+  At most 64 characters, the limit of `suggestion_id` in CON-2 (#404).
+- **Validation**: only a command of the registry catalog (`commands`) is shown: its words match a `usage` (with `<service>` and
+  `[--since HH:MM]` filled in) and it has no shell syntax. Anything else is dropped without a card.
+- Newest first, one card per command (the newest wins). Each card: the command (monospace), the rationale or
+  "Suggested after <input>", and two buttons:
+  - **Insert into console** fills the terminal input and focuses it. It **never runs** the command; the operator presses Enter.
+  - **Copy** copies the command; a status line says "Copied" or "Copy failed".
+- **`suggestion_id`**: when the operator runs an inserted command **unedited**, `execute` gets `suggestion_id` (and the
+  `yes` of a write resends it). An edited input is the operator's own command and carries none.
+- **Applied**: a card shows an "Applied" pill (with its word, not colour alone) when a history entry carries its
+  `suggestion_id`. It is read from the stored history, never console-local state.
+
+## 8. Errors (CON-9)
+
+The analysis states come from `analysis_status` and `analyse` in `argus/console/analysis.py` (CON-4, #406): `status` is
+`waiting | analyzing | done | error`, with `countdown_s`, `message` ("Metrics not available yet"), `error` and `retryable`.
+Each failure has its own words in the Activity card, never colour alone:
+
+| Case | What the card says | Re-check |
+|---|---|---|
+| `waiting` | "Waiting for metrics to settle (N s)", from `settle_until`, or from `countdown_s` when only that is sent | no |
+| `analyzing` more than 90 s after `settle_until` | "Analysis is taking longer than expected" | yes |
+| `error` with `message` | the message as sent, e.g. "Metrics not available yet" | only if `retryable` |
+| `error` with `error` (the analysis failed in the backend) | "Analysis unavailable: <error>" | only if `retryable` |
+| `error` with `reason` or nothing | "Analysis unavailable[: <reason>]" | only if `retryable` |
+
+- **Re-check** asks the API to run the analysis of that command again; the next history read shows the result. It is shown
+  only when the adapter has the call (`recheckConsoleAnalysis(incidentId, commandId)`). For now that is only the offline demo:
+  the real route (proposal: `POST /api/v1/ops/console/incidents/{id}/commands/{command_id}/recheck`, 409 when not retryable)
+  comes with the analysis wiring, so against the real API no button is shown. A failed re-check says "Re-check failed".
+- **History read fails** (network error or 5xx): the panel keeps the last history it read and shows "Console history
+  unavailable, retrying" (`role="status"`) under Activity; the line goes away on the next good read. A refused read (4xx)
+  changes nothing.
+- **Execute fails**: one error line in the terminal and the input is enabled again (§3); a 429 says when to try again
+  (`Retry-After`).
+- The offline demo reaches each case: `api errors` (metrics not available yet), `host metrics` (taking longer than expected)
+  and `worker throughput` (backend failure), all retryable.

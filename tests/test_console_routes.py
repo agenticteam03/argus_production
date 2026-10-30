@@ -58,6 +58,11 @@ def login(client, user="olga", scope=None):
     return {"Authorization": f"Bearer {client.post('/api/v1/auth/token', data=data).json()['access_token']}"}
 
 
+def approver_login(ctx):
+    ctx.app.store.upsert_principal("writer", "human", "approver", ["lab"], PasswordHash.recommended().hash(PASSWORD))
+    return login(ctx.client, "writer")
+
+
 def run(client, headers, inc, text, **extra):
     return client.post(url(inc, "execute"), headers={**headers, **PRIVATE}, json={"input": text, **extra})
 
@@ -89,6 +94,57 @@ def test_a_read_runs_through_invoke_and_answers_with_its_output(ctx):
     assert "state=running" in "\n".join(body["output"]) and "S-START" in "\n".join(body["output"])
     assert body["started_at"] <= body["finished_at"]
     assert ctx.calls == [("container.status", "vm-166/container:argus-lab-cache", "console:olga")]
+
+
+class FakeWorkerMetrics:
+    def __init__(self):
+        self.calls = []
+
+    def snapshot(self, target, signals):
+        self.calls.append(("snapshot", target, signals))
+        values = {"worker_last_processed_age_s": 240, "jobs_processed_rate": 0.0, "queue_depth": 24}
+        return SimpleNamespace(target=target, observed_at=datetime(2026, 10, 29, 12, tzinfo=timezone.utc),
+                               values={signal: values[signal] for signal in signals})
+
+    def range(self, target, signal, minutes, step_s):
+        self.calls.append(("range", target, signal, minutes, step_s))
+        values = {"jobs_processed_rate": [(100, 0.4), (200, 0.0)], "queue_depth": [(100, 8), (200, 24)]}
+        return values[signal]
+
+
+def test_scenario4_commands_run_through_the_incident_route_and_use_their_ports(ctx):
+    ctx.app.metrics = FakeWorkerMetrics()
+    expected = {
+        "worker status": "state=running",
+        "worker heartbeat": "240 s since last processed",
+        "worker throughput": "0 jobs/min",
+        "queue depth": "24 jobs; trend=rising",
+    }
+
+    answers = {command: run(ctx.client, ctx.auth, ctx.inc, command).json() for command in expected}
+
+    for command, fragment in expected.items():
+        assert answers[command]["status"] == "ok"
+        assert fragment in "\n".join(answers[command]["output"])
+    assert "earlier=24 jobs/min" in "\n".join(answers["worker throughput"]["output"])
+    rows = ctx.app.store.console_history(ctx.inc.id)
+    assert [row["command"] for row in rows] == ["worker.status", "worker.heartbeat", "worker.throughput", "queue.depth"]
+    assert any(call[0] == "container.status" and call[1] == "vm-166/container:argus-lab-jobworker"
+               for call in ctx.calls)
+    assert len([call for call in ctx.app.metrics.calls if call[0] == "snapshot"]) == 3
+    assert len([call for call in ctx.app.metrics.calls if call[0] == "range"]) == 2
+
+
+def test_scenario4_route_reports_no_data_when_worker_signal_is_missing(ctx):
+    class MissingMetrics(FakeWorkerMetrics):
+        def snapshot(self, target, signals):
+            return SimpleNamespace(target=target, observed_at=None, values={signal: None for signal in signals})
+
+    ctx.app.metrics = MissingMetrics()
+
+    got = run(ctx.client, ctx.auth, ctx.inc, "worker heartbeat").json()
+
+    assert got["status"] == "ok" and got["output"] == ["argus-lab-jobworker heartbeat: no data yet"]
 
 
 def test_the_command_is_stored_in_the_incident_history_and_history_reads_it_back(ctx):
@@ -135,12 +191,15 @@ def test_a_parse_error_is_a_rejected_answer_with_the_terminal_message_and_a_hist
     assert any(r.event == "console.refused" for r in audit(ctx.app, ctx.inc))       # the audit stays
 
 
-def test_a_write_command_is_rejected_and_nothing_is_invoked(ctx):
-    got = run(ctx.client, ctx.auth, ctx.inc, "cache restart").json()
+def test_a_write_command_without_a_passkey_session_is_refused(ctx):
+    response = run(ctx.client, approver_login(ctx), ctx.inc, "cache restart")
 
-    assert got["status"] == "rejected" and got["output"] == ["write commands are not enabled yet"]
+    assert response.status_code == 403 and "passkey session" in response.json()["detail"]
     assert ctx.calls == []
-    assert ctx.app.store.console_history(ctx.inc.id)[0]["cls"] == "write"
+    [row] = ctx.app.store.console_history(ctx.inc.id)
+    assert (row["input"], row["command"], row["cls"], row["status"]) == (
+        "cache restart", "cache.restart", "write", "rejected")
+    assert "passkey session" in row["output"]
 
 
 def test_an_unknown_incident_is_404(ctx):
@@ -267,8 +326,14 @@ def test_the_incident_read_budget_is_separate_and_rejects_without_invoking(make_
 
 
 def test_the_history_route_returns_the_entries_of_the_mockup_spec_oldest_first(ctx):
+    from types import SimpleNamespace
+
+    ctx.app.runner.action_path = SimpleNamespace(executor=SimpleNamespace(gate_open=frozenset({
+        ("container.start", "vm-166/container:argus-lab-cache")})))
+    ctx.client.app.state.second_factor.privileged_ready = lambda *_: True
     first = run(ctx.client, ctx.auth, ctx.inc, "cache status").json()
-    run(ctx.client, ctx.auth, ctx.inc, "cache restart")
+    write = run(ctx.client, approver_login(ctx), ctx.inc, "cache restart")
+    assert write.json()["status"] == "needs_confirmation"
     other = incident(ctx.app, API)
     run(ctx.client, ctx.auth, other, "cache status")
 
@@ -281,7 +346,7 @@ def test_the_history_route_returns_the_entries_of_the_mockup_spec_oldest_first(c
                                "finished_at"}                              # `analysis` is CON-4's: absent until stored
     assert (entries[0]["command_id"], entries[0]["by"], entries[0]["class"], entries[0]["status"]) == (
         first["command_id"], "olga", "read", "ok")
-    assert entries[1]["class"] == "write" and entries[1]["status"] == "rejected"
+    assert entries[1]["class"] == "write" and entries[1]["status"] == "needs_confirmation"
     assert isinstance(entries[0]["output"], list) and "state=running" in "\n".join(entries[0]["output"])
 
 
@@ -322,3 +387,25 @@ def test_a_refused_input_shows_in_the_history_route_with_a_null_command(ctx):
     assert (entry["command"], entry["class"], entry["status"], entry["input"], entry["by"]) == (
         None, None, "rejected", "status; rm", "olga")
     assert entry["output"] == refused["output"] and len(entry["output"]) == 1
+
+
+# ---- CON-8: the scenario 2 reads through the incident route -----------------------------------------------------------
+
+@pytest.mark.parametrize("command,expected", [
+    ("net inspect api", "attached to NET-ISO"), ("net expected api", "declared network NET-APP"),
+    ("net diff api", "wrong network NET-ISO")])
+def test_net_reads_run_through_invoke_and_answer_from_the_read(ctx, command, expected):
+    ctx.app.runner.invoke = lambda c, n, a: (SimpleNamespace(
+        status="ok", model_text="argus-lab-api: state=running networks=NET-ISO declared_networks=NET-APP",
+        values={"state": "running", "networks": ["NET-ISO"]}, error_category=None), None)
+    body = run(ctx.client, ctx.auth, ctx.inc, command).json()
+
+    assert body["status"] == "ok" and body["class"] == "read" and expected in "\n".join(body["output"])
+    assert [r for r in audit(ctx.app, ctx.inc) if r.event == "console.command"][-1].detail["cls"] == "read"
+
+
+def test_a_net_read_that_fails_is_an_error_answer(ctx):
+    ctx.app.runner.invoke = lambda c, n, a: (SimpleNamespace(
+        status="error", model_text="read failed", values={}, error_category="unavailable"), None)
+    body = run(ctx.client, ctx.auth, ctx.inc, "net diff api").json()
+    assert body["status"] == "error" and body["output"] == ["read failed"]

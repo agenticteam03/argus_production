@@ -86,10 +86,14 @@ Accepted by conantkd on 2026-10-29 (second approval for the write gate and read-
 3. **Rate limits:** read commands 20 a minute and 200 an hour per person, answered 429 with `Retry-After` and audited as
    `console.quota_refused`; `help` and `clear` are not counted. Writes use the existing proposal limits plus at most one pending
    proposal per (incident, command). The console has its own per-incident read budget (§3).
-4. **Who may approve a typed write.** The approval path as it stands today has no rule that stops the person who started a proposal
-   from answering it: proposals so far come from Argus, not from a person. The console keeps the existing rule (the approver
-   role, a fresh second factor, personal session) and adds no new one; the audit entry records the proposing and the approving
-   person so a review can see when they are the same. To be confirmed by the reviewer in the first console write PR (CON-6).
+4. **Who may approve a typed write: the same person may, for stage 1.** Decided by the developer (juanbetancurm) on 2026-10-29 after the
+   reviewer's question on PR #410, which prefers two people ("four eyes": the approval route would refuse when the answering person is
+   the proposer). For stage 1 the approval path stays as it is: a typed write is proposed by a person holding the approver role in a
+   passkey session, and the same person may answer it with a fresh second factor. Nothing new is added to the approval route. The
+   audit entry records the proposing and the approving person, so a review can always see when they are the same. This is a
+   deliberate, recorded reduction of control for the lab console: before the console is enabled outside the lab, the two-person
+   rule (refuse an answer by the `proposed_by` person of the `console.write.after` row, with a test) is to be built. Reviewer: please
+   confirm or reject this in the PR that records it.
 
 ## 6. Applied
 

@@ -65,7 +65,7 @@ ROLE_PERMISSIONS: dict[str, frozenset[str]] = {
 # ACR-0042: `count_waiting_approvals` is not privileged: it gives an approver only how many approvals wait (the bell),
 # with any token; seeing and deciding them stays privileged and private.
 ACTION_ROLE_PERMISSIONS: dict[str, frozenset[str]] = {
-    "approver": frozenset({"approve_action", "place_hold", "count_waiting_approvals"})}
+    "approver": frozenset({"propose_action", "approve_action", "place_hold", "count_waiting_approvals"})}
 # ACR-0034 local tier: installing a staged reference source is a privileged act (step-up each time); ACR-0040: an
 # approver may do it as well as an administrator
 CORPUS_ROLE_PERMISSIONS: dict[str, frozenset[str]] = {"admin": frozenset({"manage_corpus"}),
@@ -184,7 +184,7 @@ class ConsoleExecuteIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
     input: str = Field(max_length=200)                         # the incident comes from the path
     suggestion_id: str | None = Field(None, max_length=64)
-    confirmation: str | None = Field(None, max_length=64)      # CON-6: the write's confirmation; unused by reads
+    confirmation: Literal["yes"] | None = None                # CON-6: confirms intent only; never an approval
 
 
 class InvestigationIn(BaseModel):
@@ -915,13 +915,24 @@ def build_api(app_ctx) -> FastAPI:
             except SecondFactorRefused as exc:
                 raise HTTPException(403, str(exc)) from exc
             now = utcnow()
+            console_origin = next((row for row in app_ctx.store.list_for(view["proposal"]["input"]["incident_id"])
+                                   if row.event == "console.write.after"
+                                   and (row.detail or {}).get("proposal_id") == view["proposal"]["id"]), None)
+            console_fields = {}
+            if console_origin is not None:
+                console_fields = {"source": "operator_console",
+                                  "command_id": console_origin.detail.get("command_id"),
+                                  "proposal_id": view["proposal"]["id"],
+                                  "proposed_by": console_origin.actor,
+                                  ("approved_by" if body.decision == "approved" else "answered_by"): p.id}
             # on the incident's own audit too, so its page shows which operator answered
             audit = hold_audit("action.approval_answered", p.id, now,
                                incident_id=view["proposal"]["input"]["incident_id"], approval_id=approval_id,
                                proposal_digest=body.proposal_digest, decision=body.decision,
                                reason=body.reason.strip() if body.reason else None,
                                client_cert=client_cert(request, s),
-                               judge_verdict=view["judge"]["verdict"], risk=view["judge"]["risk"])   # ACR-0039
+                               judge_verdict=view["judge"]["verdict"], risk=view["judge"]["risk"],
+                               **console_fields)   # ACR-0039 / ACR-0043
             if not action_rows.answer_action_approval(approval_id, body.proposal_digest, p.id,
                                                       body.decision, now, audit=audit):
                 raise HTTPException(409, "approval is no longer pending")
@@ -1128,18 +1139,26 @@ def build_api(app_ctx) -> FastAPI:
 
         @api.post("/api/v1/ops/console/incidents/{incident_id}/execute", tags=["ops"],
                   dependencies=[Depends(console_private)])
-        def console_execute(incident_id: str, body: ConsoleExecuteIn,
+        def console_execute(incident_id: str, body: ConsoleExecuteIn, request: Request,
                             p: Annotated[Principal, Depends(console_person)]):
             inc = console_incident(incident_id)
+            from argus.console.registry import WRITE
             try:
-                done = console.run(p, inc, body.input, body.suggestion_id)
+                done = console.run(p, inc, body.input, body.suggestion_id, body.confirmation,
+                                   granted=granted(request, p), role_grants=role_permissions(p))
             except QuotaRefused as refused:
                 raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS,
                                     f"console read quota reached ({refused.which}); try again later",
                                     headers={"Retry-After": str(refused.retry_after)})
-            return {"command_id": done.command_id, "input": done.input, "command": done.command,
-                    "class": done.cls, "status": done.status, "output": done.output,
-                    "started_at": done.started_at, "finished_at": done.finished_at}
+            if done.http_status != status.HTTP_200_OK:
+                raise HTTPException(done.http_status, done.output[0] if done.output else "console write refused")
+            result = {"command_id": done.command_id, "input": done.input, "command": done.command,
+                      "class": done.cls, "status": done.status, "output": done.output,
+                      "started_at": done.started_at, "finished_at": done.finished_at}
+            if done.cls == WRITE:
+                result.update(proposal_id=done.proposal_id, approval_id=done.approval_id,
+                              judge_verdict=done.judge_verdict)
+            return result
 
     @api.get("/healthz", tags=["ops"])
     def healthz():

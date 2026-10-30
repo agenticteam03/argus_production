@@ -1,12 +1,13 @@
 """CON-2 (ACR-0043): the console's handlers. Every output line comes from a capability or a metric read through the
-ports; nothing is typed into the handler. Write commands never run; scenario 2 and 4 commands are not bound yet."""
+ports; nothing is typed into the handler. Write commands never run; the scenario 2 reads (CON-8) are bound.""" 
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 
 import pytest
 
 from argus.console.handlers import ConsolePorts, ConsoleResult, execute
-from argus.console.parser import parse
+from argus.console.parser import ConsoleRefused, parse
+from argus.domain.model import TargetRef
 
 NOW = datetime(2026, 10, 29, 12, 0, tzinfo=timezone.utc)
 HOST = "vm-166/host:vm-166"
@@ -22,11 +23,11 @@ def obs(text="", values=None, status="ok", category=None):
 class FakePorts(ConsolePorts):
     """Answers each (capability, target, args) from a table and records every read."""
 
-    def __init__(self, answers=None, topology=None, history=()):
+    def __init__(self, answers=None, topology=None, history=(), metrics=None):
         self.answers, self.calls = answers or {}, []
         super().__init__(read=self._read, service_ref=REFS.__getitem__, host_ref=HOST,
                          topology=lambda: topology or {"edges": []}, history=lambda _incident: list(history),
-                         now=lambda: NOW)
+                         now=lambda: NOW, metrics=metrics)
 
     def _read(self, capability, target, **args):
         self.calls.append((capability, target, args))
@@ -217,6 +218,86 @@ def test_an_exception_in_a_port_becomes_a_generic_error_not_a_crash():
     assert "secret internal detail" not in "\n".join(result.output_lines)
 
 
+class FakeMetrics:
+    def __init__(self, current=None, histories=None):
+        self.current = current or {}
+        self.histories = histories or {}
+        self.snapshots, self.ranges = [], []
+
+    def snapshot(self, target, signals):
+        self.snapshots.append((target, signals))
+        return SimpleNamespace(target=target, observed_at=NOW,
+                               values={signal: self.current.get(signal) for signal in signals})
+
+    def range(self, target, signal, minutes, step_s):
+        self.ranges.append((target, signal, minutes, step_s))
+        return self.histories.get(signal, [])
+
+
+def test_worker_status_uses_the_worker_container_capability():
+    values = {"state": "running", "health": "healthy", "started_at": "S-START"}
+    ports = FakePorts({("container.status", REFS["worker"]): obs("worker status", values)})
+
+    result = run("worker status", ports)
+
+    assert result.status == "ok" and result.output_lines == ["argus-lab-jobworker: state=running health=healthy since=S-START"]
+    assert ports.calls == [("container.status", REFS["worker"], {})]
+
+
+def test_worker_heartbeat_uses_the_named_metric_and_shows_age_and_last_processed_time():
+    metrics = FakeMetrics({"worker_last_processed_age_s": 123})
+    ports = FakePorts(metrics=metrics)
+
+    result = run("worker heartbeat", ports)
+
+    assert result.status == "ok"
+    assert metrics.snapshots == [(TargetRef.parse(REFS["worker"]), {"worker_last_processed_age_s"})]
+    assert "123" in result.output_lines[0] and "last_processed" in result.output_lines[0]
+
+
+def test_worker_heartbeat_age_grows_across_successive_reads():
+    metrics = FakeMetrics({"worker_last_processed_age_s": 180})
+    ports = FakePorts(metrics=metrics)
+
+    first = run("worker heartbeat", ports)
+    metrics.current["worker_last_processed_age_s"] = 240
+    second = run("worker heartbeat", ports)
+
+    assert "180 s" in first.output_lines[0] and "240 s" in second.output_lines[0]
+
+
+def test_worker_throughput_converts_the_current_rate_and_reads_an_earlier_rate():
+    metrics = FakeMetrics({"jobs_processed_rate": 0.0},
+                          {"jobs_processed_rate": [(NOW.timestamp() - 600, 0.5), (NOW.timestamp(), 0.0)]})
+    ports = FakePorts(metrics=metrics)
+
+    result = run("worker throughput", ports)
+
+    assert result.status == "ok"
+    assert "0 jobs/min" in result.output_lines[0] and "30 jobs/min" in result.output_lines[0]
+    assert "10 min" in result.output_lines[0]
+    assert metrics.ranges[0][1:] == ("jobs_processed_rate", 10, 30)
+
+
+def test_queue_depth_reports_point_and_trend_from_range():
+    metrics = FakeMetrics({"queue_depth": 18}, {"queue_depth": [(0, 4), (15, 8), (30, 18)]})
+    ports = FakePorts(metrics=metrics)
+
+    result = run("queue depth", ports)
+
+    assert result.status == "ok" and "18" in result.output_lines[0] and "rising" in result.output_lines[0]
+    assert metrics.ranges[0][1:] == ("queue_depth", 3, 15)
+
+
+@pytest.mark.parametrize("command,signal", [("worker heartbeat", "worker_last_processed_age_s"),
+                                              ("worker throughput", "jobs_processed_rate"),
+                                              ("queue depth", "queue_depth")])
+def test_worker_metric_commands_say_no_data_when_the_signal_is_missing(command, signal):
+    result = run(command, FakePorts(metrics=FakeMetrics({signal: None})))
+
+    assert result.status == "ok" and "no data yet" in "\n".join(result.output_lines)
+
+
 @pytest.mark.parametrize("text", ["cache restart", "worker restart", "net reconnect api"])
 def test_write_commands_are_rejected_and_nothing_runs(text):
     ports = FakePorts()
@@ -226,11 +307,94 @@ def test_write_commands_are_rejected_and_nothing_runs(text):
     assert ports.calls == []
 
 
-@pytest.mark.parametrize("text", ["worker status", "worker heartbeat", "worker throughput", "queue depth",
-                                  "net inspect api", "net expected api", "net diff api"])
-def test_scenario_2_and_4_reads_are_not_available_yet(text):
-    ports = FakePorts()
-    result = run(text, ports)
+# ---- scenario 2: net inspect / expected / diff (CON-8) --------------------------------------------------------------
 
-    assert result.status == "rejected" and "not available yet" in result.output_lines[0]
-    assert ports.calls == []
+def net_obs(attached, *, state="running", declared="NET-APP"):
+    """A container.status read: its values carry the attached networks, its text the inventory's declared ones."""
+    text = f"{REFS['api']}: state={state} networks={','.join(attached) or 'none'}"
+    if declared:
+        text += f" declared_networks={declared}"
+    return obs(text, {"state": state, "networks": list(attached)})
+
+
+NET_CASES = {
+    "healthy": (["NET-APP"], "running"),
+    "wrong_network": (["NET-ISO"], "running"),                  # the SC-07 fault
+    "both": (["NET-APP", "NET-ISO"], "running"),
+    "none": ([], "running"),
+    "stopped": ([], "exited"),
+}
+
+
+def run_net(command, case, service="api"):
+    attached, state = NET_CASES[case]
+    ports = FakePorts({("container.status", REFS[service]): net_obs(attached, state=state)})
+    result = run(f"{command} {service}", ports)
+    return result, ports
+
+
+@pytest.mark.parametrize("case,expected", [
+    ("healthy", "attached to NET-APP"), ("wrong_network", "attached to NET-ISO"),
+    ("both", "attached to NET-APP, NET-ISO"), ("none", "attached to no network"), ("stopped", "state=exited")])
+def test_net_inspect_lists_what_the_status_read_returned(case, expected):
+    result, ports = run_net("net inspect", case)
+
+    assert result.status == "ok" and ports.calls == [("container.status", REFS["api"], {})]
+    assert expected in result.output_lines[0] and "argus-lab-api" in result.output_lines[0]
+
+
+@pytest.mark.parametrize("case", list(NET_CASES))
+def test_net_expected_is_the_declared_network_from_the_same_read(case):
+    result, ports = run_net("net expected", case)
+    assert result.status == "ok" and result.output_lines == ["argus-lab-api: declared network NET-APP"]
+    assert len(ports.calls) == 1
+
+
+def test_net_expected_without_a_declaration_says_so():
+    ports = FakePorts({"container.status": net_obs(["NET-X"], declared=None)})
+    assert run("net expected api", ports).output_lines == ["argus-lab-api: no declared network in the inventory"]
+    assert "nothing to compare" in run("net diff api", ports).output_lines[0]
+
+
+@pytest.mark.parametrize("case,expected", [
+    ("healthy", ["no mismatch"]),
+    ("wrong_network", ["wrong network NET-ISO", "missing the declared NET-APP"]),
+    ("both", ["declared network NET-APP and also on NET-ISO", "does not declare"]),
+    ("none", ["attached to no network", "declared NET-APP"]),
+    ("stopped", ["not running (state=exited)", "not compared"])])
+def test_net_diff_names_the_mismatch_in_plain_words(case, expected):
+    result, _ports = run_net("net diff", case)
+    assert result.status == "ok" and len(result.output_lines) == 1
+    for part in expected:
+        assert part in result.output_lines[0], result.output_lines
+
+
+def test_net_diff_missing_one_of_two_declared_networks():
+    ports = FakePorts({"container.status": net_obs(["NET-APP"], declared="NET-APP,NET-B")})
+    assert "missing the declared network NET-B (attached to NET-APP)" in run("net diff api", ports).output_lines[0]
+
+
+@pytest.mark.parametrize("command", ["net inspect", "net expected", "net diff"])
+def test_a_failed_read_is_an_error_line_from_the_read(command):
+    ports = FakePorts({"container.status": obs("gateway unreachable", status="error", category="unavailable")})
+    result = run(f"{command} api", ports)
+    assert result.status == "error" and result.output_lines == ["gateway unreachable"]
+
+
+@pytest.mark.parametrize("command", ["net inspect", "net diff"])
+def test_networks_the_read_did_not_report_are_unknown_not_none(command):
+    ports = FakePorts({"container.status": obs("t", {"state": "running"})})
+    result = run(f"{command} api", ports)
+    assert result.status == "error" and "unknown" in result.output_lines[0]
+
+
+def test_net_commands_take_the_service_from_the_aliases_and_invent_no_names():
+    for service in ("cache", "worker"):
+        ports = FakePorts({("container.status", REFS[service]): obs(
+            "t declared_networks=NET-APP", {"state": "running", "networks": ["NET-APP"]})})
+        result = run(f"net diff {service}", ports)
+        assert ports.calls == [("container.status", REFS[service], {})]
+        assert result.output_lines[0].startswith(REFS[service].split(":", 1)[1])
+    for text in ("net inspect db", "net diff", "net inspect api cache"):
+        with pytest.raises(ConsoleRefused):                       # the parser rejects it, as for every service command
+            parse(text)

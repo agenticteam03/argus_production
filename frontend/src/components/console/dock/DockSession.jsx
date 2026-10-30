@@ -13,6 +13,7 @@ export default function DockSession({ incidentId, active }) {
   const [argusOpen, setArgusOpen] = useState(true);
   const [waited, setWaited] = useState(false);
   const [now, setNow] = useState(() => Date.now());
+  const [inserted, setInserted] = useState(null);       // CON-5: the suggestion last inserted into the terminal
 
   // useConsole answers null while it asks and when the API refuses: after a few seconds, say why it may be closed.
   useEffect(() => {
@@ -21,7 +22,7 @@ export default function DockSession({ incidentId, active }) {
   }, []);
 
   // The Argus panel's analysis countdown needs a second's tick only while an analysis waits for the metrics.
-  const waiting = (con?.history ?? []).some((e) => e.analysis?.status === "waiting");
+  const waiting = (con?.history ?? []).some((e) => e.analysis?.status === "waiting" || e.analysis?.status === "analyzing");
   useEffect(() => {
     if (!waiting) return undefined;
     const id = setInterval(() => setNow(Date.now()), 1000);
@@ -43,7 +44,7 @@ export default function DockSession({ incidentId, active }) {
   return (
     <div className="flex h-full min-h-0 flex-col gap-2 p-3">
       <div className="min-h-0 flex-1">
-        <ConsoleTerminal key={incidentId} incidentId={incidentId} history={con.history} run={con.run} />
+        <ConsoleTerminal key={incidentId} incidentId={incidentId} history={con.history} run={con.run} inserted={inserted} />
       </div>
       <div className="shrink-0">
         <button type="button" onClick={() => setArgusOpen((o) => !o)} aria-expanded={argusOpen}
@@ -52,7 +53,9 @@ export default function DockSession({ incidentId, active }) {
         </button>
         {argusOpen && incident && (
           <div className="mt-1 max-h-[38dvh] overflow-y-auto">
-            <ConsolePanel incident={incident} history={con.history} now={now} />
+            <ConsolePanel incident={incident} history={con.history} commands={con.commands} now={now}
+              historyUnavailable={con.historyUnavailable} onRecheck={con.recheck}
+              onInsert={(s) => setInserted({ id: s.id, command: s.command, nonce: Date.now() })} />
           </div>
         )}
       </div>
