@@ -39,6 +39,10 @@ UI_ROUTES = [("post", "/api/v1/auth/token"), ("post", "/api/v1/auth/logout"), ("
              # T-0057 (ACR-0034 local tier): the staged reference sources an administrator approves (UI in T-0058)
              ("get", "/api/v1/ops/corpus/sources"), ("post", "/api/v1/ops/corpus/sources/{name}/approve"),
              ("post", "/api/v1/ops/corpus/sources/{name}/reject"),
+             # ACR-0043 (CON-2): the operator console, mounted with ARGUS_OPERATOR_CONSOLE=1, private path only
+             ("get", "/api/v1/ops/console/incidents/{incident_id}/commands"),
+             ("post", "/api/v1/ops/console/incidents/{incident_id}/execute"),
+             ("get", "/api/v1/ops/console/incidents/{incident_id}/history"),
              # ACR-0018 phase 16 step 3: the WebAuthn ceremonies and the caller's credentials
              *[("post", f"/api/v1/auth/webauthn/{c}/{s}") for c in ("register", "login", "step-up")
                for s in ("options", "verify")], ("get", "/api/v1/auth/webauthn/credentials")]
@@ -175,11 +179,12 @@ def _write(path: Path, data) -> None:
     path.write_text(json.dumps(data, indent=2, sort_keys=True, default=str) + "\n", encoding="utf-8", newline="\n")
 
 
-def test_the_api_matches_the_ui_contract(make_app):
+def test_the_api_matches_the_ui_contract(make_app, monkeypatch):
     from argus.adapters.inbound.http import build_api
     app = make_app()
     app.action_rows = app.store  # explicit draft composition; production still omits the private routes
     app.settings.corpus_staging_dir = "/nonexistent-staging"   # T-0057: the corpus routes mount with a staging folder
+    monkeypatch.setenv("ARGUS_OPERATOR_CONSOLE", "1")          # ACR-0043: the console routes mount with the flag
     current = ui_schema(build_api(app).openapi())
     if UPDATE:
         _write(CONTRACT, current)

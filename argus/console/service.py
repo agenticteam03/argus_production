@@ -270,7 +270,7 @@ class ConsoleService:
         return ConsolePorts(read=read, service_ref=service_ref, host_ref=host,
                             topology=app.topology.view,
                             history=lambda incident_id: app.store.console_history(incident_id, self.config.history_limit),
-                            now=utcnow)
+                            now=utcnow, metrics=app.metrics)
 
     # --- the flow ----------------------------------------------------------------------------------------------
     def run(self, principal, incident, text: str, suggestion_id: str | None = None,
