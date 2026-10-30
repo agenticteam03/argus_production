@@ -241,6 +241,43 @@
         "title": "ConsoleExecuteIn",
         "type": "object"
       },
+      "ConsoleSessionCloseIn": {
+        "additionalProperties": false,
+        "description": "T-0016: why a console session ended: the person disconnected, its time limit, or a sign-out.",
+        "properties": {
+          "why": {
+            "enum": [
+              "disconnect",
+              "time_limit",
+              "signed_out"
+            ],
+            "title": "Why",
+            "type": "string"
+          }
+        },
+        "required": [
+          "why"
+        ],
+        "title": "ConsoleSessionCloseIn",
+        "type": "object"
+      },
+      "ConsoleSessionIn": {
+        "additionalProperties": false,
+        "description": "T-0016: opening the operator console on an incident; the reason is recorded with the person.",
+        "properties": {
+          "reason": {
+            "maxLength": 300,
+            "minLength": 3,
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason"
+        ],
+        "title": "ConsoleSessionIn",
+        "type": "object"
+      },
       "CorpusApproveIn": {
         "additionalProperties": false,
         "properties": {
@@ -1636,6 +1673,127 @@
           }
         ],
         "summary": "Console History",
+        "tags": [
+          "ops"
+        ]
+      }
+    },
+    "/api/v1/ops/console/incidents/{incident_id}/sessions": {
+      "post": {
+        "description": "T-0016: the person opens the console on this incident, with a reason. A record, not a gate: an audit\nrow of the incident (its Audit tab shows who, when and why); the commands stay audited one by one.",
+        "operationId": "console_session_open_api_v1_ops_console_incidents__incident_id__sessions_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "incident_id",
+            "required": true,
+            "schema": {
+              "title": "Incident Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConsoleSessionIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Console Session Open",
+        "tags": [
+          "ops"
+        ]
+      }
+    },
+    "/api/v1/ops/console/incidents/{incident_id}/sessions/{session_id}/close": {
+      "post": {
+        "description": "T-0016: the console session ended (Disconnect, its time limit, or a sign-out).",
+        "operationId": "console_session_close_api_v1_ops_console_incidents__incident_id__sessions__session_id__close_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "incident_id",
+            "required": true,
+            "schema": {
+              "title": "Incident Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "title": "Session Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConsoleSessionCloseIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Console Session Close",
         "tags": [
           "ops"
         ]

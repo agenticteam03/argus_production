@@ -11,6 +11,12 @@ const httpError = (status, message) => Object.assign(new Error(message), { statu
 const calls = [];
 const record = (path) => calls.push({ method: "GET", path });
 
+// T-0016, demo: the console's record of each incident (the API keeps it as audit rows of the incident).
+const consoleAudit = new Map();
+const recordConsole = (incidentId, event, detail) => consoleAudit.set(incidentId, [...(consoleAudit.get(incidentId) ?? []),
+  { at: new Date().toISOString(), event, capability: null, actor: demoSession.name ?? demoSession.role, policy_rule: null,
+    evidence_id: null, detail }]);
+
 export const mockArgusAdapter = {
   calls,
 
@@ -26,7 +32,9 @@ export const mockArgusAdapter = {
     const incident = demoIncident(id);
     if (!incident) throw httpError(404, "Incident not found");
     // Like the server: a viewer gets no evidence/audit keys at all (not empty lists).
-    if (demoSession.role === "operator" || demoSession.role === "approver") return incident;
+    if (demoSession.role === "operator" || demoSession.role === "approver") {
+      return { ...incident, audit: [...(incident.audit ?? []), ...(consoleAudit.get(id) ?? [])] };
+    }
     const { evidence, audit, ...visible } = incident;
     return visible;
   },
@@ -188,7 +196,30 @@ export const mockArgusAdapter = {
     calls.push({ method: "POST", path: `/api/v1/ops/console/incidents/${incidentId}/execute` });
     await wait(300);
     if (demoSession.role !== "operator" && demoSession.role !== "approver") throw httpError(403, "This role may not use the console.");
-    return demoConsoleExecute(incidentId, { input, confirmation, suggestion_id }, demoSession.role);
+    const done = await demoConsoleExecute(incidentId, { input, confirmation, suggestion_id }, demoSession.role);
+    if (done?.command) recordConsole(incidentId, "console.command", { command_id: done.command_id, command: done.command, cls: done.class, status: done.status });
+    else if (done?.status === "rejected") recordConsole(incidentId, "console.refused", { command_id: done.command_id, reason: done.output?.[0] ?? "" });
+    return done;
+  },
+
+  // T-0016, demo: the console session's record (opened with a reason, closed with why), as the API answers it.
+  async openConsoleSession(incidentId, reason) {
+    calls.push({ method: "POST", path: `/api/v1/ops/console/incidents/${incidentId}/sessions` });
+    await wait(150);
+    if (demoSession.role !== "operator" && demoSession.role !== "approver") throw httpError(403, "This role may not use the console.");
+    if (String(reason ?? "").trim().length < 3) throw httpError(422, "A reason of at least 3 characters is required.");
+    const hex = Array.from({ length: 16 }, () => Math.floor(Math.random() * 16).toString(16)).join("");
+    const opened = new Date();
+    recordConsole(incidentId, "console.session_opened", { session: `csn_${hex}`, reason: String(reason).trim() });
+    return { session_id: `csn_${hex}`, opened_at: opened.toISOString(), limit_min: 30,
+      expires_at: new Date(opened.getTime() + 30 * 60_000).toISOString() };
+  },
+
+  async closeConsoleSession(incidentId, sessionId, why) {
+    calls.push({ method: "POST", path: `/api/v1/ops/console/incidents/${incidentId}/sessions/close` });
+    await wait(50);
+    recordConsole(incidentId, "console.session_closed", { session: sessionId, why });
+    return { closed: true };
   },
 
   // CON-9, demo only: a manual re-check of a retryable analysis. The real route comes with the analysis wiring, so the
