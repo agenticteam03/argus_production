@@ -14,9 +14,10 @@ from threading import Lock
 from typing import Any
 
 from argus.console.config import ConsoleConfig
+from argus.console.analysis_runner import AnalysisRunner, NotRetryable, UnknownCommand  # noqa: F401
 from argus.console.handlers import ConsolePorts, HandlerError, execute
 from argus.console.parser import ConsoleRefused, parse
-from argus.console.registry import LAB_SERVICES, READ, WRITE
+from argus.console.registry import LAB_SERVICES, META, READ, WRITE
 from argus.domain.model import AuditRecord, IncidentStatus, TargetRef, utcnow
 
 log = logging.getLogger("argus.console")
@@ -63,6 +64,7 @@ class ConsoleService:
         self.app, self.config = app_ctx, config
         self._lock = Lock()
         self._pending: dict[str, int] = {}      # reads admitted and not yet stored, per person
+        self.analysis = AnalysisRunner(app_ctx, config)      # CON-4b: Argus's comment after each command
         self._proposal_locks_guard = Lock()
         self._proposal_locks: dict[str, Lock] = {}
 
@@ -250,10 +252,15 @@ class ConsoleService:
         finished = utcnow()
         shown = parsed.text
         raw, cut = truncate(output, self.config.output_max_bytes)
-        self.app.store.add_console_command({
-            "command_id": command_id, "incident_id": incident.id, "person": principal.id, "input": shown,
-            "command": parsed.id, "cls": WRITE, "status": status, "output": raw,
-            "output_truncated": cut, "suggestion_id": suggestion_id, "started_at": started, "finished_at": finished})
+        row = {"command_id": command_id, "incident_id": incident.id, "person": principal.id, "input": shown,
+               "command": parsed.id, "cls": WRITE, "status": status, "output": raw,
+               "output_truncated": cut, "suggestion_id": suggestion_id, "started_at": started, "finished_at": finished}
+        self.app.store.add_console_command(row)
+        if status == "ok" and approval_id:
+            try:                                # a proposal, not an action: held until the action has executed
+                self.analysis.hold_write(row, incident, principal.id, approval_id)
+            except Exception:
+                log.exception("console analysis of %s not held", command_id)
         self._audit("console.command", principal.id, incident.id, command_id=command_id, command=parsed.id,
                     cls=WRITE, status=status, proposal_id=proposal_id)
         self._audit("console.write.after", principal.id, incident.id, command_id=command_id, command=parsed.id,
@@ -329,17 +336,35 @@ class ConsoleService:
                                        [f"read budget for this incident reached ({self.config.incident_read_budget})"],
                                        at, at)
         try:
+            before = self.analysis.before(parsed, incident) if parsed.cls != META else None
             result = execute(parsed, incident.id, principal, self._ports(incident, person))
             output, cut = truncate(result.output_lines, self.config.output_max_bytes)
-            self.app.store.add_console_command({
+            row = {
                 "command_id": command_id, "incident_id": incident.id, "person": person, "input": parsed.text or text,
                 "command": parsed.id, "cls": parsed.cls, "status": result.status, "output": output,
                 "output_truncated": cut, "suggestion_id": suggestion_id,
-                "started_at": result.started_at, "finished_at": result.finished_at})
+                "started_at": result.started_at, "finished_at": result.finished_at}
+            self.app.store.add_console_command(row)
         finally:
             if counted:
                 self._release(person)
         self._audit("console.command", person, incident.id, command_id=command_id, command=parsed.id,
                     cls=parsed.cls, status=result.status)
+        if self.analysis.eligible(parsed, result.status):
+            try:                                # the command's own answer never depends on its analysis
+                self.analysis.submit(row, parsed, before, person)
+            except Exception:
+                log.exception("console analysis of %s not started", command_id)
         return ConsoleResponse(command_id, parsed.text or text, parsed.id, parsed.cls, result.status,
                            result.output_lines, result.started_at, result.finished_at)
+
+    # --- CON-4b: a person asks Argus to look again at a command's result -------------------------------------
+    def recheck(self, principal, incident, command_id: str) -> dict:
+        """Re-run the analysis of one command (retryable ones only). Checked against the read quota like a
+        read (refused at the limit) but it adds no history row, so it does not use any of it; only a retryable
+        analysis can be asked again."""
+        self._admit(principal.id, incident.id)
+        self._release(principal.id)
+        view = self.analysis.recheck(incident, command_id, principal.id)
+        self._audit("console.recheck", principal.id, incident.id, command_id=command_id)
+        return view
