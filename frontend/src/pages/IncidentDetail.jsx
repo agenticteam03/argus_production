@@ -12,14 +12,12 @@ import RawOutputDialog from "../components/RawOutputDialog.jsx";
 import ResolveIncident, { Resolution } from "../components/ResolveIncident.jsx";
 import RunTimeline from "../components/RunTimeline.jsx";
 import MiniMap, { miniPair } from "../components/map/MiniMap.jsx";
-import OperatorConsole from "../components/console/OperatorConsole.jsx";
 import SystemMap from "../components/map/SystemMap.jsx";
-import { ErrorCard, Disclosure, Fact, OUTCOME_META, OutcomeBadge, Skeleton, STATUS_META, StatusBadge, TabList, TabPanel } from "../components/ui.jsx";
+import { Chevron, ErrorCard, Disclosure, Fact, OUTCOME_META, OutcomeBadge, Skeleton, STATUS_META, StatusBadge, TabList, TabPanel } from "../components/ui.jsx";
 import WhyCard from "../components/WhyCard.jsx";
 import { useConsoleDock } from "../components/console/dock/ConsoleDockContext.jsx";
 import { TerminalIcon } from "../components/console/dock/icons.jsx";
 import { useAuth } from "../context/AuthContext.jsx";
-import { useConsole } from "../hooks/useConsole.js";
 import { useIncident } from "../hooks/useIncident.js";
 import { useIncidentMetrics } from "../hooks/useIncidentMetrics.js";
 import { useTopology } from "../hooks/useTopology.js";
@@ -33,6 +31,7 @@ const MiniCharts = lazy(() => import("../components/charts/ChartGrid.jsx").then(
 const Back = () => (
   <Link to="/incidents" state={{ restore: true }} className="inline-flex text-[13px] text-accent-hover hover:underline">← Incidents</Link>
 );
+const menuItem = "w-full cursor-pointer rounded-lg px-3 py-2 text-left text-sm text-body hover:bg-ink/5 hover:text-ink";
 const ghost = "cursor-pointer rounded-xl border border-line bg-field px-4 py-2 text-sm text-body transition hover:border-field-line hover:text-ink motion-reduce:transition-none";
 
 export default function IncidentDetail() {
@@ -43,13 +42,12 @@ export default function IncidentDetail() {
   const [params, setParams] = useSearchParams();
   const [range, setRange] = useState("30m");
   const [rawOpen, setRawOpen] = useState(false);
+  const [detailsOpen, setDetailsOpen] = useState(false);   // open details: the minor actions fold into "More"
   // ACR-0017: the incident overlay (real networks and state from the incident's evidence) is operator/approver only;
   // asking for it as a viewer is a 403, so a viewer gets the plain system map instead.
   const canOverlay = user?.role === "operator" || user?.role === "approver";
   const topology = useTopology(canOverlay ? id : undefined);
   const metrics = useIncidentMetrics(id, range, inc?.status);
-  // CON-3 (ACR-0043): the operator console; null (no tab) unless the API answers its commands for this person
-  const operatorConsole = useConsole(id, params.get("tab") === "console");
   const headingRef = useRef(null);
   const [announce, setAnnounce] = useState("");
   const prevStatus = useRef(null);
@@ -105,7 +103,6 @@ export default function IncidentDetail() {
     { id: "overview", label: "Incident & Diagnosis" },
     ...(showMap ? [{ id: "map", label: "Map" }] : []),
     ...(showMetrics ? [{ id: "metrics", label: "Metrics" }] : []),
-    ...(operatorConsole ? [{ id: "console", label: "Console" }] : []),
     { id: "timeline", label: "Runtime Timeline" },
     { id: "evidence", label: "Evidence", count: hasEvidence ? inc.evidence.length : undefined },
     { id: "audit", label: "Audit", count: hasAudit ? inc.audit.length : undefined },
@@ -152,7 +149,8 @@ export default function IncidentDetail() {
         {inc.resolution && <div className="mt-4"><Resolution resolution={inc.resolution} /></div>}
 
         <div className="mt-4 flex flex-wrap items-start justify-between gap-3 border-t border-line pt-4">
-          <Disclosure summary="Details: trigger, principal, times" className="min-w-0 flex-1 basis-64">
+          <Disclosure summary="Details: trigger, principal, times" className="min-w-0 flex-1 basis-64"
+            onToggle={(e) => setDetailsOpen(e.currentTarget.open)}>
             <dl className="grid grid-cols-2 gap-x-4 gap-y-4 md:grid-cols-3">
               <Fact label="Class">{inc.incident_class}</Fact>
               <Fact label="Strategy">{inc.strategy}</Fact>
@@ -171,12 +169,28 @@ export default function IncidentDetail() {
           </Disclosure>
           {/* ACR-0012: "Investigate again" is shown only when /me allows it */}
           <div className="flex flex-wrap items-center gap-2">
-            <button type="button" onClick={() => setRawOpen(true)} className={ghost}>Raw output</button>
-            <CopySummary incident={inc} cited={cited} className={ghost} />
+            {detailsOpen ? (
+              // T-0016: with the details open the row is narrow: the two minor actions wait in a small menu
+              <details className="relative" onBlur={(e) => !e.currentTarget.contains(e.relatedTarget) && e.currentTarget.removeAttribute("open")}>
+                <summary className={`${ghost} flex list-none items-center gap-1.5 [&::-webkit-details-marker]:hidden`}>
+                  More <Chevron width="14" height="14" />
+                </summary>
+                <div className="absolute right-0 z-20 mt-1 flex min-w-44 flex-col rounded-xl border border-line bg-card p-1.5 shadow-2xl">
+                  <button type="button" onClick={() => setRawOpen(true)} className={menuItem}>Raw output</button>
+                  <CopySummary incident={inc} cited={cited} className={menuItem} />
+                </div>
+              </details>
+            ) : (
+              <>
+                <button type="button" onClick={() => setRawOpen(true)} className={ghost}>Raw output</button>
+                <CopySummary incident={inc} cited={cited} className={ghost} />
+              </>
+            )}
             {/* T-0016: this incident's console in the side panel (an approver's; the API decides each command) */}
             {dock.visible && String(inc.target).includes("/") && (
-              <button type="button" onClick={() => dock.open({ incident: inc })} className={`${ghost} inline-flex items-center gap-2`}>
-                <TerminalIcon width="16" height="16" /> Open console on {hostOf(inc.target)}
+              <button type="button" onClick={() => dock.open({ incident: inc })} title={`Open the console on ${hostOf(inc.target)}`}
+                className={`${ghost} inline-flex items-center gap-2`}>
+                <TerminalIcon width="16" height="16" /> {detailsOpen ? "Console" : `Open console on ${hostOf(inc.target)}`}
               </button>
             )}
             <DiagnoseForm fixedTarget={inc.target} compact />
@@ -206,7 +220,6 @@ export default function IncidentDetail() {
       </TabPanel>
       <TabPanel id="map" value={tab}>{showMap && <SystemMap topology={topology} incident={inc} title="System map around the incident" />}</TabPanel>
       <TabPanel id="metrics" value={tab}>{showMetrics && <Suspense fallback={<Skeleton className="h-96" />}><MetricsTab metrics={metrics} incident={inc} range={range} onRange={setRange} /></Suspense>}</TabPanel>
-      <TabPanel id="console" value={tab}>{operatorConsole && <OperatorConsole incident={inc} console={operatorConsole} />}</TabPanel>
       <TabPanel id="timeline" value={tab}>
         <RunTimeline incident={inc} events={events} active={active} reconnecting={reconnecting} evidenceIds={evidenceIds} onJump={jumpToEvidence} />
       </TabPanel>
