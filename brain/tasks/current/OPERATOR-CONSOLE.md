@@ -42,7 +42,7 @@
 | CON-6 | Write path: confirmation, proposal, approval, audit `operator_console`, gateway, verify | ACR, CON-2 | yes | | `cache restart` asks, needs approval, restarts, appears in the audit log |
 | CON-7 | Scenario 4 commands (worker status, heartbeat, throughput, queue depth, restart) | CON-2, CON-6, metric names confirmed | no | | frozen worker resolved from the console |
 | CON-8 | Scenario 2 commands (net inspect, expected, diff, reconnect = existing `network.restore`) | CON-2, CON-6, TASK-97 | yes | | wrong network resolved from the console |
-| CON-9 | Errors: timeouts, metrics unavailable, backend failures; manual re-check | CON-4 | no | | each failure shows a clear message; the UI recovers |
+| CON-9 | Errors: timeouts, metrics unavailable, backend failures; manual re-check | CON-4 | no | conantkd | each failure shows a clear message; the UI recovers |
 | CON-10 | Rehearsal, several runs per scenario, results recorded | all | no | | right ranking and comment on every run |
 
 Suggested order: CON-1, then CON-2 and CON-3 in parallel, then CON-4, CON-5, CON-6, then CON-7, CON-8, CON-9, CON-10.
