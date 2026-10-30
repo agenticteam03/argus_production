@@ -2667,10 +2667,16 @@ shell, PTY, exec, pipe or script exists in it. Stage 2, a real shell for people,
 - **A write command maps to exactly one released pair.** The registry holds `cache restart` (`container.start` on the
   cache, accepted only while the cache is stopped), `worker restart` (`container.restart` on the job worker) and
   `net reconnect api` (`network.restore` on the API, ACR-0035). A console command can never reach a (capability, target)
-  pair outside `write_gate.open` (§13.3), and a typed confirmation is never an approval. The write path (a typed command
-  becomes the ordinary proposal, goes to the judge and then to the approval of §14, with audit entries carrying
-  `source: operator_console`) is *in progress* (PR #410); until it merges the handlers answer a write command
-  `rejected`, "write commands are not enabled yet".
+  pair outside `write_gate.open` (§13.3), and a typed confirmation is never an approval. **The write path is built
+  (#410):** a write command first answers `needs_confirmation`; typing `yes` only creates the ordinary proposal through
+  the supervised action path, scoped to that one pair. The proposal is judged (a `disagree` or a forbidden colour stops
+  it with no approval requested; a `doubt` goes on to the approver) and is then sent for the approval of §14, which
+  stays the only way to act. Refused before any proposal: a caller without `propose_action`, a pair not in
+  `write_gate.open`, a closed incident, and `cache restart` while the cache is running. A per-incident lock makes the
+  proposal step one at a time, and an incident has **one active proposal**: a second write for another action is
+  refused while one is pending, which is stricter than the rate limits of ACR-0043 §5.3. Every outcome, refusals
+  included, is stored in the incident's history and audited (`console.write.before`, `console.command`,
+  `console.write.after`, with the person, the command id, the proposal and the judge verdict).
 - **Access.** One entry point under the private prefix, `/api/v1/ops/console/incidents/{id}/commands`, `.../execute`
   and `.../history`; the public edge answers 404. Every route is scoped to an incident, and refuses a shared token and
   a service or agent principal: the console is for a person's own session. A read needs `investigate`; a write needs
@@ -3296,4 +3302,4 @@ erDiagram
 | 1.8.48 | 2026-10-28 | [ACR-0040](changes/ACR-0040-approver-manages-corpus.md): the `approver` role gets `manage_corpus` (list, approve and reject staged reference sources, each with a step-up), and `/me` lists `manage_corpus` among the actions so the Reference sources screen appears | [ACR-0040](changes/ACR-0040-approver-manages-corpus.md) |
 | 1.8.49 | 2026-10-28 | [ACR-0041](changes/ACR-0041-resolve-escalated-incident.md): `POST /api/v1/incidents/{id}/resolve` (permission `resolve_incident`: operator, approver; a full or investigate token) closes an escalated incident once with `resolution: {by, at, reason}` and `incident.resolved` in the audit; migration 019 allows exactly escalated to closed with a resolution; the edge proxies the route; the UI shows Resolve and the resolution | [ACR-0041](changes/ACR-0041-resolve-escalated-incident.md) |
 | 1.8.50 | 2026-10-28 | [ACR-0042](changes/ACR-0042-approvals-waiting-count.md): `GET /api/v1/approvals/waiting` returns `{"waiting": N}` (the private list's filter, at most 50) to a human approver with any token and no second factor (permission `count_waiting_approvals`, not privileged, mounted with the action routes; listed in `/me`); the edge proxies it; the UI's bell polls it every 30 s and leads to Actions | [ACR-0042](changes/ACR-0042-approvals-waiting-count.md) |
-| 1.8.51 | 2026-10-29 | [ACR-0043](changes/ACR-0043-operator-console.md): new section 17.5, the operator console stage 1: a command dispatcher over Argus's tools (no shell, PTY or exec), a registry and parser that refuse unknown verbs, services and shell syntax, write commands that map to exactly one pair of `write_gate.open`, access on the private prefix with `investigate` for reads and `propose_action` for writes, scoped to an incident and a personal session, `ARGUS_OPERATOR_CONSOLE` off by default, read limits and the console's own read budget, and the post-command analysis; the write path (PR #410) and the analysis wiring (TASK-112) are in progress, stage 2 stays ACR-0020 | [ACR-0043](changes/ACR-0043-operator-console.md) |
+| 1.8.51 | 2026-10-29 | [ACR-0043](changes/ACR-0043-operator-console.md): new section 17.5, the operator console stage 1: a command dispatcher over Argus's tools (no shell, PTY or exec), a registry and parser that refuse unknown verbs, services and shell syntax, write commands that map to exactly one pair of `write_gate.open`, access on the private prefix with `investigate` for reads and `propose_action` for writes, scoped to an incident and a personal session, `ARGUS_OPERATOR_CONSOLE` off by default, read limits and the console's own read budget, and the post-command analysis; the write path is built (#410); the analysis wiring (TASK-112) is in progress, stage 2 stays ACR-0020 | [ACR-0043](changes/ACR-0043-operator-console.md) |

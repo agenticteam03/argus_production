@@ -101,5 +101,5 @@ Accepted by conantkd on 2026-10-29 (second approval for the write gate and read-
 - [x] `ARCHITECTURE.md` updated, version bumped, changelog line added (1.8.51, section 17.5; it marks the open parts as in progress)
 - [x] journal entry ([2026-10-29-TASK-117-apply-acr-0043](../../journal/entries/2026-10-29-TASK-117-apply-acr-0043.md))
 
-The status stays `accepted`, not `applied`: the write path (PR #410, CON-6) and the analysis wiring in the history
-(TASK-112) are not on main yet (the scenario 2 reads are, #412). Set `applied` when they are, and update section 17.5.
+The status stays `accepted`, not `applied`: the analysis wiring in the history (TASK-112, PR #414) is not on main yet
+(the scenario 2 reads, #412, and the write path, #410, are). Set `applied` when they are, and update section 17.5.
