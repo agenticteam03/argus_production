@@ -119,7 +119,11 @@ function Legend({ incident }) {
 
 // `incidents`: the dashboard's latest incidents (a box whose incident still needs attention turns amber or red);
 // `incident`: the incident whose Map tab this is (its root cause and affected box are marked, the cause path lit).
-export default function SystemMap({ topology, incidents = [], incident = null, title = "System map" }) {
+// One empty list for every render: a fresh `[]` default re-ran the layout on each render, and each new layout scrolled
+// the map back to the root cause, so it could not be moved sideways (T-0016).
+const NO_INCIDENTS = [];
+
+export default function SystemMap({ topology, incidents = NO_INCIDENTS, incident = null, title = "System map" }) {
   const [showIdle, setShowIdle] = useState(false);
   const [showReads, setShowReads] = useState(false);
   const path = useMemo(() => causePathOf(topology, incident), [topology, incident]);
@@ -141,10 +145,14 @@ export default function SystemMap({ topology, incidents = [], incident = null, t
   const m = layout.m;
   const viewport = useRef(null);
   // On an incident, bring the root cause (the end of the cause path) into view when the map is wider than its card.
+  // Once per root cause: a later layout (a poll, a toggle) leaves the person's own scroll where it is.
   const causeId = path.at(-1);
+  const scrolledTo = useRef(null);
   useEffect(() => {
     const n = causeId && m?.nodes.find((x) => x.id === causeId);
-    if (n && viewport.current) viewport.current.scrollLeft = Math.max(0, n.x + n.width + 40 - viewport.current.clientWidth);
+    if (!n || !viewport.current || scrolledTo.current === causeId) return;
+    scrolledTo.current = causeId;
+    viewport.current.scrollLeft = Math.max(0, n.x + n.width + 40 - viewport.current.clientWidth);
   }, [m, causeId]);
   const focusing = Boolean(incident) && focus && path.length > 0;
   const onPath = (id) => path.includes(id);

@@ -25,8 +25,7 @@ API = "vm-166/container:argus-lab-api"
 
 def audit(app, inc):
     """The incident's console audit rows."""
-    events = ("console.command", "console.refused", "console.quota_refused", "console.budget_refused",
-              "console.forbidden")
+    events = ("console.command", "console.refused", "console.quota_refused", "console.budget_refused")
     return [r for r in app.store.audit_since(datetime(2020, 1, 1, tzinfo=timezone.utc), events)
             if r.incident_id == inc.id]
 
@@ -434,14 +433,17 @@ def test_a_refused_input_is_redacted_before_it_is_stored_audited_or_shown(ctx, t
     assert secret not in shown
 
 
-def test_a_forbidden_console_request_is_audited(ctx):
+def test_a_forbidden_console_request_is_audited_once(ctx):
+    """One record per refusal: #418's `security.console_refused` (it reaches the team's Telegram route); the
+    `console.forbidden` row #416 added for the same 403 was dropped when the two met."""
     bot = login(ctx.client, "bot")
     got = ctx.client.post(url(ctx.inc, "execute"), headers={**bot, **PRIVATE}, json={"input": "cache status"})
 
     assert got.status_code == 403 and ctx.calls == []
-    rows = [r for r in ctx.app.store.audit_since(datetime(2020, 1, 1, tzinfo=timezone.utc), ("console.forbidden",))]
-    assert len(rows) == 1 and rows[0].actor == "bot" and rows[0].detail["source"] == "operator_console"
-    assert rows[0].detail["status"] == 403 and rows[0].detail["path_incident"] == ctx.inc.id
+    since = datetime(2020, 1, 1, tzinfo=timezone.utc)
+    rows = ctx.app.store.audit_since(since, ("security.console_refused",))
+    assert len(rows) == 1 and rows[0].actor == "bot" and rows[0].detail["path"].endswith("/execute")
+    assert ctx.app.store.audit_since(since, ("console.forbidden",)) == []
 
 
 def test_concurrent_reads_cannot_overshoot_the_incident_budget(make_app, monkeypatch):  # noqa: F811

@@ -79,11 +79,6 @@ class ConsoleService:
             audit_id=f"aud_{uuid.uuid4().hex[:16]}", incident_id=incident_id, at=utcnow(), category="access",
             event=event, actor=person[:64], detail={"source": "operator_console", **detail}))
 
-    def forbidden(self, person: str, incident_id: str | None, reason: str) -> None:
-        """A request refused before the service (not a person's own session): audited like every other call."""
-        self._audit("console.forbidden", person, None, status=403, reason=reason[:200],
-                    path_incident=str(incident_id)[:64])      # unvalidated at this point, so only as text
-
     def _redact(self, text: str) -> str:
         """A typed line is redacted before it is stored, audited or shown: a pasted token or password is never kept."""
         redactor = getattr(self.app.runner, "redactor", None)

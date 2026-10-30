@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { demoSession, resetDemoKeys } from "./demoSession.js";
 import { httpSecondFactorAdapter, mockSecondFactorAdapter, registerObject } from "./secondFactorAdapter.js";
 import { clearToken, setToken } from "./session.js";
 
@@ -77,9 +78,33 @@ describe("httpSecondFactorAdapter", () => {
 });
 
 describe("mockSecondFactorAdapter", () => {
-  it("says the demo has no second factor and refuses its ceremonies", async () => {
+  it("gives the demo a security keys page: an approver's two keys, a viewer none (T-0016)", async () => {
+    resetDemoKeys();
+    demoSession.role = "approver";
+    expect(await mockSecondFactorAdapter.status()).toEqual({ enrolled: 2, verified: false });
+    expect((await mockSecondFactorAdapter.credentials()).map((k) => k.label)).toEqual(["Laptop passkey", "Phone passkey"]);
+    demoSession.role = "viewer";
+    expect(await mockSecondFactorAdapter.status()).toEqual({ enrolled: 0, verified: false });
+    demoSession.role = null;
     expect(await mockSecondFactorAdapter.status()).toBeNull();
-    expect(await mockSecondFactorAdapter.credentials()).toEqual([]);
-    for (const fn of ["enrol", "confirmLogin", "stepUp"]) await expect(mockSecondFactorAdapter[fn]({})).rejects.toThrow(/real Argus API/);
+  });
+
+  it("registers a first key with a code, a further one after a step-up, as the real ceremonies ask", async () => {
+    resetDemoKeys();
+    demoSession.role = "viewer";
+    await expect(mockSecondFactorAdapter.enrol({ label: "Laptop" })).rejects.toThrow(/code/);
+    await mockSecondFactorAdapter.enrol({ ticket: "DEMO-1234", label: "Laptop" });
+    const { token } = await mockSecondFactorAdapter.stepUp("webauthn.register:viewer");
+    await mockSecondFactorAdapter.enrol({ stepUpToken: token, label: "Phone" });
+    expect(await mockSecondFactorAdapter.status()).toEqual({ enrolled: 2, verified: false });
+    demoSession.role = null;
+    resetDemoKeys();
+  });
+
+  it("simulates confirming the private session with a key, for the demo's console and Actions (T-0016)", async () => {
+    demoSession.keyConfirmed = false;
+    expect(await mockSecondFactorAdapter.confirmLogin()).toEqual({ verified: true });
+    expect(demoSession.keyConfirmed).toBe(true);
+    demoSession.keyConfirmed = false;
   });
 });
