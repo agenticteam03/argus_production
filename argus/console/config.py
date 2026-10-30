@@ -11,6 +11,7 @@ from dataclasses import dataclass, field
 @dataclass(frozen=True)
 class ConsoleConfig:
     enabled: bool = field(default_factory=lambda: os.getenv("ARGUS_OPERATOR_CONSOLE", "0") == "1")
+    two_person_required: bool = field(default_factory=lambda: os.getenv("ARGUS_CONSOLE_TWO_PERSON", "0") == "1")
     # ACR-0043 §5.3: read commands per person; `help`, `history` and `clear` are not counted
     reads_per_minute: int = field(default_factory=lambda: int(os.getenv("ARGUS_CONSOLE_READS_PER_MINUTE", "20")))
     reads_per_hour: int = field(default_factory=lambda: int(os.getenv("ARGUS_CONSOLE_READS_PER_HOUR", "200")))

@@ -125,6 +125,7 @@ def test_each_write_requires_confirmation_then_reuses_one_normal_proposal(
 
 
 def test_console_audit_links_both_people_to_the_approval(app_factory, monkeypatch):
+    monkeypatch.setenv("ARGUS_CONSOLE_TWO_PERSON", "1")
     case = _case(app_factory, monkeypatch, *CASES[0].values)
 
     # The command's author and approver are distinct personal sessions.
@@ -144,6 +145,65 @@ def test_console_audit_links_both_people_to_the_approval(app_factory, monkeypatc
     assert row.detail["command_id"] == proposal_response["command_id"]
     assert row.detail["proposal_id"] == proposal.id
     assert row.detail["proposed_by"] == "writer" and row.detail["approved_by"] == "vera"
+
+
+def test_two_person_setting_defaults_off(monkeypatch):
+    monkeypatch.delenv("ARGUS_CONSOLE_TWO_PERSON", raising=False)
+    assert ConsoleConfig().two_person_required is False
+
+
+def test_console_proposer_may_answer_own_write_when_two_person_setting_is_off(app_factory, monkeypatch):
+    monkeypatch.setenv("ARGUS_CONSOLE_TWO_PERSON", "0")
+    case = _case(app_factory, monkeypatch, *CASES[0].values)
+    proposed = case.client.post(url(case.incident, "execute"), headers={**case.auth, **PRIVATE},
+                                json={"input": "cache restart", "confirmation": "yes"}).json()
+    proposal = case.app.store.get_action_proposal(proposed["proposal_id"])
+    answered = case.client.post(f"/api/v1/ops/approvals/{proposed['approval_id']}/answer",
+                                headers={**case.auth, **PRIVATE},
+                                json={"decision": "approved", "proposal_digest": proposal.digest,
+                                      "step_up_token": "offline-step-up"})
+    assert answered.status_code == 200, answered.text
+    row = next(a for a in case.app.store.list_for(case.incident.id) if a.event == "action.approval_answered")
+    assert row.detail["proposed_by"] == row.detail["approved_by"] == "writer"
+
+
+def test_two_person_setting_refuses_console_proposer_and_keeps_approval_pending(app_factory, monkeypatch):
+    monkeypatch.setenv("ARGUS_CONSOLE_TWO_PERSON", "1")
+    case = _case(app_factory, monkeypatch, *CASES[0].values)
+    proposed = case.client.post(url(case.incident, "execute"), headers={**case.auth, **PRIVATE},
+                                json={"input": "cache restart", "confirmation": "yes"}).json()
+    proposal = case.app.store.get_action_proposal(proposed["proposal_id"])
+    refused = case.client.post(f"/api/v1/ops/approvals/{proposed['approval_id']}/answer",
+                               headers={**case.auth, **PRIVATE},
+                               json={"decision": "approved", "proposal_digest": proposal.digest,
+                                     "step_up_token": "offline-step-up"})
+    assert refused.status_code == 403
+    assert refused.json()["detail"] == "a console write must be answered by a different person"
+    assert case.app.store.get_action_approval_for_proposal(proposal.id)["state"] == "pending"
+    [audit] = [row for row in case.app.store.list_for(case.incident.id)
+               if row.event == "action.approval_refused"]
+    assert audit.detail["source"] == "operator_console"
+    assert audit.detail["proposed_by"] == "writer" and audit.detail["answered_by"] == "writer"
+    assert audit.detail["approval_id"] == proposed["approval_id"]
+
+
+def test_two_person_setting_does_not_restrict_an_argus_made_proposal(app_factory, monkeypatch):
+    monkeypatch.setenv("ARGUS_CONSOLE_TWO_PERSON", "1")
+    case = _case(app_factory, monkeypatch, *CASES[0].values)
+    proposal_id = case.path.propose(case.incident, {"passages": [{"runbook_id": "RB-003"}]})
+    assert proposal_id
+    assert case.path.judge(proposal_id).verdict == "agree"
+    approval_id = case.path.request(proposal_id)
+    assert approval_id
+    proposal = case.app.store.get_action_proposal(proposal_id)
+    answered = case.client.post(f"/api/v1/ops/approvals/{approval_id}/answer",
+                                headers={**case.auth, **PRIVATE},
+                                json={"decision": "approved", "proposal_digest": proposal.digest,
+                                      "step_up_token": "offline-step-up"})
+    assert answered.status_code == 200, answered.text
+    audit = next(row for row in case.app.store.list_for(case.incident.id)
+                 if row.event == "action.approval_answered")
+    assert audit.detail.get("source") is None
 
 
 def test_running_cache_is_rejected_and_the_other_released_pair_is_never_proposed(app_factory, monkeypatch):

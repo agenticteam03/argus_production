@@ -909,6 +909,16 @@ def build_api(app_ctx) -> FastAPI:
                                   "proposal_id": view["proposal"]["id"],
                                   "proposed_by": console_origin.actor,
                                   ("approved_by" if body.decision == "approved" else "answered_by"): p.id}
+                proposed_by = console_origin.detail.get("proposed_by") or console_origin.actor
+                if console_config.two_person_required and p.id == proposed_by:
+                    refusal = hold_audit(
+                        "action.approval_refused", p.id, now,
+                        incident_id=view["proposal"]["input"]["incident_id"],
+                        approval_id=approval_id, proposal_id=view["proposal"]["id"],
+                        source="operator_console", proposed_by=proposed_by, answered_by=p.id,
+                        reason="a console write must be answered by a different person")
+                    app_ctx.store.append(refusal)
+                    raise HTTPException(403, "a console write must be answered by a different person")
             # on the incident's own audit too, so its page shows which operator answered
             audit = hold_audit("action.approval_answered", p.id, now,
                                incident_id=view["proposal"]["input"]["incident_id"], approval_id=approval_id,
