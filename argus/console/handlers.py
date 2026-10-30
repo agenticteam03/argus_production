@@ -7,6 +7,7 @@ Write commands never run here (CON-6 adds them). Scenario 2 and 4 read commands 
 from __future__ import annotations
 
 import logging
+import re
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Any, Callable
@@ -269,6 +270,59 @@ def _api_cpu(parsed, incident_id, ports) -> list[str]:
     return lines
 
 
+# --- scenario 2 reads ------------------------------------------------------------------------------------------
+DECLARED_NETWORKS = re.compile(r"declared_networks=([A-Za-z0-9_.,-]+)")
+
+
+def _networks(parsed: ParsedCommand, ports: ConsolePorts) -> tuple[str, dict, list[str] | None]:
+    """The service's ref, its container.status values and its declared networks. The declared ones are what the status
+    read itself reports from the inventory (`declared_networks=` in its text), the source the proposer uses."""
+    ref = ports.service_ref(parsed.args["service"])
+    observation = _ok(ports.read("container.status", ref))
+    found = DECLARED_NETWORKS.search(observation.model_text or "")
+    return ref, observation.values or {}, (found.group(1).split(",") if found else None)
+
+
+def _attached(ref: str, values: dict) -> list[str]:
+    attached = values.get("networks")
+    if not isinstance(attached, list):
+        raise HandlerError(f"{_name(ref)}: attached networks unknown (the read did not report them)")
+    return [str(n) for n in attached]
+
+
+def _net_inspect(parsed, incident_id, ports) -> list[str]:
+    ref, values, _declared = _networks(parsed, ports)
+    attached = _attached(ref, values)
+    return [f"{_name(ref)}: state={values.get('state')} attached to " + (", ".join(attached) if attached else "no network")]
+
+
+def _net_expected(parsed, incident_id, ports) -> list[str]:
+    ref, _values, declared = _networks(parsed, ports)
+    if not declared:
+        return [f"{_name(ref)}: no declared network in the inventory"]
+    return [f"{_name(ref)}: declared network " + ", ".join(declared)]
+
+
+def _net_diff(parsed, incident_id, ports) -> list[str]:
+    ref, values, declared = _networks(parsed, ports)
+    name, attached = _name(ref), _attached(ref, values)
+    if not declared:
+        return [f"{name}: no declared network in the inventory, nothing to compare"]
+    if values.get("state") != "running":
+        return [f"{name}: not running (state={values.get('state')}), networks not compared; declared " + ", ".join(declared)]
+    missing = [n for n in declared if n not in attached]
+    extra = [n for n in attached if n not in declared]
+    if not missing and not extra:
+        return [f"{name}: no mismatch (attached to " + ", ".join(attached) + ")"]
+    if not attached:
+        return [f"{name}: attached to no network; declared " + ", ".join(declared)]
+    if missing and extra:
+        return [f"{name}: attached to the wrong network " + ", ".join(extra) + "; missing the declared " + ", ".join(missing)]
+    if missing:
+        return [f"{name}: missing the declared network " + ", ".join(missing) + " (attached to " + ", ".join(attached) + ")"]
+    return [f"{name}: on its declared network " + ", ".join(declared) + " and also on " + ", ".join(extra) + ", which it does not declare"]
+
+
 def _host_metrics(parsed, incident_id, ports) -> list[str]:
     return [_ok(ports.read(capability, ports.host_ref)).model_text
             for capability in ("host.cpu", "host.memory", "host.disk_usage")]
@@ -280,4 +334,5 @@ HANDLERS: dict[str, Callable[[ParsedCommand, str, ConsolePorts], list[str]]] = {
     "worker.heartbeat": _worker_heartbeat, "worker.throughput": _worker_throughput, "queue.depth": _queue_depth,
     "api.errors": _api_errors,
     "api.cpu": _api_cpu, "host.metrics": _host_metrics,
+    "net.inspect": _net_inspect, "net.expected": _net_expected, "net.diff": _net_diff,
 }
