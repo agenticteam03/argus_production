@@ -67,7 +67,7 @@ CON-2 (the routes and the contract entry belong to CON-2).
   - `error`: "Analysis unavailable" and the reason.
   Without an `analysis` field the card shows only the command. The UI never writes a comment of its own.
 - The panel reads the history every 3 s while the tab is visible (`usePoll`), and right after each command.
-- Suggestions with Insert and Copy are CON-5, not this card.
+- Suggestions with Insert and Copy are CON-5, a card of their own (§7).
 
 ## 5. Shapes the UI reads (proposal for CON-2)
 
@@ -91,3 +91,23 @@ demo adapter implements them, so a build against the real API keeps the tab hidd
 - The output is a `role="log"` region with polite announcements; the input has a label ("Console command").
 - Status is never shown by colour alone (each status has its word).
 - Keyboard only: the tab, the input, ↑/↓, Enter; no hidden shortcuts.
+
+## 7. Suggestions (CON-5)
+
+A **Suggestions** card in the Argus panel, between Current diagnosis and Activity, shown only when there is at least one.
+
+- **Where they come from**: the `analysis.suggestion` of each history entry (CON-4, #406):
+  `{ "command": "<registry input>", "command_id": "<registry id>" }`, with an optional `id` and `rationale`. A plain string is
+  read as the command. The UI never makes up a suggestion of its own.
+- **Id**: the API's `id` when it sends one, otherwise `sug-<command_id of the entry that carries it>` (stable across polls).
+  At most 64 characters, the limit of `suggestion_id` in CON-2 (#404).
+- **Validation**: only a command of the registry catalog (`commands`) is shown: its words match a `usage` (with `<service>` and
+  `[--since HH:MM]` filled in) and it has no shell syntax. Anything else is dropped without a card.
+- Newest first, one card per command (the newest wins). Each card: the command (monospace), the rationale or
+  "Suggested after <input>", and two buttons:
+  - **Insert into console** fills the terminal input and focuses it. It **never runs** the command; the operator presses Enter.
+  - **Copy** copies the command; a status line says "Copied" or "Copy failed".
+- **`suggestion_id`**: when the operator runs an inserted command **unedited**, `execute` gets `suggestion_id` (and the
+  `yes` of a write resends it). An edited input is the operator's own command and carries none.
+- **Applied**: a card shows an "Applied" pill (with its word, not colour alone) when a history entry carries its
+  `suggestion_id`. It is read from the stored history, never console-local state.

@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from "react";
-import { CONFIRM_PROMPT, errorLine, historyInputs, MAX_INPUT, planInput, printable, PROMPT, resultLines, seedLines, stepHistory } from "../../utils/consoleSession.js";
+import { CONFIRM_PROMPT, errorLine, historyInputs, MAX_INPUT, planInput, printable, PROMPT, resultLines, seedLines, stepHistory, suggestionIdFor } from "../../utils/consoleSession.js";
 
 const TONE = { input: "text-ink", out: "text-body", error: "text-red-300", prompt: "text-amber-300", info: "text-muted" };
 
 // CON-3: the terminal half of the operator console. A plain monospace log and one input line: the API parses and runs
 // every command; only `clear` and a cancelled confirmation stay local (utils/consoleSession.js).
-export default function ConsoleTerminal({ incidentId, history = [], run }) {
+// CON-5: `inserted` ({id, command, nonce}) fills the input from a suggestion card; a run of it, unedited, carries its id.
+export default function ConsoleTerminal({ incidentId, history = [], run, inserted = null }) {
   const [lines, setLines] = useState(() => seedLines(incidentId, history));
   const [seeded, setSeeded] = useState(history.length > 0);
   const [input, setInput] = useState("");
@@ -30,6 +31,13 @@ export default function ConsoleTerminal({ incidentId, history = [], run }) {
 
   useEffect(() => { if (!busy) inputRef.current?.focus({ preventScroll: true }); }, [busy]);
 
+  useEffect(() => {
+    if (!inserted) return;
+    setInput(inserted.command);
+    setCursor(-1);
+    inputRef.current?.focus();
+  }, [inserted]);
+
   const print = (...more) => setLines((now) => [...now, ...more]);
 
   const submit = async (e) => {
@@ -47,10 +55,13 @@ export default function ConsoleTerminal({ incidentId, history = [], run }) {
     setPending(null);
     setBusy(true);
     try {
-      const result = await run({ input: plan.input, confirmation: plan.confirmation });
+      // a confirmation resends the suggestion id of the command it confirms
+      const suggestionId = pending ? pending.suggestionId : suggestionIdFor(raw, inserted);
+      const result = await run({ input: plan.input, confirmation: plan.confirmation,
+        ...(suggestionId ? { suggestion_id: suggestionId } : {}) });
       const { lines: out, pending: next } = resultLines({ ...result, input: result?.input ?? plan.input });
       print(...out);
-      setPending(next);
+      setPending(next ? { ...next, suggestionId } : null);
     } catch (err) {
       print({ kind: "error", text: errorLine(err) });
     } finally {
