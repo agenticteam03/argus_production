@@ -9,7 +9,7 @@ terminal, which stays the stage-2 path), [ACR-0019](ACR-0019-human-approved-reme
 | Proposed by | juanbetancurm (+ agent) · 2026-10-29 |
 | Accepted by | conantkd · 2026-10-29 (review of the pull request; answers in §5) |
 | Second approval (safety principle only) | **required**: write gate (a human-typed command starts an action) and read-only (new read entry point) |
-| Architecture version | no change while `proposed`; the applying PR bumps it |
+| Architecture version | 1.8.51 (the applying PR, TASK-117) |
 | Task / PR | [OPERATOR-CONSOLE](../../tasks/current/OPERATOR-CONSOLE.md) · the pull request that adds this file |
 
 ## 1. Detect and explain
@@ -97,6 +97,9 @@ Accepted by conantkd on 2026-10-29 (second approval for the write gate and read-
 
 ## 6. Applied
 
-- [ ] accepted
-- [ ] `ARCHITECTURE.md` updated, version bumped, changelog line added
-- [ ] journal entry
+- [x] accepted
+- [x] `ARCHITECTURE.md` updated, version bumped, changelog line added (1.8.51, section 17.5; it marks the open parts as in progress)
+- [x] journal entry ([2026-10-29-TASK-117-apply-acr-0043](../../journal/entries/2026-10-29-TASK-117-apply-acr-0043.md))
+
+The status stays `accepted`, not `applied`: the analysis wiring in the history (TASK-112, PR #414) is not on main yet
+(the scenario 2 reads, #412, and the write path, #410, are). Set `applied` when they are, and update section 17.5.
