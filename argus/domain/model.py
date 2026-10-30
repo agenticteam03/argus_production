@@ -17,7 +17,7 @@ JsonValue = Any
 # ---------------------------------------------------------------------------------------------
 # Targets (§5.1): host is part of the identity. Kinds are a registry, not a closed Literal.
 # ---------------------------------------------------------------------------------------------
-TARGET_KINDS: set[str] = {"container", "host", "network_endpoint", "database", "service", "volume"}
+TARGET_KINDS: set[str] = {"container", "host", "network_endpoint", "database", "service", "process", "volume"}
 
 
 class TargetRef(BaseModel):

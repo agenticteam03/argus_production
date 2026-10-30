@@ -7,8 +7,21 @@ import { investigationError } from "../utils/investigationError.js";
 
 // ACR-0012: start an investigation from the UI. Shown only when /me lists `start_investigation` (an operator or
 // approver with an investigate token): the UI never decides who may act. The target comes from the inventory's list
-// (GET /api/v1/targets), never free text; the API applies its own quotas and checks.
+// (GET /api/v1/targets), never free text; the API applies its own quotas and checks. ACR-0044 (T-0059): a target the
+// runtime says is not on its host (`absent`, e.g. a scenario container that is not deployed) is hidden unless asked.
 export const REASON_MAX = 500;
+
+const STATE_NOTE = { stopped: "stopped", absent: "not on its host" };
+
+// The options the selector shows, and how many absent targets it hides.
+export function targetOptions(rows, showAll) {
+  const all = rows ?? [];
+  const shown = all.filter((t) => showAll || t.state !== "absent");
+  return {
+    options: shown.map((t) => ({ value: t.target, label: STATE_NOTE[t.state] ? `${t.target} (${STATE_NOTE[t.state]})` : t.target })),
+    hidden: all.length - shown.length,
+  };
+}
 
 const KINDS = [{ value: "report", label: "Report", hint: "Something's wrong" }, { value: "check", label: "Check", hint: "Is it healthy?" }];
 
@@ -22,7 +35,8 @@ export default function DiagnoseForm({ fixedTarget = null, compact = false }) {
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const ids = { form: useId(), target: useId(), kind: useId(), reason: useId(), error: useId() };
+  const [showAll, setShowAll] = useState(false);
+  const ids = { form: useId(), target: useId(), kind: useId(), reason: useId(), error: useId(), all: useId() };
 
   useEffect(() => {
     if (!allowed || fixedTarget) return;
@@ -32,6 +46,12 @@ export default function DiagnoseForm({ fixedTarget = null, compact = false }) {
   }, [allowed, fixedTarget]);
 
   if (!allowed) return null;
+
+  const { options, hidden } = targetOptions(targets, showAll);
+  const toggleAll = (on) => {
+    setShowAll(on);
+    if (!on && targets?.find((t) => t.target === target)?.state === "absent") setTarget("");
+  };
 
   const submit = async (e) => {
     e?.preventDefault();
@@ -70,8 +90,14 @@ export default function DiagnoseForm({ fixedTarget = null, compact = false }) {
             <span id={ids.target} className="block text-[13px] font-medium">Target</span>
             <Select aria-labelledby={ids.target} value={target} onChange={(e) => setTarget(e.target.value)} required>
               <option value="">{targets === null ? "Loading targets…" : "Choose a target"}</option>
-              {(targets ?? []).map((t) => <option key={t.target} value={t.target}>{t.target}</option>)}
+              {options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
             </Select>
+            {(hidden > 0 || showAll) && (
+              <label htmlFor={ids.all} className="flex items-center gap-2 text-xs text-muted">
+                <input id={ids.all} type="checkbox" checked={showAll} onChange={(e) => toggleAll(e.target.checked)} />
+                {showAll ? "Showing targets not on their host" : `Show ${hidden} target${hidden === 1 ? "" : "s"} not on their host`}
+              </label>
+            )}
           </div>
 
           <div className="space-y-1.5">

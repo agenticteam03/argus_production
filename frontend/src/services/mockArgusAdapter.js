@@ -156,7 +156,7 @@ export const mockArgusAdapter = {
   async listTargets() {
     record("/api/v1/targets");
     await wait(100);
-    return [...new Set(demoList().map((i) => i.target))].sort().map((t) => ({ target: t, host: "demo", kind: "container", name: t }));
+    return [...new Set(demoList().map((i) => i.target))].sort().map((t) => ({ target: t, host: "demo", kind: "container", name: t, state: "running" }));
   },
 
   async startInvestigation({ target }) {

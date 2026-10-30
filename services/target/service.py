@@ -1183,11 +1183,17 @@ def collect() -> None:
     while True:
         lines, active = [], set()
         for name in sorted(CONTAINERS):
+            ident = f'kind="container",name="{name}"'
             try:
                 d = inspect(name)
+            except Err as e:
+                if e.code == 404:            # T-0059 (ACR-0044): the runtime says it has no such container: absent
+                    lines += [f"argus_target_present{{{ident}}} 0", f"argus_target_up{{{ident}}} 0"]
+                continue                     # its own series stay absent (unknown, never zero)
             except Exception:
-                continue                     # absent ⇒ no series (unknown, never zero)
+                continue                     # the runtime did not answer: no series at all (unknown, never absent)
             lab = f'container="{name}"'
+            lines += [f"argus_target_present{{{ident}}} 1", f"argus_target_up{{{ident}}} {1 if d['running'] else 0}"]
             try:
                 code, oom = last_exit(d, container_events(name, 10))
             except Exception:

@@ -606,8 +606,12 @@ def build_api(app_ctx) -> FastAPI:
 
     @api.get("/api/v1/targets", tags=["incidents"])
     def targets(p: Annotated[Principal, Depends(current)]):
-        """ACR-0012: the inventory's targets for a UI's target list (refs only: no address, port or credential)."""
-        return sorted(({"target": str(t.ref), "host": t.ref.host, "kind": t.ref.kind, "name": t.ref.name}
+        """ACR-0012: the inventory's targets for a UI's target list (refs only: no address, port or credential).
+        T-0059 (ACR-0044): with each one's `state` on its host (running, stopped, absent, unknown) from the map's
+        shared readings; the inventory still decides the list, the UI hides what is absent."""
+        states = app_ctx.topology.presences() if app_ctx.topology is not None else {}
+        return sorted(({"target": str(t.ref), "host": t.ref.host, "kind": t.ref.kind, "name": t.ref.name,
+                        "state": states.get(str(t.ref), "unknown")}
                        for t in app_ctx.inventory.targets()), key=lambda r: r["target"])
 
     @api.get("/api/v1/host-metrics", tags=["metrics"])

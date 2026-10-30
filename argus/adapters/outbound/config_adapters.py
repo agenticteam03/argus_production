@@ -117,7 +117,7 @@ def _dependency_link(owner: TargetRef, entry) -> DependencyLink:
 # --- Metrics -----------------------------------------------------------------------------------
 _MOUNT = re.compile(r"/[A-Za-z0-9_/-]*")
 class PrometheusMetrics:
-    """Signal names → PromQL templates with $host/$name. Per-series freshness (G-003/G-007)."""
+    """Signal names → PromQL templates with $host/$kind/$name. Per-series freshness (G-003/G-007)."""
 
     LINK_HISTORY_STEP_S = 5                 # oversamples the configured 15 s scrape; duplicate source samples collapse
     LINK_HISTORY_MAX_S = 4 * 60 * 60         # maximum cursor replay range; older gaps become unknown
@@ -155,7 +155,7 @@ class PrometheusMetrics:
         for s in sorted(signals):
             if s not in self.signals:
                 raise ValueError(f"unknown signal {s}")
-            expr = Template(self.signals[s]).substitute(host=target.host, name=target.name, mounts=mounts)
+            expr = Template(self.signals[s]).substitute(host=target.host, kind=target.kind, name=target.name, mounts=mounts)
             try:
                 r = httpx.get(f"{base}/api/v1/query", params={"query": expr}, timeout=8)
                 r.raise_for_status()
@@ -183,7 +183,7 @@ class PrometheusMetrics:
             raise ValueError(f"unknown signal {signal}")
         info = self.inventory.target(target)
         mounts = "|".join(info.mounts) if info else ""
-        expr = Template(self.signals[signal]).substitute(host=target.host, name=target.name, mounts=mounts)
+        expr = Template(self.signals[signal]).substitute(host=target.host, kind=target.kind, name=target.name, mounts=mounts)
         stop = (end or datetime.now(timezone.utc)).timestamp()
         try:
             r = httpx.get(f"{self._url(target.host)}/api/v1/query_range",
@@ -207,7 +207,7 @@ class PrometheusMetrics:
         kinds: dict[str, tuple[float, str]] = {}
         for field, signal in (("success", "dependency_probe_success"), ("duration", "dependency_probe_duration_s"),
                               ("error", "dependency_probe_error")):
-            expr = Template(self.signals[signal]).substitute(host=target.host, name=target.name, mounts="")
+            expr = Template(self.signals[signal]).substitute(host=target.host, kind=target.kind, name=target.name, mounts="")
             try:
                 r = httpx.get(f"{base}/api/v1/query", params={"query": expr}, timeout=8)
                 r.raise_for_status()
@@ -242,7 +242,7 @@ class PrometheusMetrics:
         """
         base = self._url(target.host)
         names = ("dependency_probe_success", "dependency_probe_duration_s", "dependency_probe_error")
-        exprs = {name: Template(self.signals[name]).substitute(host=target.host, name=target.name, mounts="")
+        exprs = {name: Template(self.signals[name]).substitute(host=target.host, kind=target.kind, name=target.name, mounts="")
                  for name in names}
 
         def query(expr: str) -> list[dict]:
