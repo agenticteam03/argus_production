@@ -28,6 +28,10 @@ class QuotaRefused(Exception):
         self.which, self.retry_after = which, retry_after
 
 
+class BudgetRefused(Exception):
+    """The incident's own read budget is used up (counting the reads still in flight)."""
+
+
 @dataclass(frozen=True)
 class ConsoleResponse:
     command_id: str
@@ -63,14 +67,28 @@ class ConsoleService:
         self.app, self.config = app_ctx, config
         self._lock = Lock()
         self._pending: dict[str, int] = {}      # reads admitted and not yet stored, per person
+        self._pending_incident: dict[str, int] = {}     # the same, per incident (the budget below)
         self._proposal_locks_guard = Lock()
         self._proposal_locks: dict[str, Lock] = {}
 
     # --- audit -------------------------------------------------------------------------------------------------
-    def _audit(self, event: str, person: str, incident_id: str, **detail: Any) -> None:
+    def _audit(self, event: str, person: str, incident_id: str | None, **detail: Any) -> None:
         self.app.store.append(AuditRecord(
             audit_id=f"aud_{uuid.uuid4().hex[:16]}", incident_id=incident_id, at=utcnow(), category="access",
             event=event, actor=person[:64], detail={"source": "operator_console", **detail}))
+
+    def forbidden(self, person: str, incident_id: str | None, reason: str) -> None:
+        """A request refused before the service (not a person's own session): audited like every other call."""
+        self._audit("console.forbidden", person, None, status=403, reason=reason[:200],
+                    path_incident=str(incident_id)[:64])      # unvalidated at this point, so only as text
+
+    def _redact(self, text: str) -> str:
+        """A typed line is redacted before it is stored, audited or shown: a pasted token or password is never kept."""
+        redactor = getattr(self.app.runner, "redactor", None)
+        if redactor is None:
+            from argus.capabilities.redaction import Redactor
+            redactor = Redactor()
+        return redactor.text(text)[0]
 
     # --- quota: stored reads plus the ones in flight, so concurrent requests cannot pass the same last slot -----
     def _admit(self, person: str, incident_id: str) -> None:
@@ -84,11 +102,16 @@ class ConsoleService:
                     oldest = store.console_oldest_read(person=person, since=since)
                     wait = 1 if oldest is None else max(1, int((oldest + span - now).total_seconds()) + 1)
                     raise QuotaRefused(which, wait)
+            in_flight = self._pending_incident.get(incident_id, 0)
+            if store.console_read_count(incident_id=incident_id) + in_flight >= cfg.incident_read_budget:
+                raise BudgetRefused()
             self._pending[person] = pending + 1
+            self._pending_incident[incident_id] = in_flight + 1
 
-    def _release(self, person: str) -> None:
+    def _release(self, person: str, incident_id: str) -> None:
         with self._lock:
             self._pending[person] = max(0, self._pending.get(person, 1) - 1)
+            self._pending_incident[incident_id] = max(0, self._pending_incident.get(incident_id, 1) - 1)
 
     @staticmethod
     def _write_pair(command_id: str, inventory, host: str) -> tuple[str, str] | None:
@@ -298,13 +321,14 @@ class ConsoleService:
             parsed = parse(text)
         except ConsoleRefused as exc:
             at = utcnow()
-            output, cut = truncate([str(exc)], self.config.output_max_bytes)
+            shown, message = self._redact(text), self._redact(str(exc))     # the message may echo the typed token
+            output, cut = truncate([message], self.config.output_max_bytes)
             self.app.store.add_console_command({           # the refusal is history too (Activity shows `rejected`)
-                "command_id": command_id, "incident_id": incident.id, "person": person, "input": text,
+                "command_id": command_id, "incident_id": incident.id, "person": person, "input": shown,
                 "command": None, "cls": None, "status": "rejected", "output": output, "output_truncated": cut,
                 "suggestion_id": suggestion_id, "started_at": at, "finished_at": at})
-            self._audit("console.refused", person, incident.id, command_id=command_id, reason=str(exc)[:200])
-            return ConsoleResponse(command_id, text, None, None, "rejected", [str(exc)], at, at)
+            self._audit("console.refused", person, incident.id, command_id=command_id, reason=message[:200])
+            return ConsoleResponse(command_id, shown, None, None, "rejected", [message], at, at)
         counted = parsed.cls == READ
         if parsed.cls == WRITE:
             refusal = None
@@ -321,8 +345,7 @@ class ConsoleService:
                 self._audit("console.quota_refused", person, incident.id, command_id=command_id,
                             command=parsed.id, quota=refused.which)
                 raise
-            if self.app.store.console_read_count(incident_id=incident.id) >= self.config.incident_read_budget:
-                self._release(person)
+            except BudgetRefused:
                 at = utcnow()
                 self._audit("console.budget_refused", person, incident.id, command_id=command_id, command=parsed.id)
                 return ConsoleResponse(command_id, parsed.text or text, parsed.id, parsed.cls, "rejected",
@@ -338,7 +361,7 @@ class ConsoleService:
                 "started_at": result.started_at, "finished_at": result.finished_at})
         finally:
             if counted:
-                self._release(person)
+                self._release(person, incident.id)
         self._audit("console.command", person, incident.id, command_id=command_id, command=parsed.id,
                     cls=parsed.cls, status=result.status)
         return ConsoleResponse(command_id, parsed.text or text, parsed.id, parsed.cls, result.status,

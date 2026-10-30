@@ -25,7 +25,8 @@ API = "vm-166/container:argus-lab-api"
 
 def audit(app, inc):
     """The incident's console audit rows."""
-    events = ("console.command", "console.refused", "console.quota_refused", "console.budget_refused")
+    events = ("console.command", "console.refused", "console.quota_refused", "console.budget_refused",
+              "console.forbidden")
     return [r for r in app.store.audit_since(datetime(2020, 1, 1, tzinfo=timezone.utc), events)
             if r.incident_id == inc.id]
 
@@ -409,3 +410,83 @@ def test_a_net_read_that_fails_is_an_error_answer(ctx):
         status="error", model_text="read failed", values={}, error_category="unavailable"), None)
     body = run(ctx.client, ctx.auth, ctx.inc, "net diff api").json()
     assert body["status"] == "error" and body["output"] == ["read failed"]
+
+
+# ---- TASK-131 (audit items 2, 3, 8, 9) ------------------------------------------------------------------------------
+
+SECRET = "hunter2-very-secret"
+KEY = "sk-" + "abcdefghijklmnopqrstuvwxyz123456"       # built here: a key literal would trip the audit hook
+
+
+@pytest.mark.parametrize("typed", [f"login password={SECRET}", f"cache status token={SECRET}",
+                                   f"cache status {KEY}"])
+def test_a_refused_input_is_redacted_before_it_is_stored_audited_or_shown(ctx, typed):
+    got = run(ctx.client, ctx.auth, ctx.inc, typed).json()
+    secret = KEY if KEY in typed else SECRET
+
+    assert got["status"] == "rejected" and "REDACTED" in got["input"] + " ".join(got["output"])
+    row = ctx.app.store.console_history(ctx.inc.id)[0]
+    refused = [r for r in audit(ctx.app, ctx.inc) if r.event == "console.refused"]
+    everything = [got["input"], *got["output"], row["input"], row["output"], *(str(r.detail) for r in refused)]
+    assert refused and all(secret not in text for text in everything), everything
+    shown = ctx.client.get(url(ctx.inc, "history"), headers={**ctx.auth, **PRIVATE}).text
+    assert secret not in shown
+
+
+def test_a_forbidden_console_request_is_audited(ctx):
+    bot = login(ctx.client, "bot")
+    got = ctx.client.post(url(ctx.inc, "execute"), headers={**bot, **PRIVATE}, json={"input": "cache status"})
+
+    assert got.status_code == 403 and ctx.calls == []
+    rows = [r for r in ctx.app.store.audit_since(datetime(2020, 1, 1, tzinfo=timezone.utc), ("console.forbidden",))]
+    assert len(rows) == 1 and rows[0].actor == "bot" and rows[0].detail["source"] == "operator_console"
+    assert rows[0].detail["status"] == 403 and rows[0].detail["path_incident"] == ctx.inc.id
+
+
+def test_concurrent_reads_cannot_overshoot_the_incident_budget(make_app, monkeypatch):  # noqa: F811
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Event
+
+    from argus.console.config import ConsoleConfig
+    from argus.console.service import ConsoleService
+
+    monkeypatch.setenv("ARGUS_CONSOLE_INCIDENT_READS", "1")
+    app = make_app()
+    inc = incident(app, API)
+    started, release = Event(), Event()
+
+    def slow_invoke(ctx, name, arguments):
+        started.set()
+        assert release.wait(5)
+        return SimpleNamespace(status="ok", model_text="t", values={"state": "running"}, error_category=None), None
+
+    app.runner.invoke = slow_invoke
+    service = ConsoleService(app, ConsoleConfig())
+    person = SimpleNamespace(id="olga", kind="human")
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        first = pool.submit(service.run, person, inc, "cache status")
+        assert started.wait(3)
+        second = service.run(SimpleNamespace(id="vera", kind="human"), inc, "cache status")   # the first is still in flight
+        release.set()
+        assert first.result(timeout=5).status == "ok"
+
+    assert second.status == "rejected" and "read budget" in second.output[0]
+    assert app.store.console_read_count(incident_id=inc.id) == 1
+    assert service._pending_incident.get(inc.id, 0) == 0           # the slot is released
+
+
+def test_a_secret_like_log_line_is_redacted_in_the_answer_and_the_stored_row(make_app, monkeypatch):  # noqa: F811
+    from test_core import FakeTargetAgent
+
+    for agent in FakeTargetAgent.data.values():
+        agent["/containers/argus-lab-api/search"] = {
+            "matched": 1, "lines": [f"ERROR login failed password={SECRET} for user admin"]}
+    app = make_app()
+    inc = incident(app, API)
+    client = setup(app, monkeypatch)
+    got = run(client, login(client), inc, "api errors").json()
+
+    assert got["status"] == "ok" and "login failed" in "\n".join(got["output"])      # the line itself is shown
+    row = app.store.console_history(inc.id)[0]
+    assert SECRET not in "\n".join(got["output"]) and SECRET not in row["output"]
+    assert "REDACTED" in row["output"]

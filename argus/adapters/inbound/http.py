@@ -1054,6 +1054,7 @@ def build_api(app_ctx) -> FastAPI:
 
         def console_person(request: Request, p: Annotated[Principal, Depends(require("investigate"))]) -> Principal:
             if p.kind != "human" or getattr(request.state, "access", "full") not in FULL_ACCESS:
+                console.forbidden(p.id, request.path_params.get("incident_id"), "not a person's own full session")
                 raise HTTPException(status.HTTP_403_FORBIDDEN, "the console is for a person's own session")
             return p
 

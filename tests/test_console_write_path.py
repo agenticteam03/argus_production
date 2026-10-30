@@ -292,3 +292,55 @@ def test_slow_write_judge_does_not_block_a_read_on_the_same_incident(app_factory
         finally:
             release_judge.set()
         assert write_future.result(timeout=5).status == "ok"
+
+
+# ---- TASK-131 (audit item 5): the three judge branches of a typed write ---------------------------------------------
+
+WORKER_CASE = CASES[1].values
+
+
+def _yes(case, text="worker restart"):
+    return case.client.post(url(case.incident, "execute"), headers={**case.auth, **PRIVATE},
+                            json={"input": text, "confirmation": "yes"}).json()
+
+
+def test_a_judge_disagree_stops_before_any_approval_reaches_an_approver(app_factory, monkeypatch):
+    case = _case(app_factory, monkeypatch, *WORKER_CASE)
+    case.path.judge_model = lambda _packet: {"verdict": "disagree", "reasons": ["The worker still holds a job."],
+                                             "checks": {**GOOD_CHECKS, "risk_understated": True}}
+    body = _yes(case)
+
+    assert body["status"] == "rejected" and body["judge_verdict"] == "disagree" and body["approval_id"] is None
+    assert any("no approval was requested" in line for line in body["output"])
+    assert case.app.store.get_action_approval_for_proposal(body["proposal_id"]) is None
+    assert case.path.executor.gateway.calls == []
+
+
+def test_a_judge_doubt_reaches_the_approver_with_its_reasons(app_factory, monkeypatch):
+    case = _case(app_factory, monkeypatch, *WORKER_CASE)
+    reason = "The queue evidence is thin."
+    case.path.judge_model = lambda _packet: {"verdict": "doubt", "reasons": [reason],
+                                             "checks": {**GOOD_CHECKS, "cause_supported": False}}
+    body = _yes(case)
+
+    assert body["status"] == "ok" and body["judge_verdict"] == "doubt" and body["approval_id"]
+    assert case.app.store.get_action_approval_for_proposal(body["proposal_id"])["state"] == "pending"
+    assert reason in case.app.store.get_judge_verdict(body["proposal_id"])["reasons"]
+    assert case.path.executor.gateway.calls == []              # a doubt asks a person; it never acts
+
+
+def test_a_failed_judge_refuses_safely_and_requests_no_approval(app_factory, monkeypatch):
+    case = _case(app_factory, monkeypatch, *WORKER_CASE)
+
+    def broken(_proposal_id):
+        raise RuntimeError("the judge is down")
+
+    case.path.judge = broken
+    body = _yes(case)
+
+    assert body["status"] == "rejected" and body["approval_id"] is None and body["judge_verdict"] is None
+    assert any("the judge review failed (RuntimeError)" in line and "no approval was requested" in line
+               for line in body["output"])
+    assert "the judge is down" not in " ".join(body["output"])           # the error text is not shown
+    assert case.app.store.get_action_approval_for_proposal(body["proposal_id"]) is None
+    assert case.path.executor.gateway.calls == []
