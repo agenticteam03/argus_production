@@ -1,5 +1,6 @@
 import { Children, useCallback, useEffect, useId, useRef, useState } from "react";
 import { clockZone, liveLabel } from "../utils/format.js";
+import { countFrame, motionMs } from "../utils/motion.js";
 import { runRefresh } from "../utils/refresh.js";
 
 const icon = (paths) => (props) => (
@@ -40,7 +41,8 @@ export const Card = ({ title, count, right, className = "", children }) => (
     <div className="mb-3 flex items-center justify-between gap-3">
       <h2 className="flex items-center gap-2 text-[15px] font-medium">
         {title}
-        {count != null && <span className="rounded-md bg-ink/5 px-1.5 py-0.5 text-xs text-muted">{count}</span>}
+        {/* keyed on the value, so a new count pops in (T-0016) */}
+        {count != null && <span key={count} className="animate-pop rounded-md bg-ink/5 px-1.5 py-0.5 text-xs text-muted">{count}</span>}
       </h2>
       {right}
     </div>
@@ -84,7 +86,7 @@ export function LivePill({ live, source, at, onRefresh }) {
   const [toast, setToast] = useState(null);
   const hideToast = useCallback(() => setToast(null), []);
   const demo = source === "demo";
-  const dot = demo ? "bg-amber-400" : live ? "animate-pulse bg-emerald-400" : "bg-amber-400";
+  const dot = demo ? "bg-amber-400" : live ? "animate-pulse bg-emerald-400 motion-reduce:animate-none" : "bg-amber-400";
   const pill = (
     <span className="inline-flex items-center gap-2 rounded-full border border-line bg-card px-3 py-1.5 text-xs text-muted">
       <span className={`size-2 rounded-full ${dot}`} />
@@ -115,16 +117,20 @@ export function LivePill({ live, source, at, onRefresh }) {
   );
 }
 
-// A short message at the bottom of the screen that goes away by itself (as in the ui-graphs prototype).
+// A short message at the bottom of the screen that goes away by itself (as in the ui-graphs prototype). T-0016: it
+// slides back down just before it goes (motion.css .toast-out; instant with reduced motion).
+const TOAST_OUT_MS = 160;
 export function Toast({ tone = "ok", onDone, ms = 4000, children }) {
+  const [leaving, setLeaving] = useState(false);
   useEffect(() => {
+    const out = setTimeout(() => setLeaving(true), Math.max(0, ms - TOAST_OUT_MS));
     const timer = setTimeout(onDone, ms);
-    return () => clearTimeout(timer);
+    return () => { clearTimeout(out); clearTimeout(timer); };
   }, [onDone, ms]);
   const Icon = tone === "ok" ? CircleCheck : CircleAlert;
   return (
     <div role="status" aria-live="polite"
-      className="toast-in fixed bottom-6 left-1/2 z-50 flex max-w-[calc(100vw-32px)] -translate-x-1/2 items-center gap-2.5 rounded-xl border border-line bg-card px-4 py-3 text-sm text-ink shadow-[0_16px_48px_-12px_rgb(0_0_0/0.35)]">
+      className={`${leaving ? "toast-out" : "toast-in"} fixed bottom-6 left-1/2 z-50 flex max-w-[calc(100vw-32px)] -translate-x-1/2 items-center gap-2.5 rounded-xl border border-line bg-card px-4 py-3 text-sm text-ink shadow-[0_16px_48px_-12px_rgb(0_0_0/0.35)]`}>
       <Icon width="16" height="16" className={`shrink-0 ${tone === "ok" ? "text-emerald-400" : "text-red-400"}`} />
       {children}
     </div>
@@ -141,7 +147,7 @@ export function Hint({ text, children, align = "right", className = "" }) {
       className={`group/hint relative inline-flex cursor-help rounded-full focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-hover ${className}`}>
       {children}
       <span role="tooltip" id={id}
-        className={`pointer-events-none absolute bottom-full z-40 mb-2 hidden w-64 max-w-[calc(100vw-2rem)] rounded-xl border border-line bg-card px-3 py-2.5 text-left text-[13px] font-normal normal-case leading-relaxed tracking-normal text-ink shadow-[0_16px_48px_-12px_rgb(0_0_0/0.35)] group-hover/hint:block group-focus-visible/hint:block ${align === "right" ? "right-0" : "left-0"}`}>
+        className={`pointer-events-none absolute bottom-full z-40 mb-2 hidden w-64 max-w-[calc(100vw-2rem)] rounded-xl border border-line bg-card px-3 py-2.5 text-left text-[13px] font-normal normal-case leading-relaxed tracking-normal text-ink shadow-[0_16px_48px_-12px_rgb(0_0_0/0.35)] animate-fade-in group-hover/hint:block group-focus-visible/hint:block ${align === "right" ? "right-0" : "left-0"}`}>
         {text}
       </span>
     </span>
@@ -183,10 +189,47 @@ export const OutcomeBadge = ({ outcome }) => {
   return <Pill tone={tone}>{label}</Pill>;
 };
 
-export const Skeleton = ({ className = "" }) => <div className={`animate-pulse rounded-xl bg-ink/5 motion-reduce:animate-none ${className}`} />;
+// A placeholder where content is loading: a calm block with a light sweeping across it (motion.css .skeleton). Hidden
+// from screen readers: the busy region around it says "Loading …" in words.
+export const Skeleton = ({ className = "" }) => <div aria-hidden="true" className={`skeleton rounded-xl ${className}`} />;
+
+// Rows of skeletons in a busy region, while a list's first read is on its way (T-0016); `label` says it in words.
+export const SkeletonList = ({ label, rows = 3, className = "h-[72px]", grid = "space-y-2" }) => (
+  <div aria-busy="true" className={grid}>
+    <span className="sr-only">{label}</span>
+    {Array.from({ length: rows }, (_, n) => <Skeleton key={n} className={className} />)}
+  </div>
+);
+
+// T-0016: a number that counts up to its value when it first shows and whenever it changes, over --motion-count
+// (0 with reduced motion, and without a browser, so a server render and a test show the final value at once).
+export function CountUp({ value, className = "" }) {
+  const animated = Number.isFinite(value) && motionMs("count") > 0;
+  const [shown, setShown] = useState(animated ? 0 : value);
+  const from = useRef(shown);
+  useEffect(() => {
+    const ms = motionMs("count");
+    if (!Number.isFinite(value) || !Number.isFinite(from.current) || ms <= 0 || from.current === value) {
+      from.current = value;
+      setShown(value);
+      return undefined;
+    }
+    const start = from.current, t0 = performance.now();
+    let frame;
+    const tick = (t) => {
+      const p = (t - t0) / ms;
+      from.current = countFrame(start, value, p);
+      setShown(from.current);
+      if (p < 1) frame = requestAnimationFrame(tick);
+    };
+    frame = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frame);
+  }, [value]);
+  return <span className={`tabular-nums ${className}`}>{shown}</span>;
+}
 
 export const ErrorCard = ({ title, text, onRetry, as: Heading = "h2", headingRef }) => (
-  <div role="alert" className="rounded-2xl border border-red-400/20 bg-red-400/5 p-5">
+  <div role="alert" className="animate-rise rounded-2xl border border-red-400/20 bg-red-400/5 p-5">
     <Heading ref={headingRef} tabIndex={-1} className="text-base font-semibold outline-none">{title}</Heading>
     <p className="mt-1 text-sm text-muted">{text}</p>
     {onRetry && (
@@ -280,7 +323,7 @@ export function Select({ children, value, onChange, className = "", required, ..
           role="listbox"
           aria-label={rest["aria-label"]}
           onMouseDown={(e) => e.preventDefault()}
-          className="absolute left-0 z-20 mt-2 max-h-64 w-max min-w-full max-w-[min(22rem,calc(100vw-2rem))] overflow-y-auto rounded-xl border border-line bg-card p-1.5 shadow-2xl"
+          className="absolute left-0 z-20 mt-2 max-h-64 w-max min-w-full origin-top animate-drop max-w-[min(22rem,calc(100vw-2rem))] overflow-y-auto rounded-xl border border-line bg-card p-1.5 shadow-2xl"
         >
           {options.map((o, i) => (
             <li
@@ -338,7 +381,7 @@ export const Disclosure = ({ summary, className = "", children }) => (
       <Chevron width="14" height="14" className="-rotate-90 transition-transform group-open:rotate-0 motion-reduce:transition-none" />
       {summary}
     </summary>
-    <div className="mt-2">{children}</div>
+    <div className="mt-2 group-open:animate-rise">{children}</div>
   </details>
 );
 
@@ -361,7 +404,7 @@ export function TabList({ tabs, value, onChange, label }) {
           <button key={t.id} ref={(el) => { refs.current[t.id] = el; }} id={`tab-${t.id}`} role="tab" type="button" aria-selected={on} aria-controls={`panel-${t.id}`} tabIndex={on ? 0 : -1} onClick={() => onChange(t.id)}
             className={`flex shrink-0 cursor-pointer items-center gap-2 rounded-t-lg border-b-2 px-4 py-2.5 text-sm font-medium transition focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent-hover motion-reduce:transition-none ${on ? "border-accent bg-ink/[0.03] text-accent-hover" : "border-transparent text-muted hover:text-ink"}`}>
             {t.label}
-            {t.count != null && <span className="rounded-md bg-ink/5 px-1.5 py-0.5 text-xs font-normal text-muted">{t.count}</span>}
+            {t.count != null && <span key={t.count} className="animate-pop rounded-md bg-ink/5 px-1.5 py-0.5 text-xs font-normal text-muted">{t.count}</span>}
           </button>
         );
       })}
@@ -369,8 +412,9 @@ export function TabList({ tabs, value, onChange, label }) {
   );
 }
 
+// A chosen panel fades in (T-0016): it is mounted only while its tab is selected, so each switch plays it again.
 export const TabPanel = ({ id, value, className = "", children }) =>
-  value === id ? <div role="tabpanel" id={`panel-${id}`} aria-labelledby={`tab-${id}`} className={className}>{children}</div> : null;
+  value === id ? <div role="tabpanel" id={`panel-${id}`} aria-labelledby={`tab-${id}`} className={`animate-fade-in ${className}`}>{children}</div> : null;
 
 // Native <dialog>: the browser traps focus, handles Escape and gives focus back to the opener.
 export function Dialog({ open, onClose, title, actions, children }) {

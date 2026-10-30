@@ -31,7 +31,8 @@ const Shell = () => {
     <>
       <Header />
       <main className="mx-auto w-full max-w-[1200px] px-4 py-6 sm:px-6">
-        <ErrorBoundary key={pathname}><Outlet /></ErrorBoundary>
+        {/* T-0016: a new element per path, so each page fades in (motion.css page-in) */}
+        <ErrorBoundary key={pathname}><div className="animate-page-in"><Outlet /></div></ErrorBoundary>
       </main>
     </>
   );

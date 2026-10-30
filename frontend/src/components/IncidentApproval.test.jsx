@@ -34,7 +34,7 @@ describe("IncidentApproval", () => {
   it("loads the frozen card once the decisions are granted", () => {
     user = { ...APPROVER, access: "ops", actions: ["approve_action"], secondFactor: { verified: true } };
     const out = html(waiting);
-    expect(out).toContain("animate-pulse");
+    expect(out).toContain("skeleton");                     // T-0016: a shimmer, not a blink
     expect(out).not.toContain("Private sign-in");
     expect(out).not.toContain("Use security key");
   });
