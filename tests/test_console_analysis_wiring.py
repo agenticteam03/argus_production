@@ -257,6 +257,22 @@ def test_metrics_missing_for_60_seconds_is_a_retryable_error_and_recheck_fixes_i
         utcnow() - timedelta(hours=1), ("console.recheck",)))
 
 
+def test_a_recheck_adds_no_read_so_the_incident_budget_does_not_refuse_it(ctx):
+    """#416 counts the incident's reads in flight in `_admit`: a re-check (#414) is still admitted at the budget and
+    leaves no slot taken, as before the merge."""
+    import dataclasses
+    ctx.metrics.missing = True
+    command_id = run(ctx.client, ctx.auth, ctx.inc, "api cpu").json()["command_id"]
+    ctx.pool.run_all()
+    ctx.service.config = dataclasses.replace(ctx.service.config, incident_read_budget=1)    # the one read used it up
+    ctx.metrics.missing = False
+    again = ctx.client.post(url(ctx.inc, f"commands/{command_id}/recheck"), headers={**ctx.auth, **PRIVATE})
+    assert again.status_code == 202, again.text
+    assert ctx.service._pending_incident.get(ctx.inc.id, 0) == 0 and not any(ctx.service._pending.values())
+    refused = run(ctx.client, ctx.auth, ctx.inc, "api cpu").json()                           # a read is refused
+    assert refused["status"] == "rejected" and "read budget" in refused["output"][0]
+
+
 def test_recheck_is_409_when_not_retryable_404_when_unknown(ctx):
     command_id = run(ctx.client, ctx.auth, ctx.inc, "api cpu").json()["command_id"]
     ctx.pool.run_all()
