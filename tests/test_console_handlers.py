@@ -1,12 +1,12 @@
 """CON-2 (ACR-0043): the console's handlers. Every output line comes from a capability or a metric read through the
-ports; nothing is typed into the handler. Write commands never run; scenario 2 and 4 commands are not bound yet."""
+ports; nothing is typed into the handler. Write commands never run; the scenario 2 reads (CON-8) are bound.""" 
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 
 import pytest
 
 from argus.console.handlers import ConsolePorts, ConsoleResult, execute
-from argus.console.parser import parse
+from argus.console.parser import ConsoleRefused, parse
 from argus.domain.model import TargetRef
 
 NOW = datetime(2026, 10, 29, 12, 0, tzinfo=timezone.utc)
@@ -307,10 +307,94 @@ def test_write_commands_are_rejected_and_nothing_runs(text):
     assert ports.calls == []
 
 
-@pytest.mark.parametrize("text", ["net inspect api", "net expected api", "net diff api"])
-def test_scenario_2_and_4_reads_are_not_available_yet(text):
-    ports = FakePorts()
-    result = run(text, ports)
+# ---- scenario 2: net inspect / expected / diff (CON-8) --------------------------------------------------------------
 
-    assert result.status == "rejected" and "not available yet" in result.output_lines[0]
-    assert ports.calls == []
+def net_obs(attached, *, state="running", declared="NET-APP"):
+    """A container.status read: its values carry the attached networks, its text the inventory's declared ones."""
+    text = f"{REFS['api']}: state={state} networks={','.join(attached) or 'none'}"
+    if declared:
+        text += f" declared_networks={declared}"
+    return obs(text, {"state": state, "networks": list(attached)})
+
+
+NET_CASES = {
+    "healthy": (["NET-APP"], "running"),
+    "wrong_network": (["NET-ISO"], "running"),                  # the SC-07 fault
+    "both": (["NET-APP", "NET-ISO"], "running"),
+    "none": ([], "running"),
+    "stopped": ([], "exited"),
+}
+
+
+def run_net(command, case, service="api"):
+    attached, state = NET_CASES[case]
+    ports = FakePorts({("container.status", REFS[service]): net_obs(attached, state=state)})
+    result = run(f"{command} {service}", ports)
+    return result, ports
+
+
+@pytest.mark.parametrize("case,expected", [
+    ("healthy", "attached to NET-APP"), ("wrong_network", "attached to NET-ISO"),
+    ("both", "attached to NET-APP, NET-ISO"), ("none", "attached to no network"), ("stopped", "state=exited")])
+def test_net_inspect_lists_what_the_status_read_returned(case, expected):
+    result, ports = run_net("net inspect", case)
+
+    assert result.status == "ok" and ports.calls == [("container.status", REFS["api"], {})]
+    assert expected in result.output_lines[0] and "argus-lab-api" in result.output_lines[0]
+
+
+@pytest.mark.parametrize("case", list(NET_CASES))
+def test_net_expected_is_the_declared_network_from_the_same_read(case):
+    result, ports = run_net("net expected", case)
+    assert result.status == "ok" and result.output_lines == ["argus-lab-api: declared network NET-APP"]
+    assert len(ports.calls) == 1
+
+
+def test_net_expected_without_a_declaration_says_so():
+    ports = FakePorts({"container.status": net_obs(["NET-X"], declared=None)})
+    assert run("net expected api", ports).output_lines == ["argus-lab-api: no declared network in the inventory"]
+    assert "nothing to compare" in run("net diff api", ports).output_lines[0]
+
+
+@pytest.mark.parametrize("case,expected", [
+    ("healthy", ["no mismatch"]),
+    ("wrong_network", ["wrong network NET-ISO", "missing the declared NET-APP"]),
+    ("both", ["declared network NET-APP and also on NET-ISO", "does not declare"]),
+    ("none", ["attached to no network", "declared NET-APP"]),
+    ("stopped", ["not running (state=exited)", "not compared"])])
+def test_net_diff_names_the_mismatch_in_plain_words(case, expected):
+    result, _ports = run_net("net diff", case)
+    assert result.status == "ok" and len(result.output_lines) == 1
+    for part in expected:
+        assert part in result.output_lines[0], result.output_lines
+
+
+def test_net_diff_missing_one_of_two_declared_networks():
+    ports = FakePorts({"container.status": net_obs(["NET-APP"], declared="NET-APP,NET-B")})
+    assert "missing the declared network NET-B (attached to NET-APP)" in run("net diff api", ports).output_lines[0]
+
+
+@pytest.mark.parametrize("command", ["net inspect", "net expected", "net diff"])
+def test_a_failed_read_is_an_error_line_from_the_read(command):
+    ports = FakePorts({"container.status": obs("gateway unreachable", status="error", category="unavailable")})
+    result = run(f"{command} api", ports)
+    assert result.status == "error" and result.output_lines == ["gateway unreachable"]
+
+
+@pytest.mark.parametrize("command", ["net inspect", "net diff"])
+def test_networks_the_read_did_not_report_are_unknown_not_none(command):
+    ports = FakePorts({"container.status": obs("t", {"state": "running"})})
+    result = run(f"{command} api", ports)
+    assert result.status == "error" and "unknown" in result.output_lines[0]
+
+
+def test_net_commands_take_the_service_from_the_aliases_and_invent_no_names():
+    for service in ("cache", "worker"):
+        ports = FakePorts({("container.status", REFS[service]): obs(
+            "t declared_networks=NET-APP", {"state": "running", "networks": ["NET-APP"]})})
+        result = run(f"net diff {service}", ports)
+        assert ports.calls == [("container.status", REFS[service], {})]
+        assert result.output_lines[0].startswith(REFS[service].split(":", 1)[1])
+    for text in ("net inspect db", "net diff", "net inspect api cache"):
+        with pytest.raises(ConsoleRefused):                       # the parser rejects it, as for every service command
+            parse(text)

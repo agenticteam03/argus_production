@@ -7,8 +7,9 @@ import ConsoleTerminal from "./ConsoleTerminal.jsx";
 // tools in the API; nothing here runs anything. Layout: brain/tasks/current/argus-console-mockup-spec.md §2.
 export default function OperatorConsole({ incident, console: con }) {
   const [now, setNow] = useState(() => Date.now());
-  // A second's tick only while an analysis waits for the metrics, for its countdown.
-  const waiting = (con.history ?? []).some((e) => e.analysis?.status === "waiting");
+  const [inserted, setInserted] = useState(null);       // CON-5: the suggestion last inserted into the terminal
+  // A second's tick only while an analysis waits for the metrics (its countdown) or runs (CON-9: its timeout).
+  const waiting = (con.history ?? []).some((e) => e.analysis?.status === "waiting" || e.analysis?.status === "analyzing");
   useEffect(() => {
     if (!waiting) return undefined;
     const id = setInterval(() => setNow(Date.now()), 1000);
@@ -23,10 +24,12 @@ export default function OperatorConsole({ incident, console: con }) {
       </div>
       <div className="grid grid-cols-[minmax(0,1fr)] gap-3 lg:grid-cols-[minmax(0,55fr)_minmax(0,45fr)]">
         <div className="h-[22rem] min-h-0 lg:h-[28rem]">
-          <ConsoleTerminal key={incident.id} incidentId={incident.id} history={con.history} run={con.run} />
+          <ConsoleTerminal key={incident.id} incidentId={incident.id} history={con.history} run={con.run} inserted={inserted} />
         </div>
         <div className="min-h-0 lg:h-[28rem]">
-          <ConsolePanel incident={incident} history={con.history} now={now} />
+          <ConsolePanel incident={incident} history={con.history} commands={con.commands} now={now}
+            historyUnavailable={con.historyUnavailable} onRecheck={con.recheck}
+            onInsert={(s) => setInserted({ id: s.id, command: s.command, nonce: Date.now() })} />
         </div>
       </div>
     </section>
