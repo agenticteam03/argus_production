@@ -24,17 +24,21 @@ const TOKEN = `${b64({ alg: "HS256" })}.${b64({ sub: "alice", access: "investiga
 
 // What the UI may send to the API: any GET, the login and (ACR-0018) the logout; plus (ACR-0012) the one POST that
 // starts an investigation, but only for a session whose /me lists start_investigation.
-const allowed = (method, path, { investigate = false } = {}) => method === "GET"
+// T-0016: with the console on (`console`), its POSTs too: a command, and the console session's record.
+const CONSOLE_POST = /^\/api\/v1\/ops\/console\/incidents\/[^/]+\/(execute|sessions|sessions\/[^/]+\/close)$/;
+const allowed = (method, path, { investigate = false, console: consoleOn = false } = {}) => method === "GET"
   || (method === "POST" && (path === "/api/v1/auth/token" || path === "/api/v1/auth/logout"))
-  || (investigate && method === "POST" && path === "/api/v1/investigations");
+  || (investigate && method === "POST" && path === "/api/v1/investigations")
+  || (consoleOn && method === "POST" && CONSOLE_POST.test(path));
 const CAN_INVESTIGATE = new Set(["operator", "approver"]);
 // ACR-0017: the topology overlay (?incident_id=) uses the incident's evidence, so only operators and approvers.
 const CAN_OVERLAY = new Set(["operator", "approver"]);
 
 // role: "operator" (sees evidence and audit) or "viewer" (the API leaves them out of the incident view).
 // overrides: { "<METHOD> <path>": (route, request) => … } to change one answer in a test.
-async function fakeApi(page, { role = "operator", overrides = {} } = {}, state = {}) {
+async function fakeApi(page, { role = "operator", overrides = {}, console: consoleOn = false } = {}, state = {}) {
   state.investigate = CAN_INVESTIGATE.has(role);
+  state.console = consoleOn;
   const me = { ...sample("me"), role, access: "investigate",
     actions: role === "viewer" ? ["view_incidents", "view_timeline"] : [...sample("me").actions, "start_investigation"] };
   const incident = sample("incident");
@@ -61,6 +65,24 @@ async function fakeApi(page, { role = "operator", overrides = {} } = {}, state =
       return json(route, { ...sample("login"), access_token: TOKEN });
     }
     if (key === "POST /api/v1/auth/logout") return json(route, { ended: true });         // ACR-0018
+    if (consoleOn && url.pathname.startsWith("/api/v1/ops/console/incidents/")) {         // T-0016: the console, faked
+      const what = url.pathname.split("/").slice(7).join("/");
+      if (what === "commands") return json(route, { commands: [{ id: "help", usage: "help", class: "meta", scenario: "all", summary: "List the commands" }] });
+      if (what === "history") return json(route, { entries: state.consoleHistory ?? [] });
+      if (what === "sessions") {
+        const opened = new Date();
+        return json(route, { session_id: "csn_0123456789abcdef", opened_at: opened.toISOString(), limit_min: 30,
+          expires_at: new Date(opened.getTime() + 30 * 60_000).toISOString() });
+      }
+      if (what.endsWith("/close")) return json(route, { closed: true });
+      if (what === "execute") {
+        const { input } = JSON.parse(request.postData() ?? "{}");
+        const entry = { command_id: "cmd_1", input, command: "help", class: "meta", status: "ok", output: ["help  List the commands"],
+          by: "alice", started_at: new Date().toISOString(), finished_at: new Date().toISOString() };
+        state.consoleHistory = [...(state.consoleHistory ?? []), entry];
+        return json(route, entry);
+      }
+    }
     if (key === "GET /api/v1/me") return json(route, me);
     if (key === "GET /api/v1/incidents") return json(route, sample("incidents"));
     if (key === "GET /api/v1/escalations") return json(route, sample("escalations"));

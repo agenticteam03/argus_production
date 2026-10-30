@@ -88,5 +88,6 @@ export function useIncident(id) {
     loadIncident().then((data) => data && loadEvents());
   }, [loadIncident, loadEvents]);
 
-  return { view, incident, events, reconnecting: !incidentOk || !eventsOk, retry };
+  // `refresh`: read the incident again without the loading state (T-0016: the Audit tab shows new console rows)
+  return { view, incident, events, reconnecting: !incidentOk || !eventsOk, retry, refresh: loadIncident };
 }
