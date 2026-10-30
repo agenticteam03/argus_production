@@ -657,6 +657,20 @@ class PostgresStore:
         where, params = self._console_reads(person, incident_id, since)
         return self._q(f"SELECT MIN(started_at) FROM console_command WHERE {where}", params)[0][0]
 
+    # --- ACR-0043 (CON-4b, migration 021): Argus's analysis of a console command; updated while it runs -------------
+    def put_console_analysis(self, command_id: str, incident_id: str, status: str, body: dict[str, Any],
+                             at: datetime) -> None:
+        """The command's analysis, whole: inserted, then replaced as it moves on (UPDATE is granted, DELETE is not)."""
+        self._q("INSERT INTO console_analysis (command_id, incident_id, status, body, updated_at) "
+                "VALUES (%s, %s, %s, %s, %s) ON CONFLICT (command_id) DO UPDATE SET status = EXCLUDED.status, "
+                "body = EXCLUDED.body, updated_at = EXCLUDED.updated_at",
+                (command_id, incident_id, status, json.dumps(body, default=str), at))
+
+    def console_analyses(self, incident_id: str) -> dict[str, dict[str, Any]]:
+        """Every stored analysis of an incident's commands, by command id."""
+        rows = self._q("SELECT command_id, status, body FROM console_analysis WHERE incident_id = %s", (incident_id,))
+        return {r[0]: {**json.loads(r[2]), "status": r[1]} for r in rows}
+
     def close_queued_incident(self, incident_id: str, outcome: str, diagnosis: str, closed_at: datetime) -> bool:
         """Close an incident no worker has claimed (T-0026). False when it is no longer queued (claimed meanwhile)."""
         patch = {"status": "closed", "outcome": outcome, "diagnosis": diagnosis,
@@ -858,6 +872,14 @@ CHECKS_SQL: list[tuple[str, str, bool]] = [
      "WHERE command_id = 'dbcheck'", False),
     ("console command is insert-only (DELETE refused)", "DELETE FROM console_command WHERE command_id = 'dbcheck'",
      False),
+    ("insert console analysis (ACR-0043, migration 021)", "INSERT INTO console_analysis (command_id, incident_id, "
+     "status, body, updated_at) VALUES ('dbcheck', 'inc_dbcheck', 'waiting', '{}', now())", True),
+    ("console analysis moves on (UPDATE allowed)", "UPDATE console_analysis SET status = 'done' "
+     "WHERE command_id = 'dbcheck'", True),
+    ("console analysis is never deleted (DELETE refused)", "DELETE FROM console_analysis "
+     "WHERE command_id = 'dbcheck'", False),
+    ("console analysis status is one of four (check)", "UPDATE console_analysis SET status = 'maybe' "
+     "WHERE command_id = 'dbcheck'", False),
     ("insert link probe cursor (T-0046, migration 014)", "INSERT INTO link_probe_cursor (owner,dependency,state,at) "
                                                            "VALUES ('dbcheck','dbcheck','ok',now())", True),
     ("advance link probe cursor (migration 014)", "UPDATE link_probe_cursor SET state='broken', at=at + interval '1 second' "

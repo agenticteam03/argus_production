@@ -1045,8 +1045,9 @@ def build_api(app_ctx) -> FastAPI:
     console_config = ConsoleConfig()
     if console_config.enabled:
         from argus.console import registry as console_registry
-        from argus.console.service import ConsoleService, QuotaRefused, lines_of
+        from argus.console.service import ConsoleService, NotRetryable, QuotaRefused, UnknownCommand, lines_of
         console = ConsoleService(app_ctx, console_config)
+        api.state.console = console
 
         def console_private(request: Request) -> None:
             if not private_path(request, s):
@@ -1073,14 +1074,40 @@ def build_api(app_ctx) -> FastAPI:
                  dependencies=[Depends(console_private)])
         def console_history(incident_id: str, p: Annotated[Principal, Depends(console_person)]):
             """The incident's stored commands, oldest first, `output` as lines like `execute` answers it (the stores
-            keep one text). A refused input is an entry with `command` and `class` null. `analysis` (CON-4) is not
-            stored here, so it is absent."""
+            keep one text). A refused input is an entry with `command` and `class` null. `analysis` (CON-4b) is added
+            to an entry whose command was analysed, built from what is stored and the clock; others have none."""
             console_incident(incident_id)
-            return {"entries": [
-                {"command_id": r["command_id"], "input": r["input"], "command": r["command"], "class": r["cls"],
-                 "status": r["status"], "output": lines_of(r["output"]), "by": r["person"], "started_at": r["started_at"],
-                 "finished_at": r["finished_at"]}
-                for r in app_ctx.store.console_history(incident_id, console_config.history_limit)]}
+            console.analysis.sync_writes(incident_id)      # a write whose action has executed starts its analysis
+            analyses = app_ctx.store.console_analyses(incident_id)
+            entries = []
+            for r in app_ctx.store.console_history(incident_id, console_config.history_limit):
+                entry = {"command_id": r["command_id"], "input": r["input"], "command": r["command"],
+                         "class": r["cls"], "status": r["status"], "output": lines_of(r["output"]),
+                         "by": r["person"], "started_at": r["started_at"], "finished_at": r["finished_at"]}
+                if r["command_id"] in analyses and not analyses[r["command_id"]].get("awaiting_action"):   # CON-4b: Argus's comment, built from what is stored
+                    entry["analysis"] = console.analysis.view(r, analyses[r["command_id"]])
+                entries.append(entry)
+            return {"entries": entries}
+
+        @api.post("/api/v1/ops/console/incidents/{incident_id}/commands/{command_id}/recheck", status_code=202,
+                  tags=["ops"], dependencies=[Depends(console_private)])
+        def console_recheck(incident_id: str, command_id: str, p: Annotated[Principal, Depends(console_person)]):
+            """CON-4b: look again at a command's result (an analysis that is retryable; else 409). The answer is
+            immediate: the new state, `analyzing`; the history carries the result."""
+            inc = console_incident(incident_id)
+            try:
+                view = console.recheck(p, inc, command_id) if re.match(r"^cmd_[0-9a-f]+$", command_id) else None
+            except QuotaRefused as refused:
+                raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS,
+                                    f"console read quota reached ({refused.which}); try again later",
+                                    headers={"Retry-After": str(refused.retry_after)})
+            except UnknownCommand:
+                view = None
+            except NotRetryable:
+                raise HTTPException(status.HTTP_409_CONFLICT, "this analysis is not retryable")
+            if view is None:
+                raise HTTPException(status.HTTP_404_NOT_FOUND, "no such command")
+            return {"command_id": command_id, "analysis": view}
 
         @api.post("/api/v1/ops/console/incidents/{incident_id}/execute", tags=["ops"],
                   dependencies=[Depends(console_private)])
