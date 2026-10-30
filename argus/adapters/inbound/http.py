@@ -163,6 +163,22 @@ class ResolveIn(BaseModel):
         return value.strip()
 
 
+class ConsoleSessionIn(BaseModel):
+    """T-0016: opening the operator console on an incident; the reason is recorded with the person."""
+    model_config = ConfigDict(extra="forbid")
+    reason: str = Field(min_length=3, max_length=300)
+
+
+class ConsoleSessionCloseIn(BaseModel):
+    """T-0016: why a console session ended: the person disconnected, its time limit, or a sign-out."""
+    model_config = ConfigDict(extra="forbid")
+    why: Literal["disconnect", "time_limit", "signed_out"]
+
+
+CONSOLE_SESSION_ID = r"^csn_[0-9a-f]{16}$"
+CONSOLE_SESSION_MIN = 30          # T-0016: a console session's limit, shown as the panel's countdown
+
+
 class ConsoleExecuteIn(BaseModel):
     """ACR-0043: one line typed in the operator console, for one incident."""
     model_config = ConfigDict(extra="forbid")
@@ -1041,9 +1057,20 @@ def build_api(app_ctx) -> FastAPI:
             if not private_path(request, s):
                 raise HTTPException(status.HTTP_404_NOT_FOUND, "Not Found")
 
-        def console_person(request: Request, p: Annotated[Principal, Depends(require("investigate"))]) -> Principal:
+        def console_refused(request: Request, p: Principal, why: str) -> HTTPException:
+            """T-0016: a refused use of the console by an authenticated principal is a security event (the security
+            alerts send it to the team's route); the reason, never the token."""
+            app_ctx.store.append(AuditRecord(
+                audit_id=f"aud_{uuid.uuid4().hex[:16]}", incident_id=None, at=utcnow(), category="security",
+                event="security.console_refused", actor=p.id,
+                detail={"reason": why, "path": request.url.path, "method": request.method}))
+            return HTTPException(status.HTTP_403_FORBIDDEN, why)
+
+        def console_person(request: Request, p: Annotated[Principal, Depends(current)]) -> Principal:
+            if "investigate" not in role_permissions(p):
+                raise console_refused(request, p, f"role {p.role} lacks the permission investigate")
             if p.kind != "human" or getattr(request.state, "access", "full") not in FULL_ACCESS:
-                raise HTTPException(status.HTTP_403_FORBIDDEN, "the console is for a person's own session")
+                raise console_refused(request, p, "the console is for a person's own session")
             return p
 
         def console_incident(incident_id: str):
@@ -1070,6 +1097,34 @@ def build_api(app_ctx) -> FastAPI:
                  "status": r["status"], "output": lines_of(r["output"]), "by": r["person"], "started_at": r["started_at"],
                  "finished_at": r["finished_at"]}
                 for r in app_ctx.store.console_history(incident_id, console_config.history_limit)]}
+
+        def console_audit(event: str, p: Principal, incident_id: str, **detail) -> None:
+            app_ctx.store.append(AuditRecord(
+                audit_id=f"aud_{uuid.uuid4().hex[:16]}", incident_id=incident_id, at=utcnow(), category="access",
+                event=event, actor=p.id, detail=detail))
+
+        @api.post("/api/v1/ops/console/incidents/{incident_id}/sessions", tags=["ops"],
+                  dependencies=[Depends(console_private)])
+        def console_session_open(incident_id: str, body: ConsoleSessionIn,
+                                 p: Annotated[Principal, Depends(console_person)]):
+            """T-0016: the person opens the console on this incident, with a reason. A record, not a gate: an audit
+            row of the incident (its Audit tab shows who, when and why); the commands stay audited one by one."""
+            inc = console_incident(incident_id)
+            sid, now = f"csn_{uuid.uuid4().hex[:16]}", utcnow()
+            console_audit("console.session_opened", p, inc.id, session=sid, reason=body.reason.strip())
+            return {"session_id": sid, "opened_at": now.isoformat(), "limit_min": CONSOLE_SESSION_MIN,
+                    "expires_at": (now + timedelta(minutes=CONSOLE_SESSION_MIN)).isoformat()}
+
+        @api.post("/api/v1/ops/console/incidents/{incident_id}/sessions/{session_id}/close", tags=["ops"],
+                  dependencies=[Depends(console_private)])
+        def console_session_close(incident_id: str, session_id: str, body: ConsoleSessionCloseIn,
+                                  p: Annotated[Principal, Depends(console_person)]):
+            """T-0016: the console session ended (Disconnect, its time limit, or a sign-out)."""
+            inc = console_incident(incident_id)
+            if not re.match(CONSOLE_SESSION_ID, session_id):
+                raise HTTPException(status.HTTP_404_NOT_FOUND, "no such console session")
+            console_audit("console.session_closed", p, inc.id, session=session_id, why=body.why)
+            return {"closed": True}
 
         @api.post("/api/v1/ops/console/incidents/{incident_id}/execute", tags=["ops"],
                   dependencies=[Depends(console_private)])
