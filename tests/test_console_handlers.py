@@ -7,6 +7,7 @@ import pytest
 
 from argus.console.handlers import ConsolePorts, ConsoleResult, execute
 from argus.console.parser import parse
+from argus.domain.model import TargetRef
 
 NOW = datetime(2026, 10, 29, 12, 0, tzinfo=timezone.utc)
 HOST = "vm-166/host:vm-166"
@@ -22,11 +23,11 @@ def obs(text="", values=None, status="ok", category=None):
 class FakePorts(ConsolePorts):
     """Answers each (capability, target, args) from a table and records every read."""
 
-    def __init__(self, answers=None, topology=None, history=()):
+    def __init__(self, answers=None, topology=None, history=(), metrics=None):
         self.answers, self.calls = answers or {}, []
         super().__init__(read=self._read, service_ref=REFS.__getitem__, host_ref=HOST,
                          topology=lambda: topology or {"edges": []}, history=lambda _incident: list(history),
-                         now=lambda: NOW)
+                         now=lambda: NOW, metrics=metrics)
 
     def _read(self, capability, target, **args):
         self.calls.append((capability, target, args))
@@ -217,6 +218,86 @@ def test_an_exception_in_a_port_becomes_a_generic_error_not_a_crash():
     assert "secret internal detail" not in "\n".join(result.output_lines)
 
 
+class FakeMetrics:
+    def __init__(self, current=None, histories=None):
+        self.current = current or {}
+        self.histories = histories or {}
+        self.snapshots, self.ranges = [], []
+
+    def snapshot(self, target, signals):
+        self.snapshots.append((target, signals))
+        return SimpleNamespace(target=target, observed_at=NOW,
+                               values={signal: self.current.get(signal) for signal in signals})
+
+    def range(self, target, signal, minutes, step_s):
+        self.ranges.append((target, signal, minutes, step_s))
+        return self.histories.get(signal, [])
+
+
+def test_worker_status_uses_the_worker_container_capability():
+    values = {"state": "running", "health": "healthy", "started_at": "S-START"}
+    ports = FakePorts({("container.status", REFS["worker"]): obs("worker status", values)})
+
+    result = run("worker status", ports)
+
+    assert result.status == "ok" and result.output_lines == ["argus-lab-jobworker: state=running health=healthy since=S-START"]
+    assert ports.calls == [("container.status", REFS["worker"], {})]
+
+
+def test_worker_heartbeat_uses_the_named_metric_and_shows_age_and_last_processed_time():
+    metrics = FakeMetrics({"worker_last_processed_age_s": 123})
+    ports = FakePorts(metrics=metrics)
+
+    result = run("worker heartbeat", ports)
+
+    assert result.status == "ok"
+    assert metrics.snapshots == [(TargetRef.parse(REFS["worker"]), {"worker_last_processed_age_s"})]
+    assert "123" in result.output_lines[0] and "last_processed" in result.output_lines[0]
+
+
+def test_worker_heartbeat_age_grows_across_successive_reads():
+    metrics = FakeMetrics({"worker_last_processed_age_s": 180})
+    ports = FakePorts(metrics=metrics)
+
+    first = run("worker heartbeat", ports)
+    metrics.current["worker_last_processed_age_s"] = 240
+    second = run("worker heartbeat", ports)
+
+    assert "180 s" in first.output_lines[0] and "240 s" in second.output_lines[0]
+
+
+def test_worker_throughput_converts_the_current_rate_and_reads_an_earlier_rate():
+    metrics = FakeMetrics({"jobs_processed_rate": 0.0},
+                          {"jobs_processed_rate": [(NOW.timestamp() - 600, 0.5), (NOW.timestamp(), 0.0)]})
+    ports = FakePorts(metrics=metrics)
+
+    result = run("worker throughput", ports)
+
+    assert result.status == "ok"
+    assert "0 jobs/min" in result.output_lines[0] and "30 jobs/min" in result.output_lines[0]
+    assert "10 min" in result.output_lines[0]
+    assert metrics.ranges[0][1:] == ("jobs_processed_rate", 10, 30)
+
+
+def test_queue_depth_reports_point_and_trend_from_range():
+    metrics = FakeMetrics({"queue_depth": 18}, {"queue_depth": [(0, 4), (15, 8), (30, 18)]})
+    ports = FakePorts(metrics=metrics)
+
+    result = run("queue depth", ports)
+
+    assert result.status == "ok" and "18" in result.output_lines[0] and "rising" in result.output_lines[0]
+    assert metrics.ranges[0][1:] == ("queue_depth", 3, 15)
+
+
+@pytest.mark.parametrize("command,signal", [("worker heartbeat", "worker_last_processed_age_s"),
+                                              ("worker throughput", "jobs_processed_rate"),
+                                              ("queue depth", "queue_depth")])
+def test_worker_metric_commands_say_no_data_when_the_signal_is_missing(command, signal):
+    result = run(command, FakePorts(metrics=FakeMetrics({signal: None})))
+
+    assert result.status == "ok" and "no data yet" in "\n".join(result.output_lines)
+
+
 @pytest.mark.parametrize("text", ["cache restart", "worker restart", "net reconnect api"])
 def test_write_commands_are_rejected_and_nothing_runs(text):
     ports = FakePorts()
@@ -226,8 +307,7 @@ def test_write_commands_are_rejected_and_nothing_runs(text):
     assert ports.calls == []
 
 
-@pytest.mark.parametrize("text", ["worker status", "worker heartbeat", "worker throughput", "queue depth",
-                                  "net inspect api", "net expected api", "net diff api"])
+@pytest.mark.parametrize("text", ["net inspect api", "net expected api", "net diff api"])
 def test_scenario_2_and_4_reads_are_not_available_yet(text):
     ports = FakePorts()
     result = run(text, ports)

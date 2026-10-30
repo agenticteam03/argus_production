@@ -91,6 +91,57 @@ def test_a_read_runs_through_invoke_and_answers_with_its_output(ctx):
     assert ctx.calls == [("container.status", "vm-166/container:argus-lab-cache", "console:olga")]
 
 
+class FakeWorkerMetrics:
+    def __init__(self):
+        self.calls = []
+
+    def snapshot(self, target, signals):
+        self.calls.append(("snapshot", target, signals))
+        values = {"worker_last_processed_age_s": 240, "jobs_processed_rate": 0.0, "queue_depth": 24}
+        return SimpleNamespace(target=target, observed_at=datetime(2026, 10, 29, 12, tzinfo=timezone.utc),
+                               values={signal: values[signal] for signal in signals})
+
+    def range(self, target, signal, minutes, step_s):
+        self.calls.append(("range", target, signal, minutes, step_s))
+        values = {"jobs_processed_rate": [(100, 0.4), (200, 0.0)], "queue_depth": [(100, 8), (200, 24)]}
+        return values[signal]
+
+
+def test_scenario4_commands_run_through_the_incident_route_and_use_their_ports(ctx):
+    ctx.app.metrics = FakeWorkerMetrics()
+    expected = {
+        "worker status": "state=running",
+        "worker heartbeat": "240 s since last processed",
+        "worker throughput": "0 jobs/min",
+        "queue depth": "24 jobs; trend=rising",
+    }
+
+    answers = {command: run(ctx.client, ctx.auth, ctx.inc, command).json() for command in expected}
+
+    for command, fragment in expected.items():
+        assert answers[command]["status"] == "ok"
+        assert fragment in "\n".join(answers[command]["output"])
+    assert "earlier=24 jobs/min" in "\n".join(answers["worker throughput"]["output"])
+    rows = ctx.app.store.console_history(ctx.inc.id)
+    assert [row["command"] for row in rows] == ["worker.status", "worker.heartbeat", "worker.throughput", "queue.depth"]
+    assert any(call[0] == "container.status" and call[1] == "vm-166/container:argus-lab-jobworker"
+               for call in ctx.calls)
+    assert len([call for call in ctx.app.metrics.calls if call[0] == "snapshot"]) == 3
+    assert len([call for call in ctx.app.metrics.calls if call[0] == "range"]) == 2
+
+
+def test_scenario4_route_reports_no_data_when_worker_signal_is_missing(ctx):
+    class MissingMetrics(FakeWorkerMetrics):
+        def snapshot(self, target, signals):
+            return SimpleNamespace(target=target, observed_at=None, values={signal: None for signal in signals})
+
+    ctx.app.metrics = MissingMetrics()
+
+    got = run(ctx.client, ctx.auth, ctx.inc, "worker heartbeat").json()
+
+    assert got["status"] == "ok" and got["output"] == ["argus-lab-jobworker heartbeat: no data yet"]
+
+
 def test_the_command_is_stored_in_the_incident_history_and_history_reads_it_back(ctx):
     command_id = run(ctx.client, ctx.auth, ctx.inc, "cache status", suggestion_id="sug_1").json()["command_id"]
 
