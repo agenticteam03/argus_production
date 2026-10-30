@@ -55,6 +55,16 @@ describe("mockArgusAdapter operator console (CON-3)", () => {
     expect(mockArgusAdapter.calls).toContainEqual({ method: "POST", path: "/api/v1/ops/console/incidents/inc_c3/execute" });
   });
 
+  it("records the opening and the closing of a console session, demo (T-0016)", async () => {
+    demoSession.role = "approver";
+    const opened = await mockArgusAdapter.openConsoleSession("inc_c3", "Check the cache");
+    expect(opened.session_id).toMatch(/^csn_[0-9a-f]{16}$/);
+    expect(Date.parse(opened.expires_at) - Date.parse(opened.opened_at)).toBe(30 * 60_000);
+    expect(await mockArgusAdapter.closeConsoleSession("inc_c3", opened.session_id, "disconnect")).toEqual({ closed: true });
+    expect(mockArgusAdapter.calls).toContainEqual({ method: "POST", path: "/api/v1/ops/console/incidents/inc_c3/sessions" });
+    await expect(mockArgusAdapter.openConsoleSession("inc_c3", "ok")).rejects.toMatchObject({ status: 422 });
+  });
+
   it("refuses a viewer, so the Console tab stays hidden", async () => {
     demoSession.role = "viewer";
     await expect(mockArgusAdapter.getConsoleCommands("inc_c3")).rejects.toMatchObject({ status: 403 });

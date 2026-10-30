@@ -37,7 +37,17 @@ const USERS = Object.fromEntries(
     .map(([name, u]) => [name.toLowerCase(), { name, role: u.role, password: u.password }])
 );
 
-const toUser = ({ name, role }) => ({ name, role, access: "read", actions: ROLE_ACTIONS[role] });
+// The demo's security keys (T-0016): a viewer has none (the console's case 2), the others two, not yet confirmed.
+const demoKeys = (role) => ({ enrolled: role === "viewer" ? 0 : 2, verified: false });
+const toUser = ({ name, role }) => ({ name, role, access: "read", actions: ROLE_ACTIONS[role], secondFactor: demoKeys(role) });
+
+// ACR-0032, demo: the private session lives in memory only, like the real one (a reload returns to the ordinary login).
+let privateUser = null;
+const privateView = () => {
+  const verified = demoSession.keyConfirmed;
+  return { user: { ...privateUser, secondFactor: { enrolled: 2, verified },
+    actions: verified ? [...privateUser.actions, "approve_action"] : privateUser.actions } };
+};
 
 /** @type {import("./AuthPort.js").AuthPort} */
 export const mockAuthAdapter = {
@@ -59,15 +69,26 @@ export const mockAuthAdapter = {
     return { user: session.user };
   },
 
-  async signInPrivate() {
-    throw new Error("The private login needs the real Argus API and the private path.");
+  // ACR-0032, demo: an approver signs in again for a private session; the simulated key then confirms it.
+  async signInPrivate({ username, password } = {}) {
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    const account = USERS[username?.toLowerCase()];
+    if (!account || password !== account.password || account.role !== "approver") {
+      throw new Error("Incorrect username or password, or this account has no private access.");
+    }
+    demoSession.role = account.role;
+    demoSession.keyConfirmed = false;
+    privateUser = { ...toUser(account), access: "ops" };
+    return privateView();
   },
 
   async refresh() {
-    return loadSession();
+    return privateUser ? privateView() : loadSession();
   },
 
   async signOut() {
+    privateUser = null;
+    demoSession.keyConfirmed = false;
     demoSession.role = null;
     clearSession();
   },

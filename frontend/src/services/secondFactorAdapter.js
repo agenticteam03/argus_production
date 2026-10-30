@@ -2,6 +2,7 @@
 // one object. Each ceremony is the API's options, then the browser's authenticator, then the API's verify; the API
 // decides (D4: the first key needs a code from another administrator; a further one a step-up of an enrolled key).
 // `keys` is `navigator.credentials` (a parameter so the tests can pass a fake authenticator).
+import { demoSession } from "./demoSession.js";
 import { apiFetch } from "./http.js";
 import { credentialToJSON, toCreationOptions, toRequestOptions } from "./webauthn.js";
 
@@ -56,6 +57,11 @@ export const mockSecondFactorAdapter = {
   status: async () => null,
   credentials: async () => [],
   enrol: async () => { throw new Error("Security keys need the real Argus API."); },
-  confirmLogin: async () => { throw new Error("Security keys need the real Argus API."); },
+  // T-0016, demo: the simulated key confirms the private session (mockAuthAdapter.refresh reads it)
+  confirmLogin: async () => {
+    await new Promise((resolve) => setTimeout(resolve, 400));
+    demoSession.keyConfirmed = true;
+    return { verified: true };
+  },
   stepUp: async () => { throw new Error("Security keys need the real Argus API."); },
 };

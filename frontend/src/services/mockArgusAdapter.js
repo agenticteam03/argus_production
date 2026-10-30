@@ -191,6 +191,24 @@ export const mockArgusAdapter = {
     return demoConsoleExecute(incidentId, { input, confirmation }, demoSession.role);
   },
 
+  // T-0016, demo: the console session's record (opened with a reason, closed with why), as the API answers it.
+  async openConsoleSession(incidentId, reason) {
+    calls.push({ method: "POST", path: `/api/v1/ops/console/incidents/${incidentId}/sessions` });
+    await wait(150);
+    if (demoSession.role !== "operator" && demoSession.role !== "approver") throw httpError(403, "This role may not use the console.");
+    if (String(reason ?? "").trim().length < 3) throw httpError(422, "A reason of at least 3 characters is required.");
+    const hex = Array.from({ length: 16 }, () => Math.floor(Math.random() * 16).toString(16)).join("");
+    const opened = new Date();
+    return { session_id: `csn_${hex}`, opened_at: opened.toISOString(), limit_min: 30,
+      expires_at: new Date(opened.getTime() + 30 * 60_000).toISOString() };
+  },
+
+  async closeConsoleSession(incidentId) {
+    calls.push({ method: "POST", path: `/api/v1/ops/console/incidents/${incidentId}/sessions/close` });
+    await wait(50);
+    return { closed: true };
+  },
+
   async askAgent(text, canStartInvestigation = false) {
     const investigation = parseInvestigationRequest(text);
     if (investigation) {

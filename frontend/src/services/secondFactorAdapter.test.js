@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { demoSession } from "./demoSession.js";
 import { httpSecondFactorAdapter, mockSecondFactorAdapter, registerObject } from "./secondFactorAdapter.js";
 import { clearToken, setToken } from "./session.js";
 
@@ -77,9 +78,16 @@ describe("httpSecondFactorAdapter", () => {
 });
 
 describe("mockSecondFactorAdapter", () => {
-  it("says the demo has no second factor and refuses its ceremonies", async () => {
+  it("says the demo has no keys to manage and refuses enrolment and step-up", async () => {
     expect(await mockSecondFactorAdapter.status()).toBeNull();
     expect(await mockSecondFactorAdapter.credentials()).toEqual([]);
-    for (const fn of ["enrol", "confirmLogin", "stepUp"]) await expect(mockSecondFactorAdapter[fn]({})).rejects.toThrow(/real Argus API/);
+    for (const fn of ["enrol", "stepUp"]) await expect(mockSecondFactorAdapter[fn]({})).rejects.toThrow(/real Argus API/);
+  });
+
+  it("simulates confirming the private session with a key, for the demo's console and Actions (T-0016)", async () => {
+    demoSession.keyConfirmed = false;
+    expect(await mockSecondFactorAdapter.confirmLogin()).toEqual({ verified: true });
+    expect(demoSession.keyConfirmed).toBe(true);
+    demoSession.keyConfirmed = false;
   });
 });

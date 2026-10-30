@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { demoSession } from "./demoSession.js";
 import { mockAuthAdapter } from "./mockAuthAdapter.js";
+import { mockSecondFactorAdapter } from "./secondFactorAdapter.js";
 
 // Node has no sessionStorage, so the store would never persist. These tests provide a tiny fake.
 const mem = new Map();
@@ -31,6 +32,7 @@ describe("mockAuthAdapter", () => {
       role: "approver",
       access: "read",
       actions: ["view_incidents", "view_timeline", "view_evidence"],
+      secondFactor: { enrolled: 2, verified: false },
     });
   });
 
@@ -68,7 +70,8 @@ describe("mockAuthAdapter", () => {
 
     // `restore` is what a fresh page load runs: it brings the session back from the tab's sessionStorage.
     expect(mockAuthAdapter.restore()).toEqual({
-      user: { name: "operator", role: "operator", access: "read", actions: ["view_incidents", "view_timeline", "view_evidence"] },
+      user: { name: "operator", role: "operator", access: "read", actions: ["view_incidents", "view_timeline", "view_evidence"],
+        secondFactor: { enrolled: 2, verified: false } },
     });
 
     await mockAuthAdapter.signOut();
@@ -86,6 +89,7 @@ describe("mockAuthAdapter", () => {
       role: "operator",
       access: "read",
       actions: ["view_incidents", "view_timeline", "view_evidence"],
+      secondFactor: { enrolled: 2, verified: false },
     });
     // The demo defaults are gone once the environment defines the accounts.
     await expect(adapter.signIn({ username: "viewer", password: "argus-demo" })).rejects.toThrow();
@@ -97,5 +101,36 @@ describe("mockAuthAdapter", () => {
     const { mockAuthAdapter: adapter } = await import("./mockAuthAdapter.js");
 
     await expect(adapter.signIn({ username: "viewer", password: "argus-demo" })).resolves.toBeDefined();
+  });
+});
+
+describe("mockAuthAdapter, demo of the private login and the security key (ACR-0032, T-0016)", () => {
+  beforeEach(() => { stubStorage(); mem.clear(); demoSession.keyConfirmed = false; });
+  afterEach(async () => { await mockAuthAdapter.signOut(); delete globalThis.sessionStorage; });
+
+  it("a viewer has no key, so the console's access dialog shows case 2", async () => {
+    const { user } = await mockAuthAdapter.signIn({ username: "viewer", password: "argus-demo" });
+    expect(user.secondFactor).toEqual({ enrolled: 0, verified: false });
+  });
+
+  it("opens a private session for the demo approver, then the simulated key confirms it", async () => {
+    await mockAuthAdapter.signIn({ username: "approver", password: "argus-demo" });
+    const { user } = await mockAuthAdapter.signInPrivate({ username: "approver", password: "argus-demo" });
+    expect(user).toMatchObject({ access: "ops", secondFactor: { enrolled: 2, verified: false } });
+    await mockSecondFactorAdapter.confirmLogin();
+    const after = await mockAuthAdapter.refresh();
+    expect(after.user).toMatchObject({ access: "ops", secondFactor: { enrolled: 2, verified: true } });
+    expect(after.user.actions).toContain("approve_action");
+  });
+
+  it("refuses a private login to anyone but an approver, and to a wrong password", async () => {
+    await expect(mockAuthAdapter.signInPrivate({ username: "operator", password: "argus-demo" })).rejects.toThrow();
+    await expect(mockAuthAdapter.signInPrivate({ username: "approver", password: "nope" })).rejects.toThrow();
+  });
+
+  it("keeps the private session in memory only: a reload returns to the ordinary one", async () => {
+    await mockAuthAdapter.signIn({ username: "approver", password: "argus-demo" });
+    await mockAuthAdapter.signInPrivate({ username: "approver", password: "argus-demo" });
+    expect(mockAuthAdapter.restore().user.access).toBe("read");
   });
 });
