@@ -85,6 +85,10 @@
   dialog[open] { animation: var(--animate-dialog-in); }
   dialog[open]::backdrop { animation: var(--animate-fade-in); }
 
+  /* The docked console (console/dock/ConsoleDock.jsx) between docked, full screen and minimized: one View Transition
+     (utils/motion.js morph), timed like the rest. */
+  ::view-transition-group(console-dock) { animation-duration: var(--motion-slow); animation-timing-function: var(--ease-out-soft); }
+
   /* Toast (components/ui.jsx): slides up as it appears and back down as it goes. */
   .toast-in { animation: var(--animate-rise); }
   .toast-out { animation: var(--animate-toast-out); }

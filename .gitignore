@@ -29,6 +29,7 @@ hosts.env
 node_modules/
 frontend/dist/
 frontend/dist-e2e/
+frontend/dist-e2e-console/
 frontend/test-results/
 frontend/playwright-report/
 # ACR-0011: the public domain of the UI edge (template: deploy/ui/vm-095.env.example)

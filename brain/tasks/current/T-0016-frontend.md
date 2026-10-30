@@ -412,4 +412,6 @@ a screen or a button in `frontend/`.
     pulsing with `reduce` on `main` (fixed).
   - **Green:** `npm test` 67 files / 427 tests; `npx playwright test` 48/48 (axe in both themes, while loading and with a
     menu open); `npm run lint` 0 errors; `npm run build` green.
-  - **Not done:** the docked console panel is in #418 only; it gets its slide-in after one of the two merges.
+  - **After #418 merged:** `main` merged in (eight conflicts resolved on #418's side, motion re-applied); the docked
+    console slides in once and morphs between docked, full screen and minimized (View Transitions), its tabs, menu,
+    warning and access dialog animate, and its loading states shimmer. Vitest 460, Playwright 56/56.

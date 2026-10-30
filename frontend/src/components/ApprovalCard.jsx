@@ -1,11 +1,28 @@
-import { Card, Pill } from "./ui.jsx";
+import { Card, CircleAlert, fieldClass, Pill } from "./ui.jsx";
 import { dateTime } from "../utils/format.js";
 
 const RISKS = { green: ["Green risk", "green"], amber: ["Amber risk", "amber"], red: ["Red risk", "red"] };
 const VERDICTS = { agree: ["agree", "green"], doubt: ["doubt", "amber"], disagree: ["disagree", "red"] };
+// The judge's box takes its verdict's tint (theme tokens, light and dark alike).
+const JUDGE_TINT = { green: "border-emerald-400/30 bg-emerald-400/[0.06]", amber: "border-amber-400/30 bg-amber-400/[0.06]",
+  red: "border-red-400/30 bg-red-400/[0.06]", neutral: "border-line bg-ink/[0.03]" };
 // ACR-0039: a doubt reaches the approver; only a disagreement cannot be approved (the server refuses it too).
 const APPROVABLE = new Set(["agree", "doubt"]);
-const button = "rounded-lg px-4 py-2 text-sm font-medium transition enabled:cursor-pointer enabled:hover:opacity-85 disabled:cursor-not-allowed disabled:opacity-45";
+const button = "h-10 rounded-lg px-4 text-sm font-medium transition enabled:cursor-pointer disabled:cursor-not-allowed disabled:opacity-45";
+const label = "text-[11px] font-medium uppercase tracking-wide text-muted";
+
+const Fact = ({ name, mono = false, children }) => (
+  <div className="min-w-0">
+    <dt className={label}>{name}</dt>
+    <dd className={`mt-0.5 break-words text-ink ${mono ? "font-mono text-xs" : "text-sm"}`}>{children}</dd>
+  </div>
+);
+const Step = ({ title, children }) => (
+  <div className="rounded-xl border border-line bg-ink/[0.03] p-3">
+    <h3 className={label}>{title}</h3>
+    <p className="mt-1 text-sm text-body">{children}</p>
+  </div>
+);
 
 // The server owns authorization and the frozen digest. This view never creates or edits a proposal.
 export default function ApprovalCard({ approval, canAnswer, busy, confirmation, onConfirmation, reason = "", onReason, onAnswer }) {
@@ -23,54 +40,77 @@ export default function ApprovalCard({ approval, canAnswer, busy, confirmation, 
   const mayApprove = ready && APPROVABLE.has(approval.judge.verdict) && (!red || confirmation === input.target);
   const mayDeny = ready && reason.trim() !== "";
 
-  return <Card title="Frozen action proposal" right={<Pill tone={tone}>{riskLabel}</Pill>}>
-    <div className="space-y-4 text-sm">
-      {doubted && <div role="alert" className="animate-rise rounded-xl border border-amber-400/30 bg-amber-400/10 p-3 text-amber-300">
-        <p className="font-medium">The independent judge doubted this action.</p>
-        <p className="mt-1">It was not stopped: you decide. Read the judge's reasons and the {riskLabel.toLowerCase()} below
-          (the doubt raised it one level) before approving; approving records that you overrode the doubt.</p>
+  return <Card title="Frozen action proposal" className="animate-rise" right={<Pill tone={tone}>{riskLabel}</Pill>}>
+    <div className="space-y-5 text-sm">
+      {doubted && <div role="alert" className="animate-rise flex gap-3 rounded-xl border border-amber-400/30 bg-amber-400/10 p-3 text-amber-300">
+        <CircleAlert width="18" height="18" className="mt-0.5 shrink-0" />
+        <div>
+          <p className="font-medium">The independent judge doubted this action.</p>
+          <p className="mt-1">It was not stopped: you decide. Read the judge's reasons and the {riskLabel.toLowerCase()} below
+            (the doubt raised it one level) before approving; approving records that you overrode the doubt.</p>
+        </div>
       </div>}
-      <div className="flex flex-wrap items-center gap-2">
-        <strong className="font-mono text-base text-ink">{input.capability}</strong>
-        <span className="break-all text-muted">{input.target}</span>
+
+      <div>
+        <p className="font-mono text-lg font-semibold text-ink">{input.capability}</p>
+        <p className="break-all font-mono text-xs text-muted">{input.target}</p>
+        <p className="mt-2 text-body">{input.rationale}</p>
       </div>
-      <p className="text-body">{input.rationale}</p>
-      <dl className="grid gap-3 rounded-xl bg-field p-3 sm:grid-cols-2">
-        <div><dt className="text-xs text-muted">Root cause</dt><dd>{input.root_cause}</dd></div>
-        <div><dt className="text-xs text-muted">Basis</dt><dd>{proposal.basis}</dd></div>
-        <div><dt className="text-xs text-muted">Grounds</dt><dd className="break-all">{input.grounds.join(", ")}</dd></div>
-        <div><dt className="text-xs text-muted">Evidence IDs</dt><dd className="break-all font-mono text-xs">{input.evidence_refs.join(", ")}</dd></div>
-        <div><dt className="text-xs text-muted">Target identity</dt><dd className="break-all font-mono text-xs">{identity.length ? identity.map(([k, v]) => `${k}: ${v}`).join(", ") : "—"}</dd></div>
-        <div><dt className="text-xs text-muted">Arguments</dt><dd className="break-all font-mono text-xs">{args.length ? args.map(([k, v]) => `${k}: ${JSON.stringify(v)}`).join(", ") : "none"}</dd></div>
-        <div><dt className="text-xs text-muted">Reversible</dt><dd>{approval.reversible ? "yes" : "no"}</dd></div>
-      </dl>
-      <div className="grid gap-3 sm:grid-cols-2">
-        <div><h3 className="font-medium">Expected result</h3><p className="mt-1 text-muted">{input.prediction.signal} on {input.prediction.target}: {input.prediction.expected} within {input.prediction.within_seconds}s.</p></div>
-        <div><h3 className="font-medium">Rollback</h3><p className="mt-1 text-muted">{input.rollback}</p></div>
+
+      <div className="grid gap-3 md:grid-cols-2">
+        <dl className="grid gap-3 rounded-xl border border-line p-3">
+          <Fact name="Root cause">{input.root_cause}</Fact>
+          <div className="grid grid-cols-2 gap-3">
+            <Fact name="Basis">{proposal.basis}</Fact>
+            <Fact name="Reversible">{approval.reversible ? "yes" : "no"}</Fact>
+          </div>
+          <Fact name="Grounds">{input.grounds.join(", ")}</Fact>
+        </dl>
+        <dl className="grid gap-3 rounded-xl border border-line p-3">
+          <Fact name="Evidence IDs" mono>{input.evidence_refs.join(", ")}</Fact>
+          <Fact name="Target identity" mono>{identity.length ? identity.map(([k, v]) => `${k}: ${v}`).join(", ") : "—"}</Fact>
+          <Fact name="Arguments" mono>{args.length ? args.map(([k, v]) => `${k}: ${JSON.stringify(v)}`).join(", ") : "none"}</Fact>
+        </dl>
       </div>
-      <div><h3 className="font-medium">Before execution</h3><p className="mt-1 text-muted">{input.preview}</p></div>
-      <div><h3 className="font-medium">Alternatives considered</h3><ul className="mt-1 list-disc pl-5 text-muted">{input.alternatives.map((a) => <li key={`${a.action}:${a.why_not}`}>{a.action}: {a.why_not}</li>)}</ul></div>
-      <div className="rounded-xl border border-line p-3">
-        <div className="flex items-center gap-2"><h3 className="font-medium">Independent judge</h3><Pill tone={verdictTone}>{verdictLabel}</Pill></div>
-        <ul className="mt-2 list-disc pl-5 text-muted">{approval.judge.reasons.map((reason, i) => <li key={i}>{reason}</li>)}</ul>
+
+      <div className="grid gap-3 md:grid-cols-3">
+        <Step title="Before execution">{input.preview}</Step>
+        <Step title="Expected result">{input.prediction.signal} on {input.prediction.target}: {input.prediction.expected} within {input.prediction.within_seconds}s.</Step>
+        <Step title="Rollback">{input.rollback}</Step>
       </div>
-      <p className="text-xs text-muted">Approval {approval.id} · Expires {dateTime(approval.expires_at)} · Digest <span className="font-mono">{proposal.digest}</span></p>
-      {red && <div>
-        <label htmlFor="approval-target-confirmation" className="block text-sm font-medium">Type <span className="font-mono">{input.target}</span> to confirm this red-risk target</label>
-        <input id="approval-target-confirmation" className="mt-2 w-full rounded-lg border border-line bg-field px-3 py-2" value={confirmation}
-          onChange={(event) => onConfirmation(event.target.value)} autoComplete="off" />
-      </div>}
-      {ready && <div>
-        <label htmlFor="approval-deny-reason" className="block text-sm font-medium">Reason (required to deny)</label>
-        <input id="approval-deny-reason" className="mt-2 w-full rounded-lg border border-line bg-field px-3 py-2" value={reason}
-          onChange={(event) => onReason?.(event.target.value)} maxLength={500} autoComplete="off" />
-      </div>}
-      {!canAnswer && <p className="rounded-lg border border-amber-400/30 bg-amber-400/10 p-3 text-amber-300">A full private session is required to answer this approval.</p>}
-      {!pending && <p className="text-muted">This approval is no longer pending.</p>}
-      <div className="flex flex-wrap gap-2 border-t border-line pt-4">
-        <button type="button" className={`${button} bg-accent-solid text-white`} disabled={!mayApprove} onClick={() => onAnswer("approved")}>Approve</button>
-        <button type="button" className={`${button} border border-line bg-field`} disabled={!mayDeny} onClick={() => onAnswer("denied")}>Deny</button>
+
+      <div>
+        <h3 className={label}>Alternatives considered</h3>
+        <ul className="mt-1.5 space-y-1">{input.alternatives.map((a) => <li key={`${a.action}:${a.why_not}`} className="text-body">
+          <span className="font-medium text-ink">{a.action}</span>: <span className="text-muted">{a.why_not}</span></li>)}</ul>
       </div>
+
+      <div className={`rounded-xl border p-3 ${JUDGE_TINT[verdictTone] ?? JUDGE_TINT.neutral}`}>
+        <div className="flex items-center gap-2"><h3 className="text-sm font-medium text-ink">Independent judge</h3><Pill tone={verdictTone}>{verdictLabel}</Pill></div>
+        <ul className="mt-2 list-disc space-y-0.5 pl-5 text-body">{approval.judge.reasons.map((r, i) => <li key={i}>{r}</li>)}</ul>
+      </div>
+
+      <div className="space-y-3 rounded-xl border border-line bg-ink/[0.02] p-4">
+        <h3 className="text-sm font-medium text-ink">Your decision</h3>
+        {red && <div>
+          <label htmlFor="approval-target-confirmation" className="block text-sm text-body">Type <span className="font-mono text-ink">{input.target}</span> to confirm this red-risk target</label>
+          <input id="approval-target-confirmation" className={`mt-1.5 w-full ${fieldClass}`} value={confirmation}
+            onChange={(event) => onConfirmation(event.target.value)} autoComplete="off" />
+        </div>}
+        {ready && <div>
+          <label htmlFor="approval-deny-reason" className="block text-sm text-body">Reason (required to deny)</label>
+          <input id="approval-deny-reason" className={`mt-1.5 w-full ${fieldClass}`} value={reason}
+            onChange={(event) => onReason?.(event.target.value)} maxLength={500} autoComplete="off" />
+        </div>}
+        {!canAnswer && <p className="rounded-lg border border-amber-400/30 bg-amber-400/10 p-3 text-amber-300">A full private session is required to answer this approval.</p>}
+        {!pending && <p className="text-muted">This approval is no longer pending.</p>}
+        <div className="flex flex-wrap justify-end gap-2">
+          <button type="button" className={`${button} border border-line bg-field text-ink enabled:hover:bg-ink/5`} disabled={!mayDeny} onClick={() => onAnswer("denied")}>Deny</button>
+          <button type="button" className={`${button} bg-accent-solid text-white enabled:hover:bg-accent-solid-hover`} disabled={!mayApprove} onClick={() => onAnswer("approved")}>Approve</button>
+        </div>
+      </div>
+
+      <p className="break-all text-xs text-muted">Approval {approval.id} · Expires {dateTime(approval.expires_at)} · Digest <span className="font-mono">{proposal.digest}</span></p>
     </div>
   </Card>;
 }

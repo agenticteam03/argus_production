@@ -375,8 +375,8 @@ export function Segmented({ options, value, onChange, label, className = "" }) {
   );
 }
 
-export const Disclosure = ({ summary, className = "", children }) => (
-  <details className={`group ${className}`}>
+export const Disclosure = ({ summary, className = "", onToggle, children }) => (
+  <details className={`group ${className}`} onToggle={onToggle}>
     <summary className="flex w-fit cursor-pointer list-none items-center gap-1.5 text-[13px] text-muted hover:text-ink [&::-webkit-details-marker]:hidden">
       <Chevron width="14" height="14" className="-rotate-90 transition-transform group-open:rotate-0 motion-reduce:transition-none" />
       {summary}

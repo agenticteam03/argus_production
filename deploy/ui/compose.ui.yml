@@ -6,7 +6,8 @@
 name: argus-v18-ui
 services:
   argus-v18-ui:
-    build: {context: ../.., dockerfile: deploy/ui/Dockerfile}
+    # the console is built in with the API's own flag (ACR-0043): set ARGUS_OPERATOR_CONSOLE=1 in the env file for both
+    build: {context: ../.., dockerfile: deploy/ui/Dockerfile, args: {VITE_ARGUS_CONSOLE: "${ARGUS_OPERATOR_CONSOLE:-0}"}}
     image: argus-v18-ui:1
     container_name: argus-v18-ui
     restart: unless-stopped

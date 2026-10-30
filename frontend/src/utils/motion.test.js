@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { countFrame, motionMs } from "./motion.js";
+import { countFrame, morph, motionMs } from "./motion.js";
 
 // A stand-in for getComputedStyle(document.documentElement): only getPropertyValue is read.
 const style = (vars) => ({ getPropertyValue: (name) => vars[name] ?? "" });
@@ -38,5 +38,26 @@ describe("countFrame", () => {
   it("clamps a progress outside 0..1", () => {
     expect(countFrame(0, 8, -1)).toBe(0);
     expect(countFrame(0, 8, 2)).toBe(8);
+  });
+});
+
+describe("morph", () => {
+  const reduced = (on) => { globalThis.matchMedia = () => ({ matches: on }); };
+
+  it("runs a layout change inside one View Transition when the browser has them", () => {
+    reduced(false);
+    const calls = [];
+    const doc = { startViewTransition: (cb) => { calls.push("transition"); cb(); } };
+    morph(() => calls.push("update"), doc);
+    expect(calls).toEqual(["transition", "update"]);
+  });
+
+  it("just runs it without View Transitions, or with reduced motion", () => {
+    reduced(true);
+    const calls = [];
+    morph(() => calls.push("update"), { startViewTransition: () => calls.push("transition") });
+    morph(() => calls.push("update"), {});
+    expect(calls).toEqual(["update", "update"]);
+    delete globalThis.matchMedia;
   });
 });

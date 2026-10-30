@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { consoleAuditLine } from "../utils/consoleAudit.js";
 import { auditDetail, clock, dateTime, shortHash } from "../utils/format.js";
 import { groupEvidence } from "../utils/incidentView.js";
 import SafeMarkdown from "./SafeMarkdown.jsx";
@@ -91,6 +92,7 @@ export function AuditSection({ items, evidenceIds, onJump }) {
         <ul className="stagger max-h-[62vh] space-y-1.5 overflow-auto pr-1">
           {items.map((a, i) => {
             const detail = auditDetail(a.detail);
+            const said = consoleAuditLine(a);       // T-0016: a console row in plain words; its JSON stays under Details
             const panel = `audit-detail-${i}`;
             const expandable = detail.kind === "json" || Boolean(a.policy_rule);
             const linked = a.evidence_id && evidenceIds.has(a.evidence_id);
@@ -101,6 +103,7 @@ export function AuditSection({ items, evidenceIds, onJump }) {
                   <span className="min-w-0 break-words font-mono text-xs text-ink">{a.event ?? "—"}</span>
                   <span className="col-start-2 min-w-0 break-words md:col-start-auto">
                     {linked ? <button onClick={() => onJump(a.evidence_id)} className={link}>{a.evidence_id}</button>
+                      : said ? <span className="text-body">{said}</span>
                       : detail.kind === "text" ? <span className="text-body">{detail.text}</span>
                         : a.evidence_id ? <span className="font-mono text-xs text-muted">{a.evidence_id}</span>
                           : <span className="text-muted">—</span>}

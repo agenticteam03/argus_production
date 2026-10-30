@@ -93,6 +93,15 @@ test.describe("transitions and micro-interactions", () => {
     expect((await anim(dialog, "::backdrop")).name).toBe("fade-in");
   });
 
+  test("the incident's More menu drops open with the details shown (#418)", async ({ page, api }) => {
+    await api();
+    await logIn(page);
+    await page.goto(`/incidents/${DIAGNOSED_ID}`);
+    await page.getByText("Details: trigger, principal, times").click();
+    await page.getByText("More", { exact: true }).click();
+    expect((await anim(page.locator("main details[open] > div").last())).name).toBe("drop");
+  });
+
   test("list rows come in one after another", async ({ page, api }) => {
     await api();
     await logIn(page);

@@ -57,6 +57,12 @@ const PHASE19_PREVIEW = make({
   next_actions: [{ action: "container.start", target: CACHE,
     text: "Demo candidate: start the stopped cache dependency", basis: "runbook", grounds: ["RB-003"],
     evidence_refs: [evId(ID.I, 1)], risk_color: "green", is_executable: false }],
+  // T-0016: the incident's action trail, as the real incident shows it: frozen, judged, waiting for an approver
+  // (the Actions demo's synthetic approval, services/demoApproval.js)
+  action: { proposal_id: "prop_phase19_demo", capability: "container.start", target: CACHE,
+    rationale: "Starting the stopped cache is the reviewed RB-003 candidate for this lab dependency.",
+    judge: { verdict: "agree", risk: "red", reasons: ["Demo judge: the cited status and runbook match this target."] },
+    approval: { id: "appr_phase19_demo", state: "pending" }, action: null, outcome: null },
 });
 
 const A_RUNNING = make({

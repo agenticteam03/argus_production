@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import ApprovalCard from "./ApprovalCard.jsx";
 import PrivateAccess from "./PrivateAccess.jsx";
-import { ErrorCard, Skeleton } from "./ui.jsx";
+import { CircleCheck, ErrorCard, Lock, Skeleton } from "./ui.jsx";
 import { useAuth } from "../context/AuthContext.jsx";
 import { argus, secondFactor } from "../services/index.js";
 import { actionsStep } from "../services/actionsStep.js";
@@ -56,9 +56,12 @@ export default function IncidentApproval({ action, onAnswered }) {
   });
 
   return <section aria-label="Decide this approval" className="space-y-3">
-    {step !== "ready" && <p className="text-sm text-muted">This incident's action waits for an approver. Sign in privately to decide it here.</p>}
+    {step !== "ready" && <p className="flex items-center gap-2 rounded-xl border border-accent/30 bg-accent/10 p-3 text-sm text-ink">
+      <Lock width="16" height="16" className="shrink-0 text-accent-hover" />
+      This incident's action waits for an approver. Sign in privately to decide it here.</p>}
     {error && <ErrorCard title="Could not complete this request" text={error} />}
-    {notice && <p role="status" className="rounded-xl border border-emerald-400/30 bg-emerald-400/10 p-3 text-sm text-emerald-300">{notice}</p>}
+    {notice && <p role="status" className="animate-rise flex items-center gap-2 rounded-xl border border-emerald-400/30 bg-emerald-400/10 p-3 text-sm text-emerald-300">
+      <CircleCheck width="16" height="16" className="shrink-0" /> {notice}</p>}
     <PrivateAccess step={step} busy={busy} run={run} loginPrivate={loginPrivate} secondFactor={secondFactor} refresh={refresh} />
     {step === "ready" && (approval
       ? <ApprovalCard approval={approval} canAnswer={canAnswer} busy={busy} confirmation={confirmation}

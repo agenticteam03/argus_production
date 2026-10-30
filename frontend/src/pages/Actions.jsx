@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import ApprovalCard from "../components/ApprovalCard.jsx";
 import PendingApprovals from "../components/PendingApprovals.jsx";
 import PrivateAccess from "../components/PrivateAccess.jsx";
-import { Card, ErrorCard, Skeleton } from "../components/ui.jsx";
+import { Card, CircleAlert, CircleCheck, ErrorCard, fieldClass, Inbox, Skeleton } from "../components/ui.jsx";
 import { useAuth } from "../context/AuthContext.jsx";
 import { argus, secondFactor } from "../services/index.js";
 import { actionsStep } from "../services/actionsStep.js";
@@ -75,9 +75,11 @@ export default function Actions() {
       <h1 className="text-[28px] font-semibold tracking-[-0.03em]">Actions</h1>
       <p className="mt-1 text-sm text-muted">Review the frozen proposal and independent judge before deciding. A decision never executes this card directly.</p>
     </div>
-    {preview && <p className="rounded-xl border border-amber-400/30 bg-amber-400/10 p-3 text-sm text-amber-300">Local demonstration: this approval is synthetic and cannot be submitted.</p>}
+    {preview && <p className="animate-rise flex items-center gap-2 rounded-xl border border-amber-400/30 bg-amber-400/10 p-3 text-sm text-amber-300">
+      <CircleAlert width="16" height="16" className="shrink-0" /> Local demonstration: this approval is synthetic and cannot be submitted.</p>}
     {error && <ErrorCard title="Could not complete this request" text={error} />}
-    {notice && <p role="status" className="rounded-xl border border-emerald-400/30 bg-emerald-400/10 p-3 text-sm text-emerald-300">{notice}</p>}
+    {notice && <p role="status" className="animate-rise flex items-center gap-2 rounded-xl border border-emerald-400/30 bg-emerald-400/10 p-3 text-sm text-emerald-300">
+      <CircleCheck width="16" height="16" className="shrink-0" /> {notice}</p>}
 
     <PrivateAccess step={step} busy={busy} run={run} loginPrivate={loginPrivate} secondFactor={secondFactor} refresh={refresh} />
 
@@ -85,19 +87,30 @@ export default function Actions() {
       <p className="text-sm text-muted">Argus grants decisions to approvers with two security keys, on the private path.</p>
     </Card>}
 
-    {step === "ready" && <>
-      {pending === null ? <Skeleton className="h-24" /> : <PendingApprovals items={pending} onOpen={load} />}
-      <Card title="Open an approval by ID">
-        <form className="flex flex-wrap gap-2" onSubmit={(event) => { event.preventDefault(); if (id.trim()) load(id.trim()); }}>
-          <label htmlFor="approval-id" className="sr-only">Approval ID</label>
-          <input id="approval-id" value={id} onChange={(event) => setId(event.target.value)} placeholder="Approval ID"
-            className="min-w-0 flex-1 rounded-lg border border-line bg-field px-3 py-2 text-sm" />
-          <button type="submit" disabled={!id.trim() || loading} className="cursor-pointer rounded-lg bg-accent-solid px-4 py-2 text-sm text-white disabled:opacity-50">Open</button>
-        </form>
-      </Card>
-      {loading && <Skeleton className="h-64" />}
-      {approval && <ApprovalCard approval={approval} canAnswer={canAnswer} busy={busy} confirmation={confirmation}
-        onConfirmation={setConfirmation} reason={reason} onReason={setReason} onAnswer={answer} />}
-    </>}
+    {/* T-0016: the list beside the open proposal on a wide screen; one column on a narrow one */}
+    {step === "ready" && <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,22rem)_minmax(0,1fr)]">
+      <div className="space-y-5 lg:sticky lg:top-4">
+        {pending === null ? <Skeleton className="h-24" /> : <PendingApprovals items={pending} onOpen={load} selected={approval?.id} />}
+        <Card title="Open an approval by ID">
+          <form className="flex gap-2" onSubmit={(event) => { event.preventDefault(); if (id.trim()) load(id.trim()); }}>
+            <label htmlFor="approval-id" className="sr-only">Approval ID</label>
+            <input id="approval-id" value={id} onChange={(event) => setId(event.target.value)} placeholder="Approval ID"
+              className={`min-w-0 flex-1 font-mono ${fieldClass}`} />
+            <button type="submit" disabled={!id.trim() || loading}
+              className="h-11 cursor-pointer rounded-lg bg-accent-solid px-4 text-sm font-medium text-white transition enabled:hover:bg-accent-solid-hover disabled:cursor-not-allowed disabled:opacity-50">Open</button>
+          </form>
+        </Card>
+      </div>
+      <div className="min-w-0">
+        {loading ? <Skeleton className="h-96" />
+          : approval ? <ApprovalCard key={approval.id} approval={approval} canAnswer={canAnswer} busy={busy} confirmation={confirmation}
+            onConfirmation={setConfirmation} reason={reason} onReason={setReason} onAnswer={answer} />
+            : <div className="grid animate-fade-in place-items-center rounded-2xl border border-dashed border-line px-6 py-16 text-center">
+              <Inbox width="24" height="24" className="mb-2 text-muted" />
+              <p className="text-sm font-medium text-ink">Open an approval to review it</p>
+              <p className="mt-1 max-w-sm text-[13px] text-muted">Its frozen proposal, the independent judge and your decision appear here.</p>
+            </div>}
+      </div>
+    </div>}
   </div>;
 }

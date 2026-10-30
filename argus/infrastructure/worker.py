@@ -8,6 +8,9 @@ recovers only expired claims, so it never takes a run another live worker holds;
 OP-009: a renewal that fails (a database error) is retried until the lease has really expired. A lost claim
 (another worker owns it, or the lease expired while retrying) cancels the run: the runner stops at its next node and
 writes nothing more, so two workers never run the same incident.
+
+inc_6a4980a4d8ed: a run that stops at an interrupt (an approval, a fresh verification sample) is parked, not left
+claimed: `claimed_by` is cleared and the claim ends at the approval's expiry. The approval's answer requeues it at once.
 """
 from __future__ import annotations
 
@@ -28,7 +31,7 @@ log = logging.getLogger("argus.worker")
 class Worker:
     def __init__(self, app, worker_id: str | None = None, lease_s: int = 300, renew_every_s: float | None = None,
                  idle_s: float = 1.0, max_queued_age_s: int = 900, now: Callable[[], datetime] = utcnow,
-                 recover_every_s: float = 30.0, db_retry_s: float = 5.0):
+                 recover_every_s: float = 5.0, db_retry_s: float = 5.0):
         self.app = app
         self.max_queued_age_s = max_queued_age_s
         self.now = now
@@ -36,7 +39,8 @@ class Worker:
         self.lease_s = lease_s
         self.renew_every_s = renew_every_s if renew_every_s is not None else lease_s / 3
         self.idle_s = idle_s
-        # A crashed worker is restarted within seconds while its lease is still live: re-check while running.
+        # A crashed worker is restarted within seconds while its lease is still live: re-check while running. Every
+        # 5 s (ARGUS_WORKER_RECOVER_S): a parked run whose approval expired resumes within one check; one cheap UPDATE.
         self.recover_every_s = recover_every_s
         self.db_retry_s = db_retry_s                  # T-0030: pause after a database error, then retry
 
@@ -65,7 +69,25 @@ class Worker:
         finally:
             done.set()
             renewer.join()
+        if not lost.is_set():
+            self._park_if_paused(inc.id)
         return inc.id
+
+    def _park_if_paused(self, incident_id: str) -> None:
+        """inc_6a4980a4d8ed: a run paused at an interrupt looked live (claimed, lease in the future), so an approval
+        waited for the claim to expire. It is parked instead: no worker holds it, and its claim ends at the pending
+        approval's expiry (one lease when no approval waits). The answer requeues a parked run in the transaction that
+        records it; an answer given before the park committed is found by the check that follows the park."""
+        paused = getattr(self.app.runner, "paused", None)          # the plain runner never pauses
+        waiting = paused(incident_id) if paused is not None else None
+        if waiting is None:
+            return
+        approval_id = waiting.get("approval_id")
+        if not self.app.store.park_claim(incident_id, self.worker_id, approval_id, lease_s=self.lease_s):
+            return                                                 # no longer this worker's claim
+        log.info("parked %s: waiting for %s", incident_id, approval_id or "a fresh verification sample")
+        if approval_id and self.app.store.wake_answered(incident_id, approval_id):
+            log.info("requeued %s: approval %s was answered while the run was live", incident_id, approval_id)
 
     def run_forever(self, stop: threading.Event) -> None:
         """T-0030: a database error (Postgres restarting) is a pause, never the end of the loop: it is logged, the
