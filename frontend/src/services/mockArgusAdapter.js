@@ -184,11 +184,11 @@ export const mockArgusAdapter = {
     return demoConsoleHistory(incidentId);
   },
 
-  async executeConsoleCommand(incidentId, { input, confirmation } = {}) {
+  async executeConsoleCommand(incidentId, { input, confirmation, suggestion_id } = {}) {
     calls.push({ method: "POST", path: `/api/v1/ops/console/incidents/${incidentId}/execute` });
     await wait(300);
     if (demoSession.role !== "operator" && demoSession.role !== "approver") throw httpError(403, "This role may not use the console.");
-    return demoConsoleExecute(incidentId, { input, confirmation }, demoSession.role);
+    return demoConsoleExecute(incidentId, { input, confirmation, suggestion_id }, demoSession.role);
   },
 
   async askAgent(text, canStartInvestigation = false) {
