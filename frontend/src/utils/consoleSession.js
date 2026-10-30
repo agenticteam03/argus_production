@@ -57,19 +57,32 @@ export function stepHistory(list, index, key) {
 }
 
 // Argus's analysis of a command, as the API sends it (CON-4). The UI never writes a comment of its own.
+// CON-9: an analysis still running ANALYSIS_TIMEOUT_S after the metrics settled, and an error the API marks retryable,
+// carry `retryable` so the panel offers a manual re-check; each failure has its own words (spec §8).
+export const ANALYSIS_TIMEOUT_S = 90;
+
 export function analysisView(analysis, now = Date.now()) {
   if (!analysis?.status) return null;
+  const settled = Date.parse(analysis.settle_until);
   switch (analysis.status) {
     case "waiting": {
-      const left = Math.ceil((Date.parse(analysis.settle_until) - now) / 1000);
+      const left = Number.isFinite(settled) ? Math.ceil((settled - now) / 1000) : analysis.countdown_s;
       return { tone: "neutral", text: left > 0 ? `Waiting for metrics to settle (${left} s)` : "Waiting for metrics to settle" };
     }
     case "analyzing":
+      if (Number.isFinite(settled) && now - settled > ANALYSIS_TIMEOUT_S * 1000) {
+        return { tone: "amber", text: "Analysis is taking longer than expected", retryable: true };
+      }
       return { tone: "blue", text: "Argus is analysing the result" };
     case "done":
       return { tone: "green", text: printable(analysis.comment) };
-    default:
-      return { tone: "amber", text: `Analysis unavailable${analysis.reason ? `: ${printable(analysis.reason)}` : ""}` };
+    default: {
+      const why = analysis.reason ?? analysis.error;
+      const view = analysis.message
+        ? { tone: "amber", text: printable(analysis.message) }
+        : { tone: analysis.error ? "red" : "amber", text: `Analysis unavailable${why ? `: ${printable(why)}` : ""}` };
+      return analysis.retryable === true ? { ...view, retryable: true } : view;
+    }
   }
 }
 
@@ -125,3 +138,15 @@ export const appliedIds = (history = []) => new Set((history ?? []).map((e) => e
 // operator's own command).
 export const suggestionIdFor = (input, inserted) =>
   inserted && String(input ?? "").trim() === inserted.command ? inserted.id : undefined;
+
+// --- CON-9: the history poll -------------------------------------------------------------------------------------
+// A network failure or a 5xx is a temporary outage: the panel keeps the last good entries and says it is retrying. A
+// refused poll (4xx) is not an outage the operator can wait out, so it changes nothing.
+export const historyFailed = (err) => !Number.isInteger(err?.status) || err.status >= 500;
+
+export function nextHistory(prev, incidentId, data, err) {
+  const entries = prev.id === incidentId ? prev.entries : [];
+  if (!err) return { id: incidentId, entries: Array.isArray(data?.entries) ? data.entries : [], unavailable: false };
+  if (!historyFailed(err)) return prev;
+  return { id: incidentId, entries, unavailable: true };
+}
