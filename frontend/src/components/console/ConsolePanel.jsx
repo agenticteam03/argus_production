@@ -1,11 +1,16 @@
-import { analysisView, printable, STATUS_VIEW } from "../../utils/consoleSession.js";
+import { useState } from "react";
+import { analysisView, appliedIds, printable, STATUS_VIEW, suggestionsFrom } from "../../utils/consoleSession.js";
+import { copyText } from "../../utils/clipboard.js";
 import { clock } from "../../utils/format.js";
 import { shortName } from "../../utils/incidentView.js";
 import { Pill, STATUS_META } from "../ui.jsx";
 
 // CON-3: the Argus panel next to the terminal. The diagnosis is the incident's own state (the page's polling), never
 // console-local state; the activity is the stored command history, with Argus's analysis when the API sends one (CON-4).
-export default function ConsolePanel({ incident: inc, history = [], now = Date.now() }) {
+// CON-5: Argus's suggestions (registry commands only) with Insert (fills the input, never runs) and Copy.
+export default function ConsolePanel({ incident: inc, history = [], commands = [], now = Date.now(), onInsert }) {
+  const suggestions = suggestionsFrom(history, commands);
+  const applied = appliedIds(history);
   const ruledOut = Array.isArray(inc.ruled_out) ? inc.ruled_out : [];
   const [statusLabel, statusTone] = STATUS_META[inc.status] ?? [inc.status, "neutral"];
   const items = [...history].reverse();
@@ -27,6 +32,15 @@ export default function ConsolePanel({ incident: inc, history = [], now = Date.n
           </>}
         </dl>
       </section>
+
+      {suggestions.length > 0 && (
+        <section aria-labelledby="console-suggestions" className="rounded-xl border border-line bg-field p-3.5">
+          <h3 id="console-suggestions" className="text-sm font-medium text-ink">Suggestions</h3>
+          <ul className="mt-2 max-h-48 space-y-2 overflow-y-auto pr-1">
+            {suggestions.map((s) => <SuggestionCard key={s.id} suggestion={s} applied={applied.has(s.id)} onInsert={onInsert} />)}
+          </ul>
+        </section>
+      )}
 
       <section aria-labelledby="console-activity" className="flex min-h-0 flex-1 flex-col rounded-xl border border-line bg-field p-3.5">
         <h3 id="console-activity" className="text-sm font-medium text-ink">Activity</h3>
@@ -57,5 +71,26 @@ export default function ConsolePanel({ incident: inc, history = [], now = Date.n
         )}
       </section>
     </div>
+  );
+}
+
+const small = "h-7 cursor-pointer rounded-lg border border-line px-2.5 text-xs text-body transition hover:border-field-line hover:text-ink disabled:cursor-not-allowed disabled:text-faint motion-reduce:transition-none";
+
+function SuggestionCard({ suggestion: s, applied, onInsert }) {
+  const [copied, setCopied] = useState(null);
+  const copy = async () => setCopied((await copyText(s.command)) ? "Copied" : "Copy failed");
+  return (
+    <li className="rounded-lg border border-line bg-card/60 p-2.5">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <code className="min-w-0 break-all font-mono text-[13px] text-ink">{s.command}</code>
+        {applied && <Pill tone="green">Applied</Pill>}
+      </div>
+      <p className="mt-1 text-xs text-muted">{s.rationale ?? `Suggested after ${s.after}`}</p>
+      <div className="mt-2 flex flex-wrap items-center gap-2">
+        <button type="button" className={small} onClick={() => onInsert?.(s)}>Insert into console</button>
+        <button type="button" className={small} onClick={copy}>Copy</button>
+        {copied && <span role="status" className="text-xs text-muted">{copied}</span>}
+      </div>
+    </li>
   );
 }
