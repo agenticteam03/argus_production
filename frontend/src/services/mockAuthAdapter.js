@@ -60,6 +60,7 @@ export const mockAuthAdapter = {
     const account = USERS[username?.toLowerCase()];
     if (!account || password !== account.password) throw new Error("Incorrect username or password. Please try again.");
     demoSession.role = account.role;
+    demoSession.name = account.name;
     const user = toUser(account);
     saveSession({ user });
     return { user };
@@ -70,6 +71,7 @@ export const mockAuthAdapter = {
     const session = loadSession();
     if (!session) return null;
     demoSession.role = session.user.role;
+    demoSession.name = session.user.name;
     return { user: session.user };
   },
 
@@ -81,6 +83,7 @@ export const mockAuthAdapter = {
       throw new Error("Incorrect username or password, or this account has no private access.");
     }
     demoSession.role = account.role;
+    demoSession.name = account.name;
     demoSession.keyConfirmed = false;
     privateUser = { ...toUser(account), access: "ops" };
     return privateView();

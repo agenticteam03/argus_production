@@ -38,7 +38,7 @@ export default function IncidentDetail() {
   const { id } = useParams();
   const { user } = useAuth();
   const dock = useConsoleDock();
-  const { view, incident: inc, events, reconnecting, retry } = useIncident(id);
+  const { view, incident: inc, events, reconnecting, retry, refresh } = useIncident(id);
   const [params, setParams] = useSearchParams();
   const [range, setRange] = useState("30m");
   const [rawOpen, setRawOpen] = useState(false);
@@ -113,6 +113,7 @@ export default function IncidentDetail() {
     const p = new URLSearchParams(params);
     if (next === "overview") p.delete("tab"); else p.set("tab", next);
     setParams(p);
+    if (next === "audit") refresh();          // a closed incident is not polled: new console rows appear on opening
   };
 
   const toggleEvidence = (key) => setOpenEvidence((prev) => { const next = new Set(prev); next.has(key) ? next.delete(key) : next.add(key); return next; });

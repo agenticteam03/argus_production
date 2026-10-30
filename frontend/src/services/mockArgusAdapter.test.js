@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { demoIncident } from "./demoIncidents.js";
+import { demoIncident, demoList } from "./demoIncidents.js";
 import { demoSession } from "./demoSession.js";
 import { mockArgusAdapter } from "./mockArgusAdapter.js";
 
@@ -63,6 +63,22 @@ describe("mockArgusAdapter operator console (CON-3)", () => {
     expect(await mockArgusAdapter.closeConsoleSession("inc_c3", opened.session_id, "disconnect")).toEqual({ closed: true });
     expect(mockArgusAdapter.calls).toContainEqual({ method: "POST", path: "/api/v1/ops/console/incidents/inc_c3/sessions" });
     await expect(mockArgusAdapter.openConsoleSession("inc_c3", "ok")).rejects.toMatchObject({ status: 422 });
+  });
+
+  it("keeps the console's record in the incident's audit, like the API: who, why, each command, the end", async () => {
+    demoSession.role = "approver";
+    demoSession.name = "approver";
+    const id = demoList()[0].id;
+    const { session_id: sid } = await mockArgusAdapter.openConsoleSession(id, "Check the cache");
+    await mockArgusAdapter.executeConsoleCommand(id, { input: "cache status" });
+    await mockArgusAdapter.executeConsoleCommand(id, { input: "ls -la" });
+    await mockArgusAdapter.closeConsoleSession(id, sid, "disconnect");
+    const audit = (await mockArgusAdapter.getIncident(id)).audit;
+    const mine = audit.filter((a) => a.event.startsWith("console."));
+    expect(mine.map((a) => a.event)).toEqual(["console.session_opened", "console.command", "console.refused", "console.session_closed"]);
+    expect(mine[0]).toMatchObject({ actor: "approver", detail: { session: sid, reason: "Check the cache" } });
+    expect(mine[1].detail).toMatchObject({ command: "cache.status", status: "ok" });
+    expect(mine[3].detail).toEqual({ session: sid, why: "disconnect" });
   });
 
   it("refuses a viewer, so the Console tab stays hidden", async () => {

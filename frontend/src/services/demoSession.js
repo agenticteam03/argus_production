@@ -1,6 +1,6 @@
 // DEMO ONLY: lets the mock "server" know who is calling, like the real one derives it from the token.
 // `keyConfirmed`: the demo's security key confirmed this session (ACR-0032), so the console and Actions open.
-export const demoSession = { role: null, keyConfirmed: false };
+export const demoSession = { role: null, name: null, keyConfirmed: false };
 
 // T-0016: the demo's security keys, per role, in memory: an operator and an approver start with two, a viewer with
 // none (the console's "ask your administrator" case). The Security keys page registers more, like the real one.
