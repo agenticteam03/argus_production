@@ -32,7 +32,18 @@ Decision / result:
   and Actions move into Tools) and the panel stops where the page keeps 600 px; each of two or more tabs closes with
   its x; the "+" menu closes outside; the dialog's private sign-in is a compact form; the demo answers like the real
   `/me` (actions per role) and has a Security keys page with demo keys.
-Consequences: on the VM the console needs a deploy of `main` with `ARGUS_OPERATOR_CONSOLE=1` and the private path;
+- **Deploy check (same day):** on vm-095 the console could never have appeared: the agent's container did not pass
+  `ARGUS_OPERATOR_CONSOLE` (routes 404) and the UI image was built without `VITE_ARGUS_CONSOLE`. Both now take the one
+  variable `ARGUS_OPERATOR_CONSOLE` (off by default). `tests/test_console_deploy_flow.py` walks the deployed path on the
+  real API: `/me`'s key count and confirmation, the ordinary session refused and alerted, the private session confirmed
+  with a key opening the console (`help`, a read, `ls -la` refused) and the record in the incident's audit. The
+  security alerts are enabled (`schedules.yaml`), so `security.console_refused` reaches Telegram once deployed.
+- **The record, readable:** console rows (opened with the reason, each command and its result, refusals, the end) read
+  as plain lines in the incident's Audit tab, which reads the incident again on opening; the demo keeps the same rows.
+- **The bell (ACR-0042):** its badge counts only unread approvals (kept in the browser); opening one or Actions marks it
+  read, "Mark all as read" clears them.
+Consequences: on the VM the console needs a deploy of this branch with `ARGUS_OPERATOR_CONSOLE=1` in `hosts.env` (the
+agent and the UI build both read it), the agent and UI rebuilt, and the private path on;
 from `localhost` (the SSH tunnel bypasses the edge) the private login answers 404, so the real path is the deployed UI.
 The team's Console tab on the incident page stays as it is. Open PRs #407 and #408 change the console components the
 panel reuses; their props stay compatible.
@@ -42,7 +53,7 @@ References: [ACR-0043](../../architecture/changes/ACR-0043-operator-console.md),
 ### Test state
 
 Backend: `tests/test_console_sessions.py` (red seen, then green) with the console route tests; the UI contract
-regenerated (only `ui-api.json`). Frontend: Vitest 395 passed (the dock rules, the adapters' session calls and the
+regenerated (only `ui-api.json`). Frontend: Vitest 406 passed (the dock rules, the adapters' session calls and the
 mock's private login and key seen red first); Playwright 38 passed over two builds, among them 6 side-panel tests
 with axe (written after the code); ESLint 0 errors. Browser: mock in dark and light at 1280 px and at 390 px, the
 whole flow and a command; the real `localhost` shows case 3 for juanes6554 (two keys, ordinary session).
