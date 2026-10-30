@@ -367,4 +367,3 @@ class ConsoleService:
         view = self.analysis.recheck(incident, command_id, principal.id)
         self._audit("console.recheck", principal.id, incident.id, command_id=command_id)
         return view
-

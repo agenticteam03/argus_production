@@ -376,4 +376,3 @@ class AnalysisRunner:
         if out["status"] == "analyzing" and elapsed - body["settle_s"] > self.config.analysis_stuck_s:
             out["retryable"] = True              # still running long after the metrics settled: ask again
         return out
-
