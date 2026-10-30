@@ -50,7 +50,7 @@ let privateUser = null;
 const privateView = () => {
   const verified = demoSession.keyConfirmed;
   return { user: { ...privateUser, secondFactor: { enrolled: 2, verified },
-    actions: verified ? [...privateUser.actions, "approve_action"] : privateUser.actions } };
+    actions: verified ? [...privateUser.actions, "approve_action", "manage_corpus"] : privateUser.actions } };
 };
 
 /** @type {import("./AuthPort.js").AuthPort} */

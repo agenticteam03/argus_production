@@ -126,6 +126,7 @@ describe("mockAuthAdapter, demo of the private login and the security key (ACR-0
     const after = await mockAuthAdapter.refresh();
     expect(after.user).toMatchObject({ access: "ops", secondFactor: { enrolled: 2, verified: true } });
     expect(after.user.actions).toContain("approve_action");
+    expect(after.user.actions).toContain("manage_corpus");          // like the real /me: the reference sources too
   });
 
   it("refuses a private login to anyone but an approver, and to a wrong password", async () => {
