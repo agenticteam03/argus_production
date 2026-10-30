@@ -48,7 +48,11 @@ def render_host(inv: dict, host: str) -> dict:
     # db-probe allowlist: a container target with a `database`, reached by its container name on the app network
     databases = [{"name": t["ref"].split(":", 1)[1], "host": t["ref"].split(":", 1)[1], "port": t["database"]["port"],
                   "dbname": t["database"]["dbname"]} for t in mine if "/container:" in t["ref"] and t.get("database")]
-    return {"host": host, "containers": containers, "dns_names": containers, "tcp": tcp,
+    # ACR-0044: the systemd units and processes the host probe watches (present / up) and may read
+    services = [t["ref"].split(":", 1)[1] for t in mine if "/service:" in t["ref"]]
+    processes = [{"name": t["ref"].split(":", 1)[1], **t["process"]} for t in mine if "/process:" in t["ref"]]
+    return {"host": host, "containers": containers, "services": services, "processes": processes,
+            "dns_names": containers, "tcp": tcp,
             "http_endpoints": http, "http_probes": http_probes, "probes": probes, "mounts": mounts, "databases": databases,
             "inspection": _inspection(host)}
 

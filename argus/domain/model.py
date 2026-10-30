@@ -315,6 +315,7 @@ class TargetInfo(BaseModel):
     profile: str | None = None           # ACR-0021: "scenario" = a lab container that only runs during a scenario
     link_warning_ms: float | None = None  # ACR-0021: a dependency answer slower than this is `slow` (default 100 ms)
     service: dict[str, Any] | None = None  # ACR-0019: service card defining safe/never actions, role and kind
+    process: dict[str, str] | None = None  # ACR-0044: how the host probe finds a process target ({comm} or {pidfile})
 
     def service_card(self):
         if not self.service:

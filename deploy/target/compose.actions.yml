@@ -22,10 +22,10 @@ services:
     <<: *common
     container_name: argus-v18-action-proxy
     environment: {ARGUS_ACTION_ROLE: proxy}
-    group_add: ["${ARGUS_DOCKER_GID:?the Docker socket's group: stat -c %g /var/run/docker.sock}"]
+    group_add: ["${ARGUS_DOCKER_GID:?the container socket's group: stat -c %g on ARGUS_CONTAINER_SOCKET (default /var/run/docker.sock)}"]
     network_mode: none                  # answers on its Unix socket only
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
+      - ${ARGUS_CONTAINER_SOCKET:-/var/run/docker.sock}:/var/run/docker.sock   # Docker, or Podman's compatible API (ACR-0044)
       - argus-v18-action-run:/run/argus-v18
       - /etc/argus-v18/action-gateway.json:/etc/argus-v18/action-gateway.json:ro
   argus-v18-action-gateway:             # the worker's one entry: token, journal, then one call through the proxy

@@ -8,6 +8,7 @@ unknown, never absent. The map and the target list read them through the named s
 from __future__ import annotations
 
 import importlib.util
+import json
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -188,3 +189,138 @@ def test_the_target_list_says_which_targets_exist(make_app):
     assert rows[here]["state"] == "running" and rows[gone]["state"] == "absent"
     assert {r["state"] for t, r in rows.items() if t not in (here, gone)} <= {"unknown", "running", "stopped"}
     assert set(rows) == {str(t.ref) for t in app.inventory.targets()}     # the inventory still decides the list
+
+
+# --- step 2: Podman through its Docker-compatible socket ----------------------------------------------------------------
+@pytest.mark.parametrize("path,service", [("deploy/target/compose.target.yml", "argus-v18-read-gateway"),
+                                          ("deploy/target/compose.target.yml", "argus-v18-exporter"),
+                                          ("deploy/target/compose.actions.yml", None)])
+def test_the_container_runtime_socket_is_the_hosts_choice(path, service):
+    """A host on Podman sets ARGUS_CONTAINER_SOCKET (its Docker-compatible API socket) in its env file; inside the
+    container the path stays /var/run/docker.sock, so the read gateway, the exporter and the action gateway are the
+    same code for both runtimes. Unset, it is Docker's socket."""
+    import yaml
+    compose = yaml.safe_load((ROOT / path).read_text(encoding="utf-8"))["services"]
+    for name, svc in compose.items():
+        if service not in (None, name):
+            continue
+        socket_mounts = [v for v in svc.get("volumes", []) if v.split(":")[-2 if v.count(":") > 1 else -1]
+                         .startswith("/var/run/docker.sock")]
+        if service is None and not socket_mounts:
+            continue
+        assert socket_mounts and all(v.startswith("${ARGUS_CONTAINER_SOCKET:-/var/run/docker.sock}:/var/run/docker.sock")
+                                     for v in socket_mounts), (name, socket_mounts)
+
+
+# --- step 3: systemd services and host processes, observed by the host probe -------------------------------------------
+INV_UNITS = """
+hosts:
+  h1: {executors: {host_probe: "http://hp:8700"}}
+targets:
+  - ref: h1/host:h1
+  - ref: h1/service:cron.service
+  - ref: h1/process:backup
+    process: {comm: backup.sh}
+  - ref: h1/process:sync
+    process: {pidfile: /run/argus-sync.pid}
+"""
+
+
+def test_the_inventory_accepts_services_and_processes_it_can_observe():
+    inv = YamlInventory(INV_UNITS)
+    assert {str(t.ref) for t in inv.targets()} >= {"h1/service:cron.service", "h1/process:backup", "h1/process:sync"}
+    assert inv.target(TargetRef.parse("h1/process:backup")).process == {"comm": "backup.sh"}
+
+
+@pytest.mark.parametrize("target,why", [
+    ("{ref: h1/service:cron}", "must end in .service"),
+    ("{ref: 'h1/service:a b.service'}", "must end in .service"),
+    ("{ref: h1/process:x}", "exactly one of comm or pidfile"),
+    ("{ref: h1/process:x, process: {comm: a, pidfile: /run/a.pid}}", "exactly one of comm or pidfile"),
+    ("{ref: h1/process:x, process: {comm: a-name-longer-than-15}}", "at most 15"),
+    ("{ref: h1/process:x, process: {pidfile: ../run/a.pid}}", "plain absolute path"),
+    ("{ref: h1/container:x, process: {comm: a}}", "only a process target"),
+])
+def test_the_inventory_refuses_what_no_observer_can_read(target, why):
+    with pytest.raises(ValueError, match=why):
+        YamlInventory("hosts: {h1: {}}\ntargets: [%s]\n" % target)
+
+
+def test_the_rendered_allowlist_names_the_hosts_services_and_processes():
+    import yaml
+    spec = importlib.util.spec_from_file_location("render_t0059", ROOT / "ops/render_target_config.py")
+    render = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(render)
+    cfg = render.render_host(yaml.safe_load(INV_UNITS), "h1")
+    assert cfg["services"] == ["cron.service"]
+    assert cfg["processes"] == [{"name": "backup", "comm": "backup.sh"}, {"name": "sync", "pidfile": "/run/argus-sync.pid"}]
+
+
+def _host_probe(tmp_path, monkeypatch):
+    proc, rootfs, secrets = tmp_path / "proc", tmp_path / "rootfs", tmp_path / "secrets"
+    for d in (proc, rootfs / "lib/systemd/system", rootfs / "run", secrets):
+        d.mkdir(parents=True)
+    (secrets / "host_probe_token").write_text("tok", encoding="utf-8")
+    (rootfs / "lib/systemd/system/cron.service").write_text("[Unit]\n", encoding="utf-8")
+    (rootfs / "lib/systemd/system/nginx.service").write_text("[Unit]\n", encoding="utf-8")
+
+    def pid(n, comm, cgroup):
+        (proc / str(n)).mkdir()
+        (proc / str(n) / "stat").write_text(f"{n} ({comm}) S 1 0 0 0 0 0 0 0 0 0 1 1 0 0 20 0 1 0 1 1000 25\n",
+                                            encoding="utf-8")
+        (proc / str(n) / "comm").write_text(comm + "\n", encoding="utf-8")
+        (proc / str(n) / "cgroup").write_text(cgroup, encoding="utf-8")
+    pid(1, "systemd", "0::/init.scope\n")
+    pid(410, "cron", "0::/system.slice/cron.service\n")
+    pid(777, "backup.sh", "0::/user.slice/user-1000.slice/session-3.scope\n")
+    (rootfs / "run/argus-sync.pid").write_text("999\n", encoding="utf-8")           # a stale pidfile: not running
+    cfg = tmp_path / "target.json"
+    cfg.write_text('{"host":"h1","services":["cron.service","nginx.service","gone.service"],'
+                   '"processes":[{"name":"backup","comm":"backup.sh"},{"name":"sync","pidfile":"/run/argus-sync.pid"}]}',
+                   encoding="utf-8")
+    for k, v in {"ROLE": "host_probe", "TA_CONFIG": str(cfg), "TA_PROC": str(proc), "TA_ROOTFS": str(rootfs),
+                 "TA_SECRETS": str(secrets)}.items():
+        monkeypatch.setenv(k, v)
+    spec = importlib.util.spec_from_file_location("hp_t0059", ROOT / "services/target/service.py")
+    service = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(service)
+    return service
+
+
+def test_the_host_probe_says_which_services_and_processes_exist_and_run(tmp_path, monkeypatch):
+    service = _host_probe(tmp_path, monkeypatch)
+    lines = dict(ln.rsplit(" ", 1) for ln in service.unit_metrics().splitlines() if ln and not ln.startswith("#"))
+    assert lines['argus_target_present{kind="service",name="cron.service"}'] == "1"
+    assert lines['argus_target_up{kind="service",name="cron.service"}'] == "1"
+    assert lines['argus_target_present{kind="service",name="nginx.service"}'] == "1"      # installed, not running
+    assert lines['argus_target_up{kind="service",name="nginx.service"}'] == "0"
+    assert lines['argus_target_present{kind="service",name="gone.service"}'] == "0"       # no unit file: absent
+    assert lines['argus_target_up{kind="process",name="backup"}'] == "1"
+    assert lines['argus_target_present{kind="process",name="sync"}'] == "1"              # declared: expected to run
+    assert lines['argus_target_up{kind="process",name="sync"}'] == "0"
+
+
+def test_the_host_probe_reads_one_service_or_process_and_nothing_else(tmp_path, monkeypatch):
+    service = _host_probe(tmp_path, monkeypatch)
+    cron = service.host_probe(["services", "cron.service", "status"], {})
+    assert (cron["unit"], cron["installed"], cron["active"], cron["pids"]) == ("cron.service", True, True, [410])
+    backup = service.host_probe(["processes", "backup", "status"], {})
+    assert backup["running"] is True and backup["pids"] == [{"pid": 777, "command": "backup.sh", "state": "S",
+                                                             "rss_mib": 0.1}]
+    assert "cmdline" not in json.dumps(backup)
+    sync = service.host_probe(["processes", "sync", "status"], {})
+    assert sync["running"] is False and sync["match"] == {"pidfile": "/run/argus-sync.pid"} and sync["pids"] == []
+    for parts in (["services", "ssh.service", "status"], ["processes", "other", "status"]):
+        with pytest.raises(service.Err) as e:
+            service.host_probe(parts, {})
+        assert e.value.code == 404
+
+
+def test_each_hosts_prometheus_scrapes_the_host_probe_with_its_token():
+    import yaml
+    for host in ("vm-095", "vm-166"):
+        cfg = yaml.safe_load((ROOT / f"deploy/monitoring/prometheus-{host}.yml").read_text(encoding="utf-8"))
+        job = next(j for j in cfg["scrape_configs"] if j["job_name"] == "argus-v18-host-probe")
+        assert job["authorization"] == {"type": "Bearer", "credentials_file": "/etc/prometheus/secrets/host_probe_token"}
+        assert job["static_configs"][0]["targets"] == ["argus-v18-host-probe:8700"]
+        assert job["static_configs"][0]["labels"] == {"argus_host": host}

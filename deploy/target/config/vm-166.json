@@ -14,6 +14,8 @@
     "argus-lab-db",
     "argus-lab-leaker"
   ],
+  "services": [],
+  "processes": [],
   "dns_names": [
     "argus-lab-worker",
     "argus-lab-jobworker",
