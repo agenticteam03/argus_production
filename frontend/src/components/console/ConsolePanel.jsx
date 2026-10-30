@@ -38,7 +38,7 @@ export default function ConsolePanel({ incident: inc, history = [], commands = [
       {suggestions.length > 0 && (
         <section aria-labelledby="console-suggestions" className="rounded-xl border border-line bg-field p-3.5">
           <h3 id="console-suggestions" className="text-sm font-medium text-ink">Suggestions</h3>
-          <ul className="mt-2 max-h-48 space-y-2 overflow-y-auto pr-1">
+          <ul className="stagger mt-2 max-h-48 space-y-2 overflow-y-auto pr-1">
             {suggestions.map((s) => <SuggestionCard key={s.id} suggestion={s} applied={applied.has(s.id)} onInsert={onInsert} />)}
           </ul>
         </section>
@@ -50,7 +50,7 @@ export default function ConsolePanel({ incident: inc, history = [], commands = [
         {items.length === 0 ? (
           <p className="mt-2 text-[13px] text-muted">No commands yet. Argus comments here after each command.</p>
         ) : (
-          <ol className="mt-2 max-h-80 min-h-0 flex-1 space-y-2 overflow-y-auto pr-1 lg:max-h-none">
+          <ol className="stagger mt-2 max-h-80 min-h-0 flex-1 space-y-2 overflow-y-auto pr-1 lg:max-h-none">
             {items.map((e) => {
               const [label, tone] = STATUS_VIEW[e.status] ?? [e.status, "neutral"];
               const analysis = analysisView(e.analysis, now);

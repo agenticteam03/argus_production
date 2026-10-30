@@ -25,7 +25,7 @@ export default function ApprovalCard({ approval, canAnswer, busy, confirmation, 
 
   return <Card title="Frozen action proposal" right={<Pill tone={tone}>{riskLabel}</Pill>}>
     <div className="space-y-4 text-sm">
-      {doubted && <div role="alert" className="rounded-xl border border-amber-400/30 bg-amber-400/10 p-3 text-amber-300">
+      {doubted && <div role="alert" className="animate-rise rounded-xl border border-amber-400/30 bg-amber-400/10 p-3 text-amber-300">
         <p className="font-medium">The independent judge doubted this action.</p>
         <p className="mt-1">It was not stopped: you decide. Read the judge's reasons and the {riskLabel.toLowerCase()} below
           (the doubt raised it one level) before approving; approving records that you overrode the doubt.</p>

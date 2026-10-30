@@ -35,7 +35,7 @@ export default function ActionTrail({ action }) {
   return (
     <Card title="Action">
       <p className="mb-3 text-[13px] text-muted">The proposal Argus froze for this incident and what happened to it. An approver decides a waiting approval below or on the Actions screen.</p>
-      <ol className="space-y-3">
+      <ol className="stagger space-y-3">
         <Step title="Proposal" meta={["Frozen", "neutral"]}>
           <p><span className="font-mono">{action.capability}</span> on <span className="break-all">{action.target}</span></p>
           <p className="mt-1 text-muted">{action.rationale}</p>

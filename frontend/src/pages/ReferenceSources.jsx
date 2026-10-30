@@ -46,7 +46,7 @@ export function ReferenceSourcesView({ sources, canManage, busy, error, notice, 
           </p>
           {same && <p className="mt-2 rounded-xl border border-amber-400/30 bg-amber-400/10 p-3 text-sm text-amber-300">
             Identical to the installed corpus: approving it changes nothing; rejecting it deletes this staged copy.</p>}
-          <ul className="mt-2 divide-y divide-line">{g.sources.map((s) => <SourceRow key={s.source ?? s.name} s={s} />)}</ul>
+          <ul className="stagger mt-2 divide-y divide-line">{g.sources.map((s) => <SourceRow key={s.source ?? s.name} s={s} />)}</ul>
           {canManage && staged && <div className="mt-3 flex flex-wrap items-end gap-2">
             <button type="button" disabled={busy} onClick={() => onApprove(g)}
               className="cursor-pointer rounded-lg bg-accent-solid px-3 py-1.5 text-sm text-white disabled:opacity-50">Approve with security key</button>

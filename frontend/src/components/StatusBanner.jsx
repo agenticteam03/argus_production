@@ -1,7 +1,7 @@
 import { Link } from "react-router-dom";
 import { fleetStatus } from "../utils/fleetStatus.js";
 import { HEALTH_META, HexGlyph } from "./Glyph.jsx";
-import { CircleAlert, CircleCheck, Pill, Radio, Warning } from "./ui.jsx";
+import { CircleAlert, CircleCheck, CountUp, Pill, Radio, Warning } from "./ui.jsx";
 
 // The Dashboard's summary: is anything wrong, or is everything fine? Built from the overview and (when it answers)
 // the topology; see utils/fleetStatus.js for exactly what counts.
@@ -52,7 +52,7 @@ export default function StatusBanner({ incidents, hostMetrics, topology, hosts, 
           <p className="mt-0.5 text-sm text-soft">{s.detail}</p>
 
           {s.attention.length > 0 && (
-            <ul className="mt-3 space-y-1.5">
+            <ul className="stagger mt-3 space-y-1.5">
               {s.attention.map((a, i) => (
                 <li key={i} className="flex items-start gap-2 text-sm">
                   <span aria-hidden="true" className={`mt-1.5 size-2 shrink-0 rounded-full ${DOT[a.tone]}`} />
@@ -67,7 +67,7 @@ export default function StatusBanner({ incidents, hostMetrics, topology, hosts, 
           )}
 
           {s.level !== "checking" && (
-            <div className="mt-3 flex flex-wrap items-center gap-2">
+            <div className="stagger mt-3 flex flex-wrap items-center gap-2">
               {s.level === "good" && <Pill tone="green">No open issues</Pill>}
               {s.counts.critical > 0 && <Pill tone="red">{s.counts.critical} critical</Pill>}
               {s.counts.warning > 0 && <Pill tone="amber">{s.counts.warning} {s.counts.warning === 1 ? "warning" : "warnings"}</Pill>}
@@ -92,10 +92,11 @@ export default function StatusBanner({ incidents, hostMetrics, topology, hosts, 
 
       {st && (
         <dl className="grid grid-cols-2 divide-x divide-line border-t border-line bg-field/40 sm:grid-cols-4">
-          <Stat label="Hosts reporting" value={`${st.hostsReporting}/${st.hostsTotal}`} sub={st.hostsReporting === st.hostsTotal ? "Fresh samples" : "Some signals are missing"} />
-          <Stat label="Active runs" value={st.running} sub={st.escalated ? `${st.escalated} escalated in 24 h` : "Nothing escalated in 24 h"} />
-          {st.links && <Stat label="Checked links OK" value={`${st.links.ok}/${st.links.total}`} sub={st.links.ok === st.links.total ? "All dependencies answer" : `${st.links.total - st.links.ok} not ok or not checked`} />}
-          {st.components && <Stat label="Components" value={st.components.total} sub={[st.components.unknown ? `${st.components.unknown} unknown` : null, st.components.idle ? `${st.components.idle} idle (expected)` : null].filter(Boolean).join(" · ") || "All states known"} />}
+          {/* T-0016: the numbers count up as the banner fills in (CountUp; at once with reduced motion) */}
+          <Stat label="Hosts reporting" value={<><CountUp value={st.hostsReporting} />/{st.hostsTotal}</>} sub={st.hostsReporting === st.hostsTotal ? "Fresh samples" : "Some signals are missing"} />
+          <Stat label="Active runs" value={<CountUp value={st.running} />} sub={st.escalated ? `${st.escalated} escalated in 24 h` : "Nothing escalated in 24 h"} />
+          {st.links && <Stat label="Checked links OK" value={<><CountUp value={st.links.ok} />/{st.links.total}</>} sub={st.links.ok === st.links.total ? "All dependencies answer" : `${st.links.total - st.links.ok} not ok or not checked`} />}
+          {st.components && <Stat label="Components" value={<CountUp value={st.components.total} />} sub={[st.components.unknown ? `${st.components.unknown} unknown` : null, st.components.idle ? `${st.components.idle} idle (expected)` : null].filter(Boolean).join(" · ") || "All states known"} />}
         </dl>
       )}
     </section>

@@ -119,7 +119,7 @@ export default function Incidents() {
                 {incidentsSummary({ shown: shown.length, matched: filtered.length, total: rows.length, hasFilters: Boolean(filtersActive), truncated })}
               </p>
               <Card title="Incidents" count={filtered.length}>
-                <ul onClickCapture={rememberScroll} className="space-y-2">{shown.map((r) => <IncidentRow key={r.id} incident={r} />)}</ul>
+                <ul onClickCapture={rememberScroll} className="stagger space-y-2">{shown.map((r) => <IncidentRow key={r.id} incident={r} />)}</ul>
                 {remaining > 0 && (
                   <div className="mt-4 flex justify-center">
                     <button

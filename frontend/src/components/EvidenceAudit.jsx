@@ -61,7 +61,7 @@ export function EvidenceSection({ items, cited, host, open, onToggle }) {
           {groups.map((g) => (
             <section key={g.title}>
               <h3 className="mb-1.5 text-xs text-muted">{g.title}</h3>
-              <ul className="space-y-2">{g.items.map((e) => <EvidenceItem key={e.evidence_id} e={e} cited={isCited(e)} open={open.has(e.evidence_id)} onToggle={() => onToggle(e.evidence_id)} />)}</ul>
+              <ul className="stagger space-y-2">{g.items.map((e) => <EvidenceItem key={e.evidence_id} e={e} cited={isCited(e)} open={open.has(e.evidence_id)} onToggle={() => onToggle(e.evidence_id)} />)}</ul>
             </section>
           ))}
         </div>
@@ -88,7 +88,7 @@ export function AuditSection({ items, evidenceIds, onJump }) {
       {items.length === 0 ? (
         <NoItems>No audit entries.</NoItems>
       ) : (
-        <ul className="max-h-[62vh] space-y-1.5 overflow-auto pr-1">
+        <ul className="stagger max-h-[62vh] space-y-1.5 overflow-auto pr-1">
           {items.map((a, i) => {
             const detail = auditDetail(a.detail);
             const panel = `audit-detail-${i}`;

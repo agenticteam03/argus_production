@@ -21,12 +21,12 @@ export default function RunbookDrawer({ runbook: rb, onClose }) {
 
   return (
     <div className="fixed inset-0 z-40">
-      <div onClick={onClose} className={`absolute inset-0 bg-scrim backdrop-blur-sm transition-opacity duration-300 motion-reduce:transition-none ${shown ? "opacity-100" : "opacity-0"}`} />
+      <div onClick={onClose} className={`absolute inset-0 bg-scrim backdrop-blur-sm transition-opacity duration-(--motion-slow) motion-reduce:transition-none ${shown ? "opacity-100" : "opacity-0"}`} />
       <aside
         role="dialog"
         aria-modal="true"
         aria-label={`${rb.id} ${rb.title}`}
-        className={`absolute inset-y-0 right-0 flex w-full flex-col border-l border-line bg-card shadow-2xl transition-transform duration-300 motion-reduce:transition-none md:w-[68%] md:max-w-[1000px] ${shown ? "translate-x-0" : "translate-x-full"}`}
+        className={`absolute inset-y-0 right-0 flex w-full flex-col border-l border-line bg-card shadow-2xl transition-transform duration-(--motion-slow) ease-out-soft motion-reduce:transition-none md:w-[68%] md:max-w-[1000px] ${shown ? "translate-x-0" : "translate-x-full"}`}
       >
         <header className="flex items-start justify-between gap-4 border-b border-line p-5">
           <div className="min-w-0">
