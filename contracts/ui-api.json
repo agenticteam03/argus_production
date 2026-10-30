@@ -201,6 +201,46 @@
         "title": "CeremonyIn",
         "type": "object"
       },
+      "ConsoleExecuteIn": {
+        "additionalProperties": false,
+        "description": "ACR-0043: one line typed in the operator console, for one incident.",
+        "properties": {
+          "confirmation": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confirmation"
+          },
+          "input": {
+            "maxLength": 200,
+            "title": "Input",
+            "type": "string"
+          },
+          "suggestion_id": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Suggestion Id"
+          }
+        },
+        "required": [
+          "input"
+        ],
+        "title": "ConsoleExecuteIn",
+        "type": "object"
+      },
       "CorpusApproveIn": {
         "additionalProperties": false,
         "properties": {
@@ -1395,6 +1435,152 @@
           }
         },
         "summary": "Ops Token",
+        "tags": [
+          "ops"
+        ]
+      }
+    },
+    "/api/v1/ops/console/incidents/{incident_id}/commands": {
+      "get": {
+        "operationId": "console_commands_api_v1_ops_console_incidents__incident_id__commands_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "incident_id",
+            "required": true,
+            "schema": {
+              "title": "Incident Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Console Commands",
+        "tags": [
+          "ops"
+        ]
+      }
+    },
+    "/api/v1/ops/console/incidents/{incident_id}/execute": {
+      "post": {
+        "operationId": "console_execute_api_v1_ops_console_incidents__incident_id__execute_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "incident_id",
+            "required": true,
+            "schema": {
+              "title": "Incident Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConsoleExecuteIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Console Execute",
+        "tags": [
+          "ops"
+        ]
+      }
+    },
+    "/api/v1/ops/console/incidents/{incident_id}/history": {
+      "get": {
+        "description": "The incident's stored commands, oldest first, `output` as lines like `execute` answers it (the stores\nkeep one text). A refused input is an entry with `command` and `class` null. `analysis` (CON-4) is not\nstored here, so it is absent.",
+        "operationId": "console_history_api_v1_ops_console_incidents__incident_id__history_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "incident_id",
+            "required": true,
+            "schema": {
+              "title": "Incident Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Console History",
         "tags": [
           "ops"
         ]
