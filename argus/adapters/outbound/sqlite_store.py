@@ -72,6 +72,13 @@ CREATE TRIGGER IF NOT EXISTS console_command_no_update BEFORE UPDATE ON console_
   BEGIN SELECT RAISE(ABORT, 'console_command is insert-only'); END;
 CREATE TRIGGER IF NOT EXISTS console_command_no_delete BEFORE DELETE ON console_command
   BEGIN SELECT RAISE(ABORT, 'console_command is insert-only'); END;
+CREATE TABLE IF NOT EXISTS console_analysis (
+  command_id TEXT PRIMARY KEY REFERENCES console_command(command_id), incident_id TEXT NOT NULL REFERENCES incident(id),
+  status TEXT NOT NULL CHECK (status IN ('waiting', 'analyzing', 'done', 'error')), body TEXT NOT NULL,
+  updated_at TEXT NOT NULL);
+CREATE INDEX IF NOT EXISTS console_analysis_incident ON console_analysis(incident_id);
+CREATE TRIGGER IF NOT EXISTS console_analysis_no_delete BEFORE DELETE ON console_analysis
+  BEGIN SELECT RAISE(ABORT, 'console_analysis is never deleted'); END;
 CREATE TABLE IF NOT EXISTS link_probe_cursor (
   owner TEXT NOT NULL, dependency TEXT NOT NULL,
   state TEXT NOT NULL CHECK (state IN ('ok', 'slow', 'broken', 'unknown')),
@@ -980,6 +987,20 @@ class SqliteStore:
         where, params = self._console_reads(person, incident_id, since)
         found = self._q(f"SELECT MIN(started_at) FROM console_command WHERE {where}", params)[0][0]
         return datetime.fromisoformat(found) if found else None
+
+    # --- ACR-0043 (CON-4b, migration 021): Argus's analysis of a console command; updated while it runs ---------------
+    def put_console_analysis(self, command_id: str, incident_id: str, status: str, body: dict[str, Any],
+                             at: datetime) -> None:
+        """The command's analysis, whole: inserted, then replaced as it moves on (never deleted)."""
+        self._q("INSERT INTO console_analysis(command_id,incident_id,status,body,updated_at) VALUES (?,?,?,?,?) "
+                "ON CONFLICT(command_id) DO UPDATE SET status=excluded.status, body=excluded.body, "
+                "updated_at=excluded.updated_at",
+                (command_id, incident_id, status, json.dumps(body, default=str), _utc(at)))
+
+    def console_analyses(self, incident_id: str) -> dict[str, dict[str, Any]]:
+        """Every stored analysis of an incident's commands, by command id."""
+        rows = self._q("SELECT command_id, status, body FROM console_analysis WHERE incident_id=?", (incident_id,))
+        return {r[0]: {**json.loads(r[2]), "status": r[1]} for r in rows}
 
     def close_queued_incident(self, incident_id: str, outcome: str, diagnosis: str, closed_at: datetime) -> bool:
         """Close an incident no worker has claimed (T-0026). False when it is no longer queued (claimed meanwhile)."""
