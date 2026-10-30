@@ -353,6 +353,31 @@ def test_console_command_migration_020(runtime_dsn, store):
                       "now(), now())")
 
 
+def test_console_analysis_migration_021(runtime_dsn, store):
+    """ACR-0043 (CON-4b): a command's analysis is stored whole and replaced as it moves on; the runtime role may UPDATE
+    it but never DELETE it; the command and the incident must exist (foreign keys); the status is one of four."""
+    import psycopg
+    from argus.domain.model import utcnow
+    inc = _incident(target="vm-166/container:argus-lab-cache")
+    store.create_incident(inc, None)
+    now = utcnow()
+    store.add_console_command({"command_id": "cmd_pga", "incident_id": inc.id, "person": "olga", "input": "cache status",
+                               "command": "cache.status", "cls": "read", "status": "ok", "output": "line",
+                               "output_truncated": False, "suggestion_id": None, "started_at": now, "finished_at": now})
+    store.put_console_analysis("cmd_pga", inc.id, "waiting", {"before": {"samples": []}, "after": []}, now)
+    store.put_console_analysis("cmd_pga", inc.id, "done", {"result": {"comment": "ok"}}, now)
+    got = store.console_analyses(inc.id)
+    assert got["cmd_pga"]["status"] == "done" and got["cmd_pga"]["result"] == {"comment": "ok"}
+    with psycopg.connect(runtime_dsn, autocommit=True) as c:
+        with pytest.raises(psycopg.Error, match="permission denied"):
+            c.execute("DELETE FROM console_analysis")
+        with pytest.raises(psycopg.Error, match="check constraint"):
+            c.execute("UPDATE console_analysis SET status = 'maybe'")
+        with pytest.raises(psycopg.Error, match="foreign key"):
+            c.execute("INSERT INTO console_analysis (command_id, incident_id, status, body, updated_at) "
+                      f"VALUES ('cmd_nope', '{inc.id}', 'waiting', '{{}}', now())")
+
+
 def test_link_probe_cursor_migration_014(runtime_dsn, store):
     """T-0046: cursor advances atomically with a transition and allows only monotonic sample-time updates."""
     import psycopg

@@ -44,6 +44,7 @@ def fake_invoke(app, answers=None, calls=None):
 
 def setup(app, monkeypatch, *, flag="1", **env):
     monkeypatch.setenv("ARGUS_OPERATOR_CONSOLE", flag)
+    monkeypatch.setenv("ARGUS_CONSOLE_ANALYSIS", "0")      # these tests are about the commands; CON-4b has its own
     for key, value in env.items():
         monkeypatch.setenv(key, str(value))
     app.settings.ops_peer = "testclient"            # TestClient's peer plays the edge
