@@ -43,6 +43,7 @@ UI_ROUTES = [("post", "/api/v1/auth/token"), ("post", "/api/v1/auth/logout"), ("
              ("get", "/api/v1/ops/console/incidents/{incident_id}/commands"),
              ("post", "/api/v1/ops/console/incidents/{incident_id}/execute"),
              ("get", "/api/v1/ops/console/incidents/{incident_id}/history"),
+             ("post", "/api/v1/ops/console/incidents/{incident_id}/commands/{command_id}/recheck"),   # CON-4b
              # ACR-0018 phase 16 step 3: the WebAuthn ceremonies and the caller's credentials
              *[("post", f"/api/v1/auth/webauthn/{c}/{s}") for c in ("register", "login", "step-up")
                for s in ("options", "verify")], ("get", "/api/v1/auth/webauthn/credentials")]
