@@ -2,14 +2,18 @@
 // the accounts live in code (the demo defaults) or in `.env` (`VITE_ARGUS_USERS`), so the offline demo needs no
 // server at all. The session survives a page reload in the same tab (./sessionStore.js); a mock login issues no
 // token, so nothing secret is ever persisted.
-import { demoSession } from "./demoSession.js";
+import { demoSecondFactor, demoSession } from "./demoSession.js";
 import { clearSession, loadSession, saveSession } from "./sessionStore.js";
 
 // Same shape GET /api/v1/me returns: the server lists the actions a read token may use.
+// Same shape GET /api/v1/me returns for the UI's investigate session (the real lab, 2026-10-29), so the demo shows what
+// the real UI shows: starting and resolving investigations, the security keys page, the approvals bell.
+const OPERATOR = ["view_incidents", "view_timeline", "view_evidence", "start_investigation", "resolve_incident",
+  "manage_second_factor"];
 const ROLE_ACTIONS = {
-  viewer: ["view_incidents", "view_timeline"],
-  operator: ["view_incidents", "view_timeline", "view_evidence"],
-  approver: ["view_incidents", "view_timeline", "view_evidence"],
+  viewer: ["view_incidents", "view_timeline", "manage_second_factor"],
+  operator: OPERATOR,
+  approver: [...OPERATOR, "count_waiting_approvals"],
 };
 
 // Demo logins (password: argus-demo): approver, operator, viewer — the three Argus roles, never an admin.
@@ -37,9 +41,9 @@ const USERS = Object.fromEntries(
     .map(([name, u]) => [name.toLowerCase(), { name, role: u.role, password: u.password }])
 );
 
-// The demo's security keys (T-0016): a viewer has none (the console's case 2), the others two, not yet confirmed.
-const demoKeys = (role) => ({ enrolled: role === "viewer" ? 0 : 2, verified: false });
-const toUser = ({ name, role }) => ({ name, role, access: "read", actions: ROLE_ACTIONS[role], secondFactor: demoKeys(role) });
+// The demo's security keys (demoSession.js): a viewer has none (the console's case 2), the others two.
+const toUser = ({ name, role }) => ({ name, role, access: "investigate", actions: ROLE_ACTIONS[role],
+  secondFactor: demoSecondFactor(role) });
 
 // ACR-0032, demo: the private session lives in memory only, like the real one (a reload returns to the ordinary login).
 let privateUser = null;
@@ -82,8 +86,11 @@ export const mockAuthAdapter = {
     return privateView();
   },
 
+  // A fresh /me: the keys may have changed on the Security keys page.
   async refresh() {
-    return privateUser ? privateView() : loadSession();
+    if (privateUser) return privateView();
+    const session = loadSession();
+    return session ? { user: { ...session.user, secondFactor: demoSecondFactor(session.user.role) } } : null;
   },
 
   async signOut() {

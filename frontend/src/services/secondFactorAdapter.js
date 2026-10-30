@@ -2,7 +2,7 @@
 // one object. Each ceremony is the API's options, then the browser's authenticator, then the API's verify; the API
 // decides (D4: the first key needs a code from another administrator; a further one a step-up of an enrolled key).
 // `keys` is `navigator.credentials` (a parameter so the tests can pass a fake authenticator).
-import { demoSession } from "./demoSession.js";
+import { addDemoKey, demoKeysOf, demoSecondFactor, demoSession } from "./demoSession.js";
 import { apiFetch } from "./http.js";
 import { credentialToJSON, toCreationOptions, toRequestOptions } from "./webauthn.js";
 
@@ -52,16 +52,29 @@ export const httpSecondFactorAdapter = {
   },
 };
 
-// The offline demo has no Argus behind it: the second factor is simply not configured there.
+// T-0016: the offline demo's security keys (demoSession.js), so the demo shows the Security keys page like the real UI:
+// a first key needs a one-time code from an administrator (any code of 6+ characters here), a further one a step-up.
+const demoWait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 export const mockSecondFactorAdapter = {
-  status: async () => null,
-  credentials: async () => [],
-  enrol: async () => { throw new Error("Security keys need the real Argus API."); },
+  status: async () => (demoSession.role ? demoSecondFactor(demoSession.role) : null),
+  credentials: async () => (demoSession.role ? demoKeysOf(demoSession.role) : []),
+  async enrol({ ticket, stepUpToken, label = "" } = {}) {
+    await demoWait(400);
+    const first = demoKeysOf(demoSession.role).length === 0;
+    if (first && String(ticket ?? "").trim().length < 6) throw new Error("A first key needs the one-time code from your administrator.");
+    if (!first && stepUpToken !== "demo-step-up") throw new Error("Confirm with a registered key first.");
+    addDemoKey(demoSession.role, label || "Demo key");
+    return { registered: true };
+  },
+  async stepUp() {
+    await demoWait(300);
+    if (!demoKeysOf(demoSession.role).length) throw new Error("No security key is registered yet.");
+    return { token: "demo-step-up", expiresAt: new Date(Date.now() + 5 * 60_000).toISOString() };
+  },
   // T-0016, demo: the simulated key confirms the private session (mockAuthAdapter.refresh reads it)
   confirmLogin: async () => {
     await new Promise((resolve) => setTimeout(resolve, 400));
     demoSession.keyConfirmed = true;
     return { verified: true };
   },
-  stepUp: async () => { throw new Error("Security keys need the real Argus API."); },
 };

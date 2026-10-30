@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { demoSession } from "./demoSession.js";
+import { demoSession, resetDemoKeys } from "./demoSession.js";
 import { mockAuthAdapter } from "./mockAuthAdapter.js";
 import { mockSecondFactorAdapter } from "./secondFactorAdapter.js";
 
@@ -30,8 +30,8 @@ describe("mockAuthAdapter", () => {
     expect(session.user).toEqual({
       name: "approver",
       role: "approver",
-      access: "read",
-      actions: ["view_incidents", "view_timeline", "view_evidence"],
+      access: "investigate",
+      actions: ["view_incidents", "view_timeline", "view_evidence", "start_investigation", "resolve_incident", "manage_second_factor", "count_waiting_approvals"],
       secondFactor: { enrolled: 2, verified: false },
     });
   });
@@ -43,11 +43,16 @@ describe("mockAuthAdapter", () => {
     expect(viewer.user.role).toBe("viewer");
   });
 
-  it("never grants a write action: a read session only reads", async () => {
+  it("answers like the real /me of an investigate session (T-0016: the demo matches the real UI)", async () => {
+    const viewer = (await mockAuthAdapter.signIn({ username: "viewer", password: "argus-demo" })).user;
+    expect(viewer.actions).toEqual(["view_incidents", "view_timeline", "manage_second_factor"]);
+    const operator = (await mockAuthAdapter.signIn({ username: "operator", password: "argus-demo" })).user;
+    expect(operator.actions).toContain("start_investigation");
+    expect(operator.actions).not.toContain("count_waiting_approvals");
     for (const username of ["viewer", "operator", "approver"]) {
       const { user } = await mockAuthAdapter.signIn({ username, password: "argus-demo" });
-      expect(user.actions).not.toContain("start_investigation");
-      expect(user.actions).not.toContain("approve");
+      expect(user.access).toBe("investigate");
+      expect(user.actions).not.toContain("approve_action");      // only a private session confirmed with a key
     }
   });
 
@@ -70,7 +75,7 @@ describe("mockAuthAdapter", () => {
 
     // `restore` is what a fresh page load runs: it brings the session back from the tab's sessionStorage.
     expect(mockAuthAdapter.restore()).toEqual({
-      user: { name: "operator", role: "operator", access: "read", actions: ["view_incidents", "view_timeline", "view_evidence"],
+      user: { name: "operator", role: "operator", access: "investigate", actions: ["view_incidents", "view_timeline", "view_evidence", "start_investigation", "resolve_incident", "manage_second_factor"],
         secondFactor: { enrolled: 2, verified: false } },
     });
 
@@ -87,8 +92,8 @@ describe("mockAuthAdapter", () => {
     expect(user).toEqual({
       name: "ana",
       role: "operator",
-      access: "read",
-      actions: ["view_incidents", "view_timeline", "view_evidence"],
+      access: "investigate",
+      actions: ["view_incidents", "view_timeline", "view_evidence", "start_investigation", "resolve_incident", "manage_second_factor"],
       secondFactor: { enrolled: 2, verified: false },
     });
     // The demo defaults are gone once the environment defines the accounts.
@@ -105,7 +110,7 @@ describe("mockAuthAdapter", () => {
 });
 
 describe("mockAuthAdapter, demo of the private login and the security key (ACR-0032, T-0016)", () => {
-  beforeEach(() => { stubStorage(); mem.clear(); demoSession.keyConfirmed = false; });
+  beforeEach(() => { stubStorage(); mem.clear(); resetDemoKeys(); });
   afterEach(async () => { await mockAuthAdapter.signOut(); delete globalThis.sessionStorage; });
 
   it("a viewer has no key, so the console's access dialog shows case 2", async () => {
@@ -131,6 +136,6 @@ describe("mockAuthAdapter, demo of the private login and the security key (ACR-0
   it("keeps the private session in memory only: a reload returns to the ordinary one", async () => {
     await mockAuthAdapter.signIn({ username: "approver", password: "argus-demo" });
     await mockAuthAdapter.signInPrivate({ username: "approver", password: "argus-demo" });
-    expect(mockAuthAdapter.restore().user.access).toBe("read");
+    expect(mockAuthAdapter.restore().user.access).toBe("investigate");
   });
 });
