@@ -163,6 +163,14 @@ class ResolveIn(BaseModel):
         return value.strip()
 
 
+class ConsoleExecuteIn(BaseModel):
+    """ACR-0043: one line typed in the operator console, for one incident."""
+    model_config = ConfigDict(extra="forbid")
+    input: str = Field(max_length=200)                         # the incident comes from the path
+    suggestion_id: str | None = Field(None, max_length=64)
+    confirmation: str | None = Field(None, max_length=64)      # CON-6: the write's confirmation; unused by reads
+
+
 class InvestigationIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
     target: str
@@ -1018,6 +1026,65 @@ def build_api(app_ctx) -> FastAPI:
                           p: Annotated[Principal, Depends(require("manage_corpus"))]):
             """Delete a staged source, with a reason; its own step-up."""
             return corpus_decision(name, body, request, p, approve=False)
+
+    # ACR-0043 (CON-2): the operator console. Mounted only with ARGUS_OPERATOR_CONSOLE=1 (else 404, as if absent), on
+    # the private prefix only, for a person's own full session with `investigate`: never a service, an agent or a
+    # scoped (read / investigate) token.
+    from argus.console.config import ConsoleConfig
+    console_config = ConsoleConfig()
+    if console_config.enabled:
+        from argus.console import registry as console_registry
+        from argus.console.service import ConsoleService, QuotaRefused, lines_of
+        console = ConsoleService(app_ctx, console_config)
+
+        def console_private(request: Request) -> None:
+            if not private_path(request, s):
+                raise HTTPException(status.HTTP_404_NOT_FOUND, "Not Found")
+
+        def console_person(request: Request, p: Annotated[Principal, Depends(require("investigate"))]) -> Principal:
+            if p.kind != "human" or getattr(request.state, "access", "full") not in FULL_ACCESS:
+                raise HTTPException(status.HTTP_403_FORBIDDEN, "the console is for a person's own session")
+            return p
+
+        def console_incident(incident_id: str):
+            inc = app_ctx.store.get_incident(incident_id) if re.match(INCIDENT_ID, incident_id) else None
+            if inc is None:
+                raise HTTPException(status.HTTP_404_NOT_FOUND, "no such incident")
+            return inc
+
+        @api.get("/api/v1/ops/console/incidents/{incident_id}/commands", tags=["ops"],
+                 dependencies=[Depends(console_private)])
+        def console_commands(incident_id: str, p: Annotated[Principal, Depends(console_person)]):
+            console_incident(incident_id)
+            return {"commands": console_registry.catalog()}
+
+        @api.get("/api/v1/ops/console/incidents/{incident_id}/history", tags=["ops"],
+                 dependencies=[Depends(console_private)])
+        def console_history(incident_id: str, p: Annotated[Principal, Depends(console_person)]):
+            """The incident's stored commands, oldest first, `output` as lines like `execute` answers it (the stores
+            keep one text). A refused input is an entry with `command` and `class` null. `analysis` (CON-4) is not
+            stored here, so it is absent."""
+            console_incident(incident_id)
+            return {"entries": [
+                {"command_id": r["command_id"], "input": r["input"], "command": r["command"], "class": r["cls"],
+                 "status": r["status"], "output": lines_of(r["output"]), "by": r["person"], "started_at": r["started_at"],
+                 "finished_at": r["finished_at"]}
+                for r in app_ctx.store.console_history(incident_id, console_config.history_limit)]}
+
+        @api.post("/api/v1/ops/console/incidents/{incident_id}/execute", tags=["ops"],
+                  dependencies=[Depends(console_private)])
+        def console_execute(incident_id: str, body: ConsoleExecuteIn,
+                            p: Annotated[Principal, Depends(console_person)]):
+            inc = console_incident(incident_id)
+            try:
+                done = console.run(p, inc, body.input, body.suggestion_id)
+            except QuotaRefused as refused:
+                raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS,
+                                    f"console read quota reached ({refused.which}); try again later",
+                                    headers={"Retry-After": str(refused.retry_after)})
+            return {"command_id": done.command_id, "input": done.input, "command": done.command,
+                    "class": done.cls, "status": done.status, "output": done.output,
+                    "started_at": done.started_at, "finished_at": done.finished_at}
 
     @api.get("/healthz", tags=["ops"])
     def healthz():

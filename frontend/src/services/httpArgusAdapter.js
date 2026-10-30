@@ -10,6 +10,11 @@ const getJson = async (path) => (await apiFetch(path)).json();
 // calls a missing route; the Map and Metrics tabs stay hidden until the route answers. Read per call so the flag can
 // be turned on in a test (vi.stubEnv) without reloading the module.
 const insights = () => import.meta.env.VITE_ARGUS_INSIGHTS === "1";
+// ACR-0043 (CON-2): the operator console's private routes, in contracts/ui-api.json, mounted on the API with
+// ARGUS_OPERATOR_CONSOLE=1. Called only when VITE_ARGUS_CONSOLE=1 (off by default), so a build for an API without them
+// never asks; without the flag the Console tab stays hidden (hooks/useConsole.js).
+const consoleOn = () => import.meta.env.VITE_ARGUS_CONSOLE === "1";
+const consolePath = (id, what) => `/api/v1/ops/console/incidents/${encodeURIComponent(id)}/${what}`;
 
 export const httpArgusAdapter = {
   async listIncidents({ limit = 30 } = {}) {
@@ -97,6 +102,26 @@ export const httpArgusAdapter = {
 
   async getHostMetrics() {
     return getJson("/api/v1/host-metrics");
+  },
+
+  async getConsoleCommands(incidentId) {
+    if (!consoleOn()) return null;
+    return getJson(consolePath(incidentId, "commands"));
+  },
+
+  async getConsoleHistory(incidentId) {
+    if (!consoleOn()) return { entries: [] };
+    return getJson(consolePath(incidentId, "history"));
+  },
+
+  // `suggestion_id` (CON-5) only for an unedited inserted suggestion; `confirmation` only for a write's "yes".
+  async executeConsoleCommand(incidentId, { input, confirmation, suggestion_id } = {}) {
+    const res = await apiFetch(consolePath(incidentId, "execute"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ input, ...(confirmation ? { confirmation } : {}), ...(suggestion_id ? { suggestion_id } : {}) }),
+    });
+    return res.json();
   },
 
   // The dashboard reads only the named host metrics in the UI contract. Approvals have no read route yet.

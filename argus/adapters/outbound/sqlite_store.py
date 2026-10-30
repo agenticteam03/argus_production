@@ -60,6 +60,18 @@ CREATE TRIGGER IF NOT EXISTS link_event_no_update BEFORE UPDATE ON link_event
   BEGIN SELECT RAISE(ABORT, 'link_event is insert-only'); END;
 CREATE TRIGGER IF NOT EXISTS link_event_no_delete BEFORE DELETE ON link_event
   BEGIN SELECT RAISE(ABORT, 'link_event is insert-only'); END;
+CREATE TABLE IF NOT EXISTS console_command (
+  command_id TEXT PRIMARY KEY, incident_id TEXT NOT NULL REFERENCES incident(id), person TEXT NOT NULL,
+  input TEXT NOT NULL, command TEXT, cls TEXT CHECK (cls IN ('meta', 'read', 'write')),
+  status TEXT NOT NULL CHECK (status IN ('ok', 'error', 'rejected', 'needs_confirmation')),
+  output TEXT NOT NULL, output_truncated INTEGER NOT NULL DEFAULT 0, suggestion_id TEXT,
+  started_at TEXT NOT NULL, finished_at TEXT NOT NULL);
+CREATE INDEX IF NOT EXISTS console_command_incident ON console_command(incident_id, started_at);
+CREATE INDEX IF NOT EXISTS console_command_person ON console_command(person, started_at);
+CREATE TRIGGER IF NOT EXISTS console_command_no_update BEFORE UPDATE ON console_command
+  BEGIN SELECT RAISE(ABORT, 'console_command is insert-only'); END;
+CREATE TRIGGER IF NOT EXISTS console_command_no_delete BEFORE DELETE ON console_command
+  BEGIN SELECT RAISE(ABORT, 'console_command is insert-only'); END;
 CREATE TABLE IF NOT EXISTS link_probe_cursor (
   owner TEXT NOT NULL, dependency TEXT NOT NULL,
   state TEXT NOT NULL CHECK (state IN ('ok', 'slow', 'broken', 'unknown')),
@@ -925,6 +937,49 @@ class SqliteStore:
                        f"dependency ORDER BY at DESC, id DESC) AS n FROM ({_LINK_ROWS}) WHERE prev IS NULL OR "
                        "prev<>state) WHERE n=1")
         return {(r[0], r[1]): {"state": r[2], "at": datetime.fromisoformat(r[3])} for r in rows}
+
+    # --- ACR-0043 (CON-2, migration 020): the operator console's history --------------------------------------------
+    def add_console_command(self, row: dict[str, Any]) -> None:
+        """One completed console command with its incident; insert-only."""
+        self._q("INSERT INTO console_command(command_id,incident_id,person,input,command,cls,status,output,"
+                "output_truncated,suggestion_id,started_at,finished_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+                (row["command_id"], row["incident_id"], row["person"], row["input"], row["command"], row["cls"],
+                 row["status"], row["output"], int(bool(row["output_truncated"])), row.get("suggestion_id"),
+                 _utc(row["started_at"]), _utc(row["finished_at"])))
+
+    def console_history(self, incident_id: str, limit: int = 50) -> list[dict[str, Any]]:
+        """The incident's newest `limit` commands, oldest first."""
+        rows = self._q("SELECT command_id,incident_id,person,input,command,cls,status,output,output_truncated,"
+                       "suggestion_id,started_at,finished_at FROM (SELECT * FROM console_command WHERE incident_id=? "
+                       "ORDER BY started_at DESC, command_id DESC LIMIT ?) ORDER BY started_at, command_id", (incident_id, limit))
+        return [{"command_id": r[0], "incident_id": r[1], "person": r[2], "input": r[3], "command": r[4], "cls": r[5],
+                 "status": r[6], "output": r[7], "output_truncated": bool(r[8]), "suggestion_id": r[9],
+                 "started_at": datetime.fromisoformat(r[10]), "finished_at": datetime.fromisoformat(r[11])}
+                for r in rows]
+
+    @staticmethod
+    def _console_reads(person, incident_id, since) -> tuple[str, tuple]:
+        where, params = ["cls='read'"], []
+        for column, value in (("person", person), ("incident_id", incident_id)):
+            if value is not None:
+                where.append(f"{column}=?")
+                params.append(value)
+        if since is not None:
+            where.append("started_at>=?")
+            params.append(_utc(since))
+        return " AND ".join(where), tuple(params)
+
+    def console_read_count(self, *, person: str | None = None, incident_id: str | None = None,
+                           since: datetime | None = None) -> int:
+        """Read commands stored (the quota's count); `help`, `history` and `clear` are meta and never counted."""
+        where, params = self._console_reads(person, incident_id, since)
+        return self._q(f"SELECT COUNT(*) FROM console_command WHERE {where}", params)[0][0]
+
+    def console_oldest_read(self, *, person: str | None = None, incident_id: str | None = None,
+                            since: datetime | None = None) -> datetime | None:
+        where, params = self._console_reads(person, incident_id, since)
+        found = self._q(f"SELECT MIN(started_at) FROM console_command WHERE {where}", params)[0][0]
+        return datetime.fromisoformat(found) if found else None
 
     def close_queued_incident(self, incident_id: str, outcome: str, diagnosis: str, closed_at: datetime) -> bool:
         """Close an incident no worker has claimed (T-0026). False when it is no longer queued (claimed meanwhile)."""
