@@ -360,8 +360,9 @@ class ConsoleService:
 
     # --- CON-4b: a person asks Argus to look again at a command's result -------------------------------------
     def recheck(self, principal, incident, command_id: str) -> dict:
-        """Re-run the analysis of one command (retryable ones only). Counts against the read quota like a read:
-        refused at the limit; it adds no history row, and only a retryable analysis can be asked again."""
+        """Re-run the analysis of one command (retryable ones only). Checked against the read quota like a
+        read (refused at the limit) but it adds no history row, so it does not use any of it; only a retryable
+        analysis can be asked again."""
         self._admit(principal.id, incident.id)
         self._release(principal.id)
         view = self.analysis.recheck(incident, command_id, principal.id)

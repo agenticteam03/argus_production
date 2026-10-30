@@ -74,6 +74,7 @@ class AnalysisRunner:
         self._hypotheses_lock = Lock()
         self._recheck_lock = Lock()
         self._sync_lock = Lock()
+        self._hold_lock = Lock()
 
     # --- what is related to a command ------------------------------------------------------------------------------
     def eligible(self, parsed, status: str) -> bool:
@@ -138,11 +139,15 @@ class AnalysisRunner:
         if not self.config.analysis_enabled:
             return
         parsed = parse(row["input"])
-        body = {"input": row["input"], "command": parsed.id, "class": parsed.cls, "person": person,
-                "awaiting_action": True, "approval_id": approval_id, "clock_start": None,
-                "settle_s": BY_ID[parsed.id].settle_s, "before": self.before(parsed, incident), "after": [],
-                "result": None, "rechecks": 0}
-        self._put(row["command_id"], row["incident_id"], body)
+        with self._hold_lock:                    # repeating `yes` reuses the proposal: one analysis per approval
+            held = self.app.store.console_analyses(row["incident_id"]).values()
+            if any(b.get("approval_id") == approval_id for b in held):
+                return
+            body = {"input": row["input"], "command": parsed.id, "class": parsed.cls, "person": person,
+                    "awaiting_action": True, "approval_id": approval_id, "clock_start": None,
+                    "settle_s": BY_ID[parsed.id].settle_s, "before": self.before(parsed, incident), "after": [],
+                    "result": None, "rechecks": 0}
+            self._put(row["command_id"], row["incident_id"], body)
 
     def sync_writes(self, incident_id: str) -> None:
         """Start the analysis of every held write whose action has executed (read from the action row at read time,

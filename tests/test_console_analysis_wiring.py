@@ -414,3 +414,24 @@ def test_a_write_whose_action_failed_has_nothing_to_compare(ctx, monkeypatch):
 
     assert (analysis["status"], analysis["retryable"]) == ("error", False) and ctx.pool.jobs == []
     assert ctx.model.calls == 0
+
+
+def test_repeating_yes_on_one_proposal_is_analysed_once_after_the_action_runs(ctx, monkeypatch):
+    first = held_write(ctx)
+    for number in (3, 4):                                   # two more `yes` on the same pending proposal: new rows
+        again = {**first, "command_id": f"cmd_bbbb000{number}"}
+        ctx.app.store.add_console_command(again)
+        ctx.service.analysis.hold_write(again, ctx.inc, "olga", "apr_1")
+    held = ctx.app.store.console_analyses(ctx.inc.id)
+    assert list(held) == ["cmd_bbbb0002"]                   # the first row holds it; the repeats add nothing
+
+    monkeypatch.setattr(ctx.app.store, "get_action_for_approval",
+                        lambda approval_id: {"state": "confirmed", "result_at": ctx.clock.now().isoformat()})
+    entry_of(ctx, "cmd_bbbb0002")
+    entry_of(ctx, "cmd_bbbb0002")
+    assert len(ctx.pool.jobs) == 1
+    ctx.pool.run_all()
+
+    assert ctx.model.calls == 1
+    assert [e["command_id"] for e in history(ctx) if "analysis" in e] == ["cmd_bbbb0002"]
+    assert len({r.evidence_id for r in ctx.app.store.list_evidence(ctx.inc.id) if r.capability == "operator_console"}) == 1
