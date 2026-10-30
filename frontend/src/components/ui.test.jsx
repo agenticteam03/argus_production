@@ -23,6 +23,14 @@ describe("StatusBadge and OutcomeBadge", () => {
     expect(html(<OutcomeBadge outcome="refused" />)).toContain("text-red-300");
     expect(html(<OutcomeBadge outcome="something_new" />)).toContain("something_new");
   });
+
+  it("names a verified recovery in words and colours it green like a closed incident", () => {
+    const badge = html(<OutcomeBadge outcome="recovered_verified" />);
+    expect(badge).toContain("Recovered Verified");
+    expect(badge).not.toContain("recovered_verified");
+    expect(badge).toContain("text-emerald-300");
+    expect(html(<StatusBadge status="closed" />)).toContain("text-emerald-300");
+  });
 });
 
 describe("LivePill", () => {

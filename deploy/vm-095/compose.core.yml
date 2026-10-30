@@ -123,6 +123,8 @@ services:
       ARGUS_MAX_STEPS: "8"
       ARGUS_WORKER_LEASE_S: "300"                     # claim renewed every 100 s; a dead worker's run waits <= 300 s
       ARGUS_TRACING_ENABLED: ${ARGUS_TRACING_ENABLED:-0}   # ACR-0013: off unless "1"; also needs the worker-only Langfuse key files
+      # ACR-0043 with §12.6: the console's reads and write proposals run here (the api has no token); same flag as the api
+      ARGUS_OPERATOR_CONSOLE: ${ARGUS_OPERATOR_CONSOLE:-0}
       # ACR-0016: Langfuse Cloud (EU) in hosts.env, e.g. https://cloud.langfuse.com/api/public/otel/v1/traces; unset = private stack
       ARGUS_TRACING_ENDPOINT: ${ARGUS_TRACING_ENDPOINT:-http://argus-v18-langfuse-web:3000/api/public/otel/v1/traces}
       ARGUS_SCHEDULE_MAX_QUEUED_AGE_S: "900"          # a scheduled check not started within 15 min is stale_skipped

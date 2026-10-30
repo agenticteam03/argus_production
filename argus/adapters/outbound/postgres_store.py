@@ -699,6 +699,37 @@ class PostgresStore:
         rows = self._q("SELECT command_id, status, body FROM console_analysis WHERE incident_id = %s", (incident_id,))
         return {r[0]: {**json.loads(r[2]), "status": r[1]} for r in rows}
 
+    # --- ACR-0043 with §12.6 (migration 022): console reads and write proposals the worker runs for the API -------
+    def add_console_job(self, job_id: str, kind: str, incident_id: str, person: str, request: dict[str, Any],
+                        at: datetime) -> None:
+        self._q("INSERT INTO console_job (job_id, kind, incident_id, person, request, status, requested_at, updated_at) "
+                "VALUES (%s, %s, %s, %s, %s, 'queued', %s, %s)",
+                (job_id, kind, incident_id, person, json.dumps(request, default=str), at, at))
+
+    def claim_console_job(self, worker_id: str, *, since: datetime, at: datetime) -> dict[str, Any] | None:
+        """The oldest queued job requested at `since` or later, now `running` for this worker; two workers never take
+        the same row (SKIP LOCKED). None when there is none."""
+        rows = self._q("UPDATE console_job SET status = 'running', claimed_by = %s, updated_at = %s "
+                       "WHERE job_id = (SELECT job_id FROM console_job WHERE status = 'queued' AND requested_at >= %s "
+                       "ORDER BY requested_at, job_id LIMIT 1 FOR UPDATE SKIP LOCKED) "
+                       "RETURNING job_id, kind, incident_id, person, request, requested_at", (worker_id, at, since))
+        if not rows:
+            return None
+        r = rows[0]
+        return {"job_id": r[0], "kind": r[1], "incident_id": r[2], "person": r[3], "request": json.loads(r[4]),
+                "requested_at": r[5]}
+
+    def finish_console_job(self, job_id: str, status: str, result: dict[str, Any], at: datetime) -> None:
+        self._q("UPDATE console_job SET status = %s, result = %s, updated_at = %s WHERE job_id = %s",
+                (status, json.dumps(result, default=str), at, job_id))
+
+    def get_console_job(self, job_id: str) -> dict[str, Any] | None:
+        rows = self._q("SELECT job_id, kind, status, result FROM console_job WHERE job_id = %s", (job_id,))
+        if not rows:
+            return None
+        r = rows[0]
+        return {"job_id": r[0], "kind": r[1], "status": r[2], "result": json.loads(r[3]) if r[3] else None}
+
     def close_queued_incident(self, incident_id: str, outcome: str, diagnosis: str, closed_at: datetime) -> bool:
         """Close an incident no worker has claimed (T-0026). False when it is no longer queued (claimed meanwhile)."""
         patch = {"status": "closed", "outcome": outcome, "diagnosis": diagnosis,
@@ -912,6 +943,14 @@ CHECKS_SQL: list[tuple[str, str, bool]] = [
      "WHERE command_id = 'dbcheck'", False),
     ("console analysis status is one of four (check)", "UPDATE console_analysis SET status = 'maybe' "
      "WHERE command_id = 'dbcheck'", False),
+    ("insert console job (ACR-0043 with §12.6, migration 022)", "INSERT INTO console_job (job_id, kind, incident_id, "
+     "person, request, status, requested_at, updated_at) VALUES ('dbcheck', 'read', 'inc_dbcheck', 'dbcheck', '{}', "
+     "'queued', now(), now())", True),
+    ("console job moves on (UPDATE allowed)", "UPDATE console_job SET status = 'done', result = '{}' "
+     "WHERE job_id = 'dbcheck'", True),
+    ("console job is never deleted (DELETE refused)", "DELETE FROM console_job WHERE job_id = 'dbcheck'", False),
+    ("console job kind is read or propose (check)", "UPDATE console_job SET kind = 'shell' WHERE job_id = 'dbcheck'",
+     False),
     ("insert link probe cursor (T-0046, migration 014)", "INSERT INTO link_probe_cursor (owner,dependency,state,at) "
                                                            "VALUES ('dbcheck','dbcheck','ok',now())", True),
     ("advance link probe cursor (migration 014)", "UPDATE link_probe_cursor SET state='broken', at=at + interval '1 second' "

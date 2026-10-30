@@ -21,6 +21,10 @@ screen.
   Input such as `status; rm` is refused before anything runs.
 - The full shell is **stage 2**, a separate decision. This guide is only about stage 1.
 - Argus never types in the console. A suggestion can only fill the input line; the person presses Enter.
+- **Where a command runs.** The API checks who you are, the command and your quota, then hands the work to the worker:
+  the API holds no executor token and no action path (T-0021). Each read, and each confirmed write's proposal, is one
+  row of `console_job`; the worker runs it with its own audited tools and the API shows the answer. The worker needs
+  `ARGUS_OPERATOR_CONSOLE=1` too.
 
 ## The commands
 
@@ -129,7 +133,9 @@ The switches (all off or default as listed):
 
 | Setting | Where | Meaning |
 |---|---|---|
-| `ARGUS_OPERATOR_CONSOLE=1` | `hosts.env` on vm-095 | Turns on both the API's console routes and the UI build (`deploy/ui/compose.ui.yml` passes it as `VITE_ARGUS_CONSOLE`). **Off by default**: the routes answer 404 and the UI makes no console call |
+| `ARGUS_OPERATOR_CONSOLE=1` | `hosts.env` on vm-095 | Turns on the API's console routes, the worker's console jobs and the UI build (`deploy/ui/compose.ui.yml` passes it as `VITE_ARGUS_CONSOLE`). **Off by default**: the routes answer 404 and the UI makes no console call |
+| `ARGUS_CONSOLE_JOB_TIMEOUT_S` | The API and the worker | 30: how long the API waits for the worker to run a read |
+| `ARGUS_CONSOLE_PROPOSE_TIMEOUT_S` | The API and the worker | 120: the same for a write's proposal (the judge is a model call) |
 | `ARGUS_CONSOLE_ANALYSIS` | The API | On by default; `0` switches the analysis off |
 | `ARGUS_CONSOLE_ANALYSIS_WORKERS` | The API | 2: analyses sampling or calling the model at the same time (a waiting analysis holds no slot) |
 | `ARGUS_CONSOLE_READS_PER_MINUTE` | The API | 20 reads a minute per person |
@@ -172,6 +178,10 @@ The switches (all off or default as listed):
   1. `ARGUS_OPERATOR_CONSOLE=1` is set, and the API and the UI image were rebuilt or recreated with it.
   2. Your role is `approver`.
   3. The access dialog's checks pass (two security keys, then a confirmed private session).
+- **"the worker did not answer within 30 s".** The read was queued but no worker ran it: check that `argus-v18-worker`
+  runs with `ARGUS_OPERATOR_CONSOLE=1` (its log says `console jobs on`) and that migration 022 is applied.
+- **"HTTP 401 ... unauthorized" from a read.** An API older than migration 022's code ran the read itself, without a
+  token. Deploy a commit with `console_job` and rebuild the API and the worker.
 - **A 429 (too many requests).** You passed 20 reads a minute or 200 an hour. The answer carries `Retry-After`: wait
   that long.
 - **"read budget for this incident reached (60)".** This is a `rejected` answer, not a 429: the incident's own console
