@@ -71,19 +71,28 @@ describe("offline operator console walkthroughs", () => {
   });
 
   it("shows the network comparison reads and reconnect proposal in order", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-10-29T10:50:00Z"));
     const id = "scenario-network";
     const { trace } = rehearse(id, ["net inspect api", "net expected api", "net diff api", "net reconnect api"]);
+    const history = demoConsoleHistory(id).entries;
     const terminal = terminalMarkup(id, trace);
-    for (const text of ["net inspect api", "net expected api", "net diff api", "no difference",
+    for (const text of ["net inspect api", "net expected api", "net diff api", "network mismatch",
       "net reconnect api needs approval", "proposal created: network.restore on vm-166/container:argus-lab-api"]) {
       expect(terminal).toContain(text);
     }
     expect(terminal.indexOf("net inspect api")).toBeLessThan(terminal.indexOf("net expected api"));
     expect(terminal.indexOf("net expected api")).toBeLessThan(terminal.indexOf("net diff api"));
     expect(terminal.indexOf("net diff api")).toBeLessThan(terminal.indexOf("net reconnect api needs approval"));
+    expect(history.find((entry) => entry.command === "net.reconnect").analysis)
+      .toMatchObject({ status: "waiting", countdown_s: 45 });
+    vi.advanceTimersByTime(45_000);
+    const analysis = demoConsoleHistory(id).entries.find((entry) => entry.command === "net.reconnect").analysis;
+    expect(analysis).toMatchObject({ status: "done", ranking: [{ target: "api", rank: 1 }] });
+    expect(analysis.comment).toContain("addressing the mismatch");
   });
 
-  it.fails("shows that the API is attached to the wrong network before proposing reconnect", () => {
+  it("shows that the API is attached to the wrong network before proposing reconnect", () => {
     const { history } = rehearse("network-mismatch", ["net inspect api", "net expected api", "net diff api"]);
     const actual = history.find((entry) => entry.command === "net.inspect");
     const expected = history.find((entry) => entry.command === "net.expected");
@@ -92,15 +101,29 @@ describe("offline operator console walkthroughs", () => {
     expect(diff.output.join(" ")).not.toContain("no difference");
   });
 
-  it.fails("provides waiting then done analysis and ranking changes for cache and worker writes", () => {
-    const cache = rehearse("cache-lifecycle", ["cache status", "cache restart"]).history;
-    const worker = rehearse("worker-lifecycle", ["worker status", "worker restart"]).history;
-    for (const history of [cache, worker]) {
-      const states = history.map((entry) => entry.analysis?.status);
-      expect(states).toContain("waiting");
-      expect(states).toContain("done");
-      expect(history.some((entry) => entry.analysis?.ranking?.length > 0)).toBe(true);
-    }
+  it("provides waiting then done analysis and ranking changes for cache and worker writes", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-10-29T10:50:00Z"));
+    const cacheId = "cache-lifecycle";
+    const cache = rehearse(cacheId, ["cache status", "cache restart"]).history;
+    const cacheWaiting = cache.find((entry) => entry.command === "cache.restart").analysis;
+    expect(cacheWaiting).toMatchObject({ status: "waiting", countdown_s: 45 });
+    vi.advanceTimersByTime(45_000);
+    const cacheDone = demoConsoleHistory(cacheId).entries.find((entry) => entry.command === "cache.restart").analysis;
+    expect(cacheDone).toMatchObject({ status: "done", ranking: [{ target: "cache", rank: 1 }] });
+    expect(cacheDone.comment).toContain("cache read reported cache: exited");
+    expect(cacheDone.suggestion).toMatchObject({ command: "cache status", command_id: "cache.status" });
+
+    const workerId = "worker-lifecycle";
+    const worker = rehearse(workerId, ["worker status", "worker restart"]).history;
+    expect(worker.find((entry) => entry.command === "worker.restart").analysis)
+      .toMatchObject({ status: "waiting", countdown_s: 45 });
+    vi.advanceTimersByTime(45_000);
+    const workerDone = demoConsoleHistory(workerId).entries.find((entry) => entry.command === "worker.restart").analysis;
+    expect(workerDone).toMatchObject({ status: "done", ranking: [{ target: "worker", rank: 1 }] });
+    expect(workerDone.comment).toContain("worker read reported worker: running, healthy");
+    expect(workerDone.suggestion).toMatchObject({ command: "worker status", command_id: "worker.status" });
+    expect(cacheDone.ranking[0].target).not.toBe(workerDone.ranking[0].target);
   });
 });
 
@@ -116,7 +139,7 @@ describe("operator console errors and accessibility", () => {
     expect(panelMarkup([entry])).not.toContain("Analysis unavailable");
   });
 
-  it.fails("reports unavailable metrics with a retryable Re-check action", () => {
+  it("reports unavailable metrics with a retryable Re-check action", () => {
     demoConsoleExecute("metrics-error", { input: "api errors" }, "operator");
     const history = demoConsoleHistory("metrics-error").entries;
     const panel = panelMarkup(history, { onRecheck: vi.fn() });

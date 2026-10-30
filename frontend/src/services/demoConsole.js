@@ -48,9 +48,11 @@ const OUTPUT = {
   "worker.heartbeat": () => ["last job processed 4 s ago"],
   "worker.throughput": () => ["38 jobs/min (normal 30-45)"],
   "queue.depth": () => ["depth 3, flat"],
-  "net.inspect": (s) => [`${s}: argus-lab-app`],
-  "net.expected": (s) => [`${s}: argus-lab-app`],
-  "net.diff": () => ["no difference"],
+  "net.inspect": (s) => [`${s}: attached to ${s === "api" ? "argus-lab-iso" : "argus-lab-app"}`],
+  "net.expected": (s) => [`${s}: declared network argus-lab-app`],
+  "net.diff": (s) => [s === "api"
+    ? `${s}: attached to argus-lab-iso; declared argus-lab-app; network mismatch`
+    : `${s}: attached to argus-lab-app; declared argus-lab-app; no mismatch`],
 };
 
 // CON-5 demo: Argus's analysis of some reads, in CON-4's shape (`suggestion` = {command, command_id}), with a rationale.
@@ -76,12 +78,60 @@ const RECHECKED = {
 const analysisOf = (id) => ANALYSIS[id] ?? FAILING[id]?.();
 const retryable = (a) => a?.retryable === true || a?.status === "analyzing";
 
+const writeStory = {
+  "cache.restart": { read: "cache.status", target: "cache", next: "cache status", command_id: "cache.status" },
+  "worker.restart": { read: "worker.status", target: "worker", next: "worker status", command_id: "worker.status" },
+  "net.reconnect": { read: "net.diff", target: "api", next: "net diff api", command_id: "net.diff" },
+};
+
+function writeAnalysis(commandId, history, output) {
+  const story = writeStory[commandId];
+  const read = [...history].reverse().find((entry) => entry.command === story.read);
+  const evidence = read?.output?.join(" ") || output.join(" ");
+  const comment = commandId === "net.reconnect"
+    ? `The reconnect proposal targets argus-lab-app, addressing the mismatch reported by ${evidence}.`
+    : `The ${story.target} read reported ${evidence}; the proposal addresses that observation.`;
+  return {
+    waiting: { status: "waiting", countdown_s: 45, settle_until: new Date(Date.now() + 45_000).toISOString() },
+    done: {
+      status: "done",
+      comment,
+      ranking: [{ target: story.target, rank: 1, evidence }],
+      suggestion: {
+        command: story.next,
+        command_id: story.command_id,
+        rationale: `Check ${story.target} after the proposal is approved.`,
+      },
+    },
+  };
+}
+
+function settle(entries) {
+  let changed = false;
+  const now = Date.now();
+  const settled = entries.map((entry) => {
+    const analysis = entry.analysis;
+    const completion = pendingAnalysis.get(entry.command_id);
+    if (analysis?.status !== "waiting" || Date.parse(analysis.settle_until) > now || !completion) return entry;
+    changed = true;
+    pendingAnalysis.delete(entry.command_id);
+    return { ...entry, analysis: completion };
+  });
+  return { entries: settled, changed };
+}
+
 const store = new Map();
+const pendingAnalysis = new Map();
 let seq = 0;
-export const resetDemoConsole = () => { store.clear(); seq = 0; };
+export const resetDemoConsole = () => { store.clear(); pendingAnalysis.clear(); seq = 0; };
 
 export const demoConsoleCommands = () => ({ commands: COMMANDS.map((x) => ({ ...x })) });
-export const demoConsoleHistory = (incidentId) => ({ entries: [...(store.get(incidentId) ?? [])] });
+export const demoConsoleHistory = (incidentId) => {
+  const entries = store.get(incidentId) ?? [];
+  const result = settle(entries);
+  if (result.changed) store.set(incidentId, result.entries);
+  return { entries: result.entries.map((entry) => ({ ...entry })) };
+};
 
 function parse(input) {
   const bad = SHELL_SYNTAX.exec(input);
@@ -118,8 +168,17 @@ export function demoConsoleExecute(incidentId, { input, confirmation, suggestion
     Object.assign(result, { status: "ok", output: OUTPUT[command.id]?.(service) ?? [] });
   }
   if (result.status !== "needs_confirmation") {
-    const stored = { ...result, by, ...(suggestion_id ? { suggestion_id } : {}), ...(analysisOf(command?.id) ? { analysis: analysisOf(command.id) } : {}) };
-    store.set(incidentId, [...(store.get(incidentId) ?? []), stored]);
+    const previous = store.get(incidentId) ?? [];
+    let analysis;
+    if (command?.class === "write" && confirmation === "yes") {
+      const lifecycle = writeAnalysis(command.id, previous, result.output);
+      analysis = lifecycle.waiting;
+      pendingAnalysis.set(result.command_id, lifecycle.done);
+    } else {
+      analysis = analysisOf(command?.id);
+    }
+    const stored = { ...result, by, ...(suggestion_id ? { suggestion_id } : {}), ...(analysis ? { analysis } : {}) };
+    store.set(incidentId, [...previous, stored]);
   }
   return result;
 }
