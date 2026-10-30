@@ -577,6 +577,83 @@ def test_worker_lease(store):
     assert store.active_incident(_incident(target="vm-095/container:t0014-never-used").target) is None
 
 
+def _claimed_with_approval(store, approval_id):
+    """A running incident claimed by worker-a, with a pending approval of its proposal (inc_6a4980a4d8ed)."""
+    from argus.actions.remediation import freeze_proposal
+    from argus.domain.model import utcnow
+    from test_phase18_remediation import candidate
+    store.requeue_expired(now=utcnow() + timedelta(days=1))        # the module's earlier rows: out of the way
+    while store.claim_next_queued("drain", lease_s=86400 * 30):
+        pass
+    inc = _incident(target="vm-166/container:argus-lab-cache")
+    store.create_incident(inc, None)
+    assert store.claim_next_queued("worker-a", lease_s=300).id == inc.id
+    now = utcnow()
+    proposal = freeze_proposal(candidate(incident_id=inc.id), at=now)
+    store.add_action_proposal(proposal)
+    store.add_judge_verdict(proposal.id, "test-judge", {"verdict": "agree", "risk": "green", "reasons": [],
+                                                        "checks": {}, "proposal_digest": proposal.digest}, now)
+    store.add_action_approval(approval_id, proposal.id, proposal.digest, now, proposal.expires_at)
+    return inc, proposal
+
+
+def _claim_row(store, incident_id):
+    return store._q("SELECT status, claimed_by, claimed_until FROM incident WHERE id = %s", (incident_id,))[0]
+
+
+def test_an_answer_wakes_a_parked_run_and_never_a_live_one(store):
+    """inc_6a4980a4d8ed (tests/test_approval_wakes_paused_run.py on SQLite): a paused run is parked until its approval
+    expires; the answer requeues it at once. An answer while the run is live leaves the claim; the worker's check after
+    the park requeues it."""
+    from argus.domain.model import IncidentStatus, utcnow
+    parked, proposal = _claimed_with_approval(store, "appr_park1")
+    assert store.park_claim(parked.id, "worker-b", "appr_park1") is False          # not worker-b's claim
+    assert store.park_claim(parked.id, "worker-a", "appr_park1") is True
+    status, by, until = _claim_row(store, parked.id)
+    assert (status, by, until) == ("running", None, proposal.expires_at)           # ends at the approval's expiry
+    store.requeue_expired(now=utcnow())
+    assert store.get_incident(parked.id).status == IncidentStatus.running          # not requeued before then
+    assert store.wake_answered(parked.id, "appr_park1") is False                   # nobody answered yet
+    assert store.answer_action_approval("appr_park1", proposal.digest, "operator", "denied", utcnow())
+    assert _claim_row(store, parked.id) == ("queued", None, None)
+    assert store.get_incident(parked.id).status == IncidentStatus.queued           # the body says so too
+
+    live, proposal = _claimed_with_approval(store, "appr_live1")
+    before = _claim_row(store, live.id)
+    assert store.answer_action_approval("appr_live1", proposal.digest, "operator", "approved", utcnow())
+    assert _claim_row(store, live.id) == before                                    # a live claim is never touched
+    assert store.park_claim(live.id, "worker-a", "appr_live1", lease_s=300) is True
+    until = _claim_row(store, live.id)[2]                                          # answered: one lease, not expiry
+    assert timedelta(seconds=290) < until - utcnow() < timedelta(seconds=310)
+    assert store.wake_answered(live.id, "appr_live1") is True
+    assert _claim_row(store, live.id) == ("queued", None, None)
+    assert store.wake_answered(live.id, "appr_live1") is False                     # a double wake does nothing
+
+
+def test_an_answer_waits_for_a_park_in_flight_and_wakes_it(runtime_dsn, store):
+    """The concurrent interleaving: the worker's park holds the row and has not committed. A live row does not match
+    the wake's WHERE, so the answer locks the row first; without that it would skip the row, and an answer committed
+    after the worker's check would leave the run parked until its approval expired."""
+    import threading
+    import time
+    import psycopg
+    from argus.domain.model import utcnow
+    inc, proposal = _claimed_with_approval(store, "appr_race1")
+    answered = []
+    with psycopg.connect(runtime_dsn) as worker:                                   # autocommit off: one transaction
+        worker.execute("UPDATE incident SET claimed_by = NULL, claimed_until = %s WHERE id = %s",
+                       (proposal.expires_at, inc.id))
+        t = threading.Thread(target=lambda: answered.append(store.answer_action_approval(
+            "appr_race1", proposal.digest, "operator", "approved", utcnow())))
+        t.start()
+        time.sleep(0.5)
+        assert t.is_alive()                                                        # waiting for the park's row lock
+        worker.commit()
+    t.join(timeout=10)
+    assert answered == [True]
+    assert _claim_row(store, inc.id) == ("queued", None, None)
+
+
 def test_alert_occurrences(runtime_dsn, store):
     """OP-011 (migration 004): one row per alert identity, insert-only; the evidence version counts the attaches."""
     import psycopg
