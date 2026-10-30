@@ -53,6 +53,14 @@ const OUTPUT = {
   "net.diff": () => ["no difference"],
 };
 
+// CON-5 demo: Argus's analysis of some reads, in CON-4's shape (`suggestion` = {command, command_id}), with a rationale.
+const ANALYSIS = {
+  "cache.status": { status: "done", comment: "The cache has no samples and the API's link to it is broken; the API errors follow from it.",
+    suggestion: { command: "cache restart", command_id: "cache.restart", rationale: "The cache is stopped and the API depends on it." } },
+  "api.cpu": { status: "done", comment: "The API's CPU did not change when its errors began, so CPU is not the cause.",
+    suggestion: { command: "cache status", command_id: "cache.status", rationale: "Check the API's dependency instead." } },
+};
+
 const store = new Map();
 let seq = 0;
 export const resetDemoConsole = () => { store.clear(); seq = 0; };
@@ -75,7 +83,7 @@ function parse(input) {
   return { command, service };
 }
 
-export function demoConsoleExecute(incidentId, { input, confirmation } = {}, by = "operator") {
+export function demoConsoleExecute(incidentId, { input, confirmation, suggestion_id } = {}, by = "operator") {
   const started = new Date().toISOString();
   const text = String(input ?? "").trim();
   const { command, service, error } = parse(text);
@@ -94,6 +102,9 @@ export function demoConsoleExecute(incidentId, { input, confirmation } = {}, by 
   } else {
     Object.assign(result, { status: "ok", output: OUTPUT[command.id]?.(service) ?? [] });
   }
-  if (result.status !== "needs_confirmation") store.set(incidentId, [...(store.get(incidentId) ?? []), { ...result, by }]);
+  if (result.status !== "needs_confirmation") {
+    const stored = { ...result, by, ...(suggestion_id ? { suggestion_id } : {}), ...(ANALYSIS[command?.id] ? { analysis: ANALYSIS[command.id] } : {}) };
+    store.set(incidentId, [...(store.get(incidentId) ?? []), stored]);
+  }
   return result;
 }
