@@ -59,5 +59,15 @@ describe("mockArgusAdapter operator console (CON-3)", () => {
     demoSession.role = "viewer";
     await expect(mockArgusAdapter.getConsoleCommands("inc_c3")).rejects.toMatchObject({ status: 403 });
     await expect(mockArgusAdapter.executeConsoleCommand("inc_c3", { input: "status" })).rejects.toMatchObject({ status: 403 });
+    await expect(mockArgusAdapter.recheckConsoleAnalysis("inc_c3", "cmd_1")).rejects.toMatchObject({ status: 403 });
+  });
+
+  it("re-checks a retryable analysis (CON-9), and answers 409 for one that is not", async () => {
+    demoSession.role = "operator";
+    const { command_id } = await mockArgusAdapter.executeConsoleCommand("inc_c9", { input: "api errors" });
+    const r = await mockArgusAdapter.recheckConsoleAnalysis("inc_c9", command_id);
+    expect(r.analysis.status).toBe("done");
+    expect(mockArgusAdapter.calls).toContainEqual({ method: "POST", path: `/api/v1/ops/console/incidents/inc_c9/commands/${command_id}/recheck` });
+    await expect(mockArgusAdapter.recheckConsoleAnalysis("inc_c9", command_id)).rejects.toMatchObject({ status: 409 });
   });
 });

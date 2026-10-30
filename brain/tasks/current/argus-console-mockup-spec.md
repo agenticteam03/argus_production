@@ -111,3 +111,29 @@ A **Suggestions** card in the Argus panel, between Current diagnosis and Activit
   `yes` of a write resends it). An edited input is the operator's own command and carries none.
 - **Applied**: a card shows an "Applied" pill (with its word, not colour alone) when a history entry carries its
   `suggestion_id`. It is read from the stored history, never console-local state.
+
+## 8. Errors (CON-9)
+
+The analysis states come from `analysis_status` and `analyse` in `argus/console/analysis.py` (CON-4, #406): `status` is
+`waiting | analyzing | done | error`, with `countdown_s`, `message` ("Metrics not available yet"), `error` and `retryable`.
+Each failure has its own words in the Activity card, never colour alone:
+
+| Case | What the card says | Re-check |
+|---|---|---|
+| `waiting` | "Waiting for metrics to settle (N s)", from `settle_until`, or from `countdown_s` when only that is sent | no |
+| `analyzing` more than 90 s after `settle_until` | "Analysis is taking longer than expected" | yes |
+| `error` with `message` | the message as sent, e.g. "Metrics not available yet" | only if `retryable` |
+| `error` with `error` (the analysis failed in the backend) | "Analysis unavailable: <error>" | only if `retryable` |
+| `error` with `reason` or nothing | "Analysis unavailable[: <reason>]" | only if `retryable` |
+
+- **Re-check** asks the API to run the analysis of that command again; the next history read shows the result. It is shown
+  only when the adapter has the call (`recheckConsoleAnalysis(incidentId, commandId)`). For now that is only the offline demo:
+  the real route (proposal: `POST /api/v1/ops/console/incidents/{id}/commands/{command_id}/recheck`, 409 when not retryable)
+  comes with the analysis wiring, so against the real API no button is shown. A failed re-check says "Re-check failed".
+- **History read fails** (network error or 5xx): the panel keeps the last history it read and shows "Console history
+  unavailable, retrying" (`role="status"`) under Activity; the line goes away on the next good read. A refused read (4xx)
+  changes nothing.
+- **Execute fails**: one error line in the terminal and the input is enabled again (§3); a 429 says when to try again
+  (`Retry-After`).
+- The offline demo reaches each case: `api errors` (metrics not available yet), `host metrics` (taking longer than expected)
+  and `worker throughput` (backend failure), all retryable.

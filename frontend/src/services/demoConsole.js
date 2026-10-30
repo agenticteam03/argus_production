@@ -61,6 +61,21 @@ const ANALYSIS = {
     suggestion: { command: "cache status", command_id: "cache.status", rationale: "Check the API's dependency instead." } },
 };
 
+// CON-9 demo: one read per analysis failure (spec §8), so each error state and the re-check can be seen offline. A
+// function gives the stuck analysis a settle time in the past, measured when the command runs.
+const FAILING = {
+  "api.errors": () => ({ status: "error", countdown_s: null, message: "Metrics not available yet", retryable: true }),
+  "host.metrics": () => ({ status: "analyzing", settle_until: new Date(Date.now() - 120_000).toISOString() }),
+  "worker.throughput": () => ({ status: "error", error: "Analysis could not be completed", retryable: true }),
+};
+const RECHECKED = {
+  "api.errors": "The API's errors began at 10:42, when its link to the cache broke; they are a symptom, not the cause.",
+  "host.metrics": "The host has spare CPU, memory and disk, so the host is not the cause.",
+  "worker.throughput": "The worker's throughput is normal, so the job queue is not involved.",
+};
+const analysisOf = (id) => ANALYSIS[id] ?? FAILING[id]?.();
+const retryable = (a) => a?.retryable === true || a?.status === "analyzing";
+
 const store = new Map();
 let seq = 0;
 export const resetDemoConsole = () => { store.clear(); seq = 0; };
@@ -103,8 +118,19 @@ export function demoConsoleExecute(incidentId, { input, confirmation, suggestion
     Object.assign(result, { status: "ok", output: OUTPUT[command.id]?.(service) ?? [] });
   }
   if (result.status !== "needs_confirmation") {
-    const stored = { ...result, by, ...(suggestion_id ? { suggestion_id } : {}), ...(ANALYSIS[command?.id] ? { analysis: ANALYSIS[command.id] } : {}) };
+    const stored = { ...result, by, ...(suggestion_id ? { suggestion_id } : {}), ...(analysisOf(command?.id) ? { analysis: analysisOf(command.id) } : {}) };
     store.set(incidentId, [...(store.get(incidentId) ?? []), stored]);
   }
   return result;
+}
+
+// CON-9: a manual re-check of a retryable analysis; the next history read carries the result.
+export function demoConsoleRecheck(incidentId, commandId) {
+  const entries = store.get(incidentId) ?? [];
+  const entry = entries.find((e) => e.command_id === commandId);
+  if (!entry) throw Object.assign(new Error(`command not found: ${commandId}`), { status: 404 });
+  if (!retryable(entry.analysis)) throw Object.assign(new Error("this analysis is not retryable"), { status: 409 });
+  const analysis = { status: "done", comment: RECHECKED[entry.command] ?? "The command's output gives no new evidence." };
+  store.set(incidentId, entries.map((e) => (e === entry ? { ...e, analysis } : e)));
+  return { command_id: commandId, analysis };
 }

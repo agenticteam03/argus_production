@@ -8,7 +8,9 @@ import { Pill, STATUS_META } from "../ui.jsx";
 // CON-3: the Argus panel next to the terminal. The diagnosis is the incident's own state (the page's polling), never
 // console-local state; the activity is the stored command history, with Argus's analysis when the API sends one (CON-4).
 // CON-5: Argus's suggestions (registry commands only) with Insert (fills the input, never runs) and Copy.
-export default function ConsolePanel({ incident: inc, history = [], commands = [], now = Date.now(), onInsert }) {
+// CON-9: a failed history read keeps the last activity with a "retrying" line; a retryable analysis offers Re-check.
+export default function ConsolePanel({ incident: inc, history = [], commands = [], now = Date.now(), onInsert,
+  historyUnavailable = false, onRecheck }) {
   const suggestions = suggestionsFrom(history, commands);
   const applied = appliedIds(history);
   const ruledOut = Array.isArray(inc.ruled_out) ? inc.ruled_out : [];
@@ -44,6 +46,7 @@ export default function ConsolePanel({ incident: inc, history = [], commands = [
 
       <section aria-labelledby="console-activity" className="flex min-h-0 flex-1 flex-col rounded-xl border border-line bg-field p-3.5">
         <h3 id="console-activity" className="text-sm font-medium text-ink">Activity</h3>
+        {historyUnavailable && <p role="status" className="mt-1 text-xs text-amber-300">Console history unavailable, retrying</p>}
         {items.length === 0 ? (
           <p className="mt-2 text-[13px] text-muted">No commands yet. Argus comments here after each command.</p>
         ) : (
@@ -59,10 +62,11 @@ export default function ConsolePanel({ incident: inc, history = [], commands = [
                   </div>
                   <p className="mt-1 text-xs text-muted">{[e.by, e.started_at ? clock(e.started_at) : null].filter(Boolean).join(" · ")}</p>
                   {analysis && (
-                    <p className="mt-2 flex gap-2 border-t border-line pt-2 text-[13px] text-body">
+                    <div className="mt-2 flex flex-wrap items-start gap-2 border-t border-line pt-2 text-[13px] text-body">
                       <span className="shrink-0 font-medium text-accent-hover">Argus</span>
-                      <span className="min-w-0">{analysis.text}</span>
-                    </p>
+                      <span className="min-w-0 flex-1">{analysis.text}</span>
+                      {analysis.retryable && onRecheck && <RecheckButton commandId={e.command_id} onRecheck={onRecheck} />}
+                    </div>
                   )}
                 </li>
               );
@@ -92,5 +96,25 @@ function SuggestionCard({ suggestion: s, applied, onInsert }) {
         {copied && <span role="status" className="text-xs text-muted">{copied}</span>}
       </div>
     </li>
+  );
+}
+
+// CON-9: asks the API to run the analysis again; the next history read shows the result.
+function RecheckButton({ commandId, onRecheck }) {
+  const [state, setState] = useState(null);
+  const recheck = async () => {
+    setState("busy");
+    try {
+      await onRecheck(commandId);
+      setState(null);
+    } catch {
+      setState("Re-check failed");
+    }
+  };
+  return (
+    <span className="flex items-center gap-2">
+      <button type="button" className={small} disabled={state === "busy"} onClick={recheck}>Re-check</button>
+      {state && state !== "busy" && <span role="status" className="text-xs text-muted">{state}</span>}
+    </span>
   );
 }

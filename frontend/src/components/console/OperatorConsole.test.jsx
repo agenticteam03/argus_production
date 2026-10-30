@@ -82,3 +82,33 @@ describe("ConsolePanel suggestions (CON-5)", () => {
     expect(render([])).not.toContain("Suggestions");
   });
 });
+
+describe("ConsolePanel errors and re-check (CON-9)", () => {
+  const now = Date.parse("2026-10-29T10:50:00Z");
+  const entry = (command_id, analysis) => ({ command_id, input: "api errors", status: "ok", by: "olga", started_at: "2026-10-29T10:44:00Z", analysis });
+  const render = (history, props = {}) => renderToStaticMarkup(<ConsolePanel incident={incident} history={history} now={now} {...props} />);
+
+  it("shows Re-check only on a retryable analysis, and only when the console can re-check", () => {
+    const history = [entry("c1", { status: "error", message: "Metrics not available yet", retryable: true }),
+      entry("c2", { status: "error", reason: "no samples" })];
+    const html = render(history, { onRecheck: () => {} });
+    expect(html).toContain("Metrics not available yet");
+    expect(html).toContain("Analysis unavailable: no samples");
+    expect(html.match(/>Re-check</g)).toHaveLength(1);
+    expect(render(history)).not.toContain("Re-check");
+  });
+
+  it("says when an analysis is taking longer than expected", () => {
+    const html = render([entry("c1", { status: "analyzing", settle_until: "2026-10-29T10:45:00Z" })], { onRecheck: () => {} });
+    expect(html).toContain("Analysis is taking longer than expected");
+    expect(html).toContain(">Re-check<");
+  });
+
+  it("keeps the last history and says it is retrying while the history cannot be read", () => {
+    const html = render([entry("c1", { status: "done", comment: "Errors follow the cache." })], { historyUnavailable: true });
+    expect(html).toContain("Console history unavailable, retrying");
+    expect(html).toContain('role="status"');
+    expect(html).toContain("Errors follow the cache.");
+    expect(render([])).not.toContain("Console history unavailable");
+  });
+});
