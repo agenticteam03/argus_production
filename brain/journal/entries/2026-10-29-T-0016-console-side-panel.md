@@ -49,6 +49,10 @@ Decision / result:
   reference sources; source rows; decision panels). Deleting one security key was left out: there is no per-key
   revocation route (only `argus webauthn reset`, all keys, by another administrator); it needs an API change, a
   step-up and its audit, so it is a task of its own.
+- **The incident's action section:** UI only: the action reads as a timeline, suggestions carry their risk on the
+  left edge, the approval hint is a callout; the demo cache incident has the action trail the real one shows. Main
+  merged (#407, #408, #410-#413): the side panel passes the console's new props (Insert, re-check), and the mock keeps
+  both the console's record and the team's re-check.
 Consequences: on the VM the console needs a deploy of this branch with `ARGUS_OPERATOR_CONSOLE=1` in `hosts.env` (the
 agent and the UI build both read it), the agent, the scheduler and the UI rebuilt or recreated, and the private path on;
 from `localhost` (the SSH tunnel bypasses the edge) the private login answers 404, so the real path is the deployed UI.
@@ -60,7 +64,7 @@ References: [ACR-0043](../../architecture/changes/ACR-0043-operator-console.md),
 ### Test state
 
 Backend: `tests/test_console_sessions.py` (red seen, then green) with the console route tests; the UI contract
-regenerated (only `ui-api.json`). Frontend: Vitest 406 passed (the dock rules, the adapters' session calls and the
+regenerated (only `ui-api.json`). Frontend: Vitest 431 passed (the dock rules, the adapters' session calls and the
 mock's private login and key seen red first); Playwright 38 passed over two builds, among them 6 side-panel tests
 with axe (written after the code); ESLint 0 errors. Browser: mock in dark and light at 1280 px and at 390 px, the
 whole flow and a command; the real `localhost` shows case 3 for juanes6554 (two keys, ordinary session).
