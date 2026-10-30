@@ -358,3 +358,59 @@ def test_a_step_taken_by_the_investigation_meanwhile_is_retried_not_a_failed_ana
 
     assert entry_of(ctx, command_id)["analysis"]["status"] == "done"
     assert len(calls) == 2
+
+
+def held_write(ctx):
+    """A write whose proposal exists (status `ok`) but whose action has not run, held by the runner."""
+    now = ctx.clock.now()
+    row = {"command_id": "cmd_bbbb0002", "incident_id": ctx.inc.id, "person": "olga", "input": "cache restart",
+           "command": "cache.restart", "cls": "write", "status": "ok", "output": "proposal_id=p1\napproval_id=apr_1",
+           "output_truncated": False, "suggestion_id": None, "started_at": now, "finished_at": now}
+    ctx.app.store.add_console_command(row)
+    ctx.service.analysis.hold_write(row, ctx.inc, "olga", "apr_1")
+    return row
+
+
+def test_a_write_with_a_pending_proposal_gets_no_analysis_and_no_evidence(ctx, monkeypatch):
+    evidence_before = len(ctx.app.store.list_evidence(ctx.inc.id))
+    steps_before = len(ctx.app.store.hypotheses(ctx.inc.id))
+    held_write(ctx)
+    for state in (None, "unstarted", "attempting"):
+        monkeypatch.setattr(ctx.app.store, "get_action_for_approval",
+                            lambda approval_id, state=state: None if state is None else {"state": state})
+        assert "analysis" not in entry_of(ctx, "cmd_bbbb0002")             # the history read syncs: still nothing
+        assert ctx.pool.jobs == []
+    ctx.pool.run_all()
+
+    assert ctx.model.calls == 0
+    assert len(ctx.app.store.list_evidence(ctx.inc.id)) == evidence_before
+    assert len(ctx.app.store.hypotheses(ctx.inc.id)) == steps_before
+    again = ctx.client.post(url(ctx.inc, "commands/cmd_bbbb0002/recheck"), headers={**ctx.auth, **PRIVATE})
+    assert again.status_code == 409
+
+
+def test_a_write_is_analysed_once_its_action_has_executed_and_the_settle_counts_from_then(ctx, monkeypatch):
+    held_write(ctx)
+    done_at = ctx.clock.now() + timedelta(seconds=30)
+    monkeypatch.setattr(ctx.app.store, "get_action_for_approval",
+                        lambda approval_id: {"state": "confirmed", "result_at": done_at.isoformat()})
+
+    first = entry_of(ctx, "cmd_bbbb0002")["analysis"]
+    entry_of(ctx, "cmd_bbbb0002")                                              # a second read starts nothing more
+
+    assert first["status"] in ("waiting", "analyzing") and len(ctx.pool.jobs) == 1
+    ctx.pool.run_all()
+    assert ctx.clock.offset >= 30 + 45 - 1                                     # slept until 45 s after the action
+    assert entry_of(ctx, "cmd_bbbb0002")["analysis"]["status"] == "done"
+    assert ctx.model.calls == 1
+
+
+def test_a_write_whose_action_failed_has_nothing_to_compare(ctx, monkeypatch):
+    held_write(ctx)
+    monkeypatch.setattr(ctx.app.store, "get_action_for_approval",
+                        lambda approval_id: {"state": "failed", "result_at": ctx.clock.now().isoformat()})
+
+    analysis = entry_of(ctx, "cmd_bbbb0002")["analysis"]
+
+    assert (analysis["status"], analysis["retryable"]) == ("error", False) and ctx.pool.jobs == []
+    assert ctx.model.calls == 0

@@ -59,6 +59,11 @@ def login(client, user="olga", scope=None):
     return {"Authorization": f"Bearer {client.post('/api/v1/auth/token', data=data).json()['access_token']}"}
 
 
+def approver_login(ctx):
+    ctx.app.store.upsert_principal("writer", "human", "approver", ["lab"], PasswordHash.recommended().hash(PASSWORD))
+    return login(ctx.client, "writer")
+
+
 def run(client, headers, inc, text, **extra):
     return client.post(url(inc, "execute"), headers={**headers, **PRIVATE}, json={"input": text, **extra})
 
@@ -187,12 +192,15 @@ def test_a_parse_error_is_a_rejected_answer_with_the_terminal_message_and_a_hist
     assert any(r.event == "console.refused" for r in audit(ctx.app, ctx.inc))       # the audit stays
 
 
-def test_a_write_command_is_rejected_and_nothing_is_invoked(ctx):
-    got = run(ctx.client, ctx.auth, ctx.inc, "cache restart").json()
+def test_a_write_command_without_a_passkey_session_is_refused(ctx):
+    response = run(ctx.client, approver_login(ctx), ctx.inc, "cache restart")
 
-    assert got["status"] == "rejected" and got["output"] == ["write commands are not enabled yet"]
+    assert response.status_code == 403 and "passkey session" in response.json()["detail"]
     assert ctx.calls == []
-    assert ctx.app.store.console_history(ctx.inc.id)[0]["cls"] == "write"
+    [row] = ctx.app.store.console_history(ctx.inc.id)
+    assert (row["input"], row["command"], row["cls"], row["status"]) == (
+        "cache restart", "cache.restart", "write", "rejected")
+    assert "passkey session" in row["output"]
 
 
 def test_an_unknown_incident_is_404(ctx):
@@ -319,8 +327,14 @@ def test_the_incident_read_budget_is_separate_and_rejects_without_invoking(make_
 
 
 def test_the_history_route_returns_the_entries_of_the_mockup_spec_oldest_first(ctx):
+    from types import SimpleNamespace
+
+    ctx.app.runner.action_path = SimpleNamespace(executor=SimpleNamespace(gate_open=frozenset({
+        ("container.start", "vm-166/container:argus-lab-cache")})))
+    ctx.client.app.state.second_factor.privileged_ready = lambda *_: True
     first = run(ctx.client, ctx.auth, ctx.inc, "cache status").json()
-    run(ctx.client, ctx.auth, ctx.inc, "cache restart")
+    write = run(ctx.client, approver_login(ctx), ctx.inc, "cache restart")
+    assert write.json()["status"] == "needs_confirmation"
     other = incident(ctx.app, API)
     run(ctx.client, ctx.auth, other, "cache status")
 
@@ -333,7 +347,7 @@ def test_the_history_route_returns_the_entries_of_the_mockup_spec_oldest_first(c
                                "finished_at"}                              # `analysis` is CON-4's: absent until stored
     assert (entries[0]["command_id"], entries[0]["by"], entries[0]["class"], entries[0]["status"]) == (
         first["command_id"], "olga", "read", "ok")
-    assert entries[1]["class"] == "write" and entries[1]["status"] == "rejected"
+    assert entries[1]["class"] == "write" and entries[1]["status"] == "needs_confirmation"
     assert isinstance(entries[0]["output"], list) and "state=running" in "\n".join(entries[0]["output"])
 
 

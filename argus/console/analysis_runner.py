@@ -19,7 +19,7 @@ from argus.application.ranking import rank
 from argus.console.analysis import _sources, analyse, analysis_status
 from argus.console.config import ConsoleConfig
 from argus.console.parser import parse
-from argus.console.registry import BY_ID, LAB_SERVICES, READ, WRITE
+from argus.console.registry import BY_ID, LAB_SERVICES, READ
 from argus.domain.model import EvidenceRecord, EvidenceRef, Hypothesis, TargetRef, utcnow
 
 log = logging.getLogger("argus.console")
@@ -73,11 +73,14 @@ class AnalysisRunner:
         self._slots = BoundedSemaphore(max(1, config.analysis_workers))     # sampling and the model call, never a sleep
         self._hypotheses_lock = Lock()
         self._recheck_lock = Lock()
+        self._sync_lock = Lock()
 
     # --- what is related to a command ------------------------------------------------------------------------------
     def eligible(self, parsed, status: str) -> bool:
-        """Every command that ran (a read or a write that answered ok); meta commands and refusals have nothing to say."""
-        return self.config.analysis_enabled and parsed.cls in (READ, WRITE) and status == "ok"
+        """A read that answered ok. A write's `ok` is a proposal waiting for approval, not an action that ran: it is
+        held (`hold_write`) and analysed only when its action has executed (`sync_writes`). Meta commands and refusals
+        have nothing to say."""
+        return self.config.analysis_enabled and parsed.cls == READ and status == "ok"
 
     def _targets(self, parsed) -> list[tuple[str, tuple[str, ...]]]:
         host = self.config.lab_host
@@ -129,9 +132,54 @@ class AnalysisRunner:
         self._put(row["command_id"], row["incident_id"], body)
         self.pool.submit(self._job, row, body)
 
+    def hold_write(self, row: dict, incident, person: str, approval_id: str) -> None:
+        """A write that created a proposal: keep the metrics from before it, and wait for its action. Nothing is
+        shown, analysed or cited until the action has executed."""
+        if not self.config.analysis_enabled:
+            return
+        parsed = parse(row["input"])
+        body = {"input": row["input"], "command": parsed.id, "class": parsed.cls, "person": person,
+                "awaiting_action": True, "approval_id": approval_id, "clock_start": None,
+                "settle_s": BY_ID[parsed.id].settle_s, "before": self.before(parsed, incident), "after": [],
+                "result": None, "rechecks": 0}
+        self._put(row["command_id"], row["incident_id"], body)
+
+    def sync_writes(self, incident_id: str) -> None:
+        """Start the analysis of every held write whose action has executed (read from the action row at read time,
+        no new table): the settle delay counts from the moment the action finished, so the after-samples describe
+        the lab after the change. An action that failed or is indeterminate changed nothing to compare."""
+        held = {c: b for c, b in self.app.store.console_analyses(incident_id).items() if b.get("awaiting_action")}
+        if not held:
+            return
+        with self._sync_lock:
+            current = self.app.store.console_analyses(incident_id)
+            for command_id in held:
+                body = current.get(command_id)
+                if not body or not body.get("awaiting_action"):
+                    continue                     # another request started it
+                action = self.app.store.get_action_for_approval(body["approval_id"])
+                if action is None or action["state"] in ("unstarted", "attempting"):
+                    continue
+                row = next((r for r in self.app.store.console_history(incident_id, 500)
+                            if r["command_id"] == command_id), None)
+                if row is None:
+                    continue
+                body = {k: v for k, v in body.items() if k != "awaiting_action"}
+                if action["state"] != "confirmed":
+                    body["clock_start"] = _iso(self.now())
+                    self._finish(row, body, {"status": "error", "retryable": False,
+                                             "message": "The action did not complete, so there is nothing to compare"})
+                    continue
+                result_at = action["result_at"]
+                body["clock_start"] = result_at if isinstance(result_at, str) else _iso(result_at or self.now())
+                self._put(command_id, incident_id, body)
+                self.pool.submit(self._job, row, body)
+
     def recheck(self, incident, command_id: str, person: str) -> dict:
         with self._recheck_lock:                 # check and store as one step: a second quick POST sees it running
             row, body = self._find(incident.id, command_id)
+            if body.get("awaiting_action"):
+                raise NotRetryable(NOT_RETRYABLE)
             if not self.view(row, body)["retryable"]:
                 raise NotRetryable(NOT_RETRYABLE)
             body = {**body, "clock_start": _iso(self.now()), "settle_s": 0, "after": [], "result": None,
@@ -299,6 +347,8 @@ class AnalysisRunner:
 
     # --- what the UI reads -----------------------------------------------------------------------------------------
     def _status(self, body: dict) -> str:
+        if body.get("awaiting_action"):
+            return "waiting"                     # stored only; the history shows nothing for it
         if body.get("result"):
             return "done" if body["result"]["status"] == "done" else "error"
         return "analyzing" if body.get("after") or body["settle_s"] == 0 else "waiting"

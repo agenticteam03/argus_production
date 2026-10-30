@@ -208,7 +208,7 @@
           "confirmation": {
             "anyOf": [
               {
-                "maxLength": 64,
+                "const": "yes",
                 "type": "string"
               },
               {
@@ -1597,7 +1597,7 @@
     },
     "/api/v1/ops/console/incidents/{incident_id}/history": {
       "get": {
-        "description": "The incident's stored commands, oldest first, `output` as lines like `execute` answers it (the stores\nkeep one text). A refused input is an entry with `command` and `class` null. `analysis` (CON-4) is not\nstored here, so it is absent.",
+        "description": "The incident's stored commands, oldest first, `output` as lines like `execute` answers it (the stores\nkeep one text). A refused input is an entry with `command` and `class` null. `analysis` (CON-4b) is added\nto an entry whose command was analysed, built from what is stored and the clock; others have none.",
         "operationId": "console_history_api_v1_ops_console_incidents__incident_id__history_get",
         "parameters": [
           {
