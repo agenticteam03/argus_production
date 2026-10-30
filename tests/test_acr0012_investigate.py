@@ -220,7 +220,7 @@ def test_targets_lists_the_inventory_refs_for_any_role(ui):
     c = client()
     rows = c.get("/api/v1/targets", headers=bearer(token(c, user="vera", scope="read"))).json()
     refs = {r["target"] for r in rows}
-    assert TARGET in refs and all(set(r) == {"target", "host", "kind", "name"} for r in rows)
+    assert TARGET in refs and all(set(r) == {"target", "host", "kind", "name", "state"} for r in rows)
     assert refs == {str(t.ref) for t in app.inventory.targets()}
 
 

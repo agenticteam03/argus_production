@@ -86,7 +86,8 @@ class SearchLogsArgs(_Args):
 
 IncidentClassName = Literal["container_restart_loop", "dependency_unavailable", "health_check_failed",
                             "postgresql_connection_exhaustion", "nginx_upstream_failure", "cpu_saturation",
-                            "disk_pressure", "monitoring_blind_spot", "worker_stalled"]   # = detectors/classes.py (a test pins it)
+                            "disk_pressure", "monitoring_blind_spot", "worker_stalled",
+                            "target_down"]   # = detectors/classes.py (a test pins it)
 
 
 class AnomalyArgs(_Args):
@@ -566,6 +567,26 @@ def host_process_details(args: PidArgs, target: TargetRef, info, client) -> Capa
     return CapabilityResult(values=d, model_text=text, source_time=_ts(d.get("collected_at")))
 
 
+# --- ACR-0044: a declared systemd unit or host process (host_probe) ---------------------------------------------
+def service_status(args: NoArgs, target: TargetRef, info, client) -> CapabilityResult:
+    d = client.get(f"/services/{target.name}/status")
+    pids = d.get("pids") or []
+    text = (f"{target}: unit {'installed' if d.get('installed') else 'not installed'}, "
+            f"{'running' if d.get('active') else 'not running'} ({len(pids)} process(es) in its cgroup"
+            f"{': ' + ', '.join(str(p) for p in pids[:5]) if pids else ''})")
+    return CapabilityResult(values=d, model_text=text, source_time=_ts(d.get("collected_at")))
+
+
+def process_status(args: NoArgs, target: TargetRef, info, client) -> CapabilityResult:
+    d = client.get(f"/processes/{target.name}/status")
+    rows = d.get("pids") or []
+    how = ", ".join(f"{k}={v}" for k, v in (d.get("match") or {}).items())
+    found = "; ".join(f"pid {r.get('pid')} {r.get('command')} state={_fmt(r.get('state'))} rss={_fmt(r.get('rss_mib'))} MiB"
+                      for r in rows[:5])
+    text = f"{target} ({how}): {'running: ' + found if d.get('running') else 'not running'}"
+    return CapabilityResult(values=d, model_text=text, source_time=_ts(d.get("collected_at")))
+
+
 # --- db_probe ------------------------------------------------------------------------------------
 def db_health(args: NoArgs, target: TargetRef, info: TargetInfo | None, client) -> CapabilityResult:
     if not (info and info.database):
@@ -833,7 +854,7 @@ def compare_baseline(args: CompareArgs, target: TargetRef, info, client) -> Capa
 # --- T-0047 H5 (ACR-0024 §3.7): the facts of an anomaly, with numbers, never a conclusion ---------------------------
 # A 0/1 state signal has no warning line in signals.yaml; past it = its bad state.
 STATE_LINES = {"dependency_probe_min": (0.5, "below"), "db_up": (0.5, "below"), "health_unhealthy": (0.5, "above"),
-               "oom_killed": (0.5, "above"), "scrape_targets_down": (0.5, "above")}
+               "oom_killed": (0.5, "above"), "scrape_targets_down": (0.5, "above"), "target_up": (0.5, "below")}
 MOUNT_SIGNALS = {"host_disk_used_ratio_5m", "host_disk_hours_to_full", "host_disk_used_ratio_mounts"}
 ANOMALY_BASELINE_MINUTES = 1440            # B7's baseline: the 24 h ...
 ANOMALY_BASELINE_LEAD_S = 3600             # ... ending an hour before the window (its run-up excluded)
@@ -1121,6 +1142,15 @@ def build_catalog() -> list[CapabilitySpec]:
                        "One process of the host: state, threads, memory, open files against its limit, container.",
                        "one process (from the top lists) needs a closer look", PidArgs, H, 3, "READ_ONLY_SENSITIVE",
                        frozenset({"process"}), "host_probe", host_process_details),
+        CapabilitySpec("service.status", "get_service_status",
+                       "A declared systemd unit of the host: installed or not, running or not, the pids in its cgroup.",
+                       "a service target: is its unit there and does it run", NoArgs, frozenset({"service"}), 1,
+                       "READ_ONLY_SAFE", frozenset({"systemd_unit"}), "host_probe", service_status),
+        CapabilitySpec("process.status", "get_process_status",
+                       "A declared process of the host (by command name or pidfile): running or not, its pids, state "
+                       "and memory. Never its command line.",
+                       "a process target: does it run", NoArgs, frozenset({"process"}), 1, "READ_ONLY_SAFE",
+                       frozenset({"declared_process"}), "host_probe", process_status),
         CapabilitySpec("host.socket_summary", "get_socket_summary",
                        "TCP sockets of the host's own network namespace by state, and its listening ports.",
                        "a host-level service may be leaking or refusing connections", NoArgs, H, 2,

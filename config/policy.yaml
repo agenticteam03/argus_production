@@ -28,6 +28,8 @@ capabilities:
   host.read_file:          {max_per_incident: 3}   # T-0019 batch 3b, Level 3: under `inspection` below (files: none yet)
   host.service_config:     {max_per_incident: 2}   # Level 3: the listed config files (nginx_upstream_failure)
   host.journal:            {max_per_incident: 2}   # Level 3: allowlisted units, rsyslog's text (offered to no class yet)
+  service.status:          {max_per_incident: 3}   # T-0059 (ACR-0044): read by the target_down evidence pack only (offered to no model class)
+  process.status:          {max_per_incident: 3}   # T-0059 (ACR-0044): idem; never a command line
   host.process_details:    {max_per_incident: 3}   # Level 3: never cmdline or environ (offered to no class yet)
   network.resolve_dns:     {max_per_incident: 4}
   network.tcp_connect:     {max_per_incident: 4}

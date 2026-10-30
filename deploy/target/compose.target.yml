@@ -16,7 +16,7 @@ services:
     container_name: argus-v18-read-gateway
     environment: {<<: *env, ROLE: read_gateway}
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro          # THIS host's Docker; exact GET routes only
+      - ${ARGUS_CONTAINER_SOCKET:-/var/run/docker.sock}:/var/run/docker.sock:ro   # THIS host's Docker or Podman (ACR-0044); exact GET routes only
       - ./config/${ARGUS_HOST}.json:/etc/argus-v18/target.json:ro
       - /opt/argus-v18/secrets/docker_read_token:/run/argus-v18/docker_read_token:ro
     networks: [argus-v18-mon]
@@ -43,7 +43,7 @@ services:
     container_name: argus-v18-exporter
     environment: {<<: *env, ROLE: exporter}
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ${ARGUS_CONTAINER_SOCKET:-/var/run/docker.sock}:/var/run/docker.sock:ro
       - ./config/${ARGUS_HOST}.json:/etc/argus-v18/target.json:ro
     networks: [argus-v18-mon, argus-lab-app]
   argus-v18-db-probe:                   # T-0019: only on hosts with a database (COMPOSE_PROFILES=db in <host>.env)

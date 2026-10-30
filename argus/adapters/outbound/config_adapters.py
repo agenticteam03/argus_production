@@ -37,6 +37,7 @@ class YamlInventory:
             warn = t.get("link_warning_ms")
             if warn is not None and (isinstance(warn, bool) or not isinstance(warn, (int, float)) or warn <= 0):
                 raise ValueError(f"inventory target {ref}: link_warning_ms must be a positive number")
+            _observable(ref, t.get("process"))
             service = t.get("service")
             if service is not None:
                 from argus.actions.catalog import ACTION_CATALOGUE, NEVER_OFFERED_ACTIONS
@@ -60,7 +61,7 @@ class YamlInventory:
                                             database=(t.get("database") or {}).get("dbname"),
                                             profile=t.get("profile"),
                                             link_warning_ms=None if warn is None else float(warn),
-                                            service=service)
+                                            service=service, process=t.get("process"))
         for info in self._targets.values():
             for d in info.depends_on:
                 if d not in self._targets:
@@ -114,10 +115,34 @@ def _dependency_link(owner: TargetRef, entry) -> DependencyLink:
     return link
 
 
+_UNIT = re.compile(r"[A-Za-z0-9@_.:-]+\.service")
+_PIDFILE = re.compile(r"/[A-Za-z0-9_./-]*")
+
+
+def _observable(ref: TargetRef, process: dict | None) -> None:
+    """ACR-0044: a service or process target is one the host probe can find. A service is a systemd unit named
+    `<name>.service`; a process is found by its command name (comm, at most 15 characters, as the kernel keeps it) or
+    by a pidfile, exactly one of them. Never a command line: it can hold secrets."""
+    if ref.kind == "service" and not _UNIT.fullmatch(ref.name):
+        raise ValueError(f"inventory target {ref}: a service is a systemd unit and must end in .service")
+    if process is not None and ref.kind != "process":
+        raise ValueError(f"inventory target {ref}: `process` is allowed on only a process target")
+    if ref.kind != "process":
+        return
+    keys = set(process or {})
+    if len(keys) != 1 or not keys <= {"comm", "pidfile"}:
+        raise ValueError(f"inventory target {ref}: `process` needs exactly one of comm or pidfile")
+    comm, pidfile = process.get("comm"), process.get("pidfile")
+    if comm is not None and not (isinstance(comm, str) and 0 < len(comm) <= 15 and "/" not in comm):
+        raise ValueError(f"inventory target {ref}: comm is the kernel's command name, at most 15 characters")
+    if pidfile is not None and not (isinstance(pidfile, str) and _PIDFILE.fullmatch(pidfile) and ".." not in pidfile):
+        raise ValueError(f"inventory target {ref}: pidfile must be a plain absolute path")
+
+
 # --- Metrics -----------------------------------------------------------------------------------
 _MOUNT = re.compile(r"/[A-Za-z0-9_/-]*")
 class PrometheusMetrics:
-    """Signal names → PromQL templates with $host/$name. Per-series freshness (G-003/G-007)."""
+    """Signal names → PromQL templates with $host/$kind/$name. Per-series freshness (G-003/G-007)."""
 
     LINK_HISTORY_STEP_S = 5                 # oversamples the configured 15 s scrape; duplicate source samples collapse
     LINK_HISTORY_MAX_S = 4 * 60 * 60         # maximum cursor replay range; older gaps become unknown
@@ -155,7 +180,7 @@ class PrometheusMetrics:
         for s in sorted(signals):
             if s not in self.signals:
                 raise ValueError(f"unknown signal {s}")
-            expr = Template(self.signals[s]).substitute(host=target.host, name=target.name, mounts=mounts)
+            expr = Template(self.signals[s]).substitute(host=target.host, kind=target.kind, name=target.name, mounts=mounts)
             try:
                 r = httpx.get(f"{base}/api/v1/query", params={"query": expr}, timeout=8)
                 r.raise_for_status()
@@ -183,7 +208,7 @@ class PrometheusMetrics:
             raise ValueError(f"unknown signal {signal}")
         info = self.inventory.target(target)
         mounts = "|".join(info.mounts) if info else ""
-        expr = Template(self.signals[signal]).substitute(host=target.host, name=target.name, mounts=mounts)
+        expr = Template(self.signals[signal]).substitute(host=target.host, kind=target.kind, name=target.name, mounts=mounts)
         stop = (end or datetime.now(timezone.utc)).timestamp()
         try:
             r = httpx.get(f"{self._url(target.host)}/api/v1/query_range",
@@ -207,7 +232,7 @@ class PrometheusMetrics:
         kinds: dict[str, tuple[float, str]] = {}
         for field, signal in (("success", "dependency_probe_success"), ("duration", "dependency_probe_duration_s"),
                               ("error", "dependency_probe_error")):
-            expr = Template(self.signals[signal]).substitute(host=target.host, name=target.name, mounts="")
+            expr = Template(self.signals[signal]).substitute(host=target.host, kind=target.kind, name=target.name, mounts="")
             try:
                 r = httpx.get(f"{base}/api/v1/query", params={"query": expr}, timeout=8)
                 r.raise_for_status()
@@ -242,7 +267,7 @@ class PrometheusMetrics:
         """
         base = self._url(target.host)
         names = ("dependency_probe_success", "dependency_probe_duration_s", "dependency_probe_error")
-        exprs = {name: Template(self.signals[name]).substitute(host=target.host, name=target.name, mounts="")
+        exprs = {name: Template(self.signals[name]).substitute(host=target.host, kind=target.kind, name=target.name, mounts="")
                  for name in names}
 
         def query(expr: str) -> list[dict]:

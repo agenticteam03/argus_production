@@ -4,6 +4,10 @@ groups:
       - alert: ContainerRestartLoop          # OP-005: counts like the signal restarts_10m (young-first; a gap is unknown)
         expr: clamp_min((argus_container_restart_count and on(argus_host,container) (time() - argus_container_created_seconds < 600)) or on(argus_host,container) (argus_container_restart_count - argus_container_restart_count offset 10m), 0) >= 3
         annotations: {summary: "container restarted 3+ times in 10 minutes"}
+      - alert: TargetDown                    # T-0059 (ACR-0044): a declared systemd unit or process that does not run
+        expr: argus_target_up{kind=~"service|process"} == 0 and on(argus_host,kind,name) argus_target_present == 1
+        for: 1m
+        annotations: {summary: "a declared service or process does not run"}
       - alert: ContainerUnhealthy
         expr: argus_container_health_unhealthy == 1
         for: 1m
