@@ -294,3 +294,67 @@ def test_the_analysis_can_be_switched_off(ctx, monkeypatch):
 
     assert got["status"] == "ok" and ctx.pool.jobs == [] and ctx.metrics.calls == 0
     assert ctx.app.store.console_analyses(ctx.inc.id) == {}
+
+
+def test_a_job_that_sleeps_never_holds_a_worker_slot_so_many_reads_all_reach_done(ctx):
+    """TASK-123: with 2 workers, 5 reads in a row: every job reaches its sleep (none waits for another's) and all finish."""
+    import threading
+
+    from argus.console.analysis_runner import DaemonPool
+
+    gate, sleepers, lock = threading.Event(), [], threading.Lock()
+
+    def sleep(seconds):
+        with lock:
+            sleepers.append(seconds)
+        assert gate.wait(10)                            # the shared fake clock is not moved: five sleeps would pass 60 s
+
+    analysis = ctx.service.analysis
+    analysis.pool, analysis.sleep = DaemonPool(), sleep
+    ids = [run(ctx.client, ctx.auth, ctx.inc, "api cpu").json()["command_id"] for _ in range(5)]
+
+    deadline = threading.Event()
+    for _ in range(200):
+        with lock:
+            if len(sleepers) == 5:
+                break
+        deadline.wait(0.05)
+    with lock:
+        assert len(sleepers) == 5                       # all five asleep at once: the 2 slots were free the whole time
+    gate.set()
+    for _ in range(200):
+        if all(entry_of(ctx, i)["analysis"]["status"] == "done" for i in ids):
+            break
+        deadline.wait(0.05)
+    assert [entry_of(ctx, i)["analysis"]["status"] for i in ids] == ["done"] * 5
+
+
+def test_two_quick_rechecks_start_one_job(ctx):
+    ctx.metrics.missing = True
+    command_id = run(ctx.client, ctx.auth, ctx.inc, "api cpu").json()["command_id"]
+    ctx.pool.run_all()
+    ctx.metrics.missing = False
+    target = url(ctx.inc, f"commands/{command_id}/recheck")
+
+    first = ctx.client.post(target, headers={**ctx.auth, **PRIVATE})
+    second = ctx.client.post(target, headers={**ctx.auth, **PRIVATE})
+
+    assert (first.status_code, second.status_code) == (202, 409)
+    assert len(ctx.pool.jobs) == 1
+
+
+def test_a_step_taken_by_the_investigation_meanwhile_is_retried_not_a_failed_analysis(ctx):
+    real, calls = ctx.app.store.add_hypotheses, []
+
+    def conflict_once(*args, **kwargs):
+        calls.append(args[1])
+        if len(calls) == 1:
+            raise RuntimeError("UNIQUE constraint failed: hypotheses.incident_id, step, hypothesis_id")
+        return real(*args, **kwargs)
+
+    ctx.app.store.add_hypotheses = conflict_once
+    command_id = run(ctx.client, ctx.auth, ctx.inc, "api cpu").json()["command_id"]
+    ctx.pool.run_all()
+
+    assert entry_of(ctx, command_id)["analysis"]["status"] == "done"
+    assert len(calls) == 2

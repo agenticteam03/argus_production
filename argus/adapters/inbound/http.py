@@ -1063,8 +1063,8 @@ def build_api(app_ctx) -> FastAPI:
                  dependencies=[Depends(console_private)])
         def console_history(incident_id: str, p: Annotated[Principal, Depends(console_person)]):
             """The incident's stored commands, oldest first, `output` as lines like `execute` answers it (the stores
-            keep one text). A refused input is an entry with `command` and `class` null. `analysis` (CON-4) is not
-            stored here, so it is absent."""
+            keep one text). A refused input is an entry with `command` and `class` null. `analysis` (CON-4b) is added
+            to an entry whose command was analysed, built from what is stored and the clock; others have none."""
             console_incident(incident_id)
             analyses = app_ctx.store.console_analyses(incident_id)
             entries = []

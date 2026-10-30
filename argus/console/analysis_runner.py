@@ -42,17 +42,12 @@ NOT_RETRYABLE = "this analysis is not retryable"
 
 
 class DaemonPool:
-    """One daemon thread per job, at most `workers` running at once: a job that sleeps for its settle delay never
-    holds up the API's shutdown. The quota bounds how many jobs can queue (a job lives about two minutes at most)."""
-
-    def __init__(self, workers: int):
-        self._slots = BoundedSemaphore(max(1, workers))
+    """One daemon thread per job: a job that sleeps for its settle delay never holds up the API's shutdown. The pool
+    holds no slot; the runner takes one (`AnalysisRunner._slots`) only around a sample and the model call, so a job
+    that is asleep never keeps another from starting. The quota bounds how many jobs can queue."""
 
     def submit(self, fn, *args) -> None:
-        def run():
-            with self._slots:
-                fn(*args)
-        threading.Thread(target=run, daemon=True, name="console-analysis").start()
+        threading.Thread(target=fn, args=args, daemon=True, name="console-analysis").start()
 
 
 class UnknownCommand(Exception):
@@ -74,8 +69,10 @@ def _at(text: str) -> datetime:
 class AnalysisRunner:
     def __init__(self, app_ctx, config: ConsoleConfig, *, now=utcnow, sleep=time.sleep, executor=None):
         self.app, self.config, self.now, self.sleep = app_ctx, config, now, sleep
-        self.pool = executor or DaemonPool(config.analysis_workers)
+        self.pool = executor or DaemonPool()
+        self._slots = BoundedSemaphore(max(1, config.analysis_workers))     # sampling and the model call, never a sleep
         self._hypotheses_lock = Lock()
+        self._recheck_lock = Lock()
 
     # --- what is related to a command ------------------------------------------------------------------------------
     def eligible(self, parsed, status: str) -> bool:
@@ -133,12 +130,13 @@ class AnalysisRunner:
         self.pool.submit(self._job, row, body)
 
     def recheck(self, incident, command_id: str, person: str) -> dict:
-        row, body = self._find(incident.id, command_id)
-        if not self.view(row, body)["retryable"]:
-            raise NotRetryable(NOT_RETRYABLE)
-        body = {**body, "clock_start": _iso(self.now()), "settle_s": 0, "after": [], "result": None,
-                "rechecks": body.get("rechecks", 0) + 1, "rechecked_by": person}
-        self._put(command_id, incident.id, body)
+        with self._recheck_lock:                 # check and store as one step: a second quick POST sees it running
+            row, body = self._find(incident.id, command_id)
+            if not self.view(row, body)["retryable"]:
+                raise NotRetryable(NOT_RETRYABLE)
+            body = {**body, "clock_start": _iso(self.now()), "settle_s": 0, "after": [], "result": None,
+                    "rechecks": body.get("rechecks", 0) + 1, "rechecked_by": person}
+            self._put(command_id, incident.id, body)
         self.pool.submit(self._job, row, body)
         return self.view(row, body)
 
@@ -171,7 +169,8 @@ class AnalysisRunner:
         deadline = start + settle + timedelta(seconds=self.config.analysis_metrics_timeout_s)
         after: list[dict] = []
         while len(after) < 2 and self.now() <= deadline:
-            fresh = self._sample(targets)
+            with self._slots:
+                fresh = self._sample(targets)
             if fresh:
                 after.append({"target": fresh[0]["target"], "observed_at": fresh[0]["observed_at"],
                               "values": {k: v for s in fresh for k, v in s["values"].items()}, "samples": fresh})
@@ -186,7 +185,9 @@ class AnalysisRunner:
         if model is None:
             return self._finish(row, body, {"status": "error", "message": "Analysis model not configured",
                                             "retryable": False})
-        self._finish(row, body, self._analyse(row, body, model))
+        with self._slots:
+            result = self._analyse(row, body, model)
+        self._finish(row, body, result)
 
     def _analyse(self, row: dict, body: dict, model) -> dict:
         record = self._record(row, body)
@@ -276,17 +277,25 @@ class AnalysisRunner:
         return refs
 
     def _refresh_hypotheses(self, incident_id: str, hypotheses: list[Hypothesis], ranking) -> None:
-        """A new step of the incident's hypotheses with the evidence and the rank `rank()` computed (insert-only)."""
+        """A new step of the incident's hypotheses with the evidence and the rank `rank()` computed (insert-only).
+        The investigation runner may add a step at the same moment (UNIQUE incident, step, hypothesis): read the
+        steps again and retry a few times before giving up."""
         ranked = {r.id: r for r in ranking}
-        with self._hypotheses_lock:
-            previous = self.app.store.hypotheses(incident_id)
-            step = max((r["step"] for r in previous), default=0) + 1
-            chosen = {r["hypothesis_id"] for r in previous if r["step"] == step - 1 and r["chosen"]}
-            self.app.store.add_hypotheses(incident_id, step, [
-                {"hypothesis_id": h.id, "statement": h.statement, "cause_class": h.cause_class, "target": h.target,
-                 "relation": h.relation, "status": h.status, "support_ids": h.support, "against_ids": h.against,
-                 "score": ranked[h.id].score, "rank": ranked[h.id].rank, "chosen": h.id in chosen}
-                for h in hypotheses], self.now())
+        for attempt in range(3):
+            with self._hypotheses_lock:
+                previous = self.app.store.hypotheses(incident_id)
+                step = max((r["step"] for r in previous), default=0) + 1
+                chosen = {r["hypothesis_id"] for r in previous if r["step"] == step - 1 and r["chosen"]}
+                try:
+                    return self.app.store.add_hypotheses(incident_id, step, [
+                        {"hypothesis_id": h.id, "statement": h.statement, "cause_class": h.cause_class,
+                         "target": h.target, "relation": h.relation, "status": h.status, "support_ids": h.support,
+                         "against_ids": h.against, "score": ranked[h.id].score, "rank": ranked[h.id].rank,
+                         "chosen": h.id in chosen} for h in hypotheses], self.now())
+                except Exception:
+                    if attempt == 2:
+                        raise
+                    log.warning("console analysis: step %s of %s was taken, retrying", step, incident_id)
 
     # --- what the UI reads -----------------------------------------------------------------------------------------
     def _status(self, body: dict) -> str:
