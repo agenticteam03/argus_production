@@ -374,3 +374,25 @@ def test_a_refused_input_shows_in_the_history_route_with_a_null_command(ctx):
     assert (entry["command"], entry["class"], entry["status"], entry["input"], entry["by"]) == (
         None, None, "rejected", "status; rm", "olga")
     assert entry["output"] == refused["output"] and len(entry["output"]) == 1
+
+
+# ---- CON-8: the scenario 2 reads through the incident route -----------------------------------------------------------
+
+@pytest.mark.parametrize("command,expected", [
+    ("net inspect api", "attached to NET-ISO"), ("net expected api", "declared network NET-APP"),
+    ("net diff api", "wrong network NET-ISO")])
+def test_net_reads_run_through_invoke_and_answer_from_the_read(ctx, command, expected):
+    ctx.app.runner.invoke = lambda c, n, a: (SimpleNamespace(
+        status="ok", model_text="argus-lab-api: state=running networks=NET-ISO declared_networks=NET-APP",
+        values={"state": "running", "networks": ["NET-ISO"]}, error_category=None), None)
+    body = run(ctx.client, ctx.auth, ctx.inc, command).json()
+
+    assert body["status"] == "ok" and body["class"] == "read" and expected in "\n".join(body["output"])
+    assert [r for r in audit(ctx.app, ctx.inc) if r.event == "console.command"][-1].detail["cls"] == "read"
+
+
+def test_a_net_read_that_fails_is_an_error_answer(ctx):
+    ctx.app.runner.invoke = lambda c, n, a: (SimpleNamespace(
+        status="error", model_text="read failed", values={}, error_category="unavailable"), None)
+    body = run(ctx.client, ctx.auth, ctx.inc, "net diff api").json()
+    assert body["status"] == "error" and body["output"] == ["read failed"]

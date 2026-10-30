@@ -79,3 +79,49 @@ export const STATUS_VIEW = {
   rejected: ["Rejected", "amber"],
   needs_confirmation: ["Needs confirmation", "blue"],
 };
+
+// --- CON-5: Argus's suggestions -------------------------------------------------------------------------------------
+// They come with Argus's analysis of a command (CON-4: `analysis.suggestion` = {command, command_id}, optional `id` and
+// `rationale`). The UI shows only registry commands, never runs one, and tags a run of an unedited insert with its id.
+
+// eslint-disable-next-line no-control-regex
+const SHELL_SYNTAX = /[;&|<>$`(){}[\]\\"'*?!~#\x00-\x1f\x7f]|\.\.|\//;
+
+// `text` is a command of the catalog with the argument shape its usage allows (`<service>`, `[--since HH:MM]`).
+export function isRegistryCommand(text, commands = []) {
+  const value = String(text ?? "").trim().toLowerCase();
+  if (!value || SHELL_SYNTAX.test(value)) return false;
+  const tokens = value.split(/\s+/);
+  return commands.some((c) => {
+    const [base, optional] = String(c.usage ?? "").split(" [");
+    const words = base.split(" ").filter((w) => !w.startsWith("<"));
+    if (!words.every((w, i) => tokens[i] === w)) return false;
+    const rest = tokens.slice(words.length);
+    const service = base.includes("<service>") ? rest.shift() : null;
+    if (base.includes("<service>") && !/^[a-z]+$/.test(service ?? "")) return false;
+    if (optional?.startsWith("--since") && rest[0] === "--since") return rest.length === 2 && /^\d{2}:\d{2}$/.test(rest[1]);
+    return rest.length === 0;
+  });
+}
+
+// One card per suggested command, the newest first; the id is the API's, or one made from the command it follows.
+export function suggestionsFrom(history = [], commands = []) {
+  const seen = new Set();
+  const out = [];
+  for (const e of [...(history ?? [])].reverse()) {
+    const s = e?.analysis?.suggestion;
+    const command = typeof s === "string" ? s.trim() : String(s?.command ?? "").trim();
+    if (!command || seen.has(command) || !isRegistryCommand(command, commands)) continue;
+    seen.add(command);
+    out.push({ id: s?.id ?? `sug-${e.command_id}`, command, rationale: s?.rationale ? printable(s.rationale) : null,
+      after: printable(e.input) });
+  }
+  return out;
+}
+
+export const appliedIds = (history = []) => new Set((history ?? []).map((e) => e.suggestion_id).filter(Boolean));
+
+// The suggestion id to send with a run: only when the input is exactly the inserted command (an edit makes it the
+// operator's own command).
+export const suggestionIdFor = (input, inserted) =>
+  inserted && String(input ?? "").trim() === inserted.command ? inserted.id : undefined;

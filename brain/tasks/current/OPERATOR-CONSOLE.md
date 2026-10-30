@@ -38,7 +38,7 @@
 | CON-2 | `GET /console/commands`, `POST /console/execute`, history table, scenario 1 read commands | CON-1 | routes and migration | | `cache status`, `api cpu`, `host metrics` return real lab data; each command stored with its incident |
 | CON-3 | Split-view UI: terminal and Argus panel, history, polling | CON-1 contract, mockup spec | no | conantkd (done, #403; real calls in CON-2) | works at 1280x720; no hardcoded output |
 | CON-4 | Post-command analysis: settle, samples, before/after, evidence, comment, ranking refresh, Langfuse trace | CON-2 | no | | after `api cpu`, the red-herring hypothesis is demoted with a grounded comment |
-| CON-5 | Suggestions with Insert and Copy, `suggestion_id`, "Applied" state | CON-3, CON-4 | no | | Insert fills the input and never runs it |
+| CON-5 | Suggestions with Insert and Copy, `suggestion_id`, "Applied" state | CON-3, CON-4 | no | conantkd | Insert fills the input and never runs it |
 | CON-6 | Write path: confirmation, proposal, approval, audit `operator_console`, gateway, verify | ACR, CON-2 | yes | | `cache restart` asks, needs approval, restarts, appears in the audit log |
 | CON-7 | Scenario 4 commands (worker status, heartbeat, throughput, queue depth, restart) | CON-2, CON-6, metric names confirmed | no | | frozen worker resolved from the console |
 | CON-8 | Scenario 2 commands (net inspect, expected, diff, reconnect = existing `network.restore`) | CON-2, CON-6, TASK-97 | yes | | wrong network resolved from the console |
