@@ -188,3 +188,44 @@ describe("httpArgusAdapter", () => {
     await expect(httpArgusAdapter.decideApproval("a1", "approve")).rejects.toMatchObject({ status: 403 });
   });
 });
+
+describe("httpArgusAdapter operator console (ACR-0043, CON-2)", () => {
+  afterEach(() => { vi.unstubAllGlobals(); vi.unstubAllEnvs(); });
+
+  it("asks nothing without VITE_ARGUS_CONSOLE, so the Console tab stays hidden", async () => {
+    const fetch = vi.fn();
+    vi.stubGlobal("fetch", fetch);
+    expect(await httpArgusAdapter.getConsoleCommands("inc_1")).toBeNull();
+    expect(await httpArgusAdapter.getConsoleHistory("inc_1")).toEqual({ entries: [] });
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("with the flag, reads and posts the incident's private console routes", async () => {
+    vi.stubEnv("VITE_ARGUS_CONSOLE", "1");
+    const fetch = vi.fn(async () => response(200, { commands: [{ id: "help" }] }));
+    vi.stubGlobal("fetch", fetch);
+    await httpArgusAdapter.getConsoleCommands("inc_1");
+    await httpArgusAdapter.executeConsoleCommand("inc_1", { input: "cache status" });
+    expect(fetch.mock.calls[0][0]).toBe("/api/v1/ops/console/incidents/inc_1/commands");
+    expect(fetch.mock.calls[1][0]).toBe("/api/v1/ops/console/incidents/inc_1/execute");
+    expect(fetch.mock.calls[1][1]).toMatchObject({ method: "POST", body: JSON.stringify({ input: "cache status" }) });
+  });
+
+  it("sends the confirmation and the suggestion id only when the console gives them (CON-5)", async () => {
+    vi.stubEnv("VITE_ARGUS_CONSOLE", "1");
+    const fetch = vi.fn(async () => response(200, { status: "ok", output: [] }));
+    vi.stubGlobal("fetch", fetch);
+    await httpArgusAdapter.executeConsoleCommand("inc_1", { input: "cache restart", confirmation: "yes",
+      suggestion_id: "sug-cmd_1" });
+    expect(JSON.parse(fetch.mock.calls[0][1].body)).toEqual({ input: "cache restart", confirmation: "yes",
+      suggestion_id: "sug-cmd_1" });
+  });
+
+  it("history entries keep output as lines and a refused input's null command (CON-2)", async () => {
+    vi.stubEnv("VITE_ARGUS_CONSOLE", "1");
+    const entry = { command_id: "c1", input: "ls", command: null, class: null, status: "rejected",
+      output: ["unknown command: ls"], by: "ana", started_at: "t", finished_at: "t" };
+    vi.stubGlobal("fetch", vi.fn(async () => response(200, { entries: [entry] })));
+    expect(await httpArgusAdapter.getConsoleHistory("inc_1")).toEqual({ entries: [entry] });
+  });
+});
