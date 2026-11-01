@@ -179,12 +179,12 @@ The switches (all off or default as listed):
 - **A comment is grounded, not proven.** Every sentence must cite a real output line or metric, and the ranking is
   computed by fixed rules, but the check proves the citation exists, not that the sentence is true. Log text reaches the
   model. Read the output yourself; the comment never runs anything.
-- **Where the reads run is in review: PR #421.** On the deployed topology the API holds no executor token, so the console
-  reads that ran inside the API failed with an unauthorized error when the console was first switched on. PR #421 moves
-  the console's reads and write proposals to the worker through a queue table (migration 022); until it is merged and
-  deployed, treat the live console as not working for reads and for proposals.
+- **Reads and proposals depend on the worker.** The API holds no executor token, so it cannot run them itself: they run
+  in the worker through `console_job` (migration 022). If no worker with the console on picks the job up, a read fails
+  after 30 s and a proposal after 120 s. A proposal that outlives the wait may still be created later by the worker,
+  with no `console.write.after` row in the audit; that matters for the two-person rule above, which would not see it.
 - **Not verified on the lab.** The console has been tested with fakes. Not yet checked on the real lab: a read answered
-  through the worker (#421 has not been deployed or rehearsed), the metric names and timing, the model credential in the
+  through the worker (the merged job path has not been deployed or rehearsed on the lab), the metric names and timing, the model credential in the
   API process, the passkey approval, and the end-to-end scenarios. The rehearsal plan lists each as unconfirmed. The
   database migrations for the history and the analysis run for real only in CI.
 
