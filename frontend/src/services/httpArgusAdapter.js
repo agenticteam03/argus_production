@@ -124,6 +124,22 @@ export const httpArgusAdapter = {
     return res.json();
   },
 
+  // T-0016: who opened the console on this incident, when and why (an audit record of the incident, not a gate).
+  async openConsoleSession(incidentId, reason) {
+    const res = await apiFetch(consolePath(incidentId, "sessions"), {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ reason }),
+    });
+    return res.json();
+  },
+
+  // `why`: "disconnect", "time_limit" or "signed_out".
+  async closeConsoleSession(incidentId, sessionId, why) {
+    const res = await apiFetch(consolePath(incidentId, `sessions/${encodeURIComponent(sessionId)}/close`), {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ why }),
+    });
+    return res.json();
+  },
+
   // The dashboard reads only the named host metrics in the UI contract. Approvals have no read route yet.
   // A failed metrics read (slow or down Prometheus) leaves the card empty; it never hides incidents and escalations.
   async getOverview() {

@@ -163,6 +163,8 @@ class App:
     jwt_signing: Any = None             # ACR-0018: an Ed25519 private key; tokens are EdDSA, HS256 refused. None: HS256
     action_policy: Any = None           # Phase 17: read-only, reviewed action candidates
     action_rows: Any = None             # X-9: approval, hold and private-login routes; None while the write gate is empty
+    analysis_model: Any = None          # ACR-0043: the model the console's post-command analysis calls (the judge's, none added)
+    tracing: Any = None                 # ACR-0013: the runner's event sink; the analysis hands its span to it
 
 
 
@@ -515,4 +517,5 @@ def build(settings: Settings | None = None, llm=None, metrics=None, executors: E
                incident_metrics=IncidentMetrics(metrics, ui_signals, store=store, thresholds=thresholds,
                                                 inventory=inventory),
                topology=Topology(inventory, metrics, store, s.home_host, thresholds=thresholds), thresholds=thresholds,
-               jwt_signing=jwt_signing, action_policy=action_policy, action_rows=approval_rows(policy, store))
+               jwt_signing=jwt_signing, action_policy=action_policy, action_rows=approval_rows(policy, store),
+               analysis_model=llm, tracing=events)

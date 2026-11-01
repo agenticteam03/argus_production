@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { Card, LivePill, StatusBadge } from "../components/ui.jsx";
+import { Card, CountUp, LivePill, SkeletonList, StatusBadge } from "../components/ui.jsx";
 import { argus, dataSource } from "../services/index.js";
 import { summarizeRun } from "../utils/agentObservability.js";
 import { dateTime } from "../utils/format.js";
@@ -76,22 +76,22 @@ export default function Agent() {
         <LivePill live={!error} source={dataSource} at={updated} onRefresh={refresh} />
       </header>
 
-      <div className="grid gap-3 sm:grid-cols-3">
+      <div className="stagger grid gap-3 sm:grid-cols-3">
         <Metric label="Active runs" value={active} detail="Investigations in progress" />
         <Metric label="Recent runs" value={incidents.length} detail="Latest 30 incidents" />
         <Metric label="Escalated" value={escalated} detail="Human follow-up needed" />
       </div>
 
-      {error && <div role="alert" className="rounded-xl border border-amber-400/20 bg-amber-400/5 p-4 text-sm text-amber-200">Could not refresh agent activity. Showing the last available data.</div>}
+      {error && <div role="alert" className="animate-rise rounded-xl border border-amber-400/20 bg-amber-400/5 p-4 text-sm text-amber-200">Could not refresh agent activity. Showing the last available data.</div>}
 
       <div className="grid gap-5 lg:grid-cols-[minmax(280px,0.85fr)_minmax(0,1.45fr)]">
         <Card title="Runs" count={incidents.length}>
-          {loading ? <p className="text-sm text-muted">Loading runs…</p> : incidents.length === 0 ? <p className="py-8 text-center text-sm text-muted">No investigations recorded yet.</p> : (
-            <ul className="max-h-[680px] space-y-2 overflow-y-auto pr-1">
+          {loading ? <SkeletonList label="Loading runs…" rows={4} className="h-[84px]" /> : incidents.length === 0 ? <p className="py-8 text-center text-sm text-muted">No investigations recorded yet.</p> : (
+            <ul className="stagger max-h-[680px] space-y-2 overflow-y-auto pr-1">
               {incidents.map((incident) => (
                 <li key={incident.id}>
                   <button type="button" onClick={() => setSelected(incident.id)} aria-current={selected === incident.id ? "true" : undefined}
-                    className={`w-full cursor-pointer rounded-xl border p-3 text-left transition ${selected === incident.id ? "border-accent/50 bg-accent/10" : "border-transparent bg-field hover:border-line"}`}>
+                    className={`lift w-full cursor-pointer rounded-xl border p-3 text-left transition ${selected === incident.id ? "border-accent/50 bg-accent/10" : "border-transparent bg-field hover:border-line"}`}>
                     <div className="flex items-start justify-between gap-2"><span className="min-w-0 truncate text-sm font-medium">{incident.target}</span><StatusBadge status={incident.status} /></div>
                     <p className="mt-1 truncate font-mono text-[11px] text-muted">{incident.id}</p>
                     <p className="mt-2 text-xs text-muted">{incident.class ?? "Unclassified"} · {dateTime(incident.opened_at)}</p>
@@ -120,7 +120,7 @@ export default function Agent() {
           </Card>
           <Card title="Execution timeline" count={events.length}>
             {events.length === 0 ? <p className="py-8 text-center text-sm text-muted">No execution events for this run yet.</p> : (
-              <ol className="max-h-[540px] space-y-0 overflow-y-auto pr-1">
+              <ol className="stagger max-h-[540px] space-y-0 overflow-y-auto pr-1">
                 {events.map((event) => (
                   <li key={event.seq} className="relative flex gap-3 border-l border-line py-3 pl-5 first:pt-1 last:pb-1">
                     <span className="absolute -left-[5px] top-5 size-[9px] rounded-full border-2 border-accent bg-card" />
@@ -137,7 +137,7 @@ export default function Agent() {
 }
 
 function Metric({ label, value, detail }) {
-  return <div className="rounded-2xl border border-line bg-card/80 p-4"><p className="text-xs text-muted">{label}</p><p className="mt-2 text-[30px] font-semibold tracking-[-0.04em]">{value}</p><p className="mt-1 text-xs text-muted">{detail}</p></div>;
+  return <div className="rounded-2xl border border-line bg-card/80 p-4"><p className="text-xs text-muted">{label}</p><p className="mt-2 text-[30px] font-semibold tracking-[-0.04em]"><CountUp value={value} /></p><p className="mt-1 text-xs text-muted">{detail}</p></div>;
 }
 
 function SmallMetric({ label, value }) {

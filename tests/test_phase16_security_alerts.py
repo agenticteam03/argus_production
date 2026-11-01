@@ -200,3 +200,21 @@ def test_vm_095s_alertmanager_sends_security_events_to_telegram_and_nothing_else
     assert tg["http_config"] == {"proxy_url": "http://argus-v18-egress:8888"}
     join = _yaml("deploy", "monitoring", "compose.core-join.yml")["services"]["argus-v18-alertmanager"]
     assert "./alertmanager-vm-095.yml:/etc/alertmanager/alertmanager.yml:ro" in join["volumes"]
+
+
+def test_a_refused_console_use_reaches_the_telegram_route(store):
+    """T-0016: the operator console's refusal (security.console_refused) is posted like any security event: the
+    Alertmanager route `argus_security="true"` sends it to the team's Telegram receiver, without the row's detail."""
+    import yaml
+    store.upsert_principal("user7", "human", "viewer", ["lab"], "x")
+    add(store, 7, "security.console_refused", 2, {"reason": "role viewer lacks the permission investigate",
+                                                  "path": "/api/v1/ops/console/incidents/inc_1/sessions"})
+    am = Alertmanager()
+    assert job(store, am).run_once() == "1 security alert(s) sent"
+    [alert] = am.posts[0]
+    assert alert["labels"]["argus_security"] == "true" and alert["labels"]["event"] == "security.console_refused"
+    assert alert["annotations"]["summary"] == "security.console_refused by user7 at 2026-10-26 11:58:00Z"
+    assert "/api/v1/ops/console" not in json.dumps(alert)
+    route = yaml.safe_load((ROOT / "deploy/monitoring/alertmanager-vm-095.yml").read_text(encoding="utf-8"))["route"]
+    [telegram] = [r for r in route["routes"] if r["receiver"] == "team-telegram"]
+    assert telegram["matchers"] == ['argus_security="true"']

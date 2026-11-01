@@ -72,6 +72,13 @@ CREATE TRIGGER IF NOT EXISTS console_command_no_update BEFORE UPDATE ON console_
   BEGIN SELECT RAISE(ABORT, 'console_command is insert-only'); END;
 CREATE TRIGGER IF NOT EXISTS console_command_no_delete BEFORE DELETE ON console_command
   BEGIN SELECT RAISE(ABORT, 'console_command is insert-only'); END;
+CREATE TABLE IF NOT EXISTS console_analysis (
+  command_id TEXT PRIMARY KEY REFERENCES console_command(command_id), incident_id TEXT NOT NULL REFERENCES incident(id),
+  status TEXT NOT NULL CHECK (status IN ('waiting', 'analyzing', 'done', 'error')), body TEXT NOT NULL,
+  updated_at TEXT NOT NULL);
+CREATE INDEX IF NOT EXISTS console_analysis_incident ON console_analysis(incident_id);
+CREATE TRIGGER IF NOT EXISTS console_analysis_no_delete BEFORE DELETE ON console_analysis
+  BEGIN SELECT RAISE(ABORT, 'console_analysis is never deleted'); END;
 CREATE TABLE IF NOT EXISTS link_probe_cursor (
   owner TEXT NOT NULL, dependency TEXT NOT NULL,
   state TEXT NOT NULL CHECK (state IN ('ok', 'slow', 'broken', 'unknown')),
@@ -251,6 +258,10 @@ CREATE TRIGGER IF NOT EXISTS audit_no_delete BEFORE DELETE ON audit
   BEGIN SELECT RAISE(ABORT, 'audit is append-only'); END;
 """
 
+# inc_6a4980a4d8ed: requeue a parked run (paused at an interrupt, no worker holds it); a live run is never touched
+_WAKE_PARKED = ("UPDATE incident SET status='queued', body=json_set(body, '$.status', 'queued'), claimed_until=NULL "
+                "WHERE status='running' AND claimed_by IS NULL AND ")
+
 
 def _utc(at: datetime) -> str:
     return at.astimezone(timezone.utc).isoformat()
@@ -380,6 +391,9 @@ class SqliteStore:
                                      "SELECT ?, p.incident_id, ?, 'pending' FROM approval a "
                                      "JOIN action_proposal p ON a.proposal_id=p.proposal_id WHERE a.approval_id=?",
                                      (approval_id, decision, approval_id))
+                    # the answer wakes the run only when it is parked (never a live worker's claim): it is requeued
+                    self._db.execute(_WAKE_PARKED + "id=(SELECT p.incident_id FROM approval a JOIN action_proposal p "
+                                     "ON a.proposal_id=p.proposal_id WHERE a.approval_id=?)", (approval_id,))
                     if audit is not None:
                         self.append(audit)
                 self._db.execute("COMMIT")
@@ -621,6 +635,24 @@ class SqliteStore:
                 self._q("UPDATE incident SET claimed_until=? WHERE id=?",
                         ((now + timedelta(seconds=lease_s)).isoformat(), incident_id))
             return bool(row)
+
+    def park_claim(self, incident_id: str, worker_id: str, approval_id: str | None, lease_s: int = 300) -> bool:
+        """A run paused at an interrupt is parked: no worker holds it (`claimed_by` NULL) and its claim ends at the
+        pending approval's expiry, or after one lease when no approval waits. False: the claim is not this worker's."""
+        until = (utcnow() + timedelta(seconds=lease_s)).isoformat()
+        with self._lock:
+            cur = self._db.execute("UPDATE incident SET claimed_by=NULL, claimed_until=COALESCE((SELECT expires_at "
+                                   "FROM approval WHERE approval_id=? AND state='pending'), ?) "
+                                   "WHERE id=? AND status=? AND claimed_by=?",
+                                   (approval_id, until, incident_id, IncidentStatus.running.value, worker_id))
+            return cur.rowcount == 1
+
+    def wake_answered(self, incident_id: str, approval_id: str) -> bool:
+        """Requeue a parked run whose approval was answered before the park (the answer found it still live)."""
+        with self._lock:
+            cur = self._db.execute(_WAKE_PARKED + "id=? AND EXISTS (SELECT 1 FROM resume_intent WHERE approval_id=? "
+                                   "AND incident_id=?)", (incident_id, approval_id, incident_id))
+            return cur.rowcount == 1
 
     def requeue_expired(self, now: datetime | None = None) -> int:
         """Crash recovery: running incidents whose claim expired (or that never had one) go back to the queue."""
@@ -980,6 +1012,20 @@ class SqliteStore:
         where, params = self._console_reads(person, incident_id, since)
         found = self._q(f"SELECT MIN(started_at) FROM console_command WHERE {where}", params)[0][0]
         return datetime.fromisoformat(found) if found else None
+
+    # --- ACR-0043 (CON-4b, migration 021): Argus's analysis of a console command; updated while it runs ---------------
+    def put_console_analysis(self, command_id: str, incident_id: str, status: str, body: dict[str, Any],
+                             at: datetime) -> None:
+        """The command's analysis, whole: inserted, then replaced as it moves on (never deleted)."""
+        self._q("INSERT INTO console_analysis(command_id,incident_id,status,body,updated_at) VALUES (?,?,?,?,?) "
+                "ON CONFLICT(command_id) DO UPDATE SET status=excluded.status, body=excluded.body, "
+                "updated_at=excluded.updated_at",
+                (command_id, incident_id, status, json.dumps(body, default=str), _utc(at)))
+
+    def console_analyses(self, incident_id: str) -> dict[str, dict[str, Any]]:
+        """Every stored analysis of an incident's commands, by command id."""
+        rows = self._q("SELECT command_id, status, body FROM console_analysis WHERE incident_id=?", (incident_id,))
+        return {r[0]: {**json.loads(r[2]), "status": r[1]} for r in rows}
 
     def close_queued_incident(self, incident_id: str, outcome: str, diagnosis: str, closed_at: datetime) -> bool:
         """Close an incident no worker has claimed (T-0026). False when it is no longer queued (claimed meanwhile)."""
