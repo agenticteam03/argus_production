@@ -43,9 +43,8 @@ def test_every_registered_usage_parses_and_catalogue_is_documented():
     assert "the operator console's allowed commands" in docs
 
 
-@pytest.mark.parametrize("bad", list(";&|<>$`(){}[]\\\"'*?!~#\n\r\t\x00./"))
+@pytest.mark.parametrize("bad", list(";&|<>$`(){}[]\\\"'*?!~#\n\r\t\x00/"))
 def test_each_shell_character_is_refused_alone_and_inside_a_word(bad):
-    # Characters can be rejected by either the syntax guard or the allowlisted grammar.
     for text in (bad, f"status{bad}"):
         outcomes = []
         for _ in range(2):
@@ -53,6 +52,10 @@ def test_each_shell_character_is_refused_alone_and_inside_a_word(bad):
                 parse(text)
             outcomes.append(str(caught.value))
         assert outcomes[0] == outcomes[1]
+        if text.strip():
+            assert outcomes[0].startswith("syntax not allowed:")
+        else:
+            assert outcomes[0] == "Type 'help' to see available commands."
 
 
 @pytest.mark.parametrize("text", [
@@ -85,7 +88,9 @@ def test_normalized_uppercase_command_uses_the_same_allowlisted_handler(ctx):
 
 
 def test_refused_inputs_never_reach_a_handler(ctx):
-    for text in ("cache restart && x", "map production"):
+    lookalikes = ("status" + chr(0xFF1B) + "help", "status" + chr(0xFF5C) + "help",
+                  "status" + chr(0xFF06) + "help")
+    for text in ("cache restart && x", "map production", *lookalikes):
         response = run(ctx.client, ctx.auth, ctx.inc, text)
         assert response.status_code == 200 and response.json()["status"] == "rejected"
     assert ctx.calls == []
@@ -110,7 +115,7 @@ def test_yes_on_a_read_is_not_treated_as_a_write_confirmation(ctx):
 
 @pytest.mark.xfail(
     strict=True,
-    reason="accepted: a direct call creates only a pending proposal; see ACR-0043 section 5",
+    reason="accepted: direct confirmation creates only a pending proposal; decision is in the TASK-125 PR text, not ACR-0043",
 )
 def test_accepted_risk_direct_confirmation_without_prompt_is_refused(make_app, monkeypatch):  # noqa: F811
     case = _case(make_app, monkeypatch, *CASES[0].values)
@@ -180,7 +185,8 @@ def test_all_routes_are_missing_when_flag_is_off(make_app, monkeypatch):  # noqa
     app = make_app()
     client = setup(app, monkeypatch, flag="0")
     auth = login(client)
-    for route, method in (("commands", "get"), ("history", "get"), ("execute", "post")):
+    for route, method in (("commands", "get"), ("history", "get"), ("execute", "post"),
+                          ("commands/cmd_00000000/recheck", "post")):
         request = getattr(client, method)
         kwargs = {"json": {"input": "help"}} if method == "post" else {}
         assert request(url("missing-inc", route), headers={**auth, **PRIVATE}, **kwargs).status_code == 404
@@ -192,16 +198,37 @@ def test_console_audit_rows_have_operator_console_source(ctx):
     assert all(row.detail["source"] == "operator_console" for row in audits)
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="TASK-131 is responsible for redacting secrets from stored console output.",
-)
-def test_console_redacts_secrets_returned_by_a_read(ctx, monkeypatch):
-    secrets = (ctx.auth["Authorization"].split(" ", 1)[1], API, "fixture-private-env-2e9a")
-    monkeypatch.setenv("ARGUS_TEST_SECRET", secrets[2])
-    ctx.app.runner.invoke = lambda *_args, **_kwargs: (SimpleNamespace(
-        status="ok", model_text="read completed", values={"state": " ".join(secrets)}, error_category=None), None)
-    run(ctx.client, ctx.auth, ctx.inc, "cache status")
-    stored = ctx.app.store.console_history(ctx.inc.id)[0]["output"]
-    rows = audit(ctx.app, ctx.inc)
-    assert all(secret not in stored and all(secret not in str(row.detail) for row in rows) for secret in secrets)
+def test_console_redacts_secrets_returned_by_a_read(make_app, monkeypatch):  # noqa: F811
+    from test_core import FakeTargetAgent
+
+    session_token = "session-" + "a" * 24
+    environment_value = "runtime-" + "b" * 24
+    observed = f"Authorization: Bearer {session_token} APP_SECRET={environment_value} target={API}"
+    for agent in FakeTargetAgent.data.values():
+        agent["/containers/argus-lab-api/search"] = {"matched": 1, "lines": [observed]}
+
+    app = make_app()
+    inc = incident(app, API)
+    client = setup(app, monkeypatch)
+    auth = login(client)
+    body = run(client, auth, inc, "api errors").json()
+    stored = app.store.console_history(inc.id)[0]["output"]
+    rows = audit(app, inc)
+    rendered = [body["input"], *body["output"], stored, *(str(row.detail) for row in rows)]
+
+    assert body["status"] == "ok" and "REDACTED" in " ".join(body["output"])
+    assert all(secret not in text for secret in (session_token, environment_value) for text in rendered)
+
+
+def test_typed_secret_in_a_refused_input_is_redacted_before_storage_and_audit(ctx):
+    secret = "fixture-" + "secret-value"
+    body = run(ctx.client, ctx.auth, ctx.inc, f"login password={secret}").json()
+
+    assert body["status"] == "rejected"
+    assert "REDACTED" in body["input"] + " ".join(body["output"])
+    row = ctx.app.store.console_history(ctx.inc.id)[0]
+    refused = [r for r in audit(ctx.app, ctx.inc) if r.event == "console.refused"]
+    shown = ctx.client.get(url(ctx.inc, "history"), headers={**ctx.auth, **PRIVATE}).text
+    recorded = [body["input"], *body["output"], row["input"], row["output"], shown,
+                *(str(r.detail) for r in refused)]
+    assert refused and all(secret not in text for text in recorded)
