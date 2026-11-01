@@ -28,3 +28,7 @@ class ConsoleConfig:
     analysis_stuck_s: int = 90
     analysis_workers: int = field(default_factory=lambda: int(os.getenv("ARGUS_CONSOLE_ANALYSIS_WORKERS", "2")))
     output_max_bytes: int = 4096        # spec §7.4: what is stored (and later shown to the model) per command
+    # §12.6: how long the API waits for the worker to run a console read, and a write proposal (the judge is a model
+    # call); the worker never starts a job older than the longer one, which the API has given up on
+    job_timeout_s: float = field(default_factory=lambda: float(os.getenv("ARGUS_CONSOLE_JOB_TIMEOUT_S", "30")))
+    propose_timeout_s: float = field(default_factory=lambda: float(os.getenv("ARGUS_CONSOLE_PROPOSE_TIMEOUT_S", "120")))
