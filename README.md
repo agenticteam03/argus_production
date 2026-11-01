@@ -10,15 +10,24 @@ deterministically, recalls runbooks and past cases, investigates with narrow, au
 reaches a diagnosis backed by evidence or hands the case to a person. A fix is only ever **proposed**: a person
 approves it, Argus applies it through a guarded path and then checks that it worked.
 
+<p align="center">
+  <img src="docs/images/pill-evidence.svg" alt="Evidence first" height="36">
+  <img src="docs/images/pill-human.svg" alt="Human in control" height="36">
+  <img src="docs/images/pill-grow.svg" alt="Built to grow" height="36">
+</p>
+
 Team: Juan Daniel Díaz · Luis Miguel Chaves · Juan José Betancur.
 
-**New on the team?** Follow [`START_HERE.md`](START_HERE.md): put it in an empty folder, open your AI agent there and say
-"Read START_HERE.md and follow it". The agent installs, clones and sets up everything with you.
+> [!TIP]
+> **New on the team?** Follow [`START_HERE.md`](START_HERE.md): put it in an empty folder, open your AI agent there and say
+> "Read START_HERE.md and follow it". The agent installs, clones and sets up everything with you.
 
 - **Start here (developers and AI agents):** [`brain/README.md`](brain/README.md).
 - Architecture: [`brain/architecture/ARCHITECTURE.md`](brain/architecture/ARCHITECTURE.md) (v1.8.x).
 - Where we stand: [`brain/CURRENT_STATE.md`](brain/CURRENT_STATE.md).
 - Operator console (restricted command console): [`docs/OPERATOR-CONSOLE.md`](docs/OPERATOR-CONSOLE.md).
+
+<p align="center"><img src="docs/images/divider.svg" alt="" width="100%" height="6"></p>
 
 ## The problem
 
@@ -29,9 +38,13 @@ processes and networks are checked by hand, so diagnosis is slow, expert-depende
   <img src="docs/images/problem.png" alt="Alerts tell you something broke. Not why." width="860">
 </p>
 
+<p align="center"><img src="docs/images/divider.svg" alt="" width="100%" height="6"></p>
+
 ## The goal
 
-Reduce the time from alert to a reliable diagnosis, while keeping critical actions under human control.
+> [!IMPORTANT]
+> Reduce the time from alert to a reliable diagnosis, while keeping critical actions under human control.
+> **Argus suggests, people decide.**
 
 | | |
 |---|---|
@@ -43,6 +56,8 @@ Reduce the time from alert to a reliable diagnosis, while keeping critical actio
   <img src="docs/images/product-goal.png" alt="Product goal: faster diagnosis, evidence first, human control" width="860">
 </p>
 
+<p align="center"><img src="docs/images/divider.svg" alt="" width="100%" height="6"></p>
+
 ## Argus at work
 
 The same incident two ways: an operator digging by hand, and Argus going from the alert to the root cause. The
@@ -52,6 +67,8 @@ restart / out-of-memory case shown is one validated incident type; more types ar
   <img src="docs/images/alert-to-root-cause.gif" alt="Animation: manual investigation versus Argus automated diagnosis, from alert to root cause" width="860">
 </p>
 
+<p align="center"><img src="docs/images/divider.svg" alt="" width="100%" height="6"></p>
+
 ## What Argus can investigate
 
 The host (CPU, memory, disk), containers (status, restarts, logs), the network (DNS, TCP, HTTP), databases (health,
@@ -60,6 +77,8 @@ connections) and history (metrics over time).
 <p align="center">
   <img src="docs/images/scope.png" alt="What Argus can investigate: host, containers, network, databases, history" width="860">
 </p>
+
+<p align="center"><img src="docs/images/divider.svg" alt="" width="100%" height="6"></p>
 
 ## How it works
 
@@ -104,6 +123,8 @@ first, the API fails because it needs the cache, and the alarm fires later on th
   <img src="docs/images/where-trouble-started.png" alt="Where did the trouble start: living map, timeline, strong lead" width="900">
 </p>
 
+<p align="center"><img src="docs/images/divider.svg" alt="" width="100%" height="6"></p>
+
 ## Safety model
 
 - **Read-only by default.** Investigations use narrow, audited tools; they look, they never change anything.
@@ -113,13 +134,20 @@ first, the API fails because it needs the cache, and the alarm fires later on th
   an approval.
 - **Everything is recorded** in the audit trail and the incident history.
 
+<p align="center"><img src="docs/images/divider.svg" alt="" width="100%" height="6"></p>
+
 ## Operator console
+
+> [!NOTE]
+> The console is **not a shell**: no pipes, no scripts, no arbitrary execution. Every command maps to one of Argus's own tools.
 
 A restricted command console beside each incident: an operator types a fixed set of commands over Argus's own tools
 (status, logs, metrics, network checks, and a few guarded write commands), and Argus comments on what each command
-showed. It is **not a shell**: no pipes, no scripts, no arbitrary execution. Details, commands and limits:
+showed. Details, commands and limits:
 [`docs/OPERATOR-CONSOLE.md`](docs/OPERATOR-CONSOLE.md); design: ACR-0043 in
 [`brain/architecture/changes/`](brain/architecture/changes/).
+
+<p align="center"><img src="docs/images/divider.svg" alt="" width="100%" height="6"></p>
 
 ## Run the tests (laptop)
 
@@ -131,6 +159,8 @@ python -m venv .venv
 git config argus.developer <your-github-handle>
 python brain/tools/brain.py status
 ```
+
+<p align="center"><img src="docs/images/divider.svg" alt="" width="100%" height="6"></p>
 
 ## Layout
 
