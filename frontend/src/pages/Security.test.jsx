@@ -9,7 +9,7 @@ const view = (over = {}) => renderToStaticMarkup(
 
 describe("SecurityView", () => {
   it("waits for the status, and says so when the API has no second factor", () => {
-    expect(view({ status: undefined })).toContain("animate-pulse");
+    expect(view({ status: undefined })).toContain("skeleton");    // T-0016: a shimmer, not a blink
     expect(view({ status: null })).toContain("not set up on this Argus");
   });
 

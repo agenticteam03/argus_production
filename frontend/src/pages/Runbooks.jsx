@@ -2,7 +2,7 @@ import { useCallback, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import RunbookCard from "../components/RunbookCard.jsx";
 import RunbookDrawer from "../components/RunbookDrawer.jsx";
-import { Book, Empty, fieldClass, LivePill, Search, Select, Warning } from "../components/ui.jsx";
+import { Book, Empty, fieldClass, LivePill, Search, Select, SkeletonList, Warning } from "../components/ui.jsx";
 import { useRunbooks } from "../hooks/useRunbooks.js";
 
 export default function Runbooks() {
@@ -70,7 +70,7 @@ export default function Runbooks() {
       </div>
 
       {loading ? (
-        <p className="text-sm text-muted">Loading runbooks…</p>
+        <SkeletonList label="Loading runbooks…" rows={4} className="h-[230px] rounded-2xl" grid="grid gap-4 md:grid-cols-2" />
       ) : items.length === 0 ? (
         <Empty icon={Book} title="No runbooks yet" text="Runbooks published on the Argus server will appear here." />
       ) : filtered.length === 0 ? (
@@ -81,7 +81,7 @@ export default function Runbooks() {
       ) : (
         <>
           <p className="text-xs text-muted">Showing {filtered.length} of {items.length}</p>
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="stagger grid gap-4 md:grid-cols-2">
             {filtered.map((r) => <RunbookCard key={r.id} runbook={r} onOpen={setOpenId} />)}
           </div>
         </>

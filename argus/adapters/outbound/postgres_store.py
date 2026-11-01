@@ -26,6 +26,10 @@ AUDIT_CHAIN_LOCK = 0x41524755530A   # pg_advisory_xact_lock key of the audit cha
 _LINK_ROWS = ("SELECT id, owner, dependency, state, latency_ms, reason, at, LAG(state) OVER (PARTITION BY owner, "
               "dependency ORDER BY at, id) AS prev FROM link_event")
 
+# inc_6a4980a4d8ed: requeue a parked run (paused at an interrupt, no worker holds it); a live run is never touched.
+_WAKE_PARKED = ("UPDATE incident SET status = 'queued', body = jsonb_set(body, '{status}', '\"queued\"'), "
+                "claimed_until = NULL WHERE status = 'running' AND claimed_by IS NULL AND ")
+
 
 def append_chained(conn, record: AuditRecord) -> None:
     """ACR-0018 (migration 011): write one audit row chained to the last one, inside the caller's transaction. Every
@@ -145,6 +149,13 @@ class PostgresStore:
                 c.execute("INSERT INTO resume_intent (approval_id, incident_id, decision, state) "
                           "SELECT %s, incident_id, %s, 'pending' FROM action_proposal WHERE proposal_id=%s",
                           (approval_id, decision, row[0]))
+                # The answer wakes the run only when it is parked (never a live worker's claim): it is requeued. The
+                # row lock comes first: a live row does not match the wake's WHERE, so the UPDATE alone would not wait
+                # for a park in flight, and an answer committed after the worker's check would leave the run parked.
+                woken = c.execute("SELECT incident_id FROM action_proposal WHERE proposal_id = %s",
+                                  (row[0],)).fetchone()
+                c.execute("SELECT 1 FROM incident WHERE id = %s FOR UPDATE", woken)
+                c.execute(_WAKE_PARKED + "id = %s", woken)
                 if audit is not None:
                     append_chained(c, audit)
             return row is not None
@@ -343,6 +354,23 @@ class PostgresStore:
                       "WHERE id = %s AND status = 'running' AND claimed_by = %s "
                       "AND claimed_until >= COALESCE(%s::timestamptz, now()) RETURNING id",
                       (now, lease_s, incident_id, worker_id, now))
+        return bool(row)
+
+    def park_claim(self, incident_id: str, worker_id: str, approval_id: str | None, lease_s: int = 300) -> bool:
+        """A run paused at an interrupt is parked: no worker holds it (`claimed_by` NULL) and its claim ends at the
+        pending approval's expiry, or after one lease when no approval waits. False: the claim is not this worker's.
+        One statement, no status change (migration 019's forward-only trigger allows it, as for renew_claim)."""
+        row = self._q("UPDATE incident SET claimed_by = NULL, claimed_until = COALESCE((SELECT expires_at FROM approval "
+                      "WHERE approval_id = %s AND state = 'pending'), now() + make_interval(secs => %s)) "
+                      "WHERE id = %s AND status = 'running' AND claimed_by = %s RETURNING id",
+                      (approval_id, lease_s, incident_id, worker_id))
+        return bool(row)
+
+    def wake_answered(self, incident_id: str, approval_id: str) -> bool:
+        """Requeue a parked run whose approval was answered before the park committed (the answer found it live).
+        Run after the park's commit, so it sees every answer committed before it."""
+        row = self._q(_WAKE_PARKED + "id = %s AND EXISTS (SELECT 1 FROM resume_intent WHERE approval_id = %s "
+                      "AND incident_id = %s) RETURNING id", (incident_id, approval_id, incident_id))
         return bool(row)
 
     def requeue_expired(self, now: datetime | None = None) -> int:
@@ -657,6 +685,20 @@ class PostgresStore:
         where, params = self._console_reads(person, incident_id, since)
         return self._q(f"SELECT MIN(started_at) FROM console_command WHERE {where}", params)[0][0]
 
+    # --- ACR-0043 (CON-4b, migration 021): Argus's analysis of a console command; updated while it runs -------------
+    def put_console_analysis(self, command_id: str, incident_id: str, status: str, body: dict[str, Any],
+                             at: datetime) -> None:
+        """The command's analysis, whole: inserted, then replaced as it moves on (UPDATE is granted, DELETE is not)."""
+        self._q("INSERT INTO console_analysis (command_id, incident_id, status, body, updated_at) "
+                "VALUES (%s, %s, %s, %s, %s) ON CONFLICT (command_id) DO UPDATE SET status = EXCLUDED.status, "
+                "body = EXCLUDED.body, updated_at = EXCLUDED.updated_at",
+                (command_id, incident_id, status, json.dumps(body, default=str), at))
+
+    def console_analyses(self, incident_id: str) -> dict[str, dict[str, Any]]:
+        """Every stored analysis of an incident's commands, by command id."""
+        rows = self._q("SELECT command_id, status, body FROM console_analysis WHERE incident_id = %s", (incident_id,))
+        return {r[0]: {**json.loads(r[2]), "status": r[1]} for r in rows}
+
     def close_queued_incident(self, incident_id: str, outcome: str, diagnosis: str, closed_at: datetime) -> bool:
         """Close an incident no worker has claimed (T-0026). False when it is no longer queued (claimed meanwhile)."""
         patch = {"status": "closed", "outcome": outcome, "diagnosis": diagnosis,
@@ -808,6 +850,10 @@ CHECKS_SQL: list[tuple[str, str, bool]] = [
     ("DELETE audit refused", "DELETE FROM audit WHERE audit_id = 'aud_dbcheck'", False),
     ("DELETE incident refused", "DELETE FROM incident WHERE id = 'inc_dbcheck'", False),
     ("closed incident cannot reopen", "UPDATE incident SET status = 'queued' WHERE id = 'inc_dbcheck'", False),
+    ("a claim may be parked without a status change (inc_6a4980a4d8ed)",
+     "UPDATE incident SET claimed_by = NULL, claimed_until = now() WHERE id = 'inc_dbcheck'", True),
+    ("an approval's answer may lock its incident row (inc_6a4980a4d8ed)",
+     "SELECT 1 FROM incident WHERE id = 'inc_dbcheck' FOR UPDATE", True),
     ("insert an escalated incident (migration 019's check)",
      "INSERT INTO incident (id, target, status, opened_at, body) VALUES "
      "('inc_dbcheck_esc', 'vm-095/container:dbcheck', 'escalated', now(), '{}')", True),
@@ -858,6 +904,14 @@ CHECKS_SQL: list[tuple[str, str, bool]] = [
      "WHERE command_id = 'dbcheck'", False),
     ("console command is insert-only (DELETE refused)", "DELETE FROM console_command WHERE command_id = 'dbcheck'",
      False),
+    ("insert console analysis (ACR-0043, migration 021)", "INSERT INTO console_analysis (command_id, incident_id, "
+     "status, body, updated_at) VALUES ('dbcheck', 'inc_dbcheck', 'waiting', '{}', now())", True),
+    ("console analysis moves on (UPDATE allowed)", "UPDATE console_analysis SET status = 'done' "
+     "WHERE command_id = 'dbcheck'", True),
+    ("console analysis is never deleted (DELETE refused)", "DELETE FROM console_analysis "
+     "WHERE command_id = 'dbcheck'", False),
+    ("console analysis status is one of four (check)", "UPDATE console_analysis SET status = 'maybe' "
+     "WHERE command_id = 'dbcheck'", False),
     ("insert link probe cursor (T-0046, migration 014)", "INSERT INTO link_probe_cursor (owner,dependency,state,at) "
                                                            "VALUES ('dbcheck','dbcheck','ok',now())", True),
     ("advance link probe cursor (migration 014)", "UPDATE link_probe_cursor SET state='broken', at=at + interval '1 second' "

@@ -86,3 +86,30 @@ def test_a_refused_input_is_stored_with_no_command_and_no_class(store):
     assert (got[0]["command"], got[0]["cls"], got[0]["status"], got[0]["input"], got[0]["output"]) == (
         None, None, "rejected", "status; rm", "syntax not allowed: ;")
     assert store.console_read_count(person="olga") == 1                 # a refusal is not a read
+
+
+# --- CON-4b (migration 021): the analysis of a command, updated while it runs ---------------------------------------
+def test_an_analysis_is_stored_whole_and_replaced_as_it_moves_on(store):
+    store.add_console_command(row("cmd_1"))
+    store.add_console_command(row("cmd_2"))
+    store.add_console_command(row("cmd_3", incident_id="inc_other"))
+    store.put_console_analysis("cmd_1", "inc_1", "waiting", {"before": {"samples": []}, "after": []}, NOW)
+    store.put_console_analysis("cmd_3", "inc_other", "done", {"result": {"comment": "x"}}, NOW)
+    store.put_console_analysis("cmd_1", "inc_1", "done", {"before": {"samples": []}, "after": [1, 2],
+                                                         "result": {"comment": "The cache is stopped."}}, NOW)
+
+    got = store.console_analyses("inc_1")
+
+    assert list(got) == ["cmd_1"]                                       # cmd_2 has none; cmd_3 is another incident's
+    assert got["cmd_1"]["status"] == "done" and got["cmd_1"]["after"] == [1, 2]
+    assert got["cmd_1"]["result"]["comment"] == "The cache is stopped."
+    assert store.console_analyses("inc_none") == {}
+
+
+def test_an_analysis_is_never_deleted_and_its_status_is_one_of_four(store):
+    store.add_console_command(row("cmd_1"))
+    store.put_console_analysis("cmd_1", "inc_1", "waiting", {}, NOW)
+    with pytest.raises(sqlite3.DatabaseError, match="never deleted"):
+        store._q("DELETE FROM console_analysis")
+    with pytest.raises(sqlite3.IntegrityError):
+        store.put_console_analysis("cmd_1", "inc_1", "maybe", {}, NOW)

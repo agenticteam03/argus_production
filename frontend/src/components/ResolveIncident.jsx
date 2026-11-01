@@ -60,7 +60,7 @@ export default function ResolveIncident({ incident, onResolved }) {
         rows={2} required aria-describedby={error ? ids.error : undefined} className={textareaClass}
         placeholder="e.g. restarted the cache by hand" />
       <p className="text-xs text-muted">The incident closes and keeps its diagnosis; your name, the time and this reason are recorded.</p>
-      {error && <p id={ids.error} role="alert" className="text-[13px] text-danger">{error}</p>}
+      {error && <p id={ids.error} role="alert" className="animate-rise text-[13px] text-danger">{error}</p>}
       <div className="flex gap-2">
         <button type="submit" disabled={busy || !reason.trim()}
           className="cursor-pointer rounded-xl bg-accent-solid px-4 py-2 text-sm font-medium text-white hover:bg-accent-solid-hover disabled:cursor-not-allowed disabled:opacity-60">

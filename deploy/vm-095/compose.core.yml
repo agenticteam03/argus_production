@@ -89,6 +89,8 @@ services:
       # second-factor routes answer 503
       ARGUS_WEBAUTHN_RP_ID: ${ARGUS_WEBAUTHN_RP_ID:-}
       ARGUS_WEBAUTHN_ORIGIN: ${ARGUS_WEBAUTHN_ORIGIN:-}
+      # ACR-0043: the operator console's routes (off: 404). The UI image takes the same variable (deploy/ui/compose.ui.yml)
+      ARGUS_OPERATOR_CONSOLE: ${ARGUS_OPERATOR_CONSOLE:-0}
     networks: [argus-v18-core]          # reaches vm-095 executors directly and vm-166 through argus-v18-tunnel
     depends_on:
       argus-v18-tunnel: {condition: service_started}

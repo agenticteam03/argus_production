@@ -39,6 +39,7 @@ ALERT_EVENTS = (
     "access.read_only_refused", "access.investigate_scope_refused",        # refused requests over a permission
     "security.webauthn_reset",                       # a principal's keys reset by another administrator
     "security.fabricated_tool", "security.unknown_or_write_capability",    # the model asked for what does not exist
+    "security.console_refused",                      # T-0016: a refused use of the operator console
 )
 
 
