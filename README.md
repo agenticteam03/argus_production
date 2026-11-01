@@ -18,15 +18,6 @@ approves it, Argus applies it through a guarded path and then checks that it wor
 
 Team: Juan Daniel Díaz · Luis Miguel Chaves · Juan José Betancur.
 
-> [!TIP]
-> **New on the team?** Follow [`START_HERE.md`](START_HERE.md): put it in an empty folder, open your AI agent there and say
-> "Read START_HERE.md and follow it". The agent installs, clones and sets up everything with you.
-
-- **Start here (developers and AI agents):** [`brain/README.md`](brain/README.md).
-- Architecture: [`brain/architecture/ARCHITECTURE.md`](brain/architecture/ARCHITECTURE.md) (v1.8.x).
-- Where we stand: [`brain/CURRENT_STATE.md`](brain/CURRENT_STATE.md).
-- Operator console (restricted command console): [`docs/OPERATOR-CONSOLE.md`](docs/OPERATOR-CONSOLE.md).
-
 <p align="center"><img src="docs/images/divider.svg" alt="" width="100%" height="6"></p>
 
 ## The problem
@@ -146,36 +137,5 @@ A restricted command console beside each incident: an operator types a fixed set
 showed. Details, commands and limits:
 [`docs/OPERATOR-CONSOLE.md`](docs/OPERATOR-CONSOLE.md); design: ACR-0043 in
 [`brain/architecture/changes/`](brain/architecture/changes/).
-
-<p align="center"><img src="docs/images/divider.svg" alt="" width="100%" height="6"></p>
-
-## Run the tests (laptop)
-
-```powershell
-python -m venv .venv
-.\.venv\Scripts\python -m pip install -e ".[test,dev]"
-.\.venv\Scripts\pre-commit install          # Brain audit on every commit; refuses a push to main
-.\.venv\Scripts\python -m pytest -q          # Postgres tests: see brain/policies/TDD.md
-git config argus.developer <your-github-handle>
-python brain/tools/brain.py status
-```
-
-<p align="center"><img src="docs/images/divider.svg" alt="" width="100%" height="6"></p>
-
-## Layout
-
-| Path | What |
-|---|---|
-| `argus/` | the agent (domain, ports, adapters, orchestration, tooling, policy) |
-| `services/target/` | the per-host read gateway, probes and exporter |
-| `config/` | inventory, policy, signals — canonical data |
-| `deploy/` | compose files, migrations, lab workloads |
-| `ops/` | operational scripts (non-interference check, migrations, checks) |
-| `tests/` | offline, Postgres and `brain.py` tests |
-| `frontend/` | the web UI (React) |
-| `docs/` | API for the UI, incidents, the operator console guide, and the images used here |
-| `brain/` | the shared project Brain: state, plan, rules, guides, journal |
-
-The runbook library (RB-001 … RB-021) lives in `argus/runbooks/` — see its README for provenance and how to change it.
 
 *Evidence first. Human in control. Built to grow.*
