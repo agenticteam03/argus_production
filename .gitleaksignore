@@ -1,0 +1,3 @@
+# A test password fixture (a throwaway value in a unit test), flagged by the generic-api-key rule in the history of PR 423.
+# Scoped to this one finding (commit, file, rule, line): any other finding still fails the scan.
+aa772356980e5215e93a34aab06e5af67c9ac81f:tests/test_t0059_live_targets.py:generic-api-key:185
