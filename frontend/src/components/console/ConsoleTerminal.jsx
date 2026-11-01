@@ -70,6 +70,14 @@ export default function ConsoleTerminal({ incidentId, history = [], run, inserte
   };
 
   const onKeyDown = (e) => {
+    if (e.key === "Escape" && pending) {
+      e.preventDefault();
+      setPending(null);
+      setInput("");
+      setCursor(-1);
+      print({ kind: "info", text: "cancelled" });
+      return;
+    }
     if (e.key !== "ArrowUp" && e.key !== "ArrowDown") return;
     e.preventDefault();
     const step = stepHistory(historyInputs(history, typed), cursor, e.key);
@@ -88,7 +96,7 @@ export default function ConsoleTerminal({ incidentId, history = [], run, inserte
             {l.text}
           </p>
         ))}
-        {busy && <p className="text-muted">running…</p>}
+        {busy && <p role="status" aria-live="polite" className="text-muted">running…</p>}
       </div>
       <form onSubmit={submit} className="flex items-center gap-2 border-t border-line px-3 py-2">
         <label htmlFor={`console-input-${incidentId}`} className="shrink-0 select-none text-accent-hover">{prompt}</label>
