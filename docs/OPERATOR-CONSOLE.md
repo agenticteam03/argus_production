@@ -178,7 +178,7 @@ The switches (all off or default as listed):
   - **It cannot reach the API container today.** `deploy/vm-095/compose.core.yml` passes environment variables one by
     one and does not pass `ARGUS_CONSOLE_TWO_PERSON`, so setting it in `hosts.env` has no effect until that file passes
     it (a one-line change to a protected path, then a redeploy). This change does not edit the compose file.
-  - **Known gap after PR #421:** a proposal the API gave up waiting on (the worker may still create it later) has no
+  - **Known gap since #421 (merged):** a proposal the API gave up waiting on (the worker may still create it later) has no
     console record, so the rule is skipped for it. The worker would have to write that record.
 - Metrics lag. A scrape is 15 s apart, so Argus waits and samples twice; a comment made too early can say "no change".
 - Reads are allowed on any existing incident, closed ones included, so a demo is not blocked when Argus closes an
