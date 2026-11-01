@@ -378,6 +378,32 @@ def test_console_analysis_migration_021(runtime_dsn, store):
                       f"VALUES ('cmd_nope', '{inc.id}', 'waiting', '{{}}', now())")
 
 
+def test_console_job_migration_022(runtime_dsn, store):
+    """ACR-0043 with §12.6: the API queues a console read or write proposal, the worker claims it once and answers; the
+    runtime role may UPDATE a job but never DELETE it; the incident must exist; the kind and status are checked."""
+    import psycopg
+    from datetime import timedelta
+    from argus.domain.model import utcnow
+    inc = _incident(target="vm-166/container:argus-lab-jobworker")
+    store.create_incident(inc, None)
+    now = utcnow()
+    store.add_console_job("cjb_pg1", "read", inc.id, "olga", {"capability": "container.status"}, now)
+    claimed = store.claim_console_job("w1", since=now - timedelta(minutes=1), at=now)
+    assert claimed["job_id"] == "cjb_pg1" and claimed["request"] == {"capability": "container.status"}
+    assert store.claim_console_job("w2", since=now - timedelta(minutes=1), at=now) is None
+    store.finish_console_job("cjb_pg1", "done", {"status": "ok"}, now)
+    assert store.get_console_job("cjb_pg1") == {"job_id": "cjb_pg1", "kind": "read", "status": "done",
+                                                "result": {"status": "ok"}}
+    with psycopg.connect(runtime_dsn, autocommit=True) as c:
+        with pytest.raises(psycopg.Error, match="permission denied"):
+            c.execute("DELETE FROM console_job")
+        with pytest.raises(psycopg.Error, match="check constraint"):
+            c.execute("UPDATE console_job SET kind = 'shell'")
+        with pytest.raises(psycopg.Error, match="foreign key"):
+            c.execute("INSERT INTO console_job (job_id, kind, incident_id, person, request, status, requested_at, "
+                      "updated_at) VALUES ('cjb_x', 'read', 'inc_nope', 'p', '{}', 'queued', now(), now())")
+
+
 def test_link_probe_cursor_migration_014(runtime_dsn, store):
     """T-0046: cursor advances atomically with a transition and allows only monotonic sample-time updates."""
     import psycopg

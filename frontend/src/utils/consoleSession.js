@@ -66,6 +66,7 @@ export function analysisView(analysis, now = Date.now()) {
   const settled = Date.parse(analysis.settle_until);
   switch (analysis.status) {
     case "waiting": {
+      if (analysis.waiting_for_approval) return { tone: "neutral", text: "Waiting for approval before analysis can complete" };
       const left = Number.isFinite(settled) ? Math.ceil((settled - now) / 1000) : analysis.countdown_s;
       return { tone: "neutral", text: left > 0 ? `Waiting for metrics to settle (${left} s)` : "Waiting for metrics to settle" };
     }

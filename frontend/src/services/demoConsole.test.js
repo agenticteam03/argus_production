@@ -1,10 +1,11 @@
-import { beforeEach, describe, expect, it } from "vitest";
-import { demoConsoleCommands, demoConsoleExecute, demoConsoleHistory, demoConsoleRecheck, resetDemoConsole } from "./demoConsole.js";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { completeDemoConsoleAction, demoConsoleCommands, demoConsoleExecute, demoConsoleHistory, demoConsoleRecheck, resetDemoConsole } from "./demoConsole.js";
 
 // CON-3: the offline demo of the console routes (shapes in brain/tasks/current/argus-console-mockup-spec.md §5).
 // The real parser is argus/console/parser.py (CON-1); this one only has to answer like it for the demo.
 describe("demo console", () => {
   beforeEach(() => resetDemoConsole());
+  afterEach(() => vi.useRealTimers());
 
   it("lists the same commands as the backend registry, three of them writes", () => {
     const { commands } = demoConsoleCommands();
@@ -26,14 +27,23 @@ describe("demo console", () => {
     expect(demoConsoleHistory("inc_2").entries).toEqual([]);
   });
 
-  it("asks before a write and, after 'yes', only proposes it: no approval is given", () => {
+  it("holds a proposed write for approval until the approved action runs", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-10-29T10:50:00Z"));
     const ask = demoConsoleExecute("inc_1", { input: "cache restart" }, "olga");
     expect(ask).toMatchObject({ status: "needs_confirmation", input: "cache restart" });
     expect(ask.prompt).toMatch(/yes/);
     const done = demoConsoleExecute("inc_1", { input: "cache restart", confirmation: "yes" }, "olga");
     expect(done.status).toBe("ok");
     expect(done.output.join("\n")).toMatch(/proposal/i);
-    expect(done.output.join("\n")).toMatch(/approver/i);
+    expect(done.output.join("\n")).toMatch(/waiting for approval/i);
+    const [proposal] = demoConsoleHistory("inc_1").entries;
+    expect(proposal.analysis).toMatchObject({ status: "waiting", waiting_for_approval: true });
+    vi.advanceTimersByTime(60_000);
+    expect(demoConsoleHistory("inc_1").entries[0].analysis.status).toBe("waiting");
+    expect(completeDemoConsoleAction("inc_1", proposal.command_id)).toBe(true);
+    vi.advanceTimersByTime(45_000);
+    expect(demoConsoleHistory("inc_1").entries[0].analysis.status).toBe("done");
   });
 
   it("accepts the optional --since and checks the service argument", () => {
