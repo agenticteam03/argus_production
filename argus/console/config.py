@@ -4,6 +4,7 @@ The flag is off by default: with it off the console's routes are not mounted and
 """
 from __future__ import annotations
 
+import logging
 import os
 from dataclasses import dataclass, field
 
@@ -29,3 +30,12 @@ class ConsoleConfig:
     analysis_stuck_s: int = 90
     analysis_workers: int = field(default_factory=lambda: int(os.getenv("ARGUS_CONSOLE_ANALYSIS_WORKERS", "2")))
     output_max_bytes: int = 4096        # spec §7.4: what is stored (and later shown to the model) per command
+
+
+def warn_unrecognised_two_person() -> None:
+    """Only `1` turns the two-person rule on. Any other value but empty or `0` leaves a security setting silently
+    off, so say so in the log (a warning, never a crash)."""
+    value = os.getenv("ARGUS_CONSOLE_TWO_PERSON", "")
+    if value.strip() not in ("", "0", "1"):
+        logging.getLogger("argus.console").warning(
+            "ARGUS_CONSOLE_TWO_PERSON=%r is not recognised: only 1 turns the two-person rule on, so it is OFF", value)

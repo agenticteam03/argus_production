@@ -178,7 +178,7 @@ def test_two_person_setting_refuses_console_proposer_and_keeps_approval_pending(
                                json={"decision": "approved", "proposal_digest": proposal.digest,
                                      "step_up_token": "offline-step-up"})
     assert refused.status_code == 403
-    assert refused.json()["detail"] == "a console write must be answered by a different person"
+    assert refused.json()["detail"] == "a console write must be approved by a different person"
     assert case.app.store.get_action_approval_for_proposal(proposal.id)["state"] == "pending"
     [audit] = [row for row in case.app.store.list_for(case.incident.id)
                if row.event == "action.approval_refused"]
@@ -404,3 +404,98 @@ def test_a_failed_judge_refuses_safely_and_requests_no_approval(app_factory, mon
     assert "the judge is down" not in " ".join(body["output"])           # the error text is not shown
     assert case.app.store.get_action_approval_for_proposal(body["proposal_id"]) is None
     assert case.path.executor.gateway.calls == []
+
+
+# --- TASK-144: review of #425 -------------------------------------------------------------------------------------
+def _propose(case):
+    proposed = case.client.post(url(case.incident, "execute"), headers={**case.auth, **PRIVATE},
+                                json={"input": "cache restart", "confirmation": "yes"}).json()
+    return proposed, case.app.store.get_action_proposal(proposed["proposal_id"])
+
+
+def _answer(case, headers, proposed, proposal, decision="approved"):
+    return case.client.post(f"/api/v1/ops/approvals/{proposed['approval_id']}/answer", headers={**headers, **PRIVATE},
+                            json={"decision": decision, "proposal_digest": proposal.digest,
+                                  "step_up_token": "offline-step-up",
+                                  **({"reason": "not now"} if decision == "denied" else {})})
+
+
+def test_two_person_setting_lets_the_proposer_deny_their_own_proposal(app_factory, monkeypatch):
+    monkeypatch.setenv("ARGUS_CONSOLE_TWO_PERSON", "1")
+    case = _case(app_factory, monkeypatch, *CASES[0].values)
+    proposed, proposal = _propose(case)
+    denied = _answer(case, case.auth, proposed, proposal, "denied")
+    assert denied.status_code == 200, denied.text
+    assert case.app.store.get_action_approval_for_proposal(proposal.id)["state"] == "denied"
+    events = [row.event for row in case.app.store.list_for(case.incident.id)]
+    assert "action.approval_answered" in events and "action.approval_refused" not in events
+
+
+def test_refusal_writes_no_answered_row_and_uses_the_access_category(app_factory, monkeypatch):
+    monkeypatch.setenv("ARGUS_CONSOLE_TWO_PERSON", "1")
+    case = _case(app_factory, monkeypatch, *CASES[0].values)
+    proposed, proposal = _propose(case)
+    assert _answer(case, case.auth, proposed, proposal).status_code == 403
+    rows = case.app.store.list_for(case.incident.id)
+    assert not [row for row in rows if row.event == "action.approval_answered"]
+    [refusal] = [row for row in rows if row.event == "action.approval_refused"]
+    assert refusal.category == "access"                      # as graph_runner.py writes the same event
+    assert case.app.store.get_action_approval_for_proposal(proposal.id)["state"] == "pending"
+
+
+def test_a_second_person_who_reconfirms_then_each_answers(app_factory, monkeypatch):
+    monkeypatch.setenv("ARGUS_CONSOLE_TWO_PERSON", "1")
+    case = _case(app_factory, monkeypatch, *CASES[0].values)
+    proposed, proposal = _propose(case)
+    case.app.store.upsert_principal("vera", "human", "approver", ["lab"],
+                                    PasswordHash.recommended().hash("a-long-password"))
+    vera = login(case.client, "vera")
+    again = case.client.post(url(case.incident, "execute"), headers={**vera, **PRIVATE},
+                             json={"input": "cache restart", "confirmation": "yes"}).json()
+    assert again["proposal_id"] == proposed["proposal_id"]       # reused, not a second proposal
+    assert _answer(case, case.auth, proposed, proposal).status_code == 403   # the first typer is still the proposer
+    assert _answer(case, vera, proposed, proposal).status_code == 200
+    assert case.app.store.get_action_approval_for_proposal(proposal.id)["state"] == "approved"
+
+
+@pytest.mark.parametrize("value", ["true", "yes", "on", "2"])
+def test_other_setting_values_leave_the_rule_off_and_warn(value, monkeypatch, caplog):
+    from argus.console.config import warn_unrecognised_two_person
+    monkeypatch.setenv("ARGUS_CONSOLE_TWO_PERSON", value)
+    assert ConsoleConfig().two_person_required is False
+    with caplog.at_level("WARNING", logger="argus.console"):
+        warn_unrecognised_two_person()
+    assert any("ARGUS_CONSOLE_TWO_PERSON" in r.getMessage() and value in r.getMessage() for r in caplog.records)
+
+
+@pytest.mark.parametrize("value", [None, "", "0", "1"])
+def test_known_setting_values_do_not_warn(value, monkeypatch, caplog):
+    from argus.console.config import warn_unrecognised_two_person
+    if value is None:
+        monkeypatch.delenv("ARGUS_CONSOLE_TWO_PERSON", raising=False)
+    else:
+        monkeypatch.setenv("ARGUS_CONSOLE_TWO_PERSON", value)
+    with caplog.at_level("WARNING", logger="argus.console"):
+        warn_unrecognised_two_person()
+    assert not caplog.records
+
+
+def test_a_proposal_with_no_console_origin_is_not_restricted_even_for_the_person_who_typed_it(app_factory, monkeypatch):
+    monkeypatch.setenv("ARGUS_CONSOLE_TWO_PERSON", "1")
+    case = _case(app_factory, monkeypatch, *CASES[0].values)
+    proposed, proposal = _propose(case)
+    # what #421 leaves when the API timed out: the proposal exists but its console.write.after row does not
+    rows = [r for r in case.app.store.list_for(case.incident.id) if r.event != "console.write.after"]
+    monkeypatch.setattr(case.app.store, "list_for", lambda _incident_id: rows)
+    assert _answer(case, case.auth, proposed, proposal).status_code == 200
+
+
+@pytest.mark.xfail(strict=True, reason="finding 2 of REVIEW-425: under #421 a proposal the API timed out on has no "
+                                       "console origin, so the rule is skipped; the worker must write the origin row")
+def test_worker_created_proposal_after_an_api_timeout_keeps_a_console_origin(app_factory, monkeypatch):
+    monkeypatch.setenv("ARGUS_CONSOLE_TWO_PERSON", "1")
+    case = _case(app_factory, monkeypatch, *CASES[0].values)
+    proposed, proposal = _propose(case)
+    rows = [r for r in case.app.store.list_for(case.incident.id) if r.event != "console.write.after"]
+    monkeypatch.setattr(case.app.store, "list_for", lambda _incident_id: rows)   # no origin row, as after a timeout
+    assert _answer(case, case.auth, proposed, proposal).status_code == 403

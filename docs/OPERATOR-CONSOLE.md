@@ -135,6 +135,7 @@ The switches (all off or default as listed):
 | `ARGUS_CONSOLE_READS_PER_MINUTE` | The API | 20 reads a minute per person |
 | `ARGUS_CONSOLE_READS_PER_HOUR` | The API | 200 reads an hour per person |
 | `ARGUS_CONSOLE_INCIDENT_READS` | The API | 60 console reads for one incident, separate from the investigation's own budget |
+| `ARGUS_CONSOLE_TWO_PERSON=1` | The API | Off by default: the proposer of a console write cannot approve it (see Known limits). Not passed to the container by compose yet |
 
 `help`, `history` and `clear` are not counted. The console reads only the lab host (`ARGUS_CONSOLE_HOST`).
 
@@ -155,9 +156,24 @@ The switches (all off or default as listed):
 ## Known limits
 
 - Stage 1 only: a restricted console, not a shell.
-- **One person may type a write and approve it.** An approver can both propose and answer. That is a deliberate,
-  recorded reduction of control for the lab console, written down in ACR-0043 section 5.4; the
-  audit shows when it happened, and a two-person rule is to be built before the console is enabled outside the lab.
+- **One person may type a write and approve it, unless the two-person rule is on.** By default an approver can both
+  propose and answer: a deliberate, recorded reduction of control for the lab console (ACR-0043 section 5.4). With
+  `ARGUS_CONSOLE_TWO_PERSON=1` the person who proposed a console write cannot **approve** it: the answer route returns
+  403 ("a console write must be approved by a different person"), the approval stays pending, and the audit has an
+  `action.approval_refused` row (category `access`) with both people, and no `action.approval_answered` row. The
+  proposer **can deny** their own proposal. Details:
+  - The refusal comes after the passkey step-up, so a refused attempt has used one fresh step-up token and adds one
+    audit row.
+  - If a second person types `yes` for the same pending write, the console reuses the proposal. The first person
+    stays the proposer (the first `console.write.after` row decides), so the first person is refused and the second
+    can approve.
+  - A proposal Argus made itself, or one with no console record, is not restricted.
+  - Only the literal `1` turns it on. Any other value except empty or `0` leaves it off and logs a warning at start.
+  - **It cannot reach the API container today.** `deploy/vm-095/compose.core.yml` passes environment variables one by
+    one and does not pass `ARGUS_CONSOLE_TWO_PERSON`, so setting it in `hosts.env` has no effect until that file passes
+    it (a one-line change to a protected path, then a redeploy). This change does not edit the compose file.
+  - **Known gap after PR #421:** a proposal the API gave up waiting on (the worker may still create it later) has no
+    console record, so the rule is skipped for it. The worker would have to write that record.
 - Metrics lag. A scrape is 15 s apart, so Argus waits and samples twice; a comment made too early can say "no change".
 - Reads are allowed on any existing incident, closed ones included, so a demo is not blocked when Argus closes an
   incident quickly. Writes need an open one.
