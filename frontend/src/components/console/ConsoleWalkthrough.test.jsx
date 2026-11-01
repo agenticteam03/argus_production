@@ -4,7 +4,8 @@ import { readFileSync, readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import ConsolePanel from "./ConsolePanel.jsx";
 import ConsoleTerminal from "./ConsoleTerminal.jsx";
-import { demoConsoleExecute, demoConsoleHistory, resetDemoConsole } from "../../services/demoConsole.js";
+import { completeDemoConsoleAction, demoConsoleExecute, demoConsoleHistory, resetDemoConsole } from "../../services/demoConsole.js";
+import { mockArgusAdapter } from "../../services/mockArgusAdapter.js";
 import { httpArgusAdapter } from "../../services/httpArgusAdapter.js";
 import { analysisView, errorLine } from "../../utils/consoleSession.js";
 
@@ -40,6 +41,42 @@ const panelMarkup = (history, props = {}) => renderToStaticMarkup(
 const visibleText = (markup) => markup.replace(/<[^>]*>/g, " ")
   .replace(/&(?:#\d+|#x[\da-f]+|amp|lt|gt|quot|apos);/gi, " ");
 
+function quotedLiterals(source) {
+  const literals = [];
+  const skipQuoted = (start, quote) => {
+    let index = start + 1;
+    while (index < source.length) {
+      if (source[index] === "\\") index += 2;
+      else if (source[index++] === quote) break;
+    }
+    return index;
+  };
+  const skipTemplate = (start) => {
+    let index = start + 1;
+    while (index < source.length) {
+      if (source[index] === "\\") index += 2;
+      else if (source[index++] === "`") break;
+    }
+    return index;
+  };
+  for (let index = 0; index < source.length;) {
+    if (source.startsWith("//", index)) {
+      const end = source.indexOf("\n", index + 2);
+      index = end < 0 ? source.length : end + 1;
+    } else if (source.startsWith("/*", index)) {
+      const end = source.indexOf("*/", index + 2);
+      index = end < 0 ? source.length : end + 2;
+    } else if (source[index] === "'" || source[index] === '"') {
+      const quote = source[index];
+      const end = skipQuoted(index, quote);
+      literals.push(source.slice(index + 1, end - 1));
+      index = end;
+    } else if (source[index] === "`") index = skipTemplate(index);
+    else index += 1;
+  }
+  return literals;
+}
+
 beforeEach(() => resetDemoConsole());
 afterEach(() => { vi.unstubAllGlobals(); vi.unstubAllEnvs(); vi.useRealTimers(); });
 
@@ -49,7 +86,8 @@ describe("offline operator console walkthroughs", () => {
     const { trace, history } = rehearse(id, ["cache status", "api cpu", "cache restart"]);
     const terminal = terminalMarkup(id, trace);
     const panel = panelMarkup(history, { onInsert: vi.fn() });
-    for (const text of ["cache status", "api cpu", "cache restart needs approval", "proposal created: container.start on vm-166/container:argus-lab-cache"]) {
+    for (const text of ["cache status", "api cpu", "cache restart needs approval", "proposal created: container.start on vm-166/container:argus-lab-cache",
+      "waiting for approval in Actions"]) {
       expect(terminal).toContain(text);
     }
     expect(terminal.indexOf("cache status")).toBeLessThan(terminal.indexOf("api cpu"));
@@ -84,11 +122,17 @@ describe("offline operator console walkthroughs", () => {
     expect(terminal.indexOf("net inspect api")).toBeLessThan(terminal.indexOf("net expected api"));
     expect(terminal.indexOf("net expected api")).toBeLessThan(terminal.indexOf("net diff api"));
     expect(terminal.indexOf("net diff api")).toBeLessThan(terminal.indexOf("net reconnect api needs approval"));
-    expect(history.find((entry) => entry.command === "net.reconnect").analysis)
-      .toMatchObject({ status: "waiting", countdown_s: 45 });
+    const write = history.find((entry) => entry.command === "net.reconnect");
+    expect(write.analysis).toMatchObject({ status: "waiting", waiting_for_approval: true });
+    vi.advanceTimersByTime(45_000);
+    expect(demoConsoleHistory(id).entries.find((entry) => entry.command_id === write.command_id).analysis.status).toBe("waiting");
+    expect(analysisView(write.analysis).text).toBe("Waiting for approval before analysis can complete");
+    expect(completeDemoConsoleAction(id, write.command_id)).toBe(true);
     vi.advanceTimersByTime(45_000);
     const analysis = demoConsoleHistory(id).entries.find((entry) => entry.command === "net.reconnect").analysis;
-    expect(analysis).toMatchObject({ status: "done", ranking: [{ target: "api", rank: 1 }] });
+    expect(analysis).toMatchObject({ status: "done", ranking: [{ id: "api", rank: 1, score: 1,
+      counted_for: expect.any(Array), counted_against: [] }] });
+    expect(analysis.suggestion).toMatchObject({ id: "suggestion-net.diff", command: "net diff api", command_id: "net.diff" });
     expect(analysis.comment).toContain("addressing the mismatch");
   });
 
@@ -106,24 +150,33 @@ describe("offline operator console walkthroughs", () => {
     vi.setSystemTime(new Date("2026-10-29T10:50:00Z"));
     const cacheId = "cache-lifecycle";
     const cache = rehearse(cacheId, ["cache status", "cache restart"]).history;
-    const cacheWaiting = cache.find((entry) => entry.command === "cache.restart").analysis;
-    expect(cacheWaiting).toMatchObject({ status: "waiting", countdown_s: 45 });
+    const cacheWrite = cache.find((entry) => entry.command === "cache.restart");
+    const cacheWaiting = cacheWrite.analysis;
+    expect(cacheWaiting).toMatchObject({ status: "waiting", waiting_for_approval: true });
+    vi.advanceTimersByTime(45_000);
+    expect(demoConsoleHistory(cacheId).entries.find((entry) => entry.command_id === cacheWrite.command_id).analysis.status).toBe("waiting");
+    completeDemoConsoleAction(cacheId, cacheWrite.command_id);
     vi.advanceTimersByTime(45_000);
     const cacheDone = demoConsoleHistory(cacheId).entries.find((entry) => entry.command === "cache.restart").analysis;
-    expect(cacheDone).toMatchObject({ status: "done", ranking: [{ target: "cache", rank: 1 }] });
+    expect(cacheDone).toMatchObject({ status: "done", ranking: [{ id: "cache", rank: 1, score: 1,
+      counted_for: expect.any(Array), counted_against: [] }] });
     expect(cacheDone.comment).toContain("cache read reported cache: exited");
-    expect(cacheDone.suggestion).toMatchObject({ command: "cache status", command_id: "cache.status" });
+    expect(cacheDone.suggestion).toMatchObject({ id: "suggestion-cache.status", command: "cache status", command_id: "cache.status" });
 
     const workerId = "worker-lifecycle";
     const worker = rehearse(workerId, ["worker status", "worker restart"]).history;
-    expect(worker.find((entry) => entry.command === "worker.restart").analysis)
-      .toMatchObject({ status: "waiting", countdown_s: 45 });
+    const workerWrite = worker.find((entry) => entry.command === "worker.restart");
+    expect(workerWrite.analysis).toMatchObject({ status: "waiting", waiting_for_approval: true });
+    vi.advanceTimersByTime(45_000);
+    expect(demoConsoleHistory(workerId).entries.find((entry) => entry.command_id === workerWrite.command_id).analysis.status).toBe("waiting");
+    completeDemoConsoleAction(workerId, workerWrite.command_id);
     vi.advanceTimersByTime(45_000);
     const workerDone = demoConsoleHistory(workerId).entries.find((entry) => entry.command === "worker.restart").analysis;
-    expect(workerDone).toMatchObject({ status: "done", ranking: [{ target: "worker", rank: 1 }] });
+    expect(workerDone).toMatchObject({ status: "done", ranking: [{ id: "worker", rank: 1, score: 1,
+      counted_for: expect.any(Array), counted_against: [] }] });
     expect(workerDone.comment).toContain("worker read reported worker: running, healthy");
-    expect(workerDone.suggestion).toMatchObject({ command: "worker status", command_id: "worker.status" });
-    expect(cacheDone.ranking[0].target).not.toBe(workerDone.ranking[0].target);
+    expect(workerDone.suggestion).toMatchObject({ id: "suggestion-worker.status", command: "worker status", command_id: "worker.status" });
+    expect(cacheDone.ranking[0].id).not.toBe(workerDone.ranking[0].id);
   });
 });
 
@@ -222,11 +275,20 @@ describe("operator console wording guard", () => {
       .filter((name) => /\.jsx?$/.test(name) && !name.includes(".test.")
         && (!root.href.includes("/utils/") || name.startsWith("console")))
       .map((name) => `${fileURLToPath(root)}${name}`));
+    sourceFiles.push(fileURLToPath(new URL("../../services/demoConsole.js", import.meta.url)));
+    sourceFiles.push(fileURLToPath(new URL("../../services/mockArgusAdapter.js", import.meta.url)));
     const banned = /demo|mock|fake|simulat/i;
     for (const file of sourceFiles) {
       const source = readFileSync(file, "utf8");
-      const literals = [...source.matchAll(/["'`]([^"'`\r\n]*)["'`]/g)].map((match) => match[1]);
+      const literals = quotedLiterals(source)
+        .filter((literal) => !literal.includes("/") && !/^VITE_[A-Z0-9_]+$/.test(literal));
       expect(literals.filter((literal) => banned.test(literal)), file).toEqual([]);
     }
+  });
+
+  it("keeps an unavailable approval's visible error free of implementation labels", async () => {
+    const error = await mockArgusAdapter.getApproval("missing").catch((err) => err.message);
+    expect(error).toBe("Approval not found.");
+    expect(error).not.toMatch(/demo|mock|fake|simulat/i);
   });
 });
