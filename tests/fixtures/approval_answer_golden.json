@@ -1,0 +1,87 @@
+{
+  "_captured_on": "origin/main 430f5d258358e36ca16077a89659cb78403ea974 (no two-person rule)",
+  "other_approve": {
+    "audit": [
+      {
+        "actor": "vera",
+        "category": "decision",
+        "detail": {
+          "approval_id": "<volatile>",
+          "approved_by": "vera",
+          "client_cert": "<volatile>",
+          "command_id": "<volatile>",
+          "decision": "approved",
+          "judge_verdict": "agree",
+          "proposal_digest": "<volatile>",
+          "proposal_id": "<volatile>",
+          "proposed_by": "writer",
+          "reason": null,
+          "risk": "green",
+          "source": "operator_console"
+        },
+        "event": "action.approval_answered"
+      }
+    ],
+    "body": {
+      "state": "approved"
+    },
+    "state": "approved",
+    "status": 200
+  },
+  "self_approve": {
+    "audit": [
+      {
+        "actor": "writer",
+        "category": "decision",
+        "detail": {
+          "approval_id": "<volatile>",
+          "approved_by": "writer",
+          "client_cert": "<volatile>",
+          "command_id": "<volatile>",
+          "decision": "approved",
+          "judge_verdict": "agree",
+          "proposal_digest": "<volatile>",
+          "proposal_id": "<volatile>",
+          "proposed_by": "writer",
+          "reason": null,
+          "risk": "green",
+          "source": "operator_console"
+        },
+        "event": "action.approval_answered"
+      }
+    ],
+    "body": {
+      "state": "approved"
+    },
+    "state": "approved",
+    "status": 200
+  },
+  "self_deny": {
+    "audit": [
+      {
+        "actor": "writer",
+        "category": "decision",
+        "detail": {
+          "answered_by": "writer",
+          "approval_id": "<volatile>",
+          "client_cert": "<volatile>",
+          "command_id": "<volatile>",
+          "decision": "denied",
+          "judge_verdict": "agree",
+          "proposal_digest": "<volatile>",
+          "proposal_id": "<volatile>",
+          "proposed_by": "writer",
+          "reason": "not now",
+          "risk": "green",
+          "source": "operator_console"
+        },
+        "event": "action.approval_answered"
+      }
+    ],
+    "body": {
+      "state": "denied"
+    },
+    "state": "denied",
+    "status": 200
+  }
+}
