@@ -43,6 +43,15 @@ Reduce the time from alert to a reliable diagnosis, while keeping critical actio
   <img src="docs/images/product-goal.png" alt="Product goal: faster diagnosis, evidence first, human control" width="860">
 </p>
 
+## Argus at work
+
+The same incident two ways: an operator digging by hand, and Argus going from the alert to the root cause. The
+restart / out-of-memory case shown is one validated incident type; more types are added progressively after testing.
+
+<p align="center">
+  <img src="docs/images/alert-to-root-cause.gif" alt="Animation: manual investigation versus Argus automated diagnosis, from alert to root cause" width="860">
+</p>
+
 ## What Argus can investigate
 
 The host (CPU, memory, disk), containers (status, restarts, logs), the network (DNS, TCP, HTTP), databases (health,
