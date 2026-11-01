@@ -1,24 +1,26 @@
 """ACR-0043 (CON-2): one console command from input to stored history row and audit.
 
-parse -> quota -> handler (reads go through the runner's guarded invoke) -> history row -> audit. The route calls
+parse -> quota -> handler (reads go through the runner's guarded invoke; in `argus api`, through the worker: jobs.py)
+-> history row -> audit. The route calls
 `ConsoleService.run`; nothing here knows HTTP.
 """
 from __future__ import annotations
 
 import logging
-import copy
 import uuid
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import timedelta
 from threading import Lock
 from typing import Any
 
 from argus.console.config import ConsoleConfig
 from argus.console.analysis_runner import AnalysisRunner, NotRetryable, UnknownCommand  # noqa: F401
 from argus.console.handlers import ConsolePorts, HandlerError, execute
+from argus.console.jobs import PROPOSE, READ as READ_JOB, ConsoleJobs, JobFailed
 from argus.console.parser import ConsoleRefused, parse
+from argus.console.proposals import evidence_state, propose_write
 from argus.console.registry import LAB_SERVICES, META, READ, WRITE
-from argus.domain.model import AuditRecord, IncidentStatus, TargetRef, utcnow
+from argus.domain.model import AuditRecord, IncidentStatus, Observation, TargetRef, utcnow
 
 log = logging.getLogger("argus.console")
 
@@ -72,6 +74,16 @@ class ConsoleService:
         self.analysis = AnalysisRunner(app_ctx, config)      # CON-4b: Argus's comment after each command
         self._proposal_locks_guard = Lock()
         self._proposal_locks: dict[str, Lock] = {}
+        self._jobs: ConsoleJobs | None = None
+
+    @property
+    def jobs(self) -> ConsoleJobs | None:
+        """T-0021 (§12.6): a process without executor tokens (`argus api`) has the worker run reads and proposals."""
+        if getattr(self.app, "runs_tools", True):
+            return None
+        if self._jobs is None:
+            self._jobs = ConsoleJobs(self.app.store, self.config)
+        return self._jobs
 
     # --- audit -------------------------------------------------------------------------------------------------
     def _audit(self, event: str, person: str, incident_id: str | None, **detail: Any) -> None:
@@ -152,117 +164,38 @@ class ConsoleService:
             return record(parsed, principal, incident, command_id, started, "rejected",
                           ["write command has no released target"])
         capability, target = pair
-        action_path = getattr(self.app.runner, "action_path", None)
-        gate = getattr(getattr(action_path, "executor", None), "gate_open", frozenset())
-        if pair not in gate:
+        if pair not in self._gate():
             return record(parsed, principal, incident, command_id, started, "rejected",
                           ["this action and target are not released in write_gate.open"])
         if incident.status == IncidentStatus.closed:
             return record(parsed, principal, incident, command_id, started, "rejected",
                           ["write commands are refused on a closed incident"])
-        if parsed.id == "cache.restart" and self._evidence_state(incident.id, target) == "running":
+        if parsed.id == "cache.restart" and evidence_state(self.app.store, incident.id, target) == "running":
             return record(parsed, principal, incident, command_id, started, "rejected",
-                                      ["restart on the cache is not released while it is running"])
+                          ["restart on the cache is not released while it is running"])
         if confirmation != "yes":
             return record(parsed, principal, incident, command_id, started, "needs_confirmation", [prompt])
-        if action_path is None:
-            return record(parsed, principal, incident, command_id, started, "rejected",
-                          ["the supervised action path is not available"])
-
-        with self._proposal_locks_guard:
-            proposal_lock = self._proposal_locks.setdefault(incident.id, Lock())
-        with proposal_lock:
-            rows = self.app.store
-            previous = rows.latest_action_proposal_for_incident(incident.id)
-            if previous is not None and started < previous.expires_at:
-                approval = rows.get_action_approval_for_proposal(previous.id)
-                approval_expires = approval.get("expires_at") if approval is not None else None
-                if isinstance(approval_expires, str):
-                    approval_expires = datetime.fromisoformat(approval_expires)
-                if (previous.input.capability, previous.input.target) != pair:
-                    return record(parsed, principal, incident, command_id, started, "rejected",
-                                              ["an action proposal for this incident is already active"])
-                if approval is None:
-                    proposal_id = previous.id
-                elif approval["state"] == "pending" and approval_expires is not None and started < approval_expires:
-                    proposal_id = previous.id
-                else:
-                    return record(parsed, principal, incident, command_id, started, "rejected",
-                                              ["an action proposal for this incident is already active"])
-            else:
-                audits = rows.list_for(incident.id)
-                recalled = {p["runbook_id"] for row in audits if row.event == "recall.passages"
-                            for p in (row.detail or {}).get("passages", []) if p.get("runbook_id")}
-                state = {"passages": [{"runbook_id": value} for value in sorted(recalled)]}
-
-                # Restrict the normal candidate builder before it freezes anything. The proposer and all subsequent
-                # digest, policy, judge and approval work remain the existing OfflineActionPath implementation.
-                scoped = copy.copy(action_path)
-                delegate = action_path.action_policy
-
-                class PairPolicy:
-                    def __getattr__(self, name):
-                        return getattr(delegate, name)
-
-                    def next_actions(self, *args, **kwargs):
-                        return [candidate for candidate in delegate.next_actions(*args, **kwargs)
-                                if (candidate.get("action"), candidate.get("target")) == pair]
-
-                scoped.action_policy = PairPolicy()
-                try:
-                    proposal_id = scoped.propose(incident, state)
-                except Exception as exc:
-                    log.info("console proposal refused for %s: %s", parsed.id, type(exc).__name__)
-                    return record(parsed, principal, incident, command_id, started, "rejected",
-                                              ["the incident evidence does not support this released action"])
-                if not proposal_id:
-                    if parsed.id == "cache.restart" and self._evidence_state(incident.id, target) == "running":
-                        return record(parsed, principal, incident, command_id, started, "rejected",
-                                                  ["restart on the cache is not released while it is running"])
-                    return record(parsed, principal, incident, command_id, started, "rejected",
-                                              ["the incident evidence does not support this released action"])
-
-            proposal = rows.get_action_proposal(proposal_id)
-            if proposal is None or (proposal.input.capability, proposal.input.target) != pair:
-                return record(parsed, principal, incident, command_id, started, "rejected",
-                                          ["the proposal does not match this command's released action"])
-            judge_started = utcnow()
+        if self.jobs is None:
+            with self._proposal_locks_guard:
+                proposal_lock = self._proposal_locks.setdefault(incident.id, Lock())
+            answer = propose_write(self.app, incident, pair, parsed.id, started, proposal_lock)
+        else:                                   # §12.6: the worker holds the action path
             try:
-                verdict = action_path.judge(proposal_id)
-            except Exception as exc:
-                return record(parsed, principal, incident, command_id, started, "rejected",
-                                          [f"the judge review failed ({type(exc).__name__}); no approval was requested"],
-                                          proposal_id=proposal_id, audit_phase="judge_failed")
-            wait_s = max(0.0, (utcnow() - judge_started).total_seconds())
-            if verdict.verdict == "disagree" or verdict.risk == "forbidden":
-                output = [f"judge: {verdict.verdict} ({wait_s:.2f}s); no approval was requested"]
-                return record(parsed, principal, incident, command_id, started, "rejected", output,
-                                          proposal_id=proposal_id, judge_verdict=verdict.verdict, audit_phase="judged")
-            try:
-                approval_id = action_path.request(proposal_id)
-            except Exception as exc:
-                log.info("console approval request refused: %s", type(exc).__name__)
-                approval_id = None
-            if not approval_id:
-                output = [f"judge: {verdict.verdict} ({wait_s:.2f}s)",
-                          "the proposal was not sent for approval"]
-                return record(parsed, principal, incident, command_id, started, "rejected", output,
-                                          proposal_id=proposal_id, judge_verdict=verdict.verdict,
-                                          audit_phase="approval_refused")
-            output = [f"judge: {verdict.verdict} ({wait_s:.2f}s)",
-                      f"Proposal {proposal_id} is waiting for approval at /api/v1/ops/approvals/{approval_id}.",
-                      f"proposal_id={proposal_id}", f"approval_id={approval_id}"]
-            return record(parsed, principal, incident, command_id, started, "ok", output,
-                                      proposal_id=proposal_id, approval_id=approval_id,
-                                      judge_verdict=verdict.verdict, audit_phase="pending")
+                answer = self.jobs.run(PROPOSE, incident.id, person, {"command": parsed.id, "capability": capability,
+                                                                      "target": target, "started_at": started.isoformat()})
+            except JobFailed as exc:
+                answer = {"status": "rejected", "output": [str(exc)], "audit_phase": "worker_failed"}
+        return record(parsed, principal, incident, command_id, started, answer["status"], answer["output"],
+                      proposal_id=answer.get("proposal_id"), approval_id=answer.get("approval_id"),
+                      judge_verdict=answer.get("judge_verdict"), audit_phase=answer.get("audit_phase", "finished"))
 
-    def _evidence_state(self, incident_id: str, target: str) -> str | None:
-        found = [row for row in self.app.store.list_evidence(incident_id)
-                 if row.capability == "container.status" and row.target == target and row.status == "ok"]
-        if not found:
-            return None
-        latest = max(found, key=lambda row: row.source_time or row.collected_at)
-        return (latest.values.get("values") or {}).get("state")
+    def _gate(self) -> frozenset:
+        """The released pairs: the local action path's, or, where the worker holds it (§12.6), the same policy's."""
+        if self.jobs is None:
+            action_path = getattr(self.app.runner, "action_path", None)
+            return getattr(getattr(action_path, "executor", None), "gate_open", frozenset())
+        from argus.infrastructure.action_wiring import gate_pairs
+        return gate_pairs(self.app.policy.write_gate_open)
 
     def _write_result(self, parsed, principal, incident, command_id, started, status, output, *, proposal_id=None,
                       approval_id=None, judge_verdict=None, audit_phase="finished", suggestion_id=None,
@@ -300,6 +233,12 @@ class ConsoleService:
             return str(containers[name])
 
         def read(capability: str, target: str, **args: Any):
+            if self.jobs is not None:
+                try:
+                    return Observation.model_validate(self.jobs.run(
+                        READ_JOB, incident.id, person, {"capability": capability, "target": target, "arguments": args}))
+                except JobFailed as exc:
+                    raise HandlerError(str(exc)) from None
             if invoke is None:
                 raise HandlerError("reads are not available in this process")
             from argus.application.invoke_capability import InvocationContext

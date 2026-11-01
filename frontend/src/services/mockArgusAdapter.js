@@ -125,7 +125,7 @@ export const mockArgusAdapter = {
   async getApproval(id) {
     record(`/api/v1/ops/approvals/${id}`);
     if (import.meta.env.VITE_ARGUS_PHASE19_DEMO === "1" && id === DEMO_APPROVAL_ID) return demoApproval();
-    throw httpError(404, "Approval not found in this demo.");
+    throw httpError(404, "Approval not found.");
   },
 
   // ACR-0034, demo: one installed source and one staged bundle, in the API's shape; the preview never installs anything.
@@ -156,7 +156,7 @@ export const mockArgusAdapter = {
   async listTargets() {
     record("/api/v1/targets");
     await wait(100);
-    return [...new Set(demoList().map((i) => i.target))].sort().map((t) => ({ target: t, host: "demo", kind: "container", name: t, state: "running" }));
+    return [...new Set(demoList().map((i) => i.target))].sort().map((t) => ({ target: t, host: "vm-166", kind: "container", name: t, state: "running" }));
   },
 
   async startInvestigation({ target }) {
