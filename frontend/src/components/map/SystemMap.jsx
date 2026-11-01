@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { HEALTH_META, HexGlyph } from "../Glyph.jsx";
-import { Card, Hint, Server } from "../ui.jsx";
+import { Card, Hint, Server, Skeleton } from "../ui.jsx";
 import { layoutMap } from "./layout.js";
 import { causePathOf, CONNECTIONS, connectionOf, edgeDetail, mapNodes, PROBLEM_LABELS, ROLES } from "./mapModel.js";
 import NodeDrawer from "./NodeDrawer.jsx";
@@ -32,15 +32,16 @@ function subline(n) {
   return n.sub && n.sub !== "container" ? `${n.sub} · ${n.status ?? "unknown"}` : `status: ${n.status ?? "unknown"}`;
 }
 
-function NodeBox({ n, dim, selected, onOpen }) {
+// `order`: its place in the layout, so the boxes rise in one after another as the map first draws (T-0016).
+function NodeBox({ n, dim, selected, onOpen, order = 0 }) {
   const meta = HEALTH_META[n.health] ?? HEALTH_META.unknown;
   const problems = n.problems ?? [];
   const root = n.role === "root_cause";
   return (
     <button type="button" onClick={() => onOpen(n.id)}
       aria-label={`${n.host} ${n.label}: ${meta.label}${n.role ? `, ${ROLES[n.role].label}` : ""}. Open details`}
-      style={{ left: n.x, top: n.y, width: n.width, height: n.height }}
-      className={`absolute flex cursor-pointer items-start gap-3 overflow-hidden rounded-xl border bg-card to-card p-3 text-left shadow-[0_10px_24px_-16px_rgb(0_0_0/0.6)] transition hover:-translate-y-px hover:shadow-[0_14px_30px_-16px_rgb(0_0_0/0.7)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-hover motion-reduce:transition-none
+      style={{ left: n.x, top: n.y, width: n.width, height: n.height, "--i": Math.min(order, 12) }}
+      className={`stagger-item absolute flex cursor-pointer items-start gap-3 overflow-hidden rounded-xl border bg-card to-card p-3 text-left shadow-[0_10px_24px_-16px_rgb(0_0_0/0.6)] transition hover:-translate-y-px hover:shadow-[0_14px_30px_-16px_rgb(0_0_0/0.7)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-hover motion-reduce:transition-none
         ${root ? "border-2 border-red-400 bg-linear-to-b from-red-400/[0.10]" : BOX[n.health] ?? BOX.unknown}
         ${selected ? "ring-2 ring-accent/70" : ""} ${dim ? "opacity-35" : ""} ${n.idle ? "opacity-80" : ""}`}>
       <HexGlyph health={n.glyph} icon={n.icon} pulse={root || n.glyph === "failed"} size={34} />
@@ -70,7 +71,7 @@ function NodeBox({ n, dim, selected, onOpen }) {
 
 function Edges({ m, dimEdge, litEdge }) {
   return (
-    <svg width={m.width} height={m.height} className="pointer-events-none absolute left-0 top-0 overflow-visible" aria-hidden="true">
+    <svg width={m.width} height={m.height} className="pointer-events-none absolute left-0 top-0 animate-fade-in overflow-visible" aria-hidden="true">
       <defs>
         {Object.entries(CONNECTIONS).map(([k, c]) => (
           <marker key={k} id={`map-arrow-${k}`} markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
@@ -119,7 +120,11 @@ function Legend({ incident }) {
 
 // `incidents`: the dashboard's latest incidents (a box whose incident still needs attention turns amber or red);
 // `incident`: the incident whose Map tab this is (its root cause and affected box are marked, the cause path lit).
-export default function SystemMap({ topology, incidents = [], incident = null, title = "System map" }) {
+// One empty list for every render: a fresh `[]` default re-ran the layout on each render, and each new layout scrolled
+// the map back to the root cause, so it could not be moved sideways (T-0016).
+const NO_INCIDENTS = [];
+
+export default function SystemMap({ topology, incidents = NO_INCIDENTS, incident = null, title = "System map" }) {
   const [showIdle, setShowIdle] = useState(false);
   const [showReads, setShowReads] = useState(false);
   const path = useMemo(() => causePathOf(topology, incident), [topology, incident]);
@@ -141,10 +146,14 @@ export default function SystemMap({ topology, incidents = [], incident = null, t
   const m = layout.m;
   const viewport = useRef(null);
   // On an incident, bring the root cause (the end of the cause path) into view when the map is wider than its card.
+  // Once per root cause: a later layout (a poll, a toggle) leaves the person's own scroll where it is.
   const causeId = path.at(-1);
+  const scrolledTo = useRef(null);
   useEffect(() => {
     const n = causeId && m?.nodes.find((x) => x.id === causeId);
-    if (n && viewport.current) viewport.current.scrollLeft = Math.max(0, n.x + n.width + 40 - viewport.current.clientWidth);
+    if (!n || !viewport.current || scrolledTo.current === causeId) return;
+    scrolledTo.current = causeId;
+    viewport.current.scrollLeft = Math.max(0, n.x + n.width + 40 - viewport.current.clientWidth);
   }, [m, causeId]);
   const focusing = Boolean(incident) && focus && path.length > 0;
   const onPath = (id) => path.includes(id);
@@ -165,12 +174,17 @@ export default function SystemMap({ topology, incidents = [], incident = null, t
 
       <div ref={viewport} className="map-viewport overflow-x-auto rounded-xl border border-line" role="region" aria-label="System map. Tab through the boxes, Enter opens one.">
         {!m ? (
-          <div className="grid h-56 place-items-center text-sm text-muted">{layout.error ? "The map could not be laid out." : "Laying out dependencies…"}</div>
+          layout.error ? <div className="grid h-56 place-items-center text-sm text-muted">The map could not be laid out.</div> : (
+            <div aria-busy="true" className="relative h-56">
+              <Skeleton className="absolute inset-3" />
+              <p className="relative grid h-full place-items-center text-sm text-muted">Laying out dependencies…</p>
+            </div>
+          )
         ) : (
           <div className={`relative transition-opacity ${layout.key === key ? "" : "opacity-60"}`} style={{ width: m.width, height: m.height }}>
             {m.groups.map((g) => (
               <div key={g.id} style={{ left: g.x, top: g.y, width: g.width, height: g.height }}
-                className="absolute rounded-2xl border border-line bg-card/60">
+                className="absolute animate-fade-in rounded-2xl border border-line bg-card/60">
                 <div className="absolute inset-x-4 top-3 flex items-center gap-2 text-[13px]">
                   <span className="inline-flex items-center gap-1.5 rounded-full border border-line bg-card px-2.5 py-0.5 font-medium text-ink"><Server width="13" height="13" />{g.id}</span>
                   <span className="text-xs text-muted">{g.role}</span>
@@ -200,8 +214,8 @@ export default function SystemMap({ topology, incidents = [], incident = null, t
                 </div>
               );
             }))}
-            {m.nodes.map((n) => (
-              <NodeBox key={n.id} n={n} dim={focusing && !onPath(n.id)} selected={n.id === selectedId} onOpen={setSelectedId} />
+            {m.nodes.map((n, i) => (
+              <NodeBox key={n.id} n={n} order={i} dim={focusing && !onPath(n.id)} selected={n.id === selectedId} onOpen={setSelectedId} />
             ))}
           </div>
         )}

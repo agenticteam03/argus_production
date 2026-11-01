@@ -139,6 +139,13 @@ class GraphRunner(SkeletonRunner):
             return self._record_crash(inc)
         return self.memory.get_incident(incident_id)
 
+    def paused(self, incident_id: str) -> dict | None:
+        """What the incident's run waits for when it stopped at an interrupt (an approval's `approval_id`, or a fresh
+        verification sample), or None when it is not paused there. The worker parks such a run (inc_6a4980a4d8ed)."""
+        state = self.graph.get_state({"configurable": {"thread_id": incident_id}})
+        waits = [i.value for task in state.tasks for i in task.interrupts]
+        return dict(waits[0]) if waits else None
+
     # ------------------------------------------------------------------------------------------------ helpers
     def _inc(self, s: RunState) -> Incident:
         return self.memory.get_incident(s["incident_id"])

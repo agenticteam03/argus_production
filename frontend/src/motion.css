@@ -1,0 +1,134 @@
+/* T-0016 motion: every animation of the UI is a theme token here, so a component only names one (animate-rise,
+   animate-pop, ...) and this file decides how it moves. Three rules hold for everything below (src/motion.test.js):
+   - only opacity and transform move, which the browser animates on the compositor, without layout or repaint;
+   - colours come from the colour tokens of index.css (dark and light), never a literal;
+   - prefers-reduced-motion: reduce turns every animation off and every duration to zero (the block at the end).
+   Entrance animations fill `backwards`: they hold their first frame while they wait (a staggered row) and leave no
+   trace once done, so a finished one never keeps a transform that would move a fixed child (a toast, a drawer). */
+
+@theme static {
+  --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  --animate-shimmer: shimmer var(--motion-shimmer) ease-in-out infinite;
+  --animate-rise: rise var(--motion-base) var(--ease-out-soft) backwards;
+  --animate-fade-in: fade-in var(--motion-base) ease-out backwards;
+  --animate-pop: pop var(--motion-base) var(--ease-spring) backwards;
+  --animate-drop: drop var(--motion-fast) var(--ease-out-soft) backwards;
+  --animate-page-in: page-in var(--motion-slow) var(--ease-out-soft) backwards;
+  --animate-dialog-in: dialog-in var(--motion-base) var(--ease-out-soft) backwards;
+  --animate-slide-in-right: slide-in-right var(--motion-slow) var(--ease-out-soft) backwards;
+  --animate-grow-x: grow-x var(--motion-slow) var(--ease-out-soft) backwards;
+  --animate-shake: shake var(--motion-slow) ease-in-out;
+  --animate-ring: ring calc(var(--motion-slow) * 2) ease-in-out;
+  --animate-toast-out: toast-out var(--motion-fast) ease-in forwards;
+}
+
+@layer base {
+  :root {
+    --motion-fast: 140ms;      /* menus, a press */
+    --motion-base: 220ms;      /* rows, panels, badges, dialogs */
+    --motion-slow: 320ms;      /* a page, a side panel, bars */
+    --motion-count: 700ms;     /* a number counting up (components/ui.jsx CountUp) */
+    --motion-stagger: 40ms;    /* between two rows of a list */
+    --motion-shimmer: 1.6s;    /* one sweep of a loading skeleton */
+  }
+
+  /* A press: buttons and menu summaries give a little under the pointer. */
+  button, summary { transition: scale var(--motion-fast) var(--ease-out-soft); }
+  @media (prefers-reduced-motion: no-preference) {
+    button:not(:disabled):active, summary:active { scale: 0.97; }
+  }
+}
+
+@keyframes shimmer { from { transform: translateX(-100%); } to { transform: translateX(100%); } }
+@keyframes rise { from { opacity: 0; transform: translateY(6px); } }
+@keyframes fade-in { from { opacity: 0; } }
+@keyframes pop { from { opacity: 0; transform: scale(0.6); } }
+@keyframes drop { from { opacity: 0; transform: translateY(-4px) scale(0.98); } }
+@keyframes page-in { from { opacity: 0; transform: translateY(8px); } }
+@keyframes dialog-in { from { opacity: 0; transform: translateY(12px) scale(0.98); } }
+@keyframes slide-in-right { from { transform: translateX(100%); } }
+@keyframes grow-x { from { transform: scaleX(0); } }
+@keyframes shake { 20%, 60% { transform: translateX(-4px); } 40%, 80% { transform: translateX(4px); } }
+@keyframes ring { 15% { transform: rotate(14deg); } 30% { transform: rotate(-10deg); } 45% { transform: rotate(6deg); } 60% { transform: rotate(-3deg); } }
+@keyframes toast-out { to { opacity: 0; transform: translateY(8px); } }
+
+@layer components {
+  /* Loading skeleton (components/ui.jsx Skeleton): a calm block with a light sweeping across it. */
+  .skeleton { position: relative; overflow: hidden; background-color: var(--color-skeleton); }
+  .skeleton::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    transform: translateX(-100%);
+    background-image: linear-gradient(90deg, transparent, var(--color-shimmer), transparent);
+    animation: var(--animate-shimmer);
+  }
+
+  /* A list whose rows come in one after another: the first eight wait their turn, the rest come with the eighth. */
+  .stagger > * { animation: var(--animate-rise); animation-delay: calc(var(--i, 7) * var(--motion-stagger)); }
+  .stagger > :nth-child(1) { --i: 0; }
+  .stagger > :nth-child(2) { --i: 1; }
+  .stagger > :nth-child(3) { --i: 2; }
+  .stagger > :nth-child(4) { --i: 3; }
+  .stagger > :nth-child(5) { --i: 4; }
+  .stagger > :nth-child(6) { --i: 5; }
+  .stagger > :nth-child(7) { --i: 6; }
+  /* Laid out by position instead (the map's boxes): the element sets --i itself. */
+  .stagger-item { animation: var(--animate-rise); animation-delay: calc(var(--i, 0) * var(--motion-stagger)); }
+
+  /* Menus built on <details> (the header, the bell): the panel drops in each time it opens. */
+  details[open] > .menu-pop { animation: var(--animate-drop); transform-origin: top; }
+
+  /* Native dialogs (components/ui.jsx Dialog): the box rises in while what is behind it dims. */
+  dialog[open] { animation: var(--animate-dialog-in); }
+  dialog[open]::backdrop { animation: var(--animate-fade-in); }
+
+  /* The docked console (console/dock/ConsoleDock.jsx) between docked, full screen and minimized: one View Transition
+     (utils/motion.js morph), timed like the rest. */
+  ::view-transition-group(console-dock) { animation-duration: var(--motion-slow); animation-timing-function: var(--ease-out-soft); }
+
+  /* Toast (components/ui.jsx): slides up as it appears and back down as it goes. */
+  .toast-in { animation: var(--animate-rise); }
+  .toast-out { animation: var(--animate-toast-out); }
+}
+
+/* A clickable card: it lifts a little under the pointer (with the element's own `transition`). */
+@utility lift {
+  &:hover { box-shadow: 0 14px 30px -18px var(--color-shadow); }
+  @media (prefers-reduced-motion: no-preference) {
+    &:hover { translate: 0 -2px; }
+    &:active { translate: 0 0; }
+  }
+}
+
+@layer base {
+  @media (prefers-reduced-motion: reduce) {
+    :root {
+      --motion-fast: 0ms;
+      --motion-base: 0ms;
+      --motion-slow: 0ms;
+      --motion-count: 0ms;
+      --motion-stagger: 0ms;
+      --motion-shimmer: 0s;
+      --animate-shimmer: none;
+      --animate-rise: none;
+      --animate-fade-in: none;
+      --animate-pop: none;
+      --animate-drop: none;
+      --animate-page-in: none;
+      --animate-dialog-in: none;
+      --animate-slide-in-right: none;
+      --animate-grow-x: none;
+      --animate-shake: none;
+      --animate-ring: none;
+      --animate-toast-out: none;
+      /* Tailwind's own decorative loops too (a Live dot, a running badge); a spinner (--animate-spin) still turns,
+         because it says that something is busy. */
+      --animate-pulse: none;
+      --animate-ping: none;
+      --animate-bounce: none;
+    }
+  }
+}

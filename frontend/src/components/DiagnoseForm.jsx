@@ -55,7 +55,7 @@ export default function DiagnoseForm({ fixedTarget = null, compact = false }) {
           className="cursor-pointer rounded-xl bg-accent-solid px-4 py-2 text-sm font-medium text-white hover:bg-accent-solid-hover disabled:opacity-60">
           {busy ? "Starting…" : "Investigate again"}
         </button>
-        {error && <p role="alert" className="text-[13px] text-danger">{error}</p>}
+        {error && <p role="alert" className="animate-rise text-[13px] text-danger">{error}</p>}
       </div>
     );
   }
@@ -95,7 +95,7 @@ export default function DiagnoseForm({ fixedTarget = null, compact = false }) {
             {busy ? "Starting…" : "Start investigation"}
           </button>
           <p className="text-xs text-muted">Argus only reads: it never changes the target. Investigations are limited per account.</p>
-          {error && <p id={ids.error} role="alert" className="basis-full text-[13px] text-danger">{error}</p>}
+          {error && <p id={ids.error} role="alert" className="animate-rise basis-full text-[13px] text-danger">{error}</p>}
         </div>
       </form>
     </Card>

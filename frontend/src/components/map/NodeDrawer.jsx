@@ -5,7 +5,7 @@ import { useTargetMetrics } from "../../hooks/useTargetMetrics.js";
 import { argus } from "../../services/index.js";
 import { investigationError } from "../../utils/investigationError.js";
 import { HEALTH_META, HexGlyph } from "../Glyph.jsx";
-import { Close, Hint, Pill, Server } from "../ui.jsx";
+import { Close, Hint, Pill, Server, Skeleton } from "../ui.jsx";
 import { fmtSignal, PROBLEM_LABELS, ROLES } from "./mapModel.js";
 
 // The drawer that opens when a box of the system map is selected (ui-graphs prototype, openNode): what the component
@@ -110,9 +110,9 @@ export default function NodeDrawer({ node, incidents = [], incident = null, onCl
 
   return (
     <div className="fixed inset-0 z-40">
-      <div onClick={onClose} className={`absolute inset-0 bg-scrim transition-opacity duration-300 motion-reduce:transition-none ${shown ? "opacity-100" : "opacity-0"}`} />
+      <div onClick={onClose} className={`absolute inset-0 bg-scrim transition-opacity duration-(--motion-slow) motion-reduce:transition-none ${shown ? "opacity-100" : "opacity-0"}`} />
       <aside role="dialog" aria-modal="true" aria-label={`${node.label}, ${meta.label}`}
-        className={`absolute inset-y-0 right-0 flex w-full flex-col border-l border-line bg-card shadow-2xl transition-transform duration-300 motion-reduce:transition-none sm:w-[500px] ${shown ? "translate-x-0" : "translate-x-full"}`}>
+        className={`absolute inset-y-0 right-0 flex w-full flex-col border-l border-line bg-card shadow-2xl transition-transform duration-(--motion-slow) ease-out-soft motion-reduce:transition-none sm:w-[500px] ${shown ? "translate-x-0" : "translate-x-full"}`}>
         <header className="flex items-start gap-3 border-b border-line p-5">
           <HexGlyph health={node.glyph ?? node.health} icon={node.icon} size={36} />
           <div className="min-w-0 flex-1">
@@ -152,7 +152,7 @@ export default function NodeDrawer({ node, incidents = [], incident = null, onCl
             {node.idle ? (
               <p className="mt-1.5 text-sm text-muted">No recent reads: the scenario container is not running.</p>
             ) : metrics === undefined ? (
-              <div className="mt-2 grid grid-cols-2 gap-2"><div className="h-[86px] animate-pulse rounded-xl bg-ink/5" /><div className="h-[86px] animate-pulse rounded-xl bg-ink/5" /></div>
+              <div aria-busy="true" className="mt-2 grid grid-cols-2 gap-2"><span className="sr-only">Loading signals…</span><Skeleton className="h-[86px]" /><Skeleton className="h-[86px]" /></div>
             ) : metrics ? (
               <div className="mt-2 grid grid-cols-2 gap-2">{metrics.series.map((s) => <Sparkline key={s.key} series={s} />)}</div>
             ) : (
@@ -177,7 +177,7 @@ export default function NodeDrawer({ node, incidents = [], incident = null, onCl
                 className="inline-flex h-10 cursor-pointer items-center gap-2 rounded-xl bg-accent-solid px-4 text-sm font-medium text-white hover:bg-accent-solid-hover disabled:cursor-wait disabled:opacity-70 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-hover">
                 {busy ? "Starting…" : "Investigate this"}
               </button>
-              {error && <p role="alert" className="mt-2 text-sm text-red-300">{error}</p>}
+              {error && <p role="alert" className="animate-rise mt-2 text-sm text-red-300">{error}</p>}
             </div>
           )}
           <p className="border-t border-line pt-4 text-xs text-muted">Container health and connection health are checked separately. A healthy box can have a broken dependency.</p>

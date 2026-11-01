@@ -59,7 +59,8 @@ def worker() -> None:
     app = build()
     try:
         Worker(app, lease_s=int(os.getenv("ARGUS_WORKER_LEASE_S", "300")),
-               max_queued_age_s=int(os.getenv("ARGUS_SCHEDULE_MAX_QUEUED_AGE_S", "900"))).run_forever(stop)
+               max_queued_age_s=int(os.getenv("ARGUS_SCHEDULE_MAX_QUEUED_AGE_S", "900")),
+               recover_every_s=float(os.getenv("ARGUS_WORKER_RECOVER_S", "5"))).run_forever(stop)
     finally:
         _close_tracing(app)
 

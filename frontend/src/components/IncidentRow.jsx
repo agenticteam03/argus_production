@@ -7,7 +7,7 @@ import { OutcomeBadge, StatusBadge } from "./ui.jsx";
 export default function IncidentRow({ incident: i, compact = false }) {
   return (
     <li>
-      <Link to={`/incidents/${i.id}`} className="block rounded-xl bg-field p-3 transition hover:bg-ink/[0.06] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-hover motion-reduce:transition-none">
+      <Link to={`/incidents/${i.id}`} className="lift block rounded-xl bg-field p-3 transition hover:bg-ink/[0.06] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-hover motion-reduce:transition-none">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <span className="min-w-0 truncate font-mono text-xs text-accent-hover">{i.id}</span>
           <span className="flex flex-wrap gap-1.5"><StatusBadge status={i.status} /><OutcomeBadge outcome={i.outcome} /></span>

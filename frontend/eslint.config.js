@@ -7,7 +7,7 @@ import globals from "globals";
 // T-0016 "Lint and build": the recommended JavaScript rules and the React hooks rules, on the app, its unit tests
 // and the Playwright acceptance tests.
 export default [
-  { ignores: ["dist", "dist-e2e", "test-results", "playwright-report"] },
+  { ignores: ["dist", "dist-e2e", "dist-e2e-console", "test-results", "playwright-report"] },
   {
     files: ["**/*.{js,jsx}"],
     languageOptions: {

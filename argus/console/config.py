@@ -19,4 +19,12 @@ class ConsoleConfig:
     history_limit: int = field(default_factory=lambda: int(os.getenv("ARGUS_CONSOLE_HISTORY_LIMIT", "50")))
     # the lab host the console reads (vm-095 also carries an api twin; the console never reads it)
     lab_host: str = field(default_factory=lambda: os.getenv("ARGUS_CONSOLE_HOST", "vm-166"))
+    # CON-4b: the pause between the two samples after a command (about one scrape interval), how long missing metrics
+    # are waited for after the settle delay, how long an analysis may run before a re-check is offered, and the
+    # background workers (one analysis each)
+    analysis_enabled: bool = field(default_factory=lambda: os.getenv("ARGUS_CONSOLE_ANALYSIS", "1") == "1")
+    analysis_gap_s: int = field(default_factory=lambda: int(os.getenv("ARGUS_CONSOLE_ANALYSIS_GAP_S", "15")))
+    analysis_metrics_timeout_s: int = 60
+    analysis_stuck_s: int = 90
+    analysis_workers: int = field(default_factory=lambda: int(os.getenv("ARGUS_CONSOLE_ANALYSIS_WORKERS", "2")))
     output_max_bytes: int = 4096        # spec §7.4: what is stored (and later shown to the model) per command
