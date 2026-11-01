@@ -1,8 +1,16 @@
+<p align="center">
+  <img src="docs/images/argus-title.png" alt="Argus: from alert to diagnosis" width="860">
+</p>
+
 # Argus
 
-Argus is an SRE incident-diagnosis agent for servers and containers. When an alert fires, a schedule ticks or an
-operator asks, it detects the symptom deterministically, recalls runbooks, investigates with narrow, read-only,
-audited tools, and concludes or escalates to a human. It is **read-only** in this phase.
+**An infrastructure diagnostic agent: from alert to diagnosis.** Argus helps infrastructure teams understand faster
+*why* an incident is happening. When an alert fires, a schedule ticks or an operator asks, it detects the symptom
+deterministically, recalls runbooks and past cases, investigates with narrow, audited, read-only tools, and either
+reaches a diagnosis backed by evidence or hands the case to a person. A fix is only ever **proposed**: a person
+approves it, Argus applies it through a guarded path and then checks that it worked.
+
+Team: Juan Daniel Díaz · Luis Miguel Chaves · Juan José Betancur.
 
 **New on the team?** Follow [`START_HERE.md`](START_HERE.md): put it in an empty folder, open your AI agent there and say
 "Read START_HERE.md and follow it". The agent installs, clones and sets up everything with you.
@@ -10,6 +18,99 @@ audited tools, and concludes or escalates to a human. It is **read-only** in thi
 - **Start here (developers and AI agents):** [`brain/README.md`](brain/README.md).
 - Architecture: [`brain/architecture/ARCHITECTURE.md`](brain/architecture/ARCHITECTURE.md) (v1.8.x).
 - Where we stand: [`brain/CURRENT_STATE.md`](brain/CURRENT_STATE.md).
+- Operator console (restricted command console): [`docs/OPERATOR-CONSOLE.md`](docs/OPERATOR-CONSOLE.md).
+
+## The problem
+
+Alerts tell you something broke. Not why. Monitoring detects; it does not explain. Metrics, logs, containers, limits,
+processes and networks are checked by hand, so diagnosis is slow, expert-dependent and inconsistent.
+
+<p align="center">
+  <img src="docs/images/problem.png" alt="Alerts tell you something broke. Not why." width="860">
+</p>
+
+## The goal
+
+Reduce the time from alert to a reliable diagnosis, while keeping critical actions under human control.
+
+| | |
+|---|---|
+| **Faster diagnosis** | Less manual digging per alert. |
+| **Evidence first** | Every conclusion is backed by data. |
+| **Human control** | Argus suggests, people decide. |
+
+<p align="center">
+  <img src="docs/images/product-goal.png" alt="Product goal: faster diagnosis, evidence first, human control" width="860">
+</p>
+
+## What Argus can investigate
+
+The host (CPU, memory, disk), containers (status, restarts, logs), the network (DNS, TCP, HTTP), databases (health,
+connections) and history (metrics over time).
+
+<p align="center">
+  <img src="docs/images/scope.png" alt="What Argus can investigate: host, containers, network, databases, history" width="860">
+</p>
+
+## How it works
+
+### Architecture
+
+Alerts and metrics flow from the **monitored host** (inspection probes, the action gateway, the apps, Prometheus and
+Alertmanager) to the **Argus host**. **Argus Core**, a LangGraph state machine, runs *detect, recall, investigate,
+propose, wait for approval, execute and verify, record*. The AI model, runbooks, the security agent, observability
+(Langfuse) and notification channels sit outside; the operator works through the web frontend and the Argus API.
+
+<p align="center">
+  <img src="docs/images/architecture.png" alt="Argus architecture: monitored host, Argus host and outside services" width="900">
+</p>
+
+### Investigation flow
+
+Two paths. The **read-only investigation** checks the symptom, remembers similar past cases, investigates with a step
+and cost cap, ranks the causes and decides: no problem, diagnosed, or hand to a person. The **fix path** proposes a fix,
+asks a second opinion from an independent model, waits for a person, re-checks that the problem is still there,
+applies the fix, and confirms the outcome. Alerts, operator requests, schedules and security events can start a run.
+
+<p align="center">
+  <img src="docs/images/investigation-flow.png" alt="Argus investigation flow: read-only investigation and fix path" width="900">
+</p>
+
+### How each possible cause is tested
+
+The model proposes several possible causes from the map, the timeline and past cases. Argus then runs safe, read-only
+checks for each one, labels the evidence, and **ranks the causes with fixed points** (rules, not the model). The
+answer is a diagnosis or a hand-off to a person, and confirmed cases improve the next run.
+
+<p align="center">
+  <img src="docs/images/tests-each-cause.png" alt="How Argus tests each possible cause" width="900">
+</p>
+
+### Where did the trouble start?
+
+Argus keeps a living map of who depends on whom and a timeline of what broke first. In the example, the cache stopped
+first, the API fails because it needs the cache, and the alarm fires later on the API: the strong lead is the cache.
+
+<p align="center">
+  <img src="docs/images/where-trouble-started.png" alt="Where did the trouble start: living map, timeline, strong lead" width="900">
+</p>
+
+## Safety model
+
+- **Read-only by default.** Investigations use narrow, audited tools; they look, they never change anything.
+- **A fix is a proposal.** It is checked by a second opinion, held for a person, re-checked, applied through the action
+  gateway on a released (capability, target) pair only, and verified afterwards.
+- **People decide.** Approval needs an authenticated approver with a fresh second factor; a typed confirmation is never
+  an approval.
+- **Everything is recorded** in the audit trail and the incident history.
+
+## Operator console
+
+A restricted command console beside each incident: an operator types a fixed set of commands over Argus's own tools
+(status, logs, metrics, network checks, and a few guarded write commands), and Argus comments on what each command
+showed. It is **not a shell**: no pipes, no scripts, no arbitrary execution. Details, commands and limits:
+[`docs/OPERATOR-CONSOLE.md`](docs/OPERATOR-CONSOLE.md); design: ACR-0043 in
+[`brain/architecture/changes/`](brain/architecture/changes/).
 
 ## Run the tests (laptop)
 
@@ -32,6 +133,10 @@ python brain/tools/brain.py status
 | `deploy/` | compose files, migrations, lab workloads |
 | `ops/` | operational scripts (non-interference check, migrations, checks) |
 | `tests/` | offline, Postgres and `brain.py` tests |
+| `frontend/` | the web UI (React) |
+| `docs/` | API for the UI, incidents, the operator console guide, and the images used here |
 | `brain/` | the shared project Brain: state, plan, rules, guides, journal |
 
 The runbook library (RB-001 … RB-021) lives in `argus/runbooks/` — see its README for provenance and how to change it.
+
+*Evidence first. Human in control. Built to grow.*
