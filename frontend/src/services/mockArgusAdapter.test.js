@@ -91,8 +91,12 @@ describe("mockArgusAdapter operator console (CON-3)", () => {
   it("re-checks a retryable analysis (CON-9), and answers 409 for one that is not", async () => {
     demoSession.role = "operator";
     const { command_id } = await mockArgusAdapter.executeConsoleCommand("inc_c9", { input: "api errors" });
+    expect((await mockArgusAdapter.getConsoleHistory("inc_c9")).entries[0].analysis)
+      .toMatchObject({ status: "error", message: "Metrics not available yet", retryable: true });
     const r = await mockArgusAdapter.recheckConsoleAnalysis("inc_c9", command_id);
     expect(r.analysis.status).toBe("done");
+    expect((await mockArgusAdapter.getConsoleHistory("inc_c9")).entries[0].analysis)
+      .toMatchObject({ status: "done", comment: expect.any(String) });
     expect(mockArgusAdapter.calls).toContainEqual({ method: "POST", path: `/api/v1/ops/console/incidents/inc_c9/commands/${command_id}/recheck` });
     await expect(mockArgusAdapter.recheckConsoleAnalysis("inc_c9", command_id)).rejects.toMatchObject({ status: 409 });
   });
