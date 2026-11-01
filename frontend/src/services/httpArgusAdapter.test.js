@@ -211,6 +211,18 @@ describe("httpArgusAdapter operator console (ACR-0043, CON-2)", () => {
     expect(fetch.mock.calls[1][1]).toMatchObject({ method: "POST", body: JSON.stringify({ input: "cache status" }) });
   });
 
+  it("records who opens and closes a console session, with the reason (T-0016)", async () => {
+    vi.stubEnv("VITE_ARGUS_CONSOLE", "1");
+    const fetch = vi.fn(async () => response(200, { session_id: "csn_0123456789abcdef", limit_min: 30 }));
+    vi.stubGlobal("fetch", fetch);
+    const opened = await httpArgusAdapter.openConsoleSession("inc_1", "Check the cache");
+    await httpArgusAdapter.closeConsoleSession("inc_1", opened.session_id, "disconnect");
+    expect(fetch.mock.calls[0][0]).toBe("/api/v1/ops/console/incidents/inc_1/sessions");
+    expect(fetch.mock.calls[0][1]).toMatchObject({ method: "POST", body: JSON.stringify({ reason: "Check the cache" }) });
+    expect(fetch.mock.calls[1][0]).toBe("/api/v1/ops/console/incidents/inc_1/sessions/csn_0123456789abcdef/close");
+    expect(fetch.mock.calls[1][1]).toMatchObject({ method: "POST", body: JSON.stringify({ why: "disconnect" }) });
+  });
+
   it("sends the confirmation and the suggestion id only when the console gives them (CON-5)", async () => {
     vi.stubEnv("VITE_ARGUS_CONSOLE", "1");
     const fetch = vi.fn(async () => response(200, { status: "ok", output: [] }));

@@ -14,7 +14,7 @@ const button =
   "inline-flex h-10 shrink-0 cursor-pointer items-center justify-center rounded-[10px] bg-accent-solid px-4 text-sm font-medium text-white transition enabled:hover:bg-accent-solid-hover disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-hover motion-reduce:transition-none";
 const reason = (err) => err?.detail ?? (err?.name === "NotAllowedError" ? "The key was not used (cancelled or timed out)." : err?.message) ?? "Something went wrong.";
 // Messages as tinted boxes, like the rest of the app; the text stays the box's first child (screen readers read it).
-const ALERT = "rounded-xl border border-red-400/30 bg-red-400/10 px-3.5 py-2.5 text-sm text-red-300";
+const ALERT = "animate-rise rounded-xl border border-red-400/30 bg-red-400/10 px-3.5 py-2.5 text-sm text-red-300";
 const NOTICE = "rounded-xl border border-emerald-400/30 bg-emerald-400/10 px-3.5 py-2.5 text-sm text-emerald-300";
 const code = "rounded-md bg-ink/5 px-1.5 py-0.5 font-mono text-[12px] text-body";
 
@@ -52,7 +52,7 @@ export function SecurityView({ status, keys, browserOk, busy, error, notice, onE
 
       <Card title={<><Lock width="16" height="16" className="text-muted" />Registered keys</>} count={status.enrolled}>
         {keys.length > 0 && (
-          <ul className="mb-4 space-y-2">
+          <ul className="stagger mb-4 space-y-2">
             {keys.map((k) => (
               <InsetRow as="li" key={k.credential} className="flex flex-wrap items-center justify-between gap-2 py-2.5 text-sm">
                 <span className="flex items-center gap-2.5 text-ink">

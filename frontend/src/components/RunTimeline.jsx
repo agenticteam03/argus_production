@@ -39,7 +39,7 @@ export default function RunTimeline({ incident, events, active, reconnecting, ev
           {active ? "Waiting for the first event…" : "No events were recorded."}
         </p>
       ) : (
-        <ol className="ml-2 border-l border-line">
+        <ol className="stagger ml-2 border-l border-line">
           {list.map((s, i) => {
             const running = active && !s.done;
             const end = !active && i === list.length - 1;

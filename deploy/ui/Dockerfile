@@ -12,6 +12,10 @@ COPY argus/runbooks/ /src/argus/runbooks/
 ENV VITE_ARGUS_MOCK=0
 # ACR-0017: build the Map and Metrics calls in (the edge serves both routes). Unset it to hide the tabs again.
 ENV VITE_ARGUS_INSIGHTS=1
+# ACR-0043 / T-0016: the operator console (the side panel and its calls), built in only with the API's own flag:
+# compose.ui.yml passes ARGUS_OPERATOR_CONSOLE, so one variable turns both on. Off by default.
+ARG VITE_ARGUS_CONSOLE=0
+ENV VITE_ARGUS_CONSOLE=$VITE_ARGUS_CONSOLE
 RUN npm run build \
  && mkdir -p /out/runbooks \
  && cp /src/argus/runbooks/RB-*.md /out/runbooks/ \
