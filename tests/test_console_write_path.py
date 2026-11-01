@@ -499,3 +499,47 @@ def test_worker_created_proposal_after_an_api_timeout_keeps_a_console_origin(app
     rows = [r for r in case.app.store.list_for(case.incident.id) if r.event != "console.write.after"]
     monkeypatch.setattr(case.app.store, "list_for", lambda _incident_id: rows)   # no origin row, as after a timeout
     assert _answer(case, case.auth, proposed, proposal).status_code == 403
+
+
+# --- TASK-150: "off changes nothing" for the whole body ------------------------------------------------------------
+GOLDEN = {}
+
+
+def _golden():
+    import json
+    from pathlib import Path
+    if not GOLDEN:
+        GOLDEN.update(json.loads((Path(__file__).parent / "fixtures" / "approval_answer_golden.json")
+                                 .read_text(encoding="utf-8")))
+    return GOLDEN
+
+
+@pytest.mark.parametrize("setting", ["0", None])
+@pytest.mark.parametrize("key,decision,reason,by_other", [("self_approve", "approved", None, False),
+                                                          ("self_deny", "denied", "not now", False),
+                                                          ("other_approve", "approved", None, True)])
+def test_with_the_setting_off_the_answer_and_audit_rows_equal_origin_main(
+        app_factory, monkeypatch, setting, key, decision, reason, by_other):
+    """The fixture was captured by running tests/answer_body_probe.py on origin/main 430f5d25 (before the rule):
+    status, whole response body, audit rows (category, event, actor, every detail key) and the approval state."""
+    import answer_body_probe
+    if setting is None:
+        monkeypatch.delenv("ARGUS_CONSOLE_TWO_PERSON", raising=False)
+    else:
+        monkeypatch.setenv("ARGUS_CONSOLE_TWO_PERSON", setting)
+    case = _case(app_factory, monkeypatch, *CASES[0].values)
+    headers = case.auth
+    if by_other:
+        case.app.store.upsert_principal("vera", "human", "approver", ["lab"],
+                                        PasswordHash.recommended().hash("a-long-password"))
+        headers = login(case.client, "vera")
+    assert answer_body_probe.observe(case, headers, decision, reason) == _golden()[key]
+
+
+def test_with_the_setting_on_a_second_persons_answer_equals_origin_main_too(app_factory, monkeypatch):
+    import answer_body_probe
+    monkeypatch.setenv("ARGUS_CONSOLE_TWO_PERSON", "1")
+    case = _case(app_factory, monkeypatch, *CASES[0].values)
+    case.app.store.upsert_principal("vera", "human", "approver", ["lab"],
+                                    PasswordHash.recommended().hash("a-long-password"))
+    assert answer_body_probe.observe(case, login(case.client, "vera"), "approved") == _golden()["other_approve"]
