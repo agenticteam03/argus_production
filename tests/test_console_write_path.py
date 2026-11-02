@@ -125,6 +125,7 @@ def test_each_write_requires_confirmation_then_reuses_one_normal_proposal(
 
 
 def test_console_audit_links_both_people_to_the_approval(app_factory, monkeypatch):
+    monkeypatch.setenv("ARGUS_CONSOLE_TWO_PERSON", "1")
     case = _case(app_factory, monkeypatch, *CASES[0].values)
 
     # The command's author and approver are distinct personal sessions.
@@ -144,6 +145,65 @@ def test_console_audit_links_both_people_to_the_approval(app_factory, monkeypatc
     assert row.detail["command_id"] == proposal_response["command_id"]
     assert row.detail["proposal_id"] == proposal.id
     assert row.detail["proposed_by"] == "writer" and row.detail["approved_by"] == "vera"
+
+
+def test_two_person_setting_defaults_off(monkeypatch):
+    monkeypatch.delenv("ARGUS_CONSOLE_TWO_PERSON", raising=False)
+    assert ConsoleConfig().two_person_required is False
+
+
+def test_console_proposer_may_answer_own_write_when_two_person_setting_is_off(app_factory, monkeypatch):
+    monkeypatch.setenv("ARGUS_CONSOLE_TWO_PERSON", "0")
+    case = _case(app_factory, monkeypatch, *CASES[0].values)
+    proposed = case.client.post(url(case.incident, "execute"), headers={**case.auth, **PRIVATE},
+                                json={"input": "cache restart", "confirmation": "yes"}).json()
+    proposal = case.app.store.get_action_proposal(proposed["proposal_id"])
+    answered = case.client.post(f"/api/v1/ops/approvals/{proposed['approval_id']}/answer",
+                                headers={**case.auth, **PRIVATE},
+                                json={"decision": "approved", "proposal_digest": proposal.digest,
+                                      "step_up_token": "offline-step-up"})
+    assert answered.status_code == 200, answered.text
+    row = next(a for a in case.app.store.list_for(case.incident.id) if a.event == "action.approval_answered")
+    assert row.detail["proposed_by"] == row.detail["approved_by"] == "writer"
+
+
+def test_two_person_setting_refuses_console_proposer_and_keeps_approval_pending(app_factory, monkeypatch):
+    monkeypatch.setenv("ARGUS_CONSOLE_TWO_PERSON", "1")
+    case = _case(app_factory, monkeypatch, *CASES[0].values)
+    proposed = case.client.post(url(case.incident, "execute"), headers={**case.auth, **PRIVATE},
+                                json={"input": "cache restart", "confirmation": "yes"}).json()
+    proposal = case.app.store.get_action_proposal(proposed["proposal_id"])
+    refused = case.client.post(f"/api/v1/ops/approvals/{proposed['approval_id']}/answer",
+                               headers={**case.auth, **PRIVATE},
+                               json={"decision": "approved", "proposal_digest": proposal.digest,
+                                     "step_up_token": "offline-step-up"})
+    assert refused.status_code == 403
+    assert refused.json()["detail"] == "a console write must be approved by a different person"
+    assert case.app.store.get_action_approval_for_proposal(proposal.id)["state"] == "pending"
+    [audit] = [row for row in case.app.store.list_for(case.incident.id)
+               if row.event == "action.approval_refused"]
+    assert audit.detail["source"] == "operator_console"
+    assert audit.detail["proposed_by"] == "writer" and audit.detail["answered_by"] == "writer"
+    assert audit.detail["approval_id"] == proposed["approval_id"]
+
+
+def test_two_person_setting_does_not_restrict_an_argus_made_proposal(app_factory, monkeypatch):
+    monkeypatch.setenv("ARGUS_CONSOLE_TWO_PERSON", "1")
+    case = _case(app_factory, monkeypatch, *CASES[0].values)
+    proposal_id = case.path.propose(case.incident, {"passages": [{"runbook_id": "RB-003"}]})
+    assert proposal_id
+    assert case.path.judge(proposal_id).verdict == "agree"
+    approval_id = case.path.request(proposal_id)
+    assert approval_id
+    proposal = case.app.store.get_action_proposal(proposal_id)
+    answered = case.client.post(f"/api/v1/ops/approvals/{approval_id}/answer",
+                                headers={**case.auth, **PRIVATE},
+                                json={"decision": "approved", "proposal_digest": proposal.digest,
+                                      "step_up_token": "offline-step-up"})
+    assert answered.status_code == 200, answered.text
+    audit = next(row for row in case.app.store.list_for(case.incident.id)
+                 if row.event == "action.approval_answered")
+    assert audit.detail.get("source") is None
 
 
 def test_running_cache_is_rejected_and_the_other_released_pair_is_never_proposed(app_factory, monkeypatch):
@@ -344,3 +404,142 @@ def test_a_failed_judge_refuses_safely_and_requests_no_approval(app_factory, mon
     assert "the judge is down" not in " ".join(body["output"])           # the error text is not shown
     assert case.app.store.get_action_approval_for_proposal(body["proposal_id"]) is None
     assert case.path.executor.gateway.calls == []
+
+
+# --- TASK-144: review of #425 -------------------------------------------------------------------------------------
+def _propose(case):
+    proposed = case.client.post(url(case.incident, "execute"), headers={**case.auth, **PRIVATE},
+                                json={"input": "cache restart", "confirmation": "yes"}).json()
+    return proposed, case.app.store.get_action_proposal(proposed["proposal_id"])
+
+
+def _answer(case, headers, proposed, proposal, decision="approved"):
+    return case.client.post(f"/api/v1/ops/approvals/{proposed['approval_id']}/answer", headers={**headers, **PRIVATE},
+                            json={"decision": decision, "proposal_digest": proposal.digest,
+                                  "step_up_token": "offline-step-up",
+                                  **({"reason": "not now"} if decision == "denied" else {})})
+
+
+def test_two_person_setting_lets_the_proposer_deny_their_own_proposal(app_factory, monkeypatch):
+    monkeypatch.setenv("ARGUS_CONSOLE_TWO_PERSON", "1")
+    case = _case(app_factory, monkeypatch, *CASES[0].values)
+    proposed, proposal = _propose(case)
+    denied = _answer(case, case.auth, proposed, proposal, "denied")
+    assert denied.status_code == 200, denied.text
+    assert case.app.store.get_action_approval_for_proposal(proposal.id)["state"] == "denied"
+    events = [row.event for row in case.app.store.list_for(case.incident.id)]
+    assert "action.approval_answered" in events and "action.approval_refused" not in events
+
+
+def test_refusal_writes_no_answered_row_and_uses_the_access_category(app_factory, monkeypatch):
+    monkeypatch.setenv("ARGUS_CONSOLE_TWO_PERSON", "1")
+    case = _case(app_factory, monkeypatch, *CASES[0].values)
+    proposed, proposal = _propose(case)
+    assert _answer(case, case.auth, proposed, proposal).status_code == 403
+    rows = case.app.store.list_for(case.incident.id)
+    assert not [row for row in rows if row.event == "action.approval_answered"]
+    [refusal] = [row for row in rows if row.event == "action.approval_refused"]
+    assert refusal.category == "access"                      # as graph_runner.py writes the same event
+    assert case.app.store.get_action_approval_for_proposal(proposal.id)["state"] == "pending"
+
+
+def test_a_second_person_who_reconfirms_then_each_answers(app_factory, monkeypatch):
+    monkeypatch.setenv("ARGUS_CONSOLE_TWO_PERSON", "1")
+    case = _case(app_factory, monkeypatch, *CASES[0].values)
+    proposed, proposal = _propose(case)
+    case.app.store.upsert_principal("vera", "human", "approver", ["lab"],
+                                    PasswordHash.recommended().hash("a-long-password"))
+    vera = login(case.client, "vera")
+    again = case.client.post(url(case.incident, "execute"), headers={**vera, **PRIVATE},
+                             json={"input": "cache restart", "confirmation": "yes"}).json()
+    assert again["proposal_id"] == proposed["proposal_id"]       # reused, not a second proposal
+    assert _answer(case, case.auth, proposed, proposal).status_code == 403   # the first typer is still the proposer
+    assert _answer(case, vera, proposed, proposal).status_code == 200
+    assert case.app.store.get_action_approval_for_proposal(proposal.id)["state"] == "approved"
+
+
+@pytest.mark.parametrize("value", ["true", "yes", "on", "2"])
+def test_other_setting_values_leave_the_rule_off_and_warn(value, monkeypatch, caplog):
+    from argus.console.config import warn_unrecognised_two_person
+    monkeypatch.setenv("ARGUS_CONSOLE_TWO_PERSON", value)
+    assert ConsoleConfig().two_person_required is False
+    with caplog.at_level("WARNING", logger="argus.console"):
+        warn_unrecognised_two_person()
+    assert any("ARGUS_CONSOLE_TWO_PERSON" in r.getMessage() and value in r.getMessage() for r in caplog.records)
+
+
+@pytest.mark.parametrize("value", [None, "", "0", "1"])
+def test_known_setting_values_do_not_warn(value, monkeypatch, caplog):
+    from argus.console.config import warn_unrecognised_two_person
+    if value is None:
+        monkeypatch.delenv("ARGUS_CONSOLE_TWO_PERSON", raising=False)
+    else:
+        monkeypatch.setenv("ARGUS_CONSOLE_TWO_PERSON", value)
+    with caplog.at_level("WARNING", logger="argus.console"):
+        warn_unrecognised_two_person()
+    assert not caplog.records
+
+
+def test_a_proposal_with_no_console_origin_is_not_restricted_even_for_the_person_who_typed_it(app_factory, monkeypatch):
+    monkeypatch.setenv("ARGUS_CONSOLE_TWO_PERSON", "1")
+    case = _case(app_factory, monkeypatch, *CASES[0].values)
+    proposed, proposal = _propose(case)
+    # what #421 leaves when the API timed out: the proposal exists but its console.write.after row does not
+    rows = [r for r in case.app.store.list_for(case.incident.id) if r.event != "console.write.after"]
+    monkeypatch.setattr(case.app.store, "list_for", lambda _incident_id: rows)
+    assert _answer(case, case.auth, proposed, proposal).status_code == 200
+
+
+@pytest.mark.xfail(strict=True, reason="finding 2 of REVIEW-425: under #421 a proposal the API timed out on has no "
+                                       "console origin, so the rule is skipped; the worker must write the origin row")
+def test_worker_created_proposal_after_an_api_timeout_keeps_a_console_origin(app_factory, monkeypatch):
+    monkeypatch.setenv("ARGUS_CONSOLE_TWO_PERSON", "1")
+    case = _case(app_factory, monkeypatch, *CASES[0].values)
+    proposed, proposal = _propose(case)
+    rows = [r for r in case.app.store.list_for(case.incident.id) if r.event != "console.write.after"]
+    monkeypatch.setattr(case.app.store, "list_for", lambda _incident_id: rows)   # no origin row, as after a timeout
+    assert _answer(case, case.auth, proposed, proposal).status_code == 403
+
+
+# --- TASK-150: "off changes nothing" for the whole body ------------------------------------------------------------
+GOLDEN = {}
+
+
+def _golden():
+    import json
+    from pathlib import Path
+    if not GOLDEN:
+        GOLDEN.update(json.loads((Path(__file__).parent / "fixtures" / "approval_answer_golden.json")
+                                 .read_text(encoding="utf-8")))
+    return GOLDEN
+
+
+@pytest.mark.parametrize("setting", ["0", None])
+@pytest.mark.parametrize("key,decision,reason,by_other", [("self_approve", "approved", None, False),
+                                                          ("self_deny", "denied", "not now", False),
+                                                          ("other_approve", "approved", None, True)])
+def test_with_the_setting_off_the_answer_and_audit_rows_equal_origin_main(
+        app_factory, monkeypatch, setting, key, decision, reason, by_other):
+    """The fixture was captured by running tests/answer_body_probe.py on origin/main 430f5d25 (before the rule):
+    status, whole response body, audit rows (category, event, actor, every detail key) and the approval state."""
+    import answer_body_probe
+    if setting is None:
+        monkeypatch.delenv("ARGUS_CONSOLE_TWO_PERSON", raising=False)
+    else:
+        monkeypatch.setenv("ARGUS_CONSOLE_TWO_PERSON", setting)
+    case = _case(app_factory, monkeypatch, *CASES[0].values)
+    headers = case.auth
+    if by_other:
+        case.app.store.upsert_principal("vera", "human", "approver", ["lab"],
+                                        PasswordHash.recommended().hash("a-long-password"))
+        headers = login(case.client, "vera")
+    assert answer_body_probe.observe(case, headers, decision, reason) == _golden()[key]
+
+
+def test_with_the_setting_on_a_second_persons_answer_equals_origin_main_too(app_factory, monkeypatch):
+    import answer_body_probe
+    monkeypatch.setenv("ARGUS_CONSOLE_TWO_PERSON", "1")
+    case = _case(app_factory, monkeypatch, *CASES[0].values)
+    case.app.store.upsert_principal("vera", "human", "approver", ["lab"],
+                                    PasswordHash.recommended().hash("a-long-password"))
+    assert answer_body_probe.observe(case, login(case.client, "vera"), "approved") == _golden()["other_approve"]
