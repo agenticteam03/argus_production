@@ -5,7 +5,7 @@
   "branch": "task/readme-project-only",
   "base_commit": "d05b0493f6fd786e6ae9128e2110593f2386e66e",
   "started_at": "2026-11-03T03:41:55+00:00",
-  "expires_at": "2026-11-03T04:41:55+00:00",
+  "expires_at": "2026-11-03T06:42:06+00:00",
   "released": false,
   "handoff": null,
   "vms": {
@@ -16,7 +16,7 @@
       "branch": "task/readme-project-only",
       "base_commit": "d05b0493f6fd786e6ae9128e2110593f2386e66e",
       "started_at": "2026-11-03T03:41:55+00:00",
-      "expires_at": "2026-11-03T04:41:55+00:00",
+      "expires_at": "2026-11-03T06:42:06+00:00",
       "released": false,
       "handoff": null
     },
@@ -27,7 +27,7 @@
       "branch": "task/readme-project-only",
       "base_commit": "d05b0493f6fd786e6ae9128e2110593f2386e66e",
       "started_at": "2026-11-03T03:41:55+00:00",
-      "expires_at": "2026-11-03T04:41:55+00:00",
+      "expires_at": "2026-11-03T06:42:06+00:00",
       "released": false,
       "handoff": null
     }
