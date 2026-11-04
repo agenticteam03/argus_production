@@ -33,6 +33,20 @@
     },
     {
       "checked_at": null,
+      "from": "vm-166/container:argus-lab-client",
+      "id": "vm-166/container:argus-lab-client->vm-166/container:argus-lab-api:8080",
+      "kind": "dependency",
+      "label": "tcp 8080",
+      "latency_ms": null,
+      "port": 8080,
+      "reason": null,
+      "required": true,
+      "since": null,
+      "state": "unknown",
+      "to": "vm-166/container:argus-lab-api"
+    },
+    {
+      "checked_at": null,
       "from": "vm-166/container:argus-lab-filler",
       "id": "vm-166/container:argus-lab-filler->vm-166/host:vm-166:",
       "kind": "dependency",
@@ -44,6 +58,20 @@
       "since": null,
       "state": "unknown",
       "to": "vm-166/host:vm-166"
+    },
+    {
+      "checked_at": null,
+      "from": "vm-166/container:argus-lab-jobworker",
+      "id": "vm-166/container:argus-lab-jobworker->vm-166/container:argus-lab-cache:6379",
+      "kind": "dependency",
+      "label": "tcp 6379",
+      "latency_ms": null,
+      "port": 6379,
+      "reason": null,
+      "required": true,
+      "since": null,
+      "state": "unknown",
+      "to": "vm-166/container:argus-lab-cache"
     },
     {
       "checked_at": null,
@@ -97,6 +125,7 @@
       "kind": "container",
       "label": "argus-lab-api",
       "networks": [],
+      "presence": "unknown",
       "problems": [],
       "role": null,
       "status": "unknown",
@@ -117,6 +146,7 @@
       "kind": "container",
       "label": "argus-lab-worker",
       "networks": [],
+      "presence": "unknown",
       "problems": [],
       "role": null,
       "status": "running",
@@ -132,6 +162,7 @@
       "kind": "host",
       "label": "vm-095",
       "networks": [],
+      "presence": "running",
       "problems": [],
       "role": null,
       "status": "running",
@@ -143,10 +174,22 @@
       "host": "vm-166",
       "id": "vm-166/container:argus-lab-api",
       "idle": false,
-      "info": [],
+      "info": [
+        {
+          "label": "Declared networks",
+          "value": "argus-lab-app"
+        },
+        {
+          "label": "Ports",
+          "value": "8080"
+        }
+      ],
       "kind": "container",
       "label": "argus-lab-api",
-      "networks": [],
+      "networks": [
+        "argus-lab-app"
+      ],
+      "presence": "unknown",
       "problems": [],
       "role": null,
       "status": "unknown",
@@ -173,6 +216,7 @@
       "networks": [
         "argus-lab-app"
       ],
+      "presence": "unknown",
       "problems": [],
       "role": null,
       "status": "unknown",
@@ -188,6 +232,7 @@
       "kind": "container",
       "label": "argus-lab-burner",
       "networks": [],
+      "presence": "unknown",
       "problems": [],
       "role": null,
       "status": "unknown",
@@ -201,13 +246,20 @@
       "idle": false,
       "info": [
         {
+          "label": "Declared networks",
+          "value": "argus-lab-app"
+        },
+        {
           "label": "Ports",
           "value": "6379"
         }
       ],
       "kind": "container",
       "label": "argus-lab-cache",
-      "networks": [],
+      "networks": [
+        "argus-lab-app"
+      ],
+      "presence": "unknown",
       "problems": [],
       "role": null,
       "status": "unknown",
@@ -230,6 +282,7 @@
       "networks": [
         "argus-lab-app"
       ],
+      "presence": "unknown",
       "problems": [],
       "role": null,
       "status": "unknown",
@@ -254,6 +307,7 @@
       "kind": "container",
       "label": "argus-lab-db",
       "networks": [],
+      "presence": "unknown",
       "problems": [],
       "role": null,
       "status": "unknown",
@@ -269,11 +323,28 @@
       "kind": "container",
       "label": "argus-lab-filler",
       "networks": [],
+      "presence": "unknown",
       "problems": [],
       "role": null,
       "status": "unknown",
       "sub": "container",
       "target": "vm-166/container:argus-lab-filler"
+    },
+    {
+      "health": "idle",
+      "host": "vm-166",
+      "id": "vm-166/container:argus-lab-jobworker",
+      "idle": true,
+      "info": [],
+      "kind": "container",
+      "label": "argus-lab-jobworker",
+      "networks": [],
+      "presence": "unknown",
+      "problems": [],
+      "role": null,
+      "status": "unknown",
+      "sub": "container",
+      "target": "vm-166/container:argus-lab-jobworker"
     },
     {
       "health": "idle",
@@ -284,6 +355,7 @@
       "kind": "container",
       "label": "argus-lab-leaker",
       "networks": [],
+      "presence": "unknown",
       "problems": [],
       "role": null,
       "status": "unknown",
@@ -299,6 +371,7 @@
       "kind": "container",
       "label": "argus-lab-nginx",
       "networks": [],
+      "presence": "unknown",
       "problems": [],
       "role": null,
       "status": "unknown",
@@ -319,6 +392,7 @@
       "kind": "container",
       "label": "argus-lab-slow",
       "networks": [],
+      "presence": "unknown",
       "problems": [],
       "role": null,
       "status": "unknown",
@@ -355,6 +429,7 @@
       "kind": "container",
       "label": "argus-lab-worker",
       "networks": [],
+      "presence": "unknown",
       "problems": [
         {
           "kind": "restarts",
@@ -380,6 +455,7 @@
       "kind": "host",
       "label": "vm-166",
       "networks": [],
+      "presence": "running",
       "problems": [],
       "role": null,
       "status": "running",
@@ -387,5 +463,5 @@
       "target": "vm-166/host:vm-166"
     }
   ],
-  "observed_at": "2026-10-18T23:49:51.815773Z"
+  "observed_at": "2026-10-30T15:48:58.938484Z"
 }

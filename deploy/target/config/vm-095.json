@@ -4,6 +4,8 @@
     "argus-lab-worker",
     "argus-lab-api"
   ],
+  "services": [],
+  "processes": [],
   "dns_names": [
     "argus-lab-worker",
     "argus-lab-api"

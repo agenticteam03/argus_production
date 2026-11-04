@@ -23,7 +23,7 @@ ACTIONS = yaml.safe_load((ROOT / "deploy" / "target" / "compose.actions.yml").re
 CORE = yaml.safe_load((ROOT / "deploy" / "vm-095" / "compose.core.yml").read_text(encoding="utf-8"))
 TUNNEL = (ROOT / "deploy" / "vm-095" / "tunnel" / "Dockerfile").read_text(encoding="utf-8")
 PROXY, GATEWAY = "argus-v18-action-proxy", "argus-v18-action-gateway"
-SOCKET_MOUNT = "/var/run/docker.sock:/var/run/docker.sock"
+SOCKET_MOUNT = "${ARGUS_CONTAINER_SOCKET:-/var/run/docker.sock}:/var/run/docker.sock"     # ACR-0044: Docker, or Podman
 
 
 def _services(path):

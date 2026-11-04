@@ -151,6 +151,20 @@ def cpu_saturation(snap: MetricSnapshot) -> DetectorResult:
         "more CPU than its limit gives"])
 
 
+def target_down(snap: MetricSnapshot) -> DetectorResult:
+    """RB-023 (ACR-0044): a declared systemd unit or process that is on its host and does not run. Not on the host
+    (present 0) or unknown is never down."""
+    present, up = snap.values.get("target_present"), snap.values.get("target_up")
+    if present is None or up is None:
+        return DetectorResult(matched=False, findings=["presence unknown: the host probe did not say"])
+    if present < 1:
+        return DetectorResult(matched=False, findings=[f"{snap.target.kind} {snap.target.name} is not on the host"])
+    if up < 1:
+        what = "unit is installed" if snap.target.kind == "service" else "process is declared"
+        return DetectorResult(matched=True, findings=[f"the {what} but does not run (RB-023)"])
+    return DetectorResult(matched=False)
+
+
 # Priority order: the first matching class becomes the incident class; others become findings.
 # D-003 (2026-10-13, §21.2): a class keeps a model strategy only if it matches or beats the deterministic baseline on
 # all its evaluation cases (ambiguous ones included). `dependency_unavailable` (model 0.90 vs 1.00) and
@@ -205,6 +219,10 @@ CLASSES: list[IncidentClassSpec] = [
                       required_signals={"host_disk_used_ratio_5m", "host_disk_hours_to_full"}, runbook_ids=["RB-005"],
                       branch_runbook_ids=["RB-019"], strategy="confirm_then_reason",
                       tool_tags={"host", "disk", "logs", "container", "knowledge"}, detector=disk_pressure),
+    # T-0059 (ACR-0044): a systemd unit or a host process; the deterministic evidence pack, no model (no eval yet)
+    IncidentClassSpec(name="target_down", family="availability", target_kinds={"service", "process"},
+                      required_signals={"target_present", "target_up"}, runbook_ids=["RB-023"],
+                      strategy="evidence_pack", tool_tags={"host"}, detector=target_down),
 ]
 
 

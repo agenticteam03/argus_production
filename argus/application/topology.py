@@ -25,13 +25,34 @@ from argus.application.links import LINK_WARNING_MS, link_state
 from argus.domain.model import EvidenceRecord, Incident, TargetRef
 from argus.ports.ports import MetricsUnavailable, StaleMetrics
 
+PRESENCE_SIGNALS = {"target_present", "target_up"}           # T-0059 (ACR-0044): the observers' presence series
 CONTAINER_SIGNALS = {"restarts_10m", "health_unhealthy", "dependency_probe_min", "container_memory_bytes",
-                     "container_cpu_quota_used_ratio_5m"}
+                     "container_cpu_quota_used_ratio_5m"} | PRESENCE_SIGNALS
 HOST_SIGNALS = {"host_cpu_busy_ratio"}
+# the kinds an observer reports present/up for (the exporter: containers; the host probe: services and processes)
+OBSERVED_KINDS = ("container", "service", "process")
+PRESENCES = ("running", "stopped", "absent", "unknown")
 STATES = ("running", "restarting", "unhealthy", "stopped", "unknown")
 DOCKER_STATE = {"running": "running", "restarting": "restarting", "exited": "stopped", "dead": "stopped",
                 "created": "stopped", "paused": "stopped"}
 MEMORY_WARNING, MEMORY_CRITICAL = 0.8, 0.9   # of the container's memory limit, known only from an incident's evidence
+
+
+def presence(kind: str, vals: dict) -> str:
+    """T-0059 (ACR-0044): does the target exist on its host, and does it run? From the observer's `target_present`
+    and `target_up`; a host is running when any of its signals reads. No reading is `unknown`, never absent: only an
+    observer that says 0 makes a target absent."""
+    if kind == "host":
+        return "running" if any(v is not None for v in vals.values()) else "unknown"
+    if kind not in OBSERVED_KINDS or vals.get("target_present") is None:
+        return "unknown"
+    if vals["target_present"] < 1:
+        return "absent"
+    return "running" if (vals.get("target_up") or 0) >= 1 else "stopped"
+
+
+def _signals_for(kind: str) -> set[str]:
+    return CONTAINER_SIGNALS if kind == "container" else HOST_SIGNALS if kind == "host" else PRESENCE_SIGNALS
 
 
 def _iso(dt: datetime) -> str:
@@ -76,6 +97,11 @@ class Topology:
     def view(self) -> dict:
         return self._shared()[0]
 
+    def presences(self) -> dict[str, str]:
+        """T-0059: each inventory target's presence (`presence`), from the same shared readings as the map."""
+        values = self._shared()[1]
+        return {str(t.ref): presence(t.ref.kind, values.get(str(t.ref), {})) for t in self.inventory.targets()}
+
     def _shared(self) -> tuple[dict, dict]:
         with self._lock:
             if self._global and self._global[0] > self.clock():
@@ -96,7 +122,7 @@ class Topology:
             if t.ref.host in down:
                 values[str(t.ref)] = {}
                 continue
-            signals = CONTAINER_SIGNALS if t.ref.kind == "container" else HOST_SIGNALS
+            signals = _signals_for(t.ref.kind)
             try:
                 values[str(t.ref)] = dict(self.metrics.snapshot(t.ref, signals).values)
             except MetricsUnavailable:
@@ -121,9 +147,10 @@ class Topology:
             if vals.get("health_unhealthy") is not None:
                 info.append({"label": "Health", "value": "unhealthy" if vals["health_unhealthy"] >= 1 else "ok"})
             status = self._status(t.ref, vals)
+            sub = ("database container" if t.database else "container") if t.ref.kind == "container" else t.ref.kind
             node = {"id": ref, "host": t.ref.host, "label": t.ref.name, "target": ref, "kind": t.ref.kind,
-                    "sub": "host" if t.ref.kind == "host" else ("database container" if t.database else "container"),
-                    "status": status, "info": info, "networks": list(t.networks), "role": None}
+                    "sub": sub, "status": status, "presence": presence(t.ref.kind, vals), "info": info,
+                    "networks": list(t.networks), "role": None}
             links = self._links(t, vals, ports, down, since)
             self._judge(node, t.profile, vals, memory_limit=None, running_seen=False, edges=links)
             nodes.append(node)
@@ -235,8 +262,11 @@ class Topology:
     def _status(ref: TargetRef, vals: dict) -> str:
         if not vals or all(v is None for v in vals.values()):
             return "unknown"
-        if ref.kind != "container":
+        if ref.kind == "host":
             return "running"
+        state = presence(ref.kind, vals)
+        if state in ("stopped", "absent") or ref.kind != "container":   # absent: no box runs (`unknown` on the map)
+            return {"absent": "unknown"}.get(state, state)
         if (vals.get("restarts_10m") or 0) > 0:
             return "restarting"
         if (vals.get("health_unhealthy") or 0) >= 1:
