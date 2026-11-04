@@ -4,6 +4,7 @@ The flag is off by default: with it off the console's routes are not mounted and
 """
 from __future__ import annotations
 
+import logging
 import os
 from dataclasses import dataclass, field
 
@@ -11,6 +12,7 @@ from dataclasses import dataclass, field
 @dataclass(frozen=True)
 class ConsoleConfig:
     enabled: bool = field(default_factory=lambda: os.getenv("ARGUS_OPERATOR_CONSOLE", "0") == "1")
+    two_person_required: bool = field(default_factory=lambda: os.getenv("ARGUS_CONSOLE_TWO_PERSON", "0") == "1")
     # ACR-0043 §5.3: read commands per person; `help`, `history` and `clear` are not counted
     reads_per_minute: int = field(default_factory=lambda: int(os.getenv("ARGUS_CONSOLE_READS_PER_MINUTE", "20")))
     reads_per_hour: int = field(default_factory=lambda: int(os.getenv("ARGUS_CONSOLE_READS_PER_HOUR", "200")))
@@ -32,3 +34,12 @@ class ConsoleConfig:
     # call); the worker never starts a job older than the longer one, which the API has given up on
     job_timeout_s: float = field(default_factory=lambda: float(os.getenv("ARGUS_CONSOLE_JOB_TIMEOUT_S", "30")))
     propose_timeout_s: float = field(default_factory=lambda: float(os.getenv("ARGUS_CONSOLE_PROPOSE_TIMEOUT_S", "120")))
+
+
+def warn_unrecognised_two_person() -> None:
+    """Only `1` turns the two-person rule on. Any other value but empty or `0` leaves a security setting silently
+    off, so say so in the log (a warning, never a crash)."""
+    value = os.getenv("ARGUS_CONSOLE_TWO_PERSON", "")
+    if value.strip() not in ("", "0", "1"):
+        logging.getLogger("argus.console").warning(
+            "ARGUS_CONSOLE_TWO_PERSON=%r is not recognised: only 1 turns the two-person rule on, so it is OFF", value)
