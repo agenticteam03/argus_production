@@ -929,6 +929,17 @@ def build_api(app_ctx) -> FastAPI:
                                   "proposal_id": view["proposal"]["id"],
                                   "proposed_by": console_origin.actor,
                                   ("approved_by" if body.decision == "approved" else "answered_by"): p.id}
+                proposed_by = console_origin.detail.get("proposed_by") or console_origin.actor
+                # only an approval is refused: the proposer may deny their own proposal (a denial is the safe answer)
+                if console_config.two_person_required and body.decision == "approved" and p.id == proposed_by:
+                    # category "access", as graph_runner.py writes the same event name
+                    app_ctx.store.append(AuditRecord(
+                        audit_id=f"aud_{uuid.uuid4().hex[:16]}", incident_id=view["proposal"]["input"]["incident_id"],
+                        at=now, category="access", event="action.approval_refused", actor=p.id[:64],
+                        detail={"approval_id": approval_id, "proposal_id": view["proposal"]["id"],
+                                "source": "operator_console", "proposed_by": proposed_by, "answered_by": p.id,
+                                "reason": "a console write must be approved by a different person"}))
+                    raise HTTPException(403, "a console write must be approved by a different person")
             # on the incident's own audit too, so its page shows which operator answered
             audit = hold_audit("action.approval_answered", p.id, now,
                                incident_id=view["proposal"]["input"]["incident_id"], approval_id=approval_id,
@@ -1061,8 +1072,9 @@ def build_api(app_ctx) -> FastAPI:
     # ACR-0043 (CON-2): the operator console. Mounted only with ARGUS_OPERATOR_CONSOLE=1 (else 404, as if absent), on
     # the private prefix only, for a person's own full session with `investigate`: never a service, an agent or a
     # scoped (read / investigate) token.
-    from argus.console.config import ConsoleConfig
+    from argus.console.config import ConsoleConfig, warn_unrecognised_two_person
     console_config = ConsoleConfig()
+    warn_unrecognised_two_person()
     if console_config.enabled:
         from argus.console import registry as console_registry
         from argus.console.service import ConsoleService, NotRetryable, QuotaRefused, UnknownCommand, lines_of
