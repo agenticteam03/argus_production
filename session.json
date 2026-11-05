@@ -5,7 +5,7 @@
   "branch": "task/argus-trailer",
   "base_commit": "b4fb72e02e642f0a6d22aaed3568bb5bbd5bb05a",
   "started_at": "2026-11-05T22:44:22+00:00",
-  "expires_at": "2026-11-05T23:44:22+00:00",
+  "expires_at": "2026-11-06T00:44:29+00:00",
   "released": false,
   "handoff": null,
   "took_over_from": {
@@ -22,7 +22,7 @@
       "branch": "task/argus-trailer",
       "base_commit": "b4fb72e02e642f0a6d22aaed3568bb5bbd5bb05a",
       "started_at": "2026-11-05T22:44:22+00:00",
-      "expires_at": "2026-11-05T23:44:22+00:00",
+      "expires_at": "2026-11-06T00:44:29+00:00",
       "released": false,
       "handoff": null,
       "took_over_from": {
@@ -39,7 +39,7 @@
       "branch": "task/argus-trailer",
       "base_commit": "b4fb72e02e642f0a6d22aaed3568bb5bbd5bb05a",
       "started_at": "2026-11-05T22:44:22+00:00",
-      "expires_at": "2026-11-05T23:44:22+00:00",
+      "expires_at": "2026-11-06T00:44:29+00:00",
       "released": false,
       "handoff": null,
       "took_over_from": {
