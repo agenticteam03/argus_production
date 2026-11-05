@@ -1,35 +1,53 @@
 {
-  "holder": "juanbetancurm",
-  "session_id": "a9836dd35e94",
+  "holder": "juanes6554",
+  "session_id": "c42265482e4c",
   "task": "DEPLOY-88fe002",
-  "branch": "task/readme-project-only",
-  "base_commit": "d05b0493f6fd786e6ae9128e2110593f2386e66e",
-  "started_at": "2026-11-03T03:41:55+00:00",
-  "expires_at": "2026-11-03T06:42:06+00:00",
+  "branch": "task/argus-trailer",
+  "base_commit": "b4fb72e02e642f0a6d22aaed3568bb5bbd5bb05a",
+  "started_at": "2026-11-05T22:44:22+00:00",
+  "expires_at": "2026-11-05T23:44:22+00:00",
   "released": false,
   "handoff": null,
+  "took_over_from": {
+    "holder": "juanbetancurm",
+    "task": "DEPLOY-88fe002",
+    "branch": "task/readme-project-only",
+    "expired_at": "2026-11-03T06:42:06+00:00"
+  },
   "vms": {
     "vm-095": {
-      "holder": "juanbetancurm",
-      "session_id": "a9836dd35e94",
+      "holder": "juanes6554",
+      "session_id": "c42265482e4c",
       "task": "DEPLOY-88fe002",
-      "branch": "task/readme-project-only",
-      "base_commit": "d05b0493f6fd786e6ae9128e2110593f2386e66e",
-      "started_at": "2026-11-03T03:41:55+00:00",
-      "expires_at": "2026-11-03T06:42:06+00:00",
+      "branch": "task/argus-trailer",
+      "base_commit": "b4fb72e02e642f0a6d22aaed3568bb5bbd5bb05a",
+      "started_at": "2026-11-05T22:44:22+00:00",
+      "expires_at": "2026-11-05T23:44:22+00:00",
       "released": false,
-      "handoff": null
+      "handoff": null,
+      "took_over_from": {
+        "holder": "juanbetancurm",
+        "task": "DEPLOY-88fe002",
+        "branch": "task/readme-project-only",
+        "expired_at": "2026-11-03T06:42:06+00:00"
+      }
     },
     "vm-166": {
-      "holder": "juanbetancurm",
-      "session_id": "a9836dd35e94",
+      "holder": "juanes6554",
+      "session_id": "c42265482e4c",
       "task": "DEPLOY-88fe002",
-      "branch": "task/readme-project-only",
-      "base_commit": "d05b0493f6fd786e6ae9128e2110593f2386e66e",
-      "started_at": "2026-11-03T03:41:55+00:00",
-      "expires_at": "2026-11-03T06:42:06+00:00",
+      "branch": "task/argus-trailer",
+      "base_commit": "b4fb72e02e642f0a6d22aaed3568bb5bbd5bb05a",
+      "started_at": "2026-11-05T22:44:22+00:00",
+      "expires_at": "2026-11-05T23:44:22+00:00",
       "released": false,
-      "handoff": null
+      "handoff": null,
+      "took_over_from": {
+        "holder": "juanbetancurm",
+        "task": "DEPLOY-88fe002",
+        "branch": "task/readme-project-only",
+        "expired_at": "2026-11-03T06:42:06+00:00"
+      }
     }
   }
 }
