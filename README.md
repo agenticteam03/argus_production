@@ -6,22 +6,22 @@
 
 <p align="center">
   <a href="https://github.com/agenticteam03/ArgusWiki/wiki" target="_blank">
-    <img src="https://img.shields.io/badge/Wiki-Documentación-blue?style=for-the-badge&logo=github" alt="Wiki Project">
+    <img src="https://img.shields.io/badge/Wiki-Documentation-blue?style=for-the-badge&logo=github" alt="Wiki Project">
   </a>
   &nbsp;
   <a href="https://youtu.be/OkEJEn8v1B4" target="_blank">
-    <img src="https://img.shields.io/badge/YouTube-Trailer_Oficial-red?style=for-the-badge&logo=youtube" alt="Official Trailer">
+    <img src="https://img.shields.io/badge/YouTube-Official_Trailer-red?style=for-the-badge&logo=youtube" alt="Official Trailer">
   </a>
   &nbsp;
   <a href="https://youtu.be/xonM6JYetP4" target="_blank">
-    <img src="https://img.shields.io/badge/YouTube-Demo_en_Vivo-red?style=for-the-badge&logo=youtube" alt="Live Demo">
+    <img src="https://img.shields.io/badge/YouTube-Live_Demo-red?style=for-the-badge&logo=youtube" alt="Live Demo">
   </a>
 </p>
 
-> 📌 **Recursos Rápidos:**
-> - 📖 **[Wiki del Proyecto](https://github.com/agenticteam03/ArgusWiki/wiki)** — Explora la documentación completa en nuestro otro repositorio.
-> - 🎬 **[Trailer Oficial (YouTube)](https://youtu.be/OkEJEn8v1B4)** — Vistazo rápido de Argus en 1-2 minutos.
-> - 🖥️ **[Demo en Vivo e Interacción con UI (YouTube)](https://youtu.be/xonM6JYetP4)** — Demostración guiada usando la consola y la interfaz de usuario.
+> 📌 **Quick Links:**
+> - 📖 **[Project Wiki](https://github.com/agenticteam03/ArgusWiki/wiki)** — Explore complete documentation in our secondary repository.
+> - 🎬 **[Official Trailer (YouTube)](https://youtu.be/OkEJEn8v1B4)** — Quick 1-2 minute overview of Argus.
+> - 🖥️ **[Live Demo & UI Walkthrough (YouTube)](https://youtu.be/xonM6JYetP4)** — Hands-on demonstration interacting with the console and UI.
 
 ---
 
