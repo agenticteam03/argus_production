@@ -2,6 +2,7 @@
 
   ROLE=read_gateway   exact GET routes over this host's Docker socket          (token: docker_read)
   ROLE=host_probe     verbs over this host's /proc and allowlisted mounts       (token: host_probe)
+                      + /metrics: the declared systemd units' and processes' presence (ACR-0044)
   ROLE=network_probe  dns / tcp / http from the argus-lab-app network            (token: network_probe)
   ROLE=db_probe       health of allowlisted PostgreSQL databases, read-only role (token: db_probe)
   ROLE=exporter       /metrics for this host's Prometheus (no token, internal network only)
@@ -33,6 +34,8 @@ ROLE = os.environ["ROLE"]
 CONFIG = json.load(open(os.environ.get("TA_CONFIG", "/etc/argus-v18/target.json")))
 HOST = CONFIG["host"]
 CONTAINERS = set(CONFIG.get("containers", []))
+SERVICES = list(CONFIG.get("services", []))                                  # ACR-0044: systemd units (host probe)
+PROCESSES = {p["name"]: p for p in CONFIG.get("processes", [])}             # ACR-0044: {name, comm | pidfile}
 PROC = os.environ.get("TA_PROC", "/host/proc")
 ROOTFS = os.environ.get("TA_ROOTFS", "/rootfs")
 SECRETS = os.environ.get("TA_SECRETS", "/run/argus-v18")
@@ -390,6 +393,10 @@ def host_probe(parts: list[str], q: dict) -> dict:
         return top_processes(by, _int_arg(q, "n", 5, 1, PROCESS_MAX_N))
     if parts == ["sockets"]:
         return socket_summary()
+    if len(parts) == 3 and parts[0] == "services" and parts[2] == "status":
+        return service_status(parts[1])
+    if len(parts) == 3 and parts[0] == "processes" and parts[2] == "status":
+        return process_status(parts[1])
     if parts == ["directory_sizes"]:
         return directory_sizes(q.get("path", [""])[0])
     if parts == ["oom"]:
@@ -499,6 +506,88 @@ def _processes() -> tuple[dict[int, dict], int]:
         snap[pid] = {"command": head.split("(", 1)[1][:15], "state": f[0], "ppid": int(f[1]),
                      "ticks": int(f[11]) + int(f[12]), "rss_pages": int(f[21])}
     return snap, len(pids)
+
+
+# --- ACR-0044: the declared systemd units and processes (present / up) --------------------------------------------
+UNIT_DIRS = ("etc/systemd/system", "run/systemd/system", "usr/lib/systemd/system", "lib/systemd/system")
+STATUS_MAX_PIDS = 20
+
+
+def _unit_pids() -> dict[str, list[int]]:
+    """The pids in each declared unit's cgroup, from /proc/<pid>/cgroup (v2 `0::/system.slice/<unit>`, v1
+    `1:name=systemd:/system.slice/<unit>`): a unit with a process in its cgroup runs. No D-Bus, no systemctl."""
+    out: dict[str, list[int]] = {u: [] for u in SERVICES}
+    if not out:
+        return out
+    for p in sorted((int(p) for p in os.listdir(PROC) if p.isdigit()))[:PROCESS_MAX_PIDS]:
+        try:
+            text = open(f"{PROC}/{p}/cgroup").read()
+        except OSError:
+            continue                                 # the process ended
+        for ln in text.splitlines():
+            unit = next((u for u in ln.split(":", 2)[-1].split("/") if u in out), None)
+            if unit:
+                out[unit].append(p)
+                break
+    return out
+
+
+def _installed(unit: str) -> bool:
+    return any(os.path.isfile(f"{ROOTFS}/{d}/{unit}") for d in UNIT_DIRS)
+
+
+def _process_pids(proc: dict) -> list[int]:
+    """A declared process's pids: by its pidfile (a stale pid is not running), or by its command name (comm). Never
+    its command line or environment."""
+    if "pidfile" in proc:
+        try:
+            pid = int(open(ROOTFS + proc["pidfile"]).read().split()[0])
+        except (OSError, ValueError, IndexError):
+            return []
+        return [pid] if os.path.isdir(f"{PROC}/{pid}") else []
+    pids = []
+    for p in sorted((int(p) for p in os.listdir(PROC) if p.isdigit()))[:PROCESS_MAX_PIDS]:
+        try:
+            if open(f"{PROC}/{p}/comm").read().strip() == proc["comm"]:
+                pids.append(p)
+        except OSError:
+            continue
+    return pids
+
+
+def unit_metrics() -> str:
+    """/metrics of the host probe (scraped with its token): `argus_target_present` and `argus_target_up` per declared
+    unit and process. A unit is present when its unit file is installed (or it runs); a declared process is expected,
+    so it is always present and up only while it runs."""
+    lines, pids = [], _unit_pids()
+    for unit in SERVICES:
+        up = bool(pids.get(unit))
+        ident = f'kind="service",name="{unit}"'
+        lines += [f"argus_target_present{{{ident}}} {int(up or _installed(unit))}", f"argus_target_up{{{ident}}} {int(up)}"]
+    for name, proc in PROCESSES.items():
+        ident = f'kind="process",name="{name}"'
+        lines += [f"argus_target_present{{{ident}}} 1", f"argus_target_up{{{ident}}} {int(bool(_process_pids(proc)))}"]
+    return "\n".join(lines) + "\n"
+
+
+def service_status(unit: str) -> dict:
+    if unit not in SERVICES:
+        raise Err(404, "not in this host's allowlist")
+    pids = _unit_pids().get(unit, [])
+    return {"unit": unit, "installed": _installed(unit), "active": bool(pids), "pids": pids[:STATUS_MAX_PIDS],
+            "collected_at": now()}
+
+
+def process_status(name: str) -> dict:
+    proc = PROCESSES.get(name)
+    if proc is None:
+        raise Err(404, "not in this host's allowlist")
+    found = _process_pids(proc)
+    snap, _ = _processes()
+    rows = [{"pid": pid, "command": snap[pid]["command"], "state": snap[pid]["state"],
+             "rss_mib": round(snap[pid]["rss_pages"] * PAGE_BYTES / 2**20, 1)} for pid in found if pid in snap]
+    return {"name": name, "match": {k: proc[k] for k in ("comm", "pidfile") if k in proc}, "running": bool(found),
+            "pids": rows[:STATUS_MAX_PIDS], "collected_at": now()}
 
 
 def _container_of(pid: int) -> str | None:
@@ -1183,11 +1272,17 @@ def collect() -> None:
     while True:
         lines, active = [], set()
         for name in sorted(CONTAINERS):
+            ident = f'kind="container",name="{name}"'
             try:
                 d = inspect(name)
+            except Err as e:
+                if e.code == 404:            # T-0059 (ACR-0044): the runtime says it has no such container: absent
+                    lines += [f"argus_target_present{{{ident}}} 0", f"argus_target_up{{{ident}}} 0"]
+                continue                     # its own series stay absent (unknown, never zero)
             except Exception:
-                continue                     # absent ⇒ no series (unknown, never zero)
+                continue                     # the runtime did not answer: no series at all (unknown, never absent)
             lab = f'container="{name}"'
+            lines += [f"argus_target_present{{{ident}}} 1", f"argus_target_up{{{ident}}} {1 if d['running'] else 0}"]
             try:
                 code, oom = last_exit(d, container_events(name, 10))
             except Exception:
@@ -1248,6 +1343,8 @@ class Handler(BaseHTTPRequestHandler):
                 raise Err(401, "unauthorized")
             if ROLE == "db_probe" and parts == ["metrics"]:      # scraped by this host's Prometheus with the token
                 return self._send(200, db_metrics().encode(), "text/plain; version=0.0.4")
+            if ROLE == "host_probe" and parts == ["metrics"]:    # ACR-0044: units and processes, same token
+                return self._send(200, unit_metrics().encode(), "text/plain; version=0.0.4")
             body = ROUTES[ROLE](parts, urllib.parse.parse_qs(u.query))
             self._send(200, json.dumps({**body, "host": HOST, "role": ROLE}, default=str).encode())
         except Err as e:

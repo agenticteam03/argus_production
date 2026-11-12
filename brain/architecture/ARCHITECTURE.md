@@ -1,7 +1,7 @@
 # Argus — Production Architecture Specification
 
 **Document type:** consolidated target architecture and implementation blueprint ·
-**Version:** 1.8.51 (2026-10-29, ACR-0043: the operator console, stage 1: a restricted command console over Argus's own tools, new section 17.5; 1.8.50 2026-10-28, ACR-0042: an approver's bell counts the approvals waiting, with any token, a count only; 1.8.49 2026-10-28, ACR-0041: an operator or approver closes an escalated incident by hand, with a reason; 1.8.48 2026-10-28, ACR-0040: an approver manages the reference corpus like an administrator; 1.8.47 2026-10-28, ACR-0039: a judge's doubt reaches the approver, with its reasons and a raised colour; only a disagreement stops a proposal; 1.8.46 2026-10-28, ACR-0038: a passkey-only mode of the private path, off by default; 1.8.45 2026-10-28, ACR-0035 accepted and implemented in phase 20, X-8: network.restore on the lab API; 1.8.44 2026-10-28, ACR-0037: the private path needs the client certificate alone, no address allowlist; 1.8.43 2026-10-28, ACR-0019 second release: `container.restart` on the lab job worker; 1.8.42 2026-10-28, ACR-0019 applied for the first release: one lab write pair, `container.start` on
+**Version:** 1.8.52 (2026-10-30, ACR-0044: which inventory targets exist and run (a presence contract for every observer), Podman's socket, systemd units and host processes as targets with the class `target_down`; 1.8.51 2026-10-29, ACR-0043: the operator console, stage 1: a restricted command console over Argus's own tools, new section 17.5; 1.8.50 2026-10-28, ACR-0042: an approver's bell counts the approvals waiting, with any token, a count only; 1.8.49 2026-10-28, ACR-0041: an operator or approver closes an escalated incident by hand, with a reason; 1.8.48 2026-10-28, ACR-0040: an approver manages the reference corpus like an administrator; 1.8.47 2026-10-28, ACR-0039: a judge's doubt reaches the approver, with its reasons and a raised colour; only a disagreement stops a proposal; 1.8.46 2026-10-28, ACR-0038: a passkey-only mode of the private path, off by default; 1.8.45 2026-10-28, ACR-0035 accepted and implemented in phase 20, X-8: network.restore on the lab API; 1.8.44 2026-10-28, ACR-0037: the private path needs the client certificate alone, no address allowlist; 1.8.43 2026-10-28, ACR-0019 second release: `container.restart` on the lab job worker; 1.8.42 2026-10-28, ACR-0019 applied for the first release: one lab write pair, `container.start` on
 the lab cache; 1.8.41 2026-10-27, ACR-0036: worker_stalled class and RB-022; 1.8.40 2026-10-27, ACR-0034 local tier: staged reference sources installed by an administrator's approval; 1.8.39 2026-10-27, ACR-0034: the curated reference corpus, `knowledge.reference`, its layered defences; 1.8.38 2026-10-27, ACR-0032 and ACR-0019 phase 19: the private browser login, a full `ops` token bound to the private path, the approval and hold routes and their UI; 1.8.37 2026-10-26, ACR-0018 phase 16: security alerts to the team's Telegram route and the scheduler's egress proxy; 1.8.36 2026-10-24, ACR-0031: durable dependency probe replay; 1.8.35 2026-10-23, ACR-0018 phase 16 step 5c: the scheduler's mounts for the audit digest and the command that checks it; 1.8.34 2026-10-23, ACR-0018 phase 16 step 5b: the OCI Object Storage sink of the audit digests; 1.8.33 2026-10-23, ACR-0024 as built: a read step's hypotheses get the structural checks only; 1.8.32 2026-10-23, ACR-0018 phase 16 step 5a: the signed daily audit digest job; 1.8.31 2026-10-23, ACR-0020 phase 21A: offline terminal broker contracts; 1.8.30 2026-10-22, ACR-0018 phase 16 step 4: the private path; 1.8.29 2026-10-22, ACR-0018 phase 16 step 3: the WebAuthn second factor and the step-up token; 1.8.28 2026-10-21, ACR-0024 as built in T-0047 H2: `state_hypotheses`; 1.8.27 2026-10-21, ACR-0024 hypotheses and a cause ranking; 1.8.26 2026-10-21, ACR-0018 phase 16 step 1: sessions, revocation, persisted login limiter, permissions, the audit hash chain, EdDSA tokens; 1.8.25 2026-10-21, ACR-0028 field allowlists; 1.8.24 2026-10-21, ACR-0025 live dependency graph; 1.8.23 2026-10-20, ACR-0027 the built gaps G-001, G-003, G-007; 1.8.22 2026-10-20, ACR-0026 safety classes; 1.8.21 2026-10-20, §14 marked designed, not built (OP-015); 1.8.20 2026-10-19, ACR-0021 B7 baseline, long ranges, deploy events, and B8 link reasons; 1.8.19 2026-10-19, ACR-0021 B6: target metrics and the overview; 1.8.18 2026-10-19, ACR-0021 UI insights v2: B1 to B5; 1.8.17 2026-10-19, ACR-0023 log pattern matches; 1.8.16 2026-10-18, ACR-0013 and ACR-0016 Langfuse Cloud tracing; 1.8.15 2026-10-16, ACR-0017 topology; 1.8.14 2026-10-16, ACR-0017 incident metrics; 1.8.12 2026-10-14, ACR-0014; 1.8.11 2026-10-14, ACR-0012; 1.8.10 2026-10-14, ACR-0011; 1.8.8 2026-10-12, ACR-0009; 1.8.7 2026-10-12, ACR-0008; 1.8.6 2026-10-11, ACR-0007; 1.8.5 2026-10-09, ACR-0005; 1.8.4 2026-10-09, ACR-0004; 1.8.3 2026-10-08, ACR-0003; 1.8.2 2026-10-09, ACR-0002; 1.8.1 2026-10-06, ACR-0001; base 1.8.0 of 30 September 2026, sanitized for the shared repository 2026-10-02) · **Audience:** engineers and AI coding agents implementing
 Argus from an empty repository.
 
@@ -83,8 +83,8 @@ range of diagnoses grows.
 Each class is registered as an `IncidentClassSpec` (§5.8): a pure detector, the signals it needs, one
 or more runbooks, a diagnostic strategy, the relevant tool tags, budgets and verification signals.
 
-**Runbook library.** Classes are aligned with the Argus runbook library **v1.1.1** (RB-001–RB-022;
-source review 2026-09-29 for RB-001–RB-021 and 2026-10-27 for RB-022; index: `argus/runbooks/RUNBOOK-INDEX.md`). Every runbook in it is **draft**
+**Runbook library.** Classes are aligned with the Argus runbook library **v1.1.1** (RB-001–RB-023;
+source review 2026-09-29 for RB-001–RB-021, 2026-10-27 for RB-022 and 2026-10-30 for RB-023; index: `argus/runbooks/RUNBOOK-INDEX.md`). Every runbook in it is **draft**
 (`last_tested: null`). A runbook reached as a *branch* is retrieved when the investigation of the parent
 class points to that cause.
 
@@ -96,6 +96,7 @@ class points to that cause.
 | availability | `http_errors_latency` | RB-011 | RB-015, RB-016, RB-021 | `model_loop` |
 | availability | `nginx_upstream_failure` | RB-015 | RB-002, RB-003 | `plan_then_reason` |
 | availability | `tls_failure` | RB-016 | — | `plan_then_reason` |
+| availability | `target_down` | RB-023 | — | `evidence_pack` |
 | dependency | `dependency_unavailable` | RB-003 | RB-004, RB-009 | `model_loop` |
 | dependency | `dns_network_failure` | RB-009 | — | `plan_then_reason` |
 | saturation | `cpu_saturation` | RB-006 | — | `model_loop` |
@@ -629,6 +630,12 @@ Docker API → argus-exporter ───────┘      ↑
 - **argus-exporter:** lifecycle facts cAdvisor does not publish (`oom_killed`, `last_exit_code`,
   restart count and similar).
 - Argus queries **only Prometheus** for metrics. It never queries an exporter directly.
+- **Presence** ([ACR-0044](changes/ACR-0044-live-targets.md)): every observer publishes, for each declared target it
+  watches, `argus_target_present{kind,name}` (1 on the host, 0 not) and `argus_target_up{kind,name}` (1 it runs): the
+  argus-exporter for containers (the runtime's 404 is absent), the host probe for systemd units and declared processes
+  (its `/metrics`, scraped with its token). No series is `unknown`, never absent. The map's `presence` and the target
+  list's `state` (`running`, `stopped`, `absent`, `unknown`) come from them; the inventory still decides what may be
+  investigated, and the UI hides what is absent unless asked.
 - Endpoint availability comes from a blackbox-style exporter rule or a scheduled probe.
 
 **Signal catalogue** (`config/signals.yaml`). Every metric Argus uses has a **signal name** mapped to a
@@ -726,7 +733,7 @@ the target and not Host A. A Host-A-local substitute is never allowed.
 
 | Service | Verbs | Privileges |
 |---|---|---|
-| `host-probe` | `cpu`, `memory`, `disk_usage(mount)`, `load`, `io`, `uptime`, `top_processes(by, n)`, `process_details(pid)`, `directory_sizes(path)`, `socket_summary`, `journal(unit, since, lines)`, `kernel_oom_records(since)`, `read_file(path, lines)` | read-only host mounts it needs (`/proc`, `/sys`, the journal directory, allowlisted paths); no Docker socket |
+| `host-probe` | `cpu`, `memory`, `disk_usage(mount)`, `load`, `io`, `uptime`, `top_processes(by, n)`, `process_details(pid)`, `directory_sizes(path)`, `socket_summary`, `journal(unit, since, lines)`, `kernel_oom_records(since)`, `read_file(path, lines)`, `service_status(unit)` and `process_status(name)` of a declared unit or process, and a `/metrics` of their presence (ACR-0044: cgroup and `/proc` reads, never D-Bus or a command line) | read-only host mounts it needs (`/proc`, `/sys`, the journal directory, allowlisted paths); no Docker socket |
 | `network-probe` | `resolve_dns(name)`, `tcp_connect(host, port, timeout)`, `http_probe(url, timeout)`, `connectivity(from_network, to_target)`, `listening_ports` | no filesystem or Docker socket access; runs in the `app` network context |
 | `db-probe` | `database_health(target)`: connections by state and client, locks, long transactions, pool saturation | a read-only monitoring database role; never reads business rows |
 
@@ -775,12 +782,15 @@ IncidentId = NewType("IncidentId", str)      # ULID; also the LangGraph thread_i
 class TargetRef(BaseModel):                  # canonical target identity
     host: str                                # logical host name from the inventory, e.g. "host-t"; never an IP
     kind: str                                # registered target kind: container | host | network_endpoint
-                                             # | database | service | volume | …
+                                             # | database | service | process | volume | …
     name: str                                # e.g. "shop-api"
     # text form: "host-t/container:shop-api"
 ```
 
 - The target kind registry lives in `domain/target.py`. A kind that is not registered is rejected.
+- ACR-0044: a `service` target is a systemd unit `<name>.service`; a `process` target is a host process found by
+  `process: {comm}` (at most 15 characters) or `process: {pidfile}`, never by its command line. A container target may
+  run under Docker or Podman: a host's `ARGUS_CONTAINER_SOCKET` names the runtime's Docker-compatible socket.
 - `host` is part of every key that contains a target: proposal digests, idempotency keys, locks,
   correlation and audit.
 
@@ -3303,3 +3313,4 @@ erDiagram
 | 1.8.49 | 2026-10-28 | [ACR-0041](changes/ACR-0041-resolve-escalated-incident.md): `POST /api/v1/incidents/{id}/resolve` (permission `resolve_incident`: operator, approver; a full or investigate token) closes an escalated incident once with `resolution: {by, at, reason}` and `incident.resolved` in the audit; migration 019 allows exactly escalated to closed with a resolution; the edge proxies the route; the UI shows Resolve and the resolution | [ACR-0041](changes/ACR-0041-resolve-escalated-incident.md) |
 | 1.8.50 | 2026-10-28 | [ACR-0042](changes/ACR-0042-approvals-waiting-count.md): `GET /api/v1/approvals/waiting` returns `{"waiting": N}` (the private list's filter, at most 50) to a human approver with any token and no second factor (permission `count_waiting_approvals`, not privileged, mounted with the action routes; listed in `/me`); the edge proxies it; the UI's bell polls it every 30 s and leads to Actions | [ACR-0042](changes/ACR-0042-approvals-waiting-count.md) |
 | 1.8.51 | 2026-10-29 | [ACR-0043](changes/ACR-0043-operator-console.md): new section 17.5, the operator console stage 1: a command dispatcher over Argus's tools (no shell, PTY or exec), a registry and parser that refuse unknown verbs, services and shell syntax, write commands that map to exactly one pair of `write_gate.open`, access on the private prefix with `investigate` for reads and `propose_action` for writes, scoped to an incident and a personal session, `ARGUS_OPERATOR_CONSOLE` off by default, read limits and the console's own read budget, and the post-command analysis; the write path is built (#410); the analysis wiring (TASK-112) is in progress, stage 2 stays ACR-0020 | [ACR-0043](changes/ACR-0043-operator-console.md) |
+| 1.8.52 | 2026-10-30 | [ACR-0044](changes/ACR-0044-live-targets.md): a presence contract (`argus_target_present`, `argus_target_up`; signals `target_present`, `target_up`, template parameter `$kind`) published by the exporter for containers and by the host probe (`/metrics`, its token) for systemd units and declared processes; the map's `presence` and `GET /api/v1/targets` `state`; `ARGUS_CONTAINER_SOCKET` for Podman; the `process` kind; reads `service.status` and `process.status` (Level 1, offered to no model class); class `target_down` (RB-023, `evidence_pack`) and alert `TargetDown` | [ACR-0044](changes/ACR-0044-live-targets.md) |

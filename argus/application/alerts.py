@@ -57,6 +57,11 @@ class HandleAlertNotification:
         host = a.labels.get("argus_host")
         if not host:
             return None
+        if a.labels.get("kind") in ("service", "process") and a.labels.get("name"):      # ACR-0044: TargetDown
+            try:
+                return TargetRef(host=host, kind=a.labels["kind"], name=a.labels["name"])
+            except ValueError:
+                return None
         name = a.labels.get("container") or a.labels.get("owner")
         try:
             return TargetRef(host=host, kind="container", name=name) if name else TargetRef(host=host, kind="host",

@@ -39,7 +39,7 @@ def test_every_runbook_detector_matches_its_architecture_class():
         assert metadata["id"] == path.name[:6]
         actual[metadata["id"]] = metadata["detector"]
     assert actual == expected
-    assert len(set(expected.values())) == 21
+    assert len(set(expected.values())) == 22
 
 
 def test_runbook_index_uses_the_same_detector_classes():

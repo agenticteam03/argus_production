@@ -19,6 +19,11 @@ scrape_configs:
     static_configs:
       - targets: ["argus-lab-jobworker:8080"]
         labels: {argus_host: vm-166, container: argus-lab-jobworker}
+  - job_name: argus-v18-host-probe        # ACR-0044: declared systemd units and processes (argus_target_*)
+    authorization: {type: Bearer, credentials_file: /etc/prometheus/secrets/host_probe_token}
+    static_configs:
+      - targets: ["argus-v18-host-probe:8700"]
+        labels: {argus_host: vm-166}
   - job_name: argus-v18-node-exporter      # T-0022: host CPU, memory, disk, load
     static_configs:
       - targets: ["argus-v18-node-exporter:9100"]

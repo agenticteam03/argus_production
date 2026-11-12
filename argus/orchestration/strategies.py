@@ -26,6 +26,8 @@ def evidence_pack_plan(target: TargetRef) -> list[ReadCall]:
                   ReadCall(name="container.resources", arguments={"target": t}),
                   ReadCall(name="container.health", arguments={"target": t}),
                   ReadCall(name="container.logs", arguments={"target": t, "tail": 30})]
+    if target.kind in ("service", "process"):                       # ACR-0044: the unit or process itself
+        calls.append(ReadCall(name=f"{target.kind}.status", arguments={"target": str(target)}))
     calls += [ReadCall(name="host.memory", arguments={"target": host_t}),
               ReadCall(name="host.cpu", arguments={"target": host_t})]
     return calls

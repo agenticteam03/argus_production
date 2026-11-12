@@ -1,4 +1,4 @@
-# Signal catalogue: name → PromQL template ($host, $name). Every template filters on argus_host.
+# Signal catalogue: name → PromQL template ($host, $kind, $name). Every template filters on argus_host.
 # Used by detection (MetricsPort) and by the metrics.* capabilities. Free-form PromQL is never accepted.
 restarts_10m:          'clamp_min((argus_container_restart_count{argus_host="$host",container="$name"} and on(argus_host,container) (time() - argus_container_created_seconds{argus_host="$host",container="$name"} < 600)) or on(argus_host,container) (argus_container_restart_count{argus_host="$host",container="$name"} - argus_container_restart_count{argus_host="$host",container="$name"} offset 10m), 0)'
 oom_killed:            'argus_container_oom_killed{argus_host="$host",container="$name"}'
@@ -11,6 +11,10 @@ dependency_probe_success:     'argus_probe_success{argus_host="$host",owner="$na
 dependency_probe_duration_s:  'argus_probe_duration_seconds{argus_host="$host",owner="$name"}'
 # T-0045 B8: why a probe failed (label `kind`: refused, timeout, dns, other); present only while it fails.
 dependency_probe_error:       'argus_probe_error{argus_host="$host",owner="$name"}'
+# T-0059 (ACR-0044): every observer says, for each declared target it watches, whether it exists on the host
+# (present 1/0) and whether it runs (up 1/0). No series = the observer did not say: unknown, never absent.
+target_present:        'argus_target_present{argus_host="$host",kind="$kind",name="$name"}'
+target_up:             'argus_target_up{argus_host="$host",kind="$kind",name="$name"}'
 container_memory_bytes: 'argus_container_memory_bytes{argus_host="$host",container="$name"}'
 container_restart_count: 'argus_container_restart_count{argus_host="$host",container="$name"}'
 # T-0020 (db-probe /metrics): ordinary-slot usage sustained for 5 minutes (RB-004 calibration default); unknown

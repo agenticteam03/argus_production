@@ -62,7 +62,7 @@ def test_class_severities():
         "container_restart_loop": "critical", "dependency_unavailable": "critical", "health_check_failed": "critical",
         "nginx_upstream_failure": "critical", "postgresql_connection_exhaustion": "critical",
         "cpu_saturation": "critical", "disk_pressure": "critical", "monitoring_blind_spot": "warning",
-        "worker_stalled": "critical"}
+        "worker_stalled": "critical", "target_down": "critical"}
 
 
 # --- an SC-01-like incident (restart loop, OOM) -----------------------------------------------------------------------

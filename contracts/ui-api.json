@@ -2025,7 +2025,7 @@
     },
     "/api/v1/targets": {
       "get": {
-        "description": "ACR-0012: the inventory's targets for a UI's target list (refs only: no address, port or credential).",
+        "description": "ACR-0012: the inventory's targets for a UI's target list (refs only: no address, port or credential).\nT-0059 (ACR-0044): with each one's `state` on its host (running, stopped, absent, unknown) from the map's\nshared readings; the inventory still decides the list, the UI hides what is absent.",
         "operationId": "targets_api_v1_targets_get",
         "responses": {
           "200": {

@@ -24,7 +24,7 @@ The pattern follows T-0036 to T-0040 and T-0047 H5 (`analysis.anomaly_summary`).
    `CapabilitySpec` in `build_catalog()`:
    - a canonical `name` and a unique snake_case `model_name`;
    - `description` and `use_when` written for the model;
-   - an args model and the target kinds (`container`, `host`);
+   - an args model and the target kinds (`container`, `host`, `service`, `process`);
    - level 1-3 and a read safety class (`READ_ONLY_SAFE` or `READ_ONLY_SENSITIVE`);
    - a tag of its own and its executor.
    A sensitive read lists the value paths it keeps in `ALLOWED_FIELDS` (ACR-0028).

@@ -66,7 +66,7 @@ class PrometheusClient:
             raise ExecutorError("invalid_args", f"unknown signal {signal!r}")
         if mounts and not all(_MOUNT.fullmatch(m) for m in mounts.split("|")):
             raise ExecutorError("invalid_args", "mounts must be plain absolute paths")
-        return Template(self.signals[signal]).substitute(host=target.host, name=target.name, mounts=mounts)
+        return Template(self.signals[signal]).substitute(host=target.host, kind=target.kind, name=target.name, mounts=mounts)
 
     def range(self, signal: str, target: TargetRef, minutes: int, step_s: int,
               mounts: str = "", end_offset_s: int = 0) -> list[tuple[float, float]]:
