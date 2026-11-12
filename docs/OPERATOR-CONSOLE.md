@@ -116,7 +116,9 @@ The panel shows one of four statuses under each command:
 The rule for every comment: **it may only state what the output or the metrics show.** If the data is missing or
 inconclusive, Argus says so. A failing model or missing metrics give an `error`, never an invented comment, and the
 command's own result is never changed by the analysis. **Re-check** runs a retryable analysis again, one at a time per
-command: a second click while it runs, or a re-check of an analysis that cannot be retried, is refused (409). A
+command: a second click while it runs, or a re-check of an analysis that cannot be retried, is refused (409), and an
+unknown command is a 404. A re-check is checked against your read limit (refused with a 429 at the limit) but it adds no
+history row and no read, so it does not use any of the limit. A successful re-check is audited as `console.recheck`. A
 suggestion card offers **Insert** (it fills the input line) and **Copy**.
 
 ## Who may use it
@@ -150,9 +152,14 @@ The switches (all off or default as listed):
 - **History**, per incident: every command with its input, the command id and class, the status, the output (stored
   cut at 4 KB, with a flag when cut), the person and the times. A refused input is stored too, with status `rejected`
   and the refusal as its output. The `history` command and the history route read it back.
+- **A secret typed by mistake is not kept.** A refused input, and the message that may echo it, are passed through
+  Argus's redactor before they are stored, audited or shown. A pasted token, password or key shows in the history as
+  `[REDACTED]` (or a similar marker), never as typed. Output from a read goes through the same redactor in the tool that
+  produced it. Redaction is pattern-based: do not rely on it, and do not paste secrets into the console.
 - **Audit**, for every call, with `source: operator_console`, the person, the incident and the command id: `console.command`,
-  `console.refused`, `console.quota_refused`, `console.budget_refused`. For a write the audit records who **proposed**
-  and who **approved**, so a review can see when they are the same person.
+  `console.refused`, `console.quota_refused`, `console.budget_refused`, and `console.recheck` for a re-check that was
+  accepted. For a write the audit records who **proposed** and who **approved**, so a review can see when they are the
+  same person. A re-check that is refused (409, 404, 429) is answered but not audited.
 - **Sessions**: `console.session_opened` (the person and the reason) and `console.session_closed` (disconnect, time
   limit or sign-out) are audit rows of the incident, shown in its Audit tab. They are a record, not a gate.
 - **Refused use**: when a signed-in viewer, service, agent or narrowed token tries the console, the attempt is audited
@@ -183,10 +190,17 @@ The switches (all off or default as listed):
 - Metrics lag. A scrape is 15 s apart, so Argus waits and samples twice; a comment made too early can say "no change".
 - Reads are allowed on any existing incident, closed ones included, so a demo is not blocked when Argus closes an
   incident quickly. Writes need an open one.
-- **Not verified on the lab.** The console has been tested with fakes. Not yet checked on the real lab: that the API
-  process can run a read with its production wiring, the metric names and timing, the model credential in the API
-  process, the passkey approval, and the end-to-end scenarios. The rehearsal plan lists each as unconfirmed. The
-  database migrations for the history and the analysis run for real only in CI.
+- **A comment is grounded, not proven.** Every sentence must cite a real output line or metric, and the ranking is
+  computed by fixed rules, but the check proves the citation exists, not that the sentence is true. Log text reaches the
+  model. Read the output yourself; the comment never runs anything.
+- **Reads and proposals depend on the worker.** The API holds no executor token, so it cannot run them itself: they run
+  in the worker through `console_job` (migration 022). If no worker with the console on picks the job up, a read fails
+  after 30 s and a proposal after 120 s. A proposal that outlives the wait may still be created later by the worker,
+  with no `console.write.after` row in the audit (see the two-person rule's known gap above).
+- **Not verified on the lab.** The console has been tested with fakes. Not yet checked on the real lab: a read answered
+  through the worker (the merged job path has not been deployed or rehearsed on the lab), the metric names and
+  timing, the model credential in the API process, the passkey approval, and the end-to-end scenarios. The rehearsal
+  plan lists each as unconfirmed. The database migrations for the history and the analysis run for real only in CI.
 
 ## Troubleshooting
 
